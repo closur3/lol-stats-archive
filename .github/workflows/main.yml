@@ -17,7 +17,7 @@ jobs:
 
       - name: Fetch and Save Data
         env:
-          WORKER_URL: "gh-lol.closur3.workers.dev/archive"
+          WORKER_URL: "https://gh-lol.closur3.workers.dev/archive"
         run: |
           import requests
           import os
