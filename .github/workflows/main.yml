@@ -1,0 +1,56 @@
+name: Archive Stats
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 需要写入权限来提交代码
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Fetch and Save Data
+        env:
+          WORKER_URL: "gh-lol.closur3.workers.dev/archive"
+        run: |
+          import requests
+          import os
+          import json
+
+          url = os.environ["WORKER_URL"]
+          print(f"Fetching data from {url}...")
+          
+          try:
+              resp = requests.get(url, timeout=30)
+              resp.raise_for_status()
+              data = resp.json()
+              
+              if not data:
+                  print("No data received.")
+                  exit(0)
+
+              for file_path, content in data.items():
+                  # 确保目录存在
+                  os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                  
+                  # 写入文件
+                  with open(file_path, "w", encoding="utf-8") as f:
+                      f.write(content)
+                  print(f"Saved: {file_path}")
+                  
+          except Exception as e:
+              print(f"Error: {e}")
+              exit(1)
+        shell: python
+
+      - name: Commit and Push
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🗃️ Archive stats (Auto)"
+          file_pattern: 'tournament/*.md'
