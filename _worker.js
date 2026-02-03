@@ -4,7 +4,7 @@
 // 变更: CSS 增加隐藏滚动条逻辑，界面更像原生 App
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.38-NoScrollbar"; 
+const UI_VERSION = "2026-02-03-V36.2.38-NoScrollbar-1"; 
 
 // --- 1. 工具库 ---
 const utils = {
