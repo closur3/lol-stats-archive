@@ -1,13 +1,13 @@
 // ====================================================
-// 🥇 Worker V36.2.54: 固定行高与布局 (Fixed Row Height & Layout)
-// 基于: V36.2.53
+// 🥇 Worker V36.2.49: 智能赛程版 (Smart Schedule)
+// 基于: V36.2.48
 // 变更: 
-// 1. 卡片内比赛行距强制固定，不再随高度拉伸
-// 2. 移除空卡片占位，无赛程直接隐藏
-// 3. 卡片宽度锁定为 1/4，保持四列栅格布局
+// 1. 赛程逻辑升级：自动跳过休赛日，抓取未来最近的4个有效比赛日
+// 2. 布局优化：使用 Grid 布局，卡片数量不足4个时保持宽度不拉伸
+// 3. 空状态：无比赛时显示优雅提示
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.54-FixedRows";
+const UI_VERSION = "2026-02-04-V36.2.49-SmartSchedule";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -23,6 +23,7 @@ const utils = {
             time: bj.toISOString().slice(11, 16)
         };
     },
+    // [已移除] getFutureDates 不再需要，由动态逻辑替代
     shortName: (n, teamMap) => {
         if(!n) return "Unknown";
         if(!teamMap) return n;
@@ -53,7 +54,7 @@ const utils = {
     }
 };
 
-// --- 2. GitHub 读取层 ---
+// --- 2. GitHub 读取层 (保持不变) ---
 const gh = {
     fetchJson: async (env, path) => {
         const url = `https://api.github.com/repos/${env.GITHUB_USER}/${env.GITHUB_REPO}/contents/${path}`;
@@ -75,7 +76,7 @@ const gh = {
     }
 };
 
-// --- 3. 抓取逻辑 ---
+// --- 3. 抓取逻辑 (保持不变) ---
 async function fetchWithRetry(url, logger, maxRetries = 3) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -135,10 +136,12 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     let maxDateTs = 0;
     let grandTotal = 0;
     
+    // Logic V2: 动态收集
     const todayStr = utils.getNow().date;
+    const allFutureMatches = {}; // key: YYYY-MM-DD, val: [match1, match2]
+
     let matchesTodayCount = 0;
     let pendingTodayCount = 0;
-    let tempScheduleMap = {}; 
 
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const rawMatches = allRawMatches[tourn.slug] || [];
@@ -175,15 +178,14 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const day = bjTime.getUTCDate().toString().padStart(2,'0');
                 dateDisplay = `${month}-${day} ${matchTimeStr}`;
 
+                // --- 核心变更: 收集所有 今天及未来 的比赛 ---
                 if (matchDateStr >= todayStr) {
-                    if (!tempScheduleMap[matchDateStr]) tempScheduleMap[matchDateStr] = [];
-                    
                     if (matchDateStr === todayStr) {
                         matchesTodayCount++;
                         if (!isFinished) pendingTodayCount++;
                     }
-
-                    tempScheduleMap[matchDateStr].push({
+                    if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
+                    allFutureMatches[matchDateStr].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
                         tourn: tourn.region, tournSlug: tourn.slug 
@@ -229,11 +231,9 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
                 const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
                 const hour = bj.getUTCHours();
-                const hourNum = parseInt(hour);
-
                 let targetH = null;
-                if(tourn.region === "LCK") targetH = (hourNum <= 16) ? 16 : 18;
-                if(tourn.region === "LPL") targetH = (hourNum <= 15) ? 15 : (hourNum <= 17 ? 17 : 19);
+                if(tourn.region === "LCK") targetH = (hour <= 16) ? 16 : 18;
+                if(tourn.region === "LPL") targetH = (hour <= 15) ? 15 : (hour <= 17 ? 17 : 19);
                 
                 const add = (grid, h, d) => { if(grid[h] && grid[h][d]) { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); } };
                 if(targetH) { add(timeGrid[tourn.region], targetH, pyDay); add(timeGrid[tourn.region], "Total", pyDay); add(timeGrid[tourn.region], targetH, 7); add(timeGrid[tourn.region], "Total", 7); }
@@ -248,14 +248,13 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         grandTotal += processed;
     }
 
-    const sortedDates = Object.keys(tempScheduleMap).sort();
-    // ⚡⚡⚡ 逻辑：只取前4天，不再填充 null ⚡⚡⚡
-    const displayKeys = sortedDates.slice(0, 4);
-    
+    // --- 核心变更: 整理赛程，只取前4天 ---
     let scheduleMap = {};
-    displayKeys.forEach(k => {
-        scheduleMap[k] = tempScheduleMap[k];
-        scheduleMap[k].sort((a,b) => a.time.localeCompare(b.time));
+    const sortedFutureDates = Object.keys(allFutureMatches).sort(); // 自动日期排序
+    const activeDates = sortedFutureDates.slice(0, 4); // 只要前4个有比赛的日子
+    
+    activeDates.forEach(d => {
+        scheduleMap[d] = allFutureMatches[d].sort((a,b) => a.time.localeCompare(b.time));
     });
 
     let statusText = `<span style="color:#9ca3af; margin-left:6px">💤 NO MATCHES</span>`;
@@ -265,10 +264,10 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         else { nextStreak = currentStreak >= 1 ? 2 : 1; statusText = nextStreak === 2 ? `<span style="color:#9ca3af; margin-left:6px; font-weight:bold">● FINISHED</span>` : `<span style="color:#f59e0b; margin-left:6px; font-weight:bold">🟡 VERIFYING...</span>`; }
     }
 
-    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, displayKeys, nextStreak };
+    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
 }
 
-// --- 5. Markdown 生成器 ---
+// --- 5. Markdown 生成器 (保持不变) ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\n`;
     md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
@@ -367,35 +366,14 @@ const PYTHON_STYLE = `
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
     .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
     
-    .sch-container { display: flex; gap: 15px; margin-top: 40px; justify-content: flex-start; }
+    /* Grid Layout for Schedule */
+    .sch-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; }
+    .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; }
+    .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
     
-    /* ⚡⚡⚡ 布局核心：固定25%宽度，不拉伸 ⚡⚡⚡ */
-    .sch-card { 
-        flex: 0 0 calc(25% - 12px); 
-        display: flex; 
-        flex-direction: column; 
-        background: #fff; 
-        border-radius: 12px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
-        border: 1px solid #e2e8f0; 
-        overflow: hidden; 
-        min-width: 260px; 
-        /* 移除 align-self/items stretch，让高度自动，由 flex container 拉伸 */
-    }
-    
-    .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; height: 20px; align-items: center; flex: 0 0 auto; }
-    
-    /* ⚡⚡⚡ 表格不再占据所有剩余空间 ⚡⚡⚡ */
-    .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; flex: 0 0 auto; }
+    .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; }
     .sch-table th { padding: 8px; font-size: 12px; }
-    
-    /* ⚡⚡⚡ 强制固定行高 ⚡⚡⚡ */
-    .sch-table td { padding: 0 4px; vertical-align: middle; height: 32px; box-sizing: border-box; }
-    
-    /* 填充卡片底部的空白，让内容靠上对齐 */
-    .sch-spacer { flex: 1; background: #fff; }
-
-    .sch-empty-box { flex: 1; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; user-select: none; }
+    .sch-table td { padding: 8px 4px; vertical-align: middle; }
     
     .sch-tag-left { width: 35px; text-align: left; padding-left: 5px; }
     .sch-tag-right { width: 35px; text-align: right; padding-right: 5px; }
@@ -409,8 +387,10 @@ const PYTHON_STYLE = `
     .tag-pill { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; white-space: nowrap; }
     .tag-bo-gold { background: #b45309; color: white; }
     
-    @media (max-width: 1100px) { .sch-container { flex-wrap: wrap; } .sch-card { flex: 0 0 calc(50% - 8px); } }
-    @media (max-width: 600px) { .sch-card { flex: 0 0 100%; } .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
+    .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+
+    @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
     
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
     .modal-content { background-color: #fefefe; margin: 12% auto; padding: 25px; border: 1px solid #888; width: 420px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: fadeIn 0.2s; }
@@ -541,10 +521,9 @@ const PYTHON_JS = `
     </script>
 `;
 
-function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig, displayKeys) {
+function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig) {
     if (!statusText) statusText = `<span style="color:#9ca3af; margin-left:6px">Status Unknown</span>`;
     if (!scheduleMap) scheduleMap = {};
-    if (!displayKeys) displayKeys = [null, null, null, null];
 
     const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
 
@@ -647,14 +626,13 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     }
     timeHtml += "</tr></tbody></table></div>";
 
-    let scheduleHtml = `<div class="sch-container">`;
+    let scheduleHtml = "";
+    const dates = Object.keys(scheduleMap).sort();
     
-    // ⚡⚡⚡ 逻辑：检查是否完全没有赛程
-    const hasAnyMatch = displayKeys.some(k => k !== null);
-
-    if (!hasAnyMatch) {
-         scheduleHtml += `<div class="sch-card sch-card-empty"><div class="sch-empty-box">No Matches Scheduled</div></div>`;
+    if (dates.length === 0) {
+        scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
     } else {
+        scheduleHtml = `<div class="sch-container">`;
         const getRateHtml = (teamName, slug, bo) => {
             const stats = globalStats[slug];
             if(!stats || !stats[teamName]) return "";
@@ -666,9 +644,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             return `<span style="font-weight:400;color:#94a3b8;font-size:11px">(${Math.round(r*100)}%)</span>`;
         };
 
-        displayKeys.forEach(d => {
-            if (!d) return; // ⚡⚡⚡ 逻辑：直接跳过空键值，不渲染空卡片 ⚡⚡⚡
-
+        dates.forEach(d => {
             const matches = scheduleMap[d];
             const isToday = d === utils.getNow().date;
             const titleColor = isToday ? "#1e40af" : "#334155";
@@ -709,14 +685,11 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                     <td class="sch-margin"></td>
                 </tr>`;
             });
-            
-            // 补充 spacer
-            cardHtml += `</tbody></table><div class="sch-spacer"></div></div>`;
+            cardHtml += `</tbody></table></div>`;
             scheduleHtml += cardHtml;
         });
+        scheduleHtml += `</div>`;
     }
-
-    scheduleHtml += `</div>`;
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>LoL Insights</title><style>${PYTHON_STYLE}</style>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
@@ -733,7 +706,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     ${PYTHON_JS}</body></html>`;
 }
 
-// --- 5. 主控 ---
+// --- 5. 主控 (保持不变) ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -790,7 +763,7 @@ async function runUpdate(env, force=false) {
     }
     
     let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
-    const { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, displayKeys, nextStreak } = runFullAnalysis(allRaw, oldMeta.finish_streak, runtimeConfig);
+    const { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak } = runFullAnalysis(allRaw, oldMeta.finish_streak, runtimeConfig);
     
     if (oldMeta.total > 0 && grandTotal < oldMeta.total * 0.9 && !force) {
         l.error(`🛑 Rollback detected (${grandTotal} < ${oldMeta.total}). Skipped.`);
@@ -798,7 +771,7 @@ async function runUpdate(env, force=false) {
     }
 
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
-        globalStats, timeGrid, debugInfo, maxDateTs, statusText, scheduleMap, displayKeys,
+        globalStats, timeGrid, debugInfo, maxDateTs, statusText, scheduleMap, 
         updateTime: utils.getNow(), runtimeConfig 
     }));
     await env.LOL_KV.put("META", JSON.stringify({ total: grandTotal, finish_streak: nextStreak }));
@@ -899,8 +872,7 @@ export default {
             cache.maxDateTs, 
             cache.statusText, 
             cache.scheduleMap, 
-            cache.runtimeConfig || { TOURNAMENTS: [] },
-            cache.displayKeys || [] // 传入缓存的显示键
+            cache.runtimeConfig || { TOURNAMENTS: [] }
         );
 
         return new Response(html, {headers:{"content-type":"text/html;charset=utf-8"}});
