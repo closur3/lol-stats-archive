@@ -1,13 +1,12 @@
 // ====================================================
-// 🥇 Worker V36.2.49: 智能赛程版 (Smart Schedule)
-// 基于: V36.2.48
+// 🥇 Worker V36.2.51: 完美赛程版
+// 基于: V36.2.50
 // 变更: 
-// 1. 赛程逻辑升级：自动跳过休赛日，抓取未来最近的4个有效比赛日
-// 2. 布局优化：使用 Grid 布局，卡片数量不足4个时保持宽度不拉伸
-// 3. 空状态：无比赛时显示优雅提示
+// 1. 修复列表模式下缺失"打满率"的问题
+// 2. 保持左右对称显示：(33%) TeamA vs TeamB (50%)
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.49-SmartSchedule";
+const UI_VERSION = "2026-02-04-V36.2.51-FullRateRestored";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -23,12 +22,12 @@ const utils = {
             time: bj.toISOString().slice(11, 16)
         };
     },
-    // [已移除] getFutureDates 不再需要，由动态逻辑替代
     shortName: (n, teamMap) => {
         if(!n) return "Unknown";
         if(!teamMap) return n;
         const upper = n.toUpperCase();
-        if (["TBD", "TBA", "TO BE DETERMINED"].some(x => upper.includes(x))) return null;
+        // 允许 TBD 通过
+        if (["TBD", "TBA", "TO BE DETERMINED"].some(x => upper.includes(x))) return "TBD";
         for(let[k,v] of Object.entries(teamMap)) if(upper.includes(k.toUpperCase())) return v;
         return n.replace(/(Esports|Gaming|Academy|Team|Club)/gi, "").trim();
     },
@@ -54,7 +53,7 @@ const utils = {
     }
 };
 
-// --- 2. GitHub 读取层 (保持不变) ---
+// --- 2. GitHub 读取层 ---
 const gh = {
     fetchJson: async (env, path) => {
         const url = `https://api.github.com/repos/${env.GITHUB_USER}/${env.GITHUB_REPO}/contents/${path}`;
@@ -76,7 +75,7 @@ const gh = {
     }
 };
 
-// --- 3. 抓取逻辑 (保持不变) ---
+// --- 3. 抓取逻辑 ---
 async function fetchWithRetry(url, logger, maxRetries = 3) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -106,7 +105,8 @@ async function fetchAllMatches(overviewPage, logger) {
     while(true) {
         const params = new URLSearchParams({
             action: "cargoquery", format: "json", tables: "MatchSchedule",
-            fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage",
+            // 抓取 Tab 和 Round
+            fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
             where: `OverviewPage='${overviewPage}'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
         });
         try {
@@ -136,14 +136,12 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     let maxDateTs = 0;
     let grandTotal = 0;
     
-    // Logic V2: 动态收集
     const todayStr = utils.getNow().date;
-    const allFutureMatches = {}; // key: YYYY-MM-DD, val: [match1, match2]
-
+    const allFutureMatches = {}; 
     let matchesTodayCount = 0;
     let pendingTodayCount = 0;
 
-    for (const tourn of runtimeConfig.TOURNAMENTS) {
+    runtimeConfig.TOURNAMENTS.forEach((tourn, tournIdx) => {
         const rawMatches = allRawMatches[tourn.slug] || [];
         const stats = {};
         let processed = 0, skipped = 0;
@@ -178,17 +176,26 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const day = bjTime.getUTCDate().toString().padStart(2,'0');
                 dateDisplay = `${month}-${day} ${matchTimeStr}`;
 
-                // --- 核心变更: 收集所有 今天及未来 的比赛 ---
                 if (matchDateStr >= todayStr) {
                     if (matchDateStr === todayStr) {
                         matchesTodayCount++;
                         if (!isFinished) pendingTodayCount++;
                     }
                     if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
+                    
+                    // 智能生成阶段名称 Tab > Round
+                    let blockName = m.Tab || "";
+                    if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") {
+                        if (m.Round) blockName = m.Round;
+                    }
+                    if (!blockName) blockName = "";
+
                     allFutureMatches[matchDateStr].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
-                        tourn: tourn.region, tournSlug: tourn.slug 
+                        tourn: tourn.region, tournSlug: tourn.slug,
+                        tournIndex: tournIdx, // 用于排序
+                        blockName: blockName  // 用于显示
                     });
                 }
             }
@@ -246,15 +253,18 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
         globalStats[tourn.slug] = stats;
         grandTotal += processed;
-    }
+    });
 
-    // --- 核心变更: 整理赛程，只取前4天 ---
     let scheduleMap = {};
-    const sortedFutureDates = Object.keys(allFutureMatches).sort(); // 自动日期排序
-    const activeDates = sortedFutureDates.slice(0, 4); // 只要前4个有比赛的日子
+    const sortedFutureDates = Object.keys(allFutureMatches).sort();
+    const activeDates = sortedFutureDates.slice(0, 4); 
     
     activeDates.forEach(d => {
-        scheduleMap[d] = allFutureMatches[d].sort((a,b) => a.time.localeCompare(b.time));
+        // 先按 联赛优先级 (tournIndex) 排序，再按 时间 排序
+        scheduleMap[d] = allFutureMatches[d].sort((a,b) => {
+            if (a.tournIndex !== b.tournIndex) return a.tournIndex - b.tournIndex;
+            return a.time.localeCompare(b.time);
+        });
     });
 
     let statusText = `<span style="color:#9ca3af; margin-left:6px">💤 NO MATCHES</span>`;
@@ -368,24 +378,32 @@ const PYTHON_STYLE = `
     
     /* Grid Layout for Schedule */
     .sch-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; }
-    .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; }
+    .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
     .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
     
-    .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; }
-    .sch-table th { padding: 8px; font-size: 12px; }
-    .sch-table td { padding: 8px 4px; vertical-align: middle; }
+    .sch-body { display: flex; flex-direction: column; flex: 1; padding-bottom: 5px; }
     
-    .sch-tag-left { width: 35px; text-align: left; padding-left: 5px; }
-    .sch-tag-right { width: 35px; text-align: right; padding-right: 5px; }
-    .sch-team-left { text-align: right; padding-right: 8px; font-weight: 700; white-space: nowrap; }
-    .sch-team-right { text-align: left; padding-left: 8px; font-weight: 700; white-space: nowrap; }
-    .sch-center { text-align: center; width: 40px; }
-    .sch-live { color: #10b981; font-weight:bold; }
-    .sch-score { font-weight: 700; font-size: 13px; }
-    .sch-margin { width: 1px; }
+    /* Spine Header (LPL / WEEK 1) */
+    .sch-group-header { 
+        display: flex; justify-content: center; align-items: center; 
+        background: #fff; border-bottom: 1px solid #f1f5f9; border-top: 1px solid #f1f5f9;
+        padding: 8px 0; color: #475569; font-size: 11px; letter-spacing: 0.5px;
+    }
+    .sch-group-header:first-child { border-top: none; }
     
-    .tag-pill { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; white-space: nowrap; }
-    .tag-bo-gold { background: #b45309; color: white; }
+    /* Match Row */
+    .sch-row { 
+        display: flex; align-items: center; padding: 10px 15px; 
+        border-bottom: 1px solid #f8fafc; font-size: 13px; color: #334155;
+    }
+    .sch-row:last-child { border-bottom: none; }
+    .sch-time { width: 45px; color: #94a3b8; font-family: monospace; font-size: 12px; font-weight: 500; }
+    .sch-vs { flex: 1; display: flex; align-items: center; gap: 6px; font-weight: 700; }
+    .sch-pill { margin-left: auto; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
+    .sch-pill.gold { background: #b45309; color: white; }
+    
+    .sch-live-score { color: #10b981; font-family: monospace; margin-left: 8px; font-weight: 700; }
+    .sch-fin-score { color: #334155; font-family: monospace; margin-left: 8px; font-weight: 700; }
     
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
 
@@ -534,9 +552,21 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         return `<div class="spine-row"><span class="spine-l">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r">${parts[1]}</span></div>`;
     };
 
+    // 辅助函数：获取打满率HTML
+    const getRateHtml = (teamName, slug, bo) => {
+        const stats = globalStats[slug];
+        if(!stats || !stats[teamName]) return "";
+        const s = stats[teamName];
+        let r = null;
+        if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
+        else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
+        if(r === null) return "";
+        return `<span style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px">(${Math.round(r*100)}%)</span>`;
+    };
+
     let tablesHtml = "";
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
-        const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]) : [];
+        const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
         const tableId = `t${idx}`;
         const dbg = debugInfo[t.slug] || {raw:0, processed:0};
         const debugLabel = `<span style="font-size:10px;color:#94a3b8;font-weight:normal;margin-left:10px">(Fetched:${dbg.raw}/Valid:${dbg.processed})</span>`;
@@ -633,16 +663,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
     } else {
         scheduleHtml = `<div class="sch-container">`;
-        const getRateHtml = (teamName, slug, bo) => {
-            const stats = globalStats[slug];
-            if(!stats || !stats[teamName]) return "";
-            const s = stats[teamName];
-            let r = null;
-            if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
-            else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
-            if(r === null) return "";
-            return `<span style="font-weight:400;color:#94a3b8;font-size:11px">(${Math.round(r*100)}%)</span>`;
-        };
 
         dates.forEach(d => {
             const matches = scheduleMap[d];
@@ -651,41 +671,62 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             const titleBg = isToday ? "#eff6ff" : "#f8fafc";
             const titleText = isToday ? `📅 ${d.slice(5)}` : `🗓️ ${d.slice(5)}`;
             
-            let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><table class="sch-table"><tbody>`;
+            let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
             
+            let lastGroupKey = "";
+
             matches.forEach(m => {
+                const blockName = m.blockName ? m.blockName : "";
+                const groupKey = `${m.tourn}_${blockName}`;
+
+                if (groupKey !== lastGroupKey) {
+                    const blockDisplay = blockName || "REGULAR"; 
+                    cardHtml += `<div class="sch-group-header">
+                        <div class="spine-row" style="width:100px">
+                            <span class="spine-l" style="font-weight:800">${m.tourn}</span>
+                            <span class="spine-sep">/</span>
+                            <span class="spine-r" style="font-weight:800; opacity:0.7">${blockDisplay}</span>
+                        </div>
+                    </div>`;
+                    lastGroupKey = groupKey;
+                }
+
                 const boLabel = m.bo ? `BO${m.bo}` : '';
                 const isBo5 = m.bo === 5;
-                const boClass = isBo5 ? "tag-bo-gold" : ""; 
+                const boClass = isBo5 ? "sch-pill gold" : "sch-pill"; 
                 
-                let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
-                let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
+                const isTbd1 = m.t1 === "TBD";
+                const isTbd2 = m.t2 === "TBD";
+                const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`;
+                const t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
+                const t1Class = isTbd1 ? "team-text" : "team-text team-clickable";
+                const t2Class = isTbd2 ? "team-text" : "team-text team-clickable";
+                const t1Style = isTbd1 ? "color:#94a3b8" : "";
+                const t2Style = isTbd2 ? "color:#94a3b8" : "";
 
-                let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
-                
-                if (m.is_finished) {
-                    const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                    const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                    centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-                } else if (m.is_live) {
-                    const liveStyle = "color:#10b981;font-weight:700";
-                    centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
-                }
-                
+                // 获取打满率
                 const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
                 const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
 
-                cardHtml += `<tr>
-                    <td class="sch-margin"></td>
-                    <td class="sch-tag-left">${leftTags}</td>
-                    <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
-                    <td class="sch-center">${centerContent}</td>
-                    <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
-                    <td class="sch-tag-right">${rightTag}</td>
-                    <td class="sch-margin"></td>
-                </tr>`;
+                // 左右拼接：率+队名 vs 队名+率
+                let vsContent = `<span class="${t1Class}" ${t1Click} style="${t1Style}">${r1}${m.t1}</span> <span style="color:#cbd5e1;font-size:10px">vs</span> <span class="${t2Class}" ${t2Click} style="${t2Style}">${m.t2}${r2}</span>`;
+                
+                if (m.is_finished) {
+                     const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
+                     const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
+                     vsContent += `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span>-<span style="${s2Style}">${m.s2}</span></span>`;
+                } else if (m.is_live) {
+                    vsContent += `<span class="sch-live-score">${m.s1}-${m.s2}</span>`;
+                }
+
+                cardHtml += `<div class="sch-row">
+                    <span class="sch-time">${m.time}</span>
+                    <div class="sch-vs">${vsContent}</div>
+                    <span class="${boClass}">${boLabel}</span>
+                </div>`;
             });
-            cardHtml += `</tbody></table></div>`;
+
+            cardHtml += `</div></div>`; 
             scheduleHtml += cardHtml;
         });
         scheduleHtml += `</div>`;
