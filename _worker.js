@@ -4,7 +4,7 @@
 // 变更: 将历史战绩中的 Emoji 图标 (✅❌🕒🔵) 字号统一放大至 18px
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.48-BigEmojis-1";
+const UI_VERSION = "2026-02-04-V36.2.48-BigEmojis-Schedule";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -395,7 +395,6 @@ const PYTHON_STYLE = `
     .match-item.dist-layout { grid-template-columns: 48px 1fr 24px 1fr 70px; }
 
     .col-date { font-family: monospace; font-size: 13px; color: #94a3b8; text-align: left; }
-    /* 🔥 BIG EMOJI CHANGE: 13px -> 18px */
     .col-res { font-weight: 900; font-size: 16px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; min-width: 0; }
     .col-vs { text-align: center; color: #94a3b8; font-size: 10px; }
@@ -405,7 +404,6 @@ const PYTHON_STYLE = `
     .hist-win { color: #10b981; } .hist-loss { color: #f43f5e; }
     .hist-score { font-family: monospace; font-weight: 700; font-size: 16px; color: #0f172a; }
     .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
-    /* 🔥 BIG EMOJI CHANGE: 12px -> 18px */
     .hist-icon { font-size: 16px; }
     
     .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
@@ -487,7 +485,7 @@ const PYTHON_JS = `
         if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
         const data = window.g_stats[slug][teamName];
         const history = data.history || [];
-        document.getElementById('modalTitle').innerText = teamName + " - Match History";
+        document.getElementById('modalTitle').innerText = teamName + " - Schedule";
         
         const resMap = {
             'W': { t: '✅', c: '' },
