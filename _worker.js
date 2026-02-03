@@ -1,12 +1,13 @@
 // ====================================================
-// 🥇 Worker V36.2.53: 优雅空状态设计 (Elegant Empty State)
-// 基于: V36.2.52
+// 🥇 Worker V36.2.54: 固定行高与布局 (Fixed Row Height & Layout)
+// 基于: V36.2.53
 // 变更: 
-// 1. 空赛程卡片不再显示空的 Header，改为整体虚线边框设计
-// 2. 增加微型斜纹背景 (Striped Background)，提升设计质感
+// 1. 卡片内比赛行距强制固定，不再随高度拉伸
+// 2. 移除空卡片占位，无赛程直接隐藏
+// 3. 卡片宽度锁定为 1/4，保持四列栅格布局
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.53-ElegantDesign";
+const UI_VERSION = "2026-02-04-V36.2.54-FixedRows";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -248,18 +249,13 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     }
 
     const sortedDates = Object.keys(tempScheduleMap).sort();
+    // ⚡⚡⚡ 逻辑：只取前4天，不再填充 null ⚡⚡⚡
     const displayKeys = sortedDates.slice(0, 4);
-    
-    while (displayKeys.length < 4) {
-        displayKeys.push(null);
-    }
     
     let scheduleMap = {};
     displayKeys.forEach(k => {
-        if (k) {
-            scheduleMap[k] = tempScheduleMap[k];
-            scheduleMap[k].sort((a,b) => a.time.localeCompare(b.time));
-        }
+        scheduleMap[k] = tempScheduleMap[k];
+        scheduleMap[k].sort((a,b) => a.time.localeCompare(b.time));
     });
 
     let statusText = `<span style="color:#9ca3af; margin-left:6px">💤 NO MATCHES</span>`;
@@ -371,39 +367,35 @@ const PYTHON_STYLE = `
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
     .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
     
-    .sch-container { display: flex; gap: 15px; margin-top: 40px; justify-content: space-between; }
+    .sch-container { display: flex; gap: 15px; margin-top: 40px; justify-content: flex-start; }
     
-    .sch-card { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; min-width: 260px; min-height: 160px; }
-    
-    /* ⚡⚡⚡ 优雅空状态样式 ⚡⚡⚡ */
-    .sch-card-empty { 
-        background-color: #f8fafc;
-        border: 2px dashed #e2e8f0; 
-        box-shadow: none;
-        background-image: linear-gradient(45deg, #f1f5f9 25%, transparent 25%, transparent 50%, #f1f5f9 50%, #f1f5f9 75%, transparent 75%, transparent);
-        background-size: 20px 20px;
-    }
-    
-    .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; height: 20px; align-items: center; }
-    
-    .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; flex: 1; }
-    .sch-table th { padding: 8px; font-size: 12px; }
-    .sch-table td { padding: 8px 4px; vertical-align: middle; }
-    
-    /* 让文字在空卡片中绝对居中 */
-    .sch-empty-box { 
-        flex: 1; 
+    /* ⚡⚡⚡ 布局核心：固定25%宽度，不拉伸 ⚡⚡⚡ */
+    .sch-card { 
+        flex: 0 0 calc(25% - 12px); 
         display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        color: #94a3b8; 
-        font-size: 13px; 
-        font-weight: 700; 
-        letter-spacing: 1.5px; 
-        text-transform: uppercase; 
-        user-select: none;
-        opacity: 0.6;
+        flex-direction: column; 
+        background: #fff; 
+        border-radius: 12px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+        border: 1px solid #e2e8f0; 
+        overflow: hidden; 
+        min-width: 260px; 
+        /* 移除 align-self/items stretch，让高度自动，由 flex container 拉伸 */
     }
+    
+    .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; height: 20px; align-items: center; flex: 0 0 auto; }
+    
+    /* ⚡⚡⚡ 表格不再占据所有剩余空间 ⚡⚡⚡ */
+    .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; flex: 0 0 auto; }
+    .sch-table th { padding: 8px; font-size: 12px; }
+    
+    /* ⚡⚡⚡ 强制固定行高 ⚡⚡⚡ */
+    .sch-table td { padding: 0 4px; vertical-align: middle; height: 32px; box-sizing: border-box; }
+    
+    /* 填充卡片底部的空白，让内容靠上对齐 */
+    .sch-spacer { flex: 1; background: #fff; }
+
+    .sch-empty-box { flex: 1; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; user-select: none; }
     
     .sch-tag-left { width: 35px; text-align: left; padding-left: 5px; }
     .sch-tag-right { width: 35px; text-align: right; padding-right: 5px; }
@@ -417,8 +409,8 @@ const PYTHON_STYLE = `
     .tag-pill { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; white-space: nowrap; }
     .tag-bo-gold { background: #b45309; color: white; }
     
-    @media (max-width: 1100px) { .sch-container { flex-wrap: wrap; } .sch-card { min-width: 45%; } }
-    @media (max-width: 600px) { .sch-card { min-width: 100%; } .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
+    @media (max-width: 1100px) { .sch-container { flex-wrap: wrap; } .sch-card { flex: 0 0 calc(50% - 8px); } }
+    @media (max-width: 600px) { .sch-card { flex: 0 0 100%; } .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
     
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
     .modal-content { background-color: #fefefe; margin: 12% auto; padding: 25px; border: 1px solid #888; width: 420px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: fadeIn 0.2s; }
@@ -661,10 +653,8 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     const hasAnyMatch = displayKeys.some(k => k !== null);
 
     if (!hasAnyMatch) {
-         // 完全无赛程：显示一个单独的、优雅的宽幅空状态
          scheduleHtml += `<div class="sch-card sch-card-empty"><div class="sch-empty-box">No Matches Scheduled</div></div>`;
     } else {
-        // 部分或全部有赛程：循环渲染4个槽位（含空槽位占位）
         const getRateHtml = (teamName, slug, bo) => {
             const stats = globalStats[slug];
             if(!stats || !stats[teamName]) return "";
@@ -677,11 +667,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         };
 
         displayKeys.forEach(d => {
-            if (!d) {
-                // 优雅的空状态占位卡片 (使用 sch-card-empty class)
-                scheduleHtml += `<div class="sch-card sch-card-empty"><div class="sch-empty-box">No Match</div></div>`;
-                return;
-            }
+            if (!d) return; // ⚡⚡⚡ 逻辑：直接跳过空键值，不渲染空卡片 ⚡⚡⚡
 
             const matches = scheduleMap[d];
             const isToday = d === utils.getNow().date;
@@ -724,7 +710,8 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 </tr>`;
             });
             
-            cardHtml += `</tbody></table></div>`;
+            // 补充 spacer
+            cardHtml += `</tbody></table><div class="sch-spacer"></div></div>`;
             scheduleHtml += cardHtml;
         });
     }
