@@ -1,5 +1,5 @@
 name = "lol-stats"
-main = "worker.js"  # 👈 关键！这里写什么，你的JS文件就得叫什么
+main = "_worker.js"
 compatibility_date = "2026-02-03"
 
 [[kv_namespaces]]
