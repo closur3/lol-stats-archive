@@ -2,6 +2,10 @@ name = "lol-stats"
 main = "_worker.js"
 compatibility_date = "2026-02-03"
 
+[vars]
+GITHUB_USER = "closur3"
+GITHUB_REPO = "lol-stats-archive"
+
 [[kv_namespaces]]
 binding = "LOL_KV"
 id = "c96e310d082645b8a8fe254db1c3bc92"
