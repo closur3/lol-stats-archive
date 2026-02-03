@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.44: 机场翻页屏版 (Ghost 0 + Bold)
-// 基于: V36.2.43
-// 变更: 引入隐形"0"占位符，强制所有数字按2位数对齐，并对分数进行加粗处理，实现严丝合缝的工业级对齐
+// 🥇 Worker V36.2.45: 绝对中轴 + 强力粗体版
+// 基于: V36.2.43 (回退 V44 的隐形占位逻辑)
+// 变更: 移除隐形"0"补位，回归原始数据的绝对中轴对齐，并确保数字部分加粗显示
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.44-GhostBold"; 
+const UI_VERSION = "2026-02-03-V36.2.45-BoldSpine"; 
 
 // --- 1. 工具库 ---
 const utils = {
@@ -333,14 +333,11 @@ const PYTHON_STYLE = `
         letter-spacing: 0;
     }
 
-    /* 🔥 NEW: Spine Alignment for Main Table (Stats) */
+    /* 🔥 Spine Alignment for Main Table (Stats) - BOLD NUMBERS */
     .spine-row { display: flex; justify-content: center; align-items: center; width: 100%; }
-    .spine-l { flex: 1; text-align: right; font-weight: 700; } /* 🔥 Bold & Right Align */
-    .spine-r { flex: 1; text-align: left; font-weight: 700; } /* 🔥 Bold & Left Align */
-    .spine-sep { width: 12px; text-align: center; opacity: 0.5; font-weight: normal; } /* The separator */
-    
-    /* 🔥 Ghost 0 Style */
-    .ghost { visibility: hidden; } /* Takes up space but invisible */
+    .spine-l { flex: 1; text-align: right; font-weight: 700; } /* 🔥 Bold */
+    .spine-r { flex: 1; text-align: left; font-weight: 700; } /* 🔥 Bold */
+    .spine-sep { width: 12px; text-align: center; opacity: 0.5; font-weight: normal; } /* Separator stays normal */
 
     /* Time Grid Spine */
     .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; }
@@ -440,9 +437,7 @@ const PYTHON_JS = `
     }
     function parseValue(v) {
         if(v==="-")return -1; if(v.includes('%'))return parseFloat(v);
-        // 🔥 Handle new Spine Layout HTML in sort logic
-        // The innerText of the spine div usually comes out as "03/10" (with ghost 0), we need to handle that.
-        // Actually, innerText will include the ghost 0, so "03" parses to 3 correctly!
+        // 🔥 Reverted Ghost logic, regular parsing is fine for Spine layout (v.split works on innerText)
         if(v.includes('/')){let p=v.split('/');return p[1]==='-'?-1:parseFloat(p[0])/parseFloat(p[1]);}
         if(v.includes('-')&&v.split('-').length===2)return parseFloat(v.split('-')[0]);
         const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
@@ -510,22 +505,12 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
 
     const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
 
-    // 🔥 Helper: Add Ghost 0 padding
-    const pad = (n) => {
-        const s = n.toString();
-        // If single digit, prepend invisible 0
-        return s.length === 1 ? `<span class="ghost">0</span>${s}` : s;
-    };
-
-    // 🔥 Helper to generate Spine HTML with Padding
+    // 🔥 Helper to generate Spine HTML (NO GHOST, JUST BOLD)
     const mkSpine = (val, sep) => {
         if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
         const parts = val.split(sep);
         if(parts.length !== 2) return val;
-        // Apply pad() to both numbers
-        const p1 = pad(parts[0]);
-        const p2 = pad(parts[1]);
-        return `<div class="spine-row"><span class="spine-l">${p1}</span><span class="spine-sep">${sep}</span><span class="spine-r">${p2}</span></div>`;
+        return `<div class="spine-row"><span class="spine-l">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r">${parts[1]}</span></div>`;
     };
 
     let tablesHtml = "";
