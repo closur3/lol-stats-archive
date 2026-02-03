@@ -1,12 +1,12 @@
 // ====================================================
-// 🥇 Worker V36.2.53: 绝对居中修复版
-// 基于: V36.2.52
+// 🥇 Worker V36.2.58: 等高 & 封口线版
+// 基于: V36.2.55
 // 变更: 
-// 1. 比赛时间加粗 (Bold)
-// 2. 比赛行布局重构：左(时间)右(Tag)等宽，中间对阵信息使用 Spine 布局实现绝对居中
+// 1. 取消自然高度，卡片恢复等高拉伸 (Stretch)
+// 2. 保留最后一行比赛的底部分隔线 (封口线)
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.53-AbsoluteCenter";
+const UI_VERSION = "2026-02-04-V36.2.58-StretchedWithBorder";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -346,8 +346,10 @@ const PYTHON_STYLE = `
     td { padding: 12px 8px; text-align: center; border-bottom: 1px solid #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     
     .team-col { position: sticky; left: 0; background: white !important; z-index: 10; border-right: 2px solid #f1f5f9; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; }
+    
+    .team-text { font-weight: 800; color: #334155; padding: 1px 4px; border-radius: 4px; transition: background 0.2s; }
     .team-clickable { cursor: pointer; } 
-    .team-clickable:hover { color: #2563eb; background-color: #f8fafc !important; }
+    .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
 
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
     
@@ -373,16 +375,19 @@ const PYTHON_STYLE = `
     .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
     
     /* Grid Layout for Schedule */
-    .sch-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; }
+    .sch-container { 
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; 
+        /* 核心变更: 取消 align-items: start, 恢复等高拉伸 */
+    }
     .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
     .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
     
     .sch-body { display: flex; flex-direction: column; flex: 1; padding-bottom: 5px; }
     
-    /* Spine Header (LPL / WEEK 1) */
+    /* TAB: 极简线条风 (Minimalist Divider) */
     .sch-group-header { 
         display: flex; justify-content: center; align-items: center; 
-        background: #f1f5f9; 
+        background: #fff; 
         border-bottom: 1px solid #e2e8f0; border-top: 1px solid #e2e8f0;
         padding: 8px 0; color: #475569; font-size: 11px; letter-spacing: 0.5px;
     }
@@ -393,13 +398,10 @@ const PYTHON_STYLE = `
         display: flex; align-items: center; padding: 10px 15px; 
         border-bottom: 1px solid #f8fafc; font-size: 13px; color: #334155;
     }
-    .sch-row:last-child { border-bottom: none; }
+    /* 核心变更: 确保没有 .last-child border-bottom: none 的覆盖，保留封口线 */
     
-    /* 核心变更：时间列和标签列等宽 (55px) 以保证中间内容绝对居中 */
     .sch-time { width: 55px; color: #94a3b8; font-family: monospace; font-size: 12px; font-weight: 700; } 
     .sch-tag-col { width: 55px; display: flex; justify-content: flex-end; }
-    
-    /* 中间部分使用 Flex 1 */
     .sch-vs-container { flex: 1; display: flex; align-items: center; justify-content: center; }
 
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
@@ -709,7 +711,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
                 const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
 
-                // 生成脊柱中间部分： vs 或者 比分
                 let midContent = `<span style="color:#cbd5e1;font-size:10px;margin:0 2px">vs</span>`;
                 if (m.is_finished) {
                     const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
@@ -719,10 +720,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                     midContent = `<span class="sch-live-score">${m.s1}-${m.s2}</span>`;
                 }
 
-                // 核心变更：使用 Spine 结构渲染对阵，确保绝对居中
-                // 左侧部分: Rate + Team
                 const leftPart = `<span class="${t1Class}" ${t1Click} style="${t1Style}">${r1}${m.t1}</span>`;
-                // 右侧部分: Team + Rate
                 const rightPart = `<span class="${t2Class}" ${t2Click} style="${t2Style}">${m.t2}${r2}</span>`;
 
                 const vsContent = `
