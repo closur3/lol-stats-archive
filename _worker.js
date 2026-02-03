@@ -1,10 +1,12 @@
 // ====================================================
-// 🥇 Worker V36.2.51: 固定四格与优雅空状态 (Fixed Grid & Elegant Empty)
-// 基于: V36.2.50
-// 变更: 强制显示4个赛程卡片，不足的日期用垂直居中的"NO MATCH"补齐
+// 🥇 Worker V36.2.53: 优雅空状态设计 (Elegant Empty State)
+// 基于: V36.2.52
+// 变更: 
+// 1. 空赛程卡片不再显示空的 Header，改为整体虚线边框设计
+// 2. 增加微型斜纹背景 (Striped Background)，提升设计质感
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.51-FixedGrid";
+const UI_VERSION = "2026-02-04-V36.2.53-ElegantDesign";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -245,11 +247,9 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         grandTotal += processed;
     }
 
-    // ⚡⚡⚡ 逻辑升级：确保 displayKeys 长度始终为 4 ⚡⚡⚡
     const sortedDates = Object.keys(tempScheduleMap).sort();
     const displayKeys = sortedDates.slice(0, 4);
     
-    // 如果不足4天，填充 null 作为占位符
     while (displayKeys.length < 4) {
         displayKeys.push(null);
     }
@@ -372,16 +372,38 @@ const PYTHON_STYLE = `
     .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
     
     .sch-container { display: flex; gap: 15px; margin-top: 40px; justify-content: space-between; }
-    /* ⚡⚡⚡ 修改：.sch-card 使用 Flex column 布局，确保 No Match 垂直居中 */
+    
     .sch-card { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; min-width: 260px; min-height: 160px; }
+    
+    /* ⚡⚡⚡ 优雅空状态样式 ⚡⚡⚡ */
+    .sch-card-empty { 
+        background-color: #f8fafc;
+        border: 2px dashed #e2e8f0; 
+        box-shadow: none;
+        background-image: linear-gradient(45deg, #f1f5f9 25%, transparent 25%, transparent 50%, #f1f5f9 50%, #f1f5f9 75%, transparent 75%, transparent);
+        background-size: 20px 20px;
+    }
+    
     .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; height: 20px; align-items: center; }
     
     .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; flex: 1; }
     .sch-table th { padding: 8px; font-size: 12px; }
     .sch-table td { padding: 8px 4px; vertical-align: middle; }
     
-    /* ⚡⚡⚡ 新增：优雅空状态样式 */
-    .sch-empty-box { flex: 1; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; user-select: none; }
+    /* 让文字在空卡片中绝对居中 */
+    .sch-empty-box { 
+        flex: 1; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        color: #94a3b8; 
+        font-size: 13px; 
+        font-weight: 700; 
+        letter-spacing: 1.5px; 
+        text-transform: uppercase; 
+        user-select: none;
+        opacity: 0.6;
+    }
     
     .sch-tag-left { width: 35px; text-align: left; padding-left: 5px; }
     .sch-tag-right { width: 35px; text-align: right; padding-right: 5px; }
@@ -635,69 +657,77 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
 
     let scheduleHtml = `<div class="sch-container">`;
     
-    // ⚡⚡⚡ 逻辑：固定遍历 4 个槽位 ⚡⚡⚡
-    const getRateHtml = (teamName, slug, bo) => {
-        const stats = globalStats[slug];
-        if(!stats || !stats[teamName]) return "";
-        const s = stats[teamName];
-        let r = null;
-        if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
-        else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
-        if(r === null) return "";
-        return `<span style="font-weight:400;color:#94a3b8;font-size:11px">(${Math.round(r*100)}%)</span>`;
-    };
+    // ⚡⚡⚡ 逻辑：检查是否完全没有赛程
+    const hasAnyMatch = displayKeys.some(k => k !== null);
 
-    displayKeys.forEach(d => {
-        if (!d) {
-            // 优雅的空状态卡片
-            scheduleHtml += `<div class="sch-card"><div class="sch-header empty"></div><div class="sch-empty-box">No Match</div></div>`;
-            return;
-        }
+    if (!hasAnyMatch) {
+         // 完全无赛程：显示一个单独的、优雅的宽幅空状态
+         scheduleHtml += `<div class="sch-card sch-card-empty"><div class="sch-empty-box">No Matches Scheduled</div></div>`;
+    } else {
+        // 部分或全部有赛程：循环渲染4个槽位（含空槽位占位）
+        const getRateHtml = (teamName, slug, bo) => {
+            const stats = globalStats[slug];
+            if(!stats || !stats[teamName]) return "";
+            const s = stats[teamName];
+            let r = null;
+            if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
+            else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
+            if(r === null) return "";
+            return `<span style="font-weight:400;color:#94a3b8;font-size:11px">(${Math.round(r*100)}%)</span>`;
+        };
 
-        const matches = scheduleMap[d];
-        const isToday = d === utils.getNow().date;
-        const titleColor = isToday ? "#1e40af" : "#334155";
-        const titleBg = isToday ? "#eff6ff" : "#f8fafc";
-        const titleText = isToday ? `📅 ${d.slice(5)}` : `🗓️ ${d.slice(5)}`;
-        
-        let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><table class="sch-table"><tbody>`;
-        
-        matches.forEach(m => {
-            const boLabel = m.bo ? `BO${m.bo}` : '';
-            const isBo5 = m.bo === 5;
-            const boClass = isBo5 ? "tag-bo-gold" : ""; 
-            
-            let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
-            let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
-
-            let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
-            
-            if (m.is_finished) {
-                const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-            } else if (m.is_live) {
-                const liveStyle = "color:#10b981;font-weight:700";
-                centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
+        displayKeys.forEach(d => {
+            if (!d) {
+                // 优雅的空状态占位卡片 (使用 sch-card-empty class)
+                scheduleHtml += `<div class="sch-card sch-card-empty"><div class="sch-empty-box">No Match</div></div>`;
+                return;
             }
-            
-            const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
-            const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
 
-            cardHtml += `<tr>
-                <td class="sch-margin"></td>
-                <td class="sch-tag-left">${leftTags}</td>
-                <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
-                <td class="sch-center">${centerContent}</td>
-                <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
-                <td class="sch-tag-right">${rightTag}</td>
-                <td class="sch-margin"></td>
-            </tr>`;
+            const matches = scheduleMap[d];
+            const isToday = d === utils.getNow().date;
+            const titleColor = isToday ? "#1e40af" : "#334155";
+            const titleBg = isToday ? "#eff6ff" : "#f8fafc";
+            const titleText = isToday ? `📅 ${d.slice(5)}` : `🗓️ ${d.slice(5)}`;
+            
+            let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><table class="sch-table"><tbody>`;
+            
+            matches.forEach(m => {
+                const boLabel = m.bo ? `BO${m.bo}` : '';
+                const isBo5 = m.bo === 5;
+                const boClass = isBo5 ? "tag-bo-gold" : ""; 
+                
+                let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
+                let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
+
+                let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
+                
+                if (m.is_finished) {
+                    const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                    const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                    centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                } else if (m.is_live) {
+                    const liveStyle = "color:#10b981;font-weight:700";
+                    centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
+                }
+                
+                const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
+                const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+
+                cardHtml += `<tr>
+                    <td class="sch-margin"></td>
+                    <td class="sch-tag-left">${leftTags}</td>
+                    <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
+                    <td class="sch-center">${centerContent}</td>
+                    <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
+                    <td class="sch-tag-right">${rightTag}</td>
+                    <td class="sch-margin"></td>
+                </tr>`;
+            });
+            
+            cardHtml += `</tbody></table></div>`;
+            scheduleHtml += cardHtml;
         });
-        
-        cardHtml += `</tbody></table></div>`;
-        scheduleHtml += cardHtml;
-    });
+    }
 
     scheduleHtml += `</div>`;
 
