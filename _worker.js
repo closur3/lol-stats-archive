@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.43: 强迫症终结版 (绝对中轴)
-// 基于: V36.2.42
-// 变更: 对赛区统计表中的“分数”和“比分”应用 Spine 布局，确保 "/" 和 "-" 符号在整列中绝对垂直居中
+// 🥇 Worker V36.2.44: 机场翻页屏版 (Ghost 0 + Bold)
+// 基于: V36.2.43
+// 变更: 引入隐形"0"占位符，强制所有数字按2位数对齐，并对分数进行加粗处理，实现严丝合缝的工业级对齐
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.43-AbsoluteCenter"; 
+const UI_VERSION = "2026-02-03-V36.2.44-GhostBold"; 
 
 // --- 1. 工具库 ---
 const utils = {
@@ -335,9 +335,12 @@ const PYTHON_STYLE = `
 
     /* 🔥 NEW: Spine Alignment for Main Table (Stats) */
     .spine-row { display: flex; justify-content: center; align-items: center; width: 100%; }
-    .spine-l { flex: 1; text-align: right; } /* Left side pushes to center */
-    .spine-r { flex: 1; text-align: left; } /* Right side pushes to center */
-    .spine-sep { width: 12px; text-align: center; opacity: 0.5; } /* The spine itself */
+    .spine-l { flex: 1; text-align: right; font-weight: 700; } /* 🔥 Bold & Right Align */
+    .spine-r { flex: 1; text-align: left; font-weight: 700; } /* 🔥 Bold & Left Align */
+    .spine-sep { width: 12px; text-align: center; opacity: 0.5; font-weight: normal; } /* The separator */
+    
+    /* 🔥 Ghost 0 Style */
+    .ghost { visibility: hidden; } /* Takes up space but invisible */
 
     /* Time Grid Spine */
     .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; }
@@ -438,7 +441,8 @@ const PYTHON_JS = `
     function parseValue(v) {
         if(v==="-")return -1; if(v.includes('%'))return parseFloat(v);
         // 🔥 Handle new Spine Layout HTML in sort logic
-        // The innerText of the spine div usually comes out as "3/5" or "3 / 5", which existing split logic handles.
+        // The innerText of the spine div usually comes out as "03/10" (with ghost 0), we need to handle that.
+        // Actually, innerText will include the ghost 0, so "03" parses to 3 correctly!
         if(v.includes('/')){let p=v.split('/');return p[1]==='-'?-1:parseFloat(p[0])/parseFloat(p[1]);}
         if(v.includes('-')&&v.split('-').length===2)return parseFloat(v.split('-')[0]);
         const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
@@ -506,12 +510,22 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
 
     const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
 
-    // 🔥 Helper to generate Spine HTML
+    // 🔥 Helper: Add Ghost 0 padding
+    const pad = (n) => {
+        const s = n.toString();
+        // If single digit, prepend invisible 0
+        return s.length === 1 ? `<span class="ghost">0</span>${s}` : s;
+    };
+
+    // 🔥 Helper to generate Spine HTML with Padding
     const mkSpine = (val, sep) => {
         if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
         const parts = val.split(sep);
         if(parts.length !== 2) return val;
-        return `<div class="spine-row"><span class="spine-l">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r">${parts[1]}</span></div>`;
+        // Apply pad() to both numbers
+        const p1 = pad(parts[0]);
+        const p2 = pad(parts[1]);
+        return `<div class="spine-row"><span class="spine-l">${p1}</span><span class="spine-sep">${sep}</span><span class="spine-r">${p2}</span></div>`;
     };
 
     let tablesHtml = "";
@@ -579,6 +593,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             else {
                 const r = c.full/c.total;
                 const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                // 🔥 NEW: Spine Alignment Construction
                 tr += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'>
                     <div class="t-cell">
                         <span class="t-val">${c.full}/${c.total}</span>
@@ -597,6 +612,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         else {
             const r = c.full/c.total;
             const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+            // 🔥 NEW: Spine Alignment Construction
             timeHtml += `<td style='background:${utils.color(r,true)}; color:white; cursor:pointer;' onclick='showPopup("GRAND", ${w}, ${matches})'>
                 <div class="t-cell">
                     <span class="t-val">${c.full}/${c.total}</span>
