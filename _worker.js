@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.39: 赛程对齐修复版
-// 基于: V36.2.38
-// 修复: 移除赛程表中的 Flex 布局，回归 vertical-align: middle 以完美对齐时间线
+// 🥇 Worker V36.2.40: 数据列绝对对齐版
+// 基于: V36.2.39
+// 修复: 给数据统计列增加“等宽数字”属性
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.39-AlignFix-2"; 
+const UI_VERSION = "2026-02-03-V36.2.40-PerfectAlign"; 
 
 // --- 1. 工具库 ---
 const utils = {
@@ -324,6 +324,13 @@ const PYTHON_STYLE = `
     .team-clickable:hover { color: #2563eb; background-color: #f8fafc !important; }
 
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
+    /* 🔥 FIXED: Monospace Font for Statistical Columns for Perfect Vertical Alignment */
+    .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr {
+        font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0;
+    }
+
     .col-series { width: 80px; } .col-series-wr { width: 100px; } .col-game { width: 80px; } .col-game-wr { width: 100px; }
     .col-streak { width: 80px; } .col-last { width: 130px; }
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
@@ -335,17 +342,12 @@ const PYTHON_STYLE = `
     
     .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; }
     .sch-table th { padding: 8px; font-size: 12px; }
-    
-    /* 🔥 FIXED: Vertical Align Middle & Removed Flex */
     .sch-table td { padding: 8px 4px; vertical-align: middle; }
     
     .sch-tag-left { width: 35px; text-align: left; padding-left: 5px; }
     .sch-tag-right { width: 35px; text-align: right; padding-right: 5px; }
-    
-    /* 🔥 FIXED: Removed display:flex to fix alignment with center cell */
     .sch-team-left { text-align: right; padding-right: 8px; font-weight: 700; white-space: nowrap; }
     .sch-team-right { text-align: left; padding-left: 8px; font-weight: 700; white-space: nowrap; }
-    
     .sch-center { text-align: center; width: 40px; }
     .sch-live { color: #10b981; font-weight:bold; }
     .sch-score { font-weight: 700; font-size: 13px; }
