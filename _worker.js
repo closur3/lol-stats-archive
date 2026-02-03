@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.50: 智能赛程 (Smart Schedule)
-// 基于: V36.2.49
-// 变更: 赛程不再固定为自然日未来4天，而是自动寻找未来最近的有比赛的4个日期展示
+// 🥇 Worker V36.2.51: 固定四格与优雅空状态 (Fixed Grid & Elegant Empty)
+// 基于: V36.2.50
+// 变更: 强制显示4个赛程卡片，不足的日期用垂直居中的"NO MATCH"补齐
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.50-SmartSchedule";
+const UI_VERSION = "2026-02-04-V36.2.51-FixedGrid";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -20,7 +20,6 @@ const utils = {
             time: bj.toISOString().slice(11, 16)
         };
     },
-    // 移除 getFutureDates，改用动态逻辑
     shortName: (n, teamMap) => {
         if(!n) return "Unknown";
         if(!teamMap) return n;
@@ -133,11 +132,10 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     let maxDateTs = 0;
     let grandTotal = 0;
     
-    // ⚡⚡⚡ 修改部分：不再预定义 targetDates，而是动态收集 ⚡⚡⚡
     const todayStr = utils.getNow().date;
     let matchesTodayCount = 0;
     let pendingTodayCount = 0;
-    let tempScheduleMap = {}; // 临时存放所有未来比赛
+    let tempScheduleMap = {}; 
 
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const rawMatches = allRawMatches[tourn.slug] || [];
@@ -174,7 +172,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const day = bjTime.getUTCDate().toString().padStart(2,'0');
                 dateDisplay = `${month}-${day} ${matchTimeStr}`;
 
-                // ⚡⚡⚡ 逻辑：只要日期是今天或未来，就加入待选列表 ⚡⚡⚡
                 if (matchDateStr >= todayStr) {
                     if (!tempScheduleMap[matchDateStr]) tempScheduleMap[matchDateStr] = [];
                     
@@ -248,14 +245,21 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         grandTotal += processed;
     }
 
-    // ⚡⚡⚡ 逻辑：排序日期，取出最近的 4 个日期 ⚡⚡⚡
+    // ⚡⚡⚡ 逻辑升级：确保 displayKeys 长度始终为 4 ⚡⚡⚡
     const sortedDates = Object.keys(tempScheduleMap).sort();
-    const next4Dates = sortedDates.slice(0, 4);
+    const displayKeys = sortedDates.slice(0, 4);
+    
+    // 如果不足4天，填充 null 作为占位符
+    while (displayKeys.length < 4) {
+        displayKeys.push(null);
+    }
     
     let scheduleMap = {};
-    next4Dates.forEach(k => {
-        scheduleMap[k] = tempScheduleMap[k];
-        scheduleMap[k].sort((a,b) => a.time.localeCompare(b.time));
+    displayKeys.forEach(k => {
+        if (k) {
+            scheduleMap[k] = tempScheduleMap[k];
+            scheduleMap[k].sort((a,b) => a.time.localeCompare(b.time));
+        }
     });
 
     let statusText = `<span style="color:#9ca3af; margin-left:6px">💤 NO MATCHES</span>`;
@@ -265,7 +269,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         else { nextStreak = currentStreak >= 1 ? 2 : 1; statusText = nextStreak === 2 ? `<span style="color:#9ca3af; margin-left:6px; font-weight:bold">● FINISHED</span>` : `<span style="color:#f59e0b; margin-left:6px; font-weight:bold">🟡 VERIFYING...</span>`; }
     }
 
-    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
+    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, displayKeys, nextStreak };
 }
 
 // --- 5. Markdown 生成器 ---
@@ -368,12 +372,16 @@ const PYTHON_STYLE = `
     .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
     
     .sch-container { display: flex; gap: 15px; margin-top: 40px; justify-content: space-between; }
-    .sch-card { flex: 1; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; min-width: 260px; }
-    .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
+    /* ⚡⚡⚡ 修改：.sch-card 使用 Flex column 布局，确保 No Match 垂直居中 */
+    .sch-card { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; min-width: 260px; min-height: 160px; }
+    .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; height: 20px; align-items: center; }
     
-    .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; }
+    .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; flex: 1; }
     .sch-table th { padding: 8px; font-size: 12px; }
     .sch-table td { padding: 8px 4px; vertical-align: middle; }
+    
+    /* ⚡⚡⚡ 新增：优雅空状态样式 */
+    .sch-empty-box { flex: 1; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; user-select: none; }
     
     .sch-tag-left { width: 35px; text-align: left; padding-left: 5px; }
     .sch-tag-right { width: 35px; text-align: right; padding-right: 5px; }
@@ -519,9 +527,10 @@ const PYTHON_JS = `
     </script>
 `;
 
-function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig) {
+function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig, displayKeys) {
     if (!statusText) statusText = `<span style="color:#9ca3af; margin-left:6px">Status Unknown</span>`;
     if (!scheduleMap) scheduleMap = {};
+    if (!displayKeys) displayKeys = [null, null, null, null];
 
     const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
 
@@ -625,70 +634,71 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     timeHtml += "</tr></tbody></table></div>";
 
     let scheduleHtml = `<div class="sch-container">`;
-    const dates = Object.keys(scheduleMap).sort();
     
-    // ⚡⚡⚡ 逻辑：只有当完全没有赛程时，才显示 No Matches ⚡⚡⚡
-    if (dates.length === 0) {
-         scheduleHtml += `<div class="sch-card"><div class="sch-header" style="background:#f8fafc;color:#94a3b8"><span>No Matches Scheduled</span></div><div style="padding:20px;text-align:center;color:#cbd5e1;font-size:14px">No upcoming matches found in current data.</div></div>`;
-    } else {
-        const getRateHtml = (teamName, slug, bo) => {
-            const stats = globalStats[slug];
-            if(!stats || !stats[teamName]) return "";
-            const s = stats[teamName];
-            let r = null;
-            if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
-            else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
-            if(r === null) return "";
-            return `<span style="font-weight:400;color:#94a3b8;font-size:11px">(${Math.round(r*100)}%)</span>`;
-        };
+    // ⚡⚡⚡ 逻辑：固定遍历 4 个槽位 ⚡⚡⚡
+    const getRateHtml = (teamName, slug, bo) => {
+        const stats = globalStats[slug];
+        if(!stats || !stats[teamName]) return "";
+        const s = stats[teamName];
+        let r = null;
+        if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
+        else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
+        if(r === null) return "";
+        return `<span style="font-weight:400;color:#94a3b8;font-size:11px">(${Math.round(r*100)}%)</span>`;
+    };
 
-        dates.forEach(d => {
-            const matches = scheduleMap[d];
-            
-            const isToday = d === utils.getNow().date;
-            const titleColor = isToday ? "#1e40af" : "#334155";
-            const titleBg = isToday ? "#eff6ff" : "#f8fafc";
-            const titleText = isToday ? `📅 ${d.slice(5)}` : `🗓️ ${d.slice(5)}`;
-            
-            let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><table class="sch-table"><tbody>`;
-            
-            matches.forEach(m => {
-                const boLabel = m.bo ? `BO${m.bo}` : '';
-                const isBo5 = m.bo === 5;
-                const boClass = isBo5 ? "tag-bo-gold" : ""; 
-                
-                let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
-                let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
+    displayKeys.forEach(d => {
+        if (!d) {
+            // 优雅的空状态卡片
+            scheduleHtml += `<div class="sch-card"><div class="sch-header empty"></div><div class="sch-empty-box">No Match</div></div>`;
+            return;
+        }
 
-                let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
-                
-                if (m.is_finished) {
-                    const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                    const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                    centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-                } else if (m.is_live) {
-                    const liveStyle = "color:#10b981;font-weight:700";
-                    centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
-                }
-                
-                const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
-                const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
-
-                cardHtml += `<tr>
-                    <td class="sch-margin"></td>
-                    <td class="sch-tag-left">${leftTags}</td>
-                    <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
-                    <td class="sch-center">${centerContent}</td>
-                    <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
-                    <td class="sch-tag-right">${rightTag}</td>
-                    <td class="sch-margin"></td>
-                </tr>`;
-            });
+        const matches = scheduleMap[d];
+        const isToday = d === utils.getNow().date;
+        const titleColor = isToday ? "#1e40af" : "#334155";
+        const titleBg = isToday ? "#eff6ff" : "#f8fafc";
+        const titleText = isToday ? `📅 ${d.slice(5)}` : `🗓️ ${d.slice(5)}`;
+        
+        let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><table class="sch-table"><tbody>`;
+        
+        matches.forEach(m => {
+            const boLabel = m.bo ? `BO${m.bo}` : '';
+            const isBo5 = m.bo === 5;
+            const boClass = isBo5 ? "tag-bo-gold" : ""; 
             
-            cardHtml += `</tbody></table></div>`;
-            scheduleHtml += cardHtml;
+            let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
+            let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
+
+            let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
+            
+            if (m.is_finished) {
+                const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+            } else if (m.is_live) {
+                const liveStyle = "color:#10b981;font-weight:700";
+                centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
+            }
+            
+            const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
+            const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+
+            cardHtml += `<tr>
+                <td class="sch-margin"></td>
+                <td class="sch-tag-left">${leftTags}</td>
+                <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
+                <td class="sch-center">${centerContent}</td>
+                <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
+                <td class="sch-tag-right">${rightTag}</td>
+                <td class="sch-margin"></td>
+            </tr>`;
         });
-    }
+        
+        cardHtml += `</tbody></table></div>`;
+        scheduleHtml += cardHtml;
+    });
+
     scheduleHtml += `</div>`;
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>LoL Insights</title><style>${PYTHON_STYLE}</style>
@@ -763,7 +773,7 @@ async function runUpdate(env, force=false) {
     }
     
     let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
-    const { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak } = runFullAnalysis(allRaw, oldMeta.finish_streak, runtimeConfig);
+    const { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, displayKeys, nextStreak } = runFullAnalysis(allRaw, oldMeta.finish_streak, runtimeConfig);
     
     if (oldMeta.total > 0 && grandTotal < oldMeta.total * 0.9 && !force) {
         l.error(`🛑 Rollback detected (${grandTotal} < ${oldMeta.total}). Skipped.`);
@@ -771,7 +781,7 @@ async function runUpdate(env, force=false) {
     }
 
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
-        globalStats, timeGrid, debugInfo, maxDateTs, statusText, scheduleMap, 
+        globalStats, timeGrid, debugInfo, maxDateTs, statusText, scheduleMap, displayKeys,
         updateTime: utils.getNow(), runtimeConfig 
     }));
     await env.LOL_KV.put("META", JSON.stringify({ total: grandTotal, finish_streak: nextStreak }));
@@ -872,7 +882,8 @@ export default {
             cache.maxDateTs, 
             cache.statusText, 
             cache.scheduleMap, 
-            cache.runtimeConfig || { TOURNAMENTS: [] }
+            cache.runtimeConfig || { TOURNAMENTS: [] },
+            cache.displayKeys || [] // 传入缓存的显示键
         );
 
         return new Response(html, {headers:{"content-type":"text/html;charset=utf-8"}});
