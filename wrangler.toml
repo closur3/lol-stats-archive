@@ -1,0 +1,7 @@
+name = "lol-stats"
+main = "worker.js"  # 👈 关键！这里写什么，你的JS文件就得叫什么
+compatibility_date = "2026-02-03"
+
+[[kv_namespaces]]
+binding = "LOL_KV"
+id = "c96e310d082645b8a8fe254db1c3bc92"
