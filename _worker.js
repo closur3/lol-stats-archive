@@ -1,12 +1,12 @@
 // ====================================================
-// 🥇 Worker V36.2.51: 完美赛程版
-// 基于: V36.2.50
+// 🥇 Worker V36.2.53: 绝对居中修复版
+// 基于: V36.2.52
 // 变更: 
-// 1. 修复列表模式下缺失"打满率"的问题
-// 2. 保持左右对称显示：(33%) TeamA vs TeamB (50%)
+// 1. 比赛时间加粗 (Bold)
+// 2. 比赛行布局重构：左(时间)右(Tag)等宽，中间对阵信息使用 Spine 布局实现绝对居中
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.51-FullRateRestored";
+const UI_VERSION = "2026-02-04-V36.2.53-AbsoluteCenter";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -26,7 +26,6 @@ const utils = {
         if(!n) return "Unknown";
         if(!teamMap) return n;
         const upper = n.toUpperCase();
-        // 允许 TBD 通过
         if (["TBD", "TBA", "TO BE DETERMINED"].some(x => upper.includes(x))) return "TBD";
         for(let[k,v] of Object.entries(teamMap)) if(upper.includes(k.toUpperCase())) return v;
         return n.replace(/(Esports|Gaming|Academy|Team|Club)/gi, "").trim();
@@ -105,7 +104,6 @@ async function fetchAllMatches(overviewPage, logger) {
     while(true) {
         const params = new URLSearchParams({
             action: "cargoquery", format: "json", tables: "MatchSchedule",
-            // 抓取 Tab 和 Round
             fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
             where: `OverviewPage='${overviewPage}'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
         });
@@ -183,7 +181,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                     }
                     if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
                     
-                    // 智能生成阶段名称 Tab > Round
                     let blockName = m.Tab || "";
                     if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") {
                         if (m.Round) blockName = m.Round;
@@ -194,8 +191,8 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
                         tourn: tourn.region, tournSlug: tourn.slug,
-                        tournIndex: tournIdx, // 用于排序
-                        blockName: blockName  // 用于显示
+                        tournIndex: tournIdx, 
+                        blockName: blockName  
                     });
                 }
             }
@@ -260,7 +257,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     const activeDates = sortedFutureDates.slice(0, 4); 
     
     activeDates.forEach(d => {
-        // 先按 联赛优先级 (tournIndex) 排序，再按 时间 排序
         scheduleMap[d] = allFutureMatches[d].sort((a,b) => {
             if (a.tournIndex !== b.tournIndex) return a.tournIndex - b.tournIndex;
             return a.time.localeCompare(b.time);
@@ -386,7 +382,8 @@ const PYTHON_STYLE = `
     /* Spine Header (LPL / WEEK 1) */
     .sch-group-header { 
         display: flex; justify-content: center; align-items: center; 
-        background: #fff; border-bottom: 1px solid #f1f5f9; border-top: 1px solid #f1f5f9;
+        background: #f1f5f9; 
+        border-bottom: 1px solid #e2e8f0; border-top: 1px solid #e2e8f0;
         padding: 8px 0; color: #475569; font-size: 11px; letter-spacing: 0.5px;
     }
     .sch-group-header:first-child { border-top: none; }
@@ -397,13 +394,19 @@ const PYTHON_STYLE = `
         border-bottom: 1px solid #f8fafc; font-size: 13px; color: #334155;
     }
     .sch-row:last-child { border-bottom: none; }
-    .sch-time { width: 45px; color: #94a3b8; font-family: monospace; font-size: 12px; font-weight: 500; }
-    .sch-vs { flex: 1; display: flex; align-items: center; gap: 6px; font-weight: 700; }
-    .sch-pill { margin-left: auto; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
+    
+    /* 核心变更：时间列和标签列等宽 (55px) 以保证中间内容绝对居中 */
+    .sch-time { width: 55px; color: #94a3b8; font-family: monospace; font-size: 12px; font-weight: 700; } 
+    .sch-tag-col { width: 55px; display: flex; justify-content: flex-end; }
+    
+    /* 中间部分使用 Flex 1 */
+    .sch-vs-container { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+    .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
     .sch-pill.gold { background: #b45309; color: white; }
     
-    .sch-live-score { color: #10b981; font-family: monospace; margin-left: 8px; font-weight: 700; }
-    .sch-fin-score { color: #334155; font-family: monospace; margin-left: 8px; font-weight: 700; }
+    .sch-live-score { color: #10b981; font-family: monospace; margin: 0 4px; font-weight: 700; font-size: 10px; }
+    .sch-fin-score { color: #334155; font-family: monospace; margin: 0 4px; font-weight: 700; font-size: 10px; }
     
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
 
@@ -552,7 +555,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         return `<div class="spine-row"><span class="spine-l">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r">${parts[1]}</span></div>`;
     };
 
-    // 辅助函数：获取打满率HTML
     const getRateHtml = (teamName, slug, bo) => {
         const stats = globalStats[slug];
         if(!stats || !stats[teamName]) return "";
@@ -682,7 +684,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 if (groupKey !== lastGroupKey) {
                     const blockDisplay = blockName || "REGULAR"; 
                     cardHtml += `<div class="sch-group-header">
-                        <div class="spine-row" style="width:100px">
+                        <div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box">
                             <span class="spine-l" style="font-weight:800">${m.tourn}</span>
                             <span class="spine-sep">/</span>
                             <span class="spine-r" style="font-weight:800; opacity:0.7">${blockDisplay}</span>
@@ -704,25 +706,37 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 const t1Style = isTbd1 ? "color:#94a3b8" : "";
                 const t2Style = isTbd2 ? "color:#94a3b8" : "";
 
-                // 获取打满率
                 const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
                 const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
 
-                // 左右拼接：率+队名 vs 队名+率
-                let vsContent = `<span class="${t1Class}" ${t1Click} style="${t1Style}">${r1}${m.t1}</span> <span style="color:#cbd5e1;font-size:10px">vs</span> <span class="${t2Class}" ${t2Click} style="${t2Style}">${m.t2}${r2}</span>`;
-                
+                // 生成脊柱中间部分： vs 或者 比分
+                let midContent = `<span style="color:#cbd5e1;font-size:10px;margin:0 2px">vs</span>`;
                 if (m.is_finished) {
-                     const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
-                     const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
-                     vsContent += `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span>-<span style="${s2Style}">${m.s2}</span></span>`;
+                    const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
+                    const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
+                    midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span>-<span style="${s2Style}">${m.s2}</span></span>`;
                 } else if (m.is_live) {
-                    vsContent += `<span class="sch-live-score">${m.s1}-${m.s2}</span>`;
+                    midContent = `<span class="sch-live-score">${m.s1}-${m.s2}</span>`;
                 }
+
+                // 核心变更：使用 Spine 结构渲染对阵，确保绝对居中
+                // 左侧部分: Rate + Team
+                const leftPart = `<span class="${t1Class}" ${t1Click} style="${t1Style}">${r1}${m.t1}</span>`;
+                // 右侧部分: Team + Rate
+                const rightPart = `<span class="${t2Class}" ${t2Click} style="${t2Style}">${m.t2}${r2}</span>`;
+
+                const vsContent = `
+                    <div class="spine-row">
+                        <span class="spine-l">${leftPart}</span>
+                        <span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:24px">${midContent}</span>
+                        <span class="spine-r">${rightPart}</span>
+                    </div>
+                `;
 
                 cardHtml += `<div class="sch-row">
                     <span class="sch-time">${m.time}</span>
-                    <div class="sch-vs">${vsContent}</div>
-                    <span class="${boClass}">${boLabel}</span>
+                    <div class="sch-vs-container">${vsContent}</div>
+                    <div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div>
                 </div>`;
             });
 
