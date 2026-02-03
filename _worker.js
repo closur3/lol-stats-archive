@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.42: 完美中轴对齐版
-// 基于: V36.2.41
-// 变更: 时间分布表采用“脊柱对齐”布局，确保分数和百分比的间隔线绝对垂直对齐，彻底消除“波浪感”
+// 🥇 Worker V36.2.43: 强迫症终结版 (绝对中轴)
+// 基于: V36.2.42
+// 变更: 对赛区统计表中的“分数”和“比分”应用 Spine 布局，确保 "/" 和 "-" 符号在整列中绝对垂直居中
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.42-SpineAlign"; 
+const UI_VERSION = "2026-02-03-V36.2.43-AbsoluteCenter"; 
 
 // --- 1. 工具库 ---
 const utils = {
@@ -325,7 +325,7 @@ const PYTHON_STYLE = `
 
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
     
-    /* 🔥 Global Monospace Font for All Stats */
+    /* 🔥 Global Monospace */
     .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr,
     #time-stats td:not(.team-col) { 
         font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, monospace;
@@ -333,10 +333,16 @@ const PYTHON_STYLE = `
         letter-spacing: 0;
     }
 
-    /* 🔥 New Time Grid Spine Alignment Styles */
+    /* 🔥 NEW: Spine Alignment for Main Table (Stats) */
+    .spine-row { display: flex; justify-content: center; align-items: center; width: 100%; }
+    .spine-l { flex: 1; text-align: right; } /* Left side pushes to center */
+    .spine-r { flex: 1; text-align: left; } /* Right side pushes to center */
+    .spine-sep { width: 12px; text-align: center; opacity: 0.5; } /* The spine itself */
+
+    /* Time Grid Spine */
     .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; }
-    .t-val { text-align: right; width: 35px; white-space: nowrap; } /* Right align score to spine */
-    .t-pct { text-align: left; width: 40px; opacity: 0.8; font-size: 11px; white-space: nowrap; } /* Left align pct to spine */
+    .t-val { text-align: right; width: 35px; white-space: nowrap; } 
+    .t-pct { text-align: left; width: 40px; opacity: 0.8; font-size: 11px; white-space: nowrap; } 
 
     .col-series { width: 80px; } .col-series-wr { width: 100px; } .col-game { width: 80px; } .col-game-wr { width: 100px; }
     .col-streak { width: 80px; } .col-last { width: 130px; }
@@ -431,6 +437,8 @@ const PYTHON_JS = `
     }
     function parseValue(v) {
         if(v==="-")return -1; if(v.includes('%'))return parseFloat(v);
+        // 🔥 Handle new Spine Layout HTML in sort logic
+        // The innerText of the spine div usually comes out as "3/5" or "3 / 5", which existing split logic handles.
         if(v.includes('/')){let p=v.split('/');return p[1]==='-'?-1:parseFloat(p[0])/parseFloat(p[1]);}
         if(v.includes('-')&&v.split('-').length===2)return parseFloat(v.split('-')[0]);
         const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
@@ -498,6 +506,14 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
 
     const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
 
+    // 🔥 Helper to generate Spine HTML
+    const mkSpine = (val, sep) => {
+        if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
+        const parts = val.split(sep);
+        if(parts.length !== 2) return val;
+        return `<div class="spine-row"><span class="spine-l">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r">${parts[1]}</span></div>`;
+    };
+
     let tablesHtml = "";
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
         const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]) : [];
@@ -524,8 +540,13 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         let rows = stats.map(s => {
             const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
             const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
-            const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-", bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
-            const serTxt = s.s_t ? `${s.s_w}-${s.s_t-s.s_w}` : "-", gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
+            
+            // 🔥 Use Spine Formatter here!
+            const bo3Txt = s.bo3_t ? mkSpine(`${s.bo3_f}/${s.bo3_t}`, '/') : "-";
+            const bo5Txt = s.bo5_t ? mkSpine(`${s.bo5_f}/${s.bo5_t}`, '/') : "-";
+            const serTxt = s.s_t ? mkSpine(`${s.s_w}-${s.s_t-s.s_w}`, '-') : "-";
+            const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
+
             const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
             const last = s.last ? new Date(s.last+28800000).toISOString().slice(0,16).replace("T"," ") : "-";
             const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
@@ -558,7 +579,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             else {
                 const r = c.full/c.total;
                 const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                // 🔥 NEW: Spine Alignment Construction
                 tr += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'>
                     <div class="t-cell">
                         <span class="t-val">${c.full}/${c.total}</span>
@@ -577,7 +597,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         else {
             const r = c.full/c.total;
             const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-            // 🔥 NEW: Spine Alignment Construction
             timeHtml += `<td style='background:${utils.color(r,true)}; color:white; cursor:pointer;' onclick='showPopup("GRAND", ${w}, ${matches})'>
                 <div class="t-cell">
                     <span class="t-val">${c.full}/${c.total}</span>
