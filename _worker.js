@@ -4,6 +4,7 @@
 // 变更: 
 // 1. 修复左右侧栏宽度计算误差 (Box-Sizing Fix)，确保 vs 绝对居中，不再向左偏 7px
 // 2. 增加 flex-basis: 0 锁死脊柱比例，防止长队名挤偏中轴线
+// 3. 取消今日赛程的蓝色背景
 // ====================================================
 
 const UI_VERSION = "2026-02-04-V36.2.68-PerfectSpine";
@@ -679,10 +680,9 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
 
         dates.forEach(d => {
             const matches = scheduleMap[d];
-            const isToday = d === utils.getNow().date;
-            const titleColor = isToday ? "#1e40af" : "#334155";
-            const titleBg = isToday ? "#eff6ff" : "#f8fafc";
-            const titleText = isToday ? `📅 ${d.slice(5)}` : `🗓️ ${d.slice(5)}`;
+            const titleColor = "#334155";
+            const titleBg = "#f8fafc";
+            const titleText = `📅 ${d.slice(5)}`;
             
             let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
             
