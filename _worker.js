@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.48: 大图标版 (Big Emojis)
-// 基于: V36.2.47
-// 变更: 将历史战绩中的 Emoji 图标 (✅❌🕒🔵) 字号统一放大至 18px
+// 🥇 Worker V36.2.49: 隐藏空赛程 (Hide Empty Schedule)
+// 基于: V36.2.48
+// 变更: 赛程预告板块中，如果某天没有比赛，则不再显示"No Matches"卡片，而是直接隐藏该天
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.48-BigEmojis-Schedule";
+const UI_VERSION = "2026-02-04-V36.2.49-HideEmptySchedule";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -234,9 +234,12 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
                 const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
                 const hour = bj.getUTCHours();
+                const hourNum = parseInt(hour); // ensuring number
+
                 let targetH = null;
-                if(tourn.region === "LCK") targetH = (hour <= 16) ? 16 : 18;
-                if(tourn.region === "LPL") targetH = (hour <= 15) ? 15 : (hour <= 17 ? 17 : 19);
+                // Simplified time slot logic for stability
+                if(tourn.region === "LCK") targetH = (hourNum <= 16) ? 16 : 18;
+                if(tourn.region === "LPL") targetH = (hourNum <= 15) ? 15 : (hourNum <= 17 ? 17 : 19);
                 
                 const add = (grid, h, d) => { if(grid[h] && grid[h][d]) { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); } };
                 if(targetH) { add(timeGrid[tourn.region], targetH, pyDay); add(timeGrid[tourn.region], "Total", pyDay); add(timeGrid[tourn.region], targetH, 7); add(timeGrid[tourn.region], "Total", 7); }
@@ -635,6 +638,8 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
 
     dates.forEach(d => {
         const matches = scheduleMap[d];
+        if (matches.length === 0) return; // ⚡⚡⚡ 修改处：如果当天没有比赛，直接跳过生成卡片 ⚡⚡⚡
+
         const isToday = d === utils.getNow().date;
         const titleColor = isToday ? "#1e40af" : "#334155";
         const titleBg = isToday ? "#eff6ff" : "#f8fafc";
@@ -642,42 +647,39 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         
         let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><table class="sch-table"><tbody>`;
         
-        if (matches.length === 0) {
-            cardHtml += `<tr><td colspan="5" style="text-align:center;color:#cbd5e1;padding:20px">No Matches</td></tr>`;
-        } else {
-            matches.forEach(m => {
-                const boLabel = m.bo ? `BO${m.bo}` : '';
-                const isBo5 = m.bo === 5;
-                const boClass = isBo5 ? "tag-bo-gold" : ""; 
-                
-                let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
-                let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
+        matches.forEach(m => {
+            const boLabel = m.bo ? `BO${m.bo}` : '';
+            const isBo5 = m.bo === 5;
+            const boClass = isBo5 ? "tag-bo-gold" : ""; 
+            
+            let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
+            let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
 
-                let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
-                
-                if (m.is_finished) {
-                    const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                    const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                    centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-                } else if (m.is_live) {
-                    const liveStyle = "color:#10b981;font-weight:700";
-                    centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
-                }
-                
-                const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
-                const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+            let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
+            
+            if (m.is_finished) {
+                const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+            } else if (m.is_live) {
+                const liveStyle = "color:#10b981;font-weight:700";
+                centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
+            }
+            
+            const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
+            const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
 
-                cardHtml += `<tr>
-                    <td class="sch-margin"></td>
-                    <td class="sch-tag-left">${leftTags}</td>
-                    <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
-                    <td class="sch-center">${centerContent}</td>
-                    <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
-                    <td class="sch-tag-right">${rightTag}</td>
-                    <td class="sch-margin"></td>
-                </tr>`;
-            });
-        }
+            cardHtml += `<tr>
+                <td class="sch-margin"></td>
+                <td class="sch-tag-left">${leftTags}</td>
+                <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
+                <td class="sch-center">${centerContent}</td>
+                <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
+                <td class="sch-tag-right">${rightTag}</td>
+                <td class="sch-margin"></td>
+            </tr>`;
+        });
+        
         cardHtml += `</tbody></table></div>`;
         scheduleHtml += cardHtml;
     });
