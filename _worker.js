@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.38: 视觉极简版 (隐藏滚动条)
-// 基于: V36.2.37
-// 变更: CSS 增加隐藏滚动条逻辑，界面更像原生 App
+// 🥇 Worker V36.2.39: 赛程对齐修复版
+// 基于: V36.2.38
+// 修复: 移除赛程表中的 Flex 布局，回归 vertical-align: middle 以完美对齐时间线
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.38-NoScrollbar-1"; 
+const UI_VERSION = "2026-02-03-V36.2.39-AlignFix"; 
 
 // --- 1. 工具库 ---
 const utils = {
@@ -335,12 +335,17 @@ const PYTHON_STYLE = `
     
     .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; }
     .sch-table th { padding: 8px; font-size: 12px; }
-    .sch-table td { padding: 8px 4px; }
+    
+    /* 🔥 FIXED: Vertical Align Middle & Removed Flex */
+    .sch-table td { padding: 8px 4px; vertical-align: middle; }
+    
     .sch-tag-left { width: 35px; text-align: left; padding-left: 5px; }
     .sch-tag-right { width: 35px; text-align: right; padding-right: 5px; }
-    /* 🔥 Flex for Schedule Alignment */
-    .sch-team-left { display: flex; justify-content: flex-end; align-items: center; padding-right: 8px; font-weight: 700; white-space: nowrap; }
-    .sch-team-right { display: flex; justify-content: flex-start; align-items: center; padding-left: 8px; font-weight: 700; white-space: nowrap; }
+    
+    /* 🔥 FIXED: Removed display:flex to fix alignment with center cell */
+    .sch-team-left { text-align: right; padding-right: 8px; font-weight: 700; white-space: nowrap; }
+    .sch-team-right { text-align: left; padding-left: 8px; font-weight: 700; white-space: nowrap; }
+    
     .sch-center { text-align: center; width: 40px; }
     .sch-live { color: #10b981; font-weight:bold; }
     .sch-score { font-weight: 700; font-size: 13px; }
