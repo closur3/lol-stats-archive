@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.49: 隐藏空赛程 (Hide Empty Schedule)
-// 基于: V36.2.48
-// 变更: 赛程预告板块中，如果某天没有比赛，则不再显示"No Matches"卡片，而是直接隐藏该天
+// 🥇 Worker V36.2.50: 智能赛程 (Smart Schedule)
+// 基于: V36.2.49
+// 变更: 赛程不再固定为自然日未来4天，而是自动寻找未来最近的有比赛的4个日期展示
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.49-HideEmptySchedule";
+const UI_VERSION = "2026-02-04-V36.2.50-SmartSchedule";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -20,15 +20,7 @@ const utils = {
             time: bj.toISOString().slice(11, 16)
         };
     },
-    getFutureDates: (days) => {
-        const list = [];
-        const now = utils.getNow().obj;
-        for (let i = 0; i < days; i++) {
-            const next = new Date(now.getTime() + i * 86400000);
-            list.push(next.toISOString().slice(0, 10));
-        }
-        return list; 
-    },
+    // 移除 getFutureDates，改用动态逻辑
     shortName: (n, teamMap) => {
         if(!n) return "Unknown";
         if(!teamMap) return n;
@@ -141,12 +133,11 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     let maxDateTs = 0;
     let grandTotal = 0;
     
-    const targetDates = utils.getFutureDates(4); 
-    const todayStr = targetDates[0];
+    // ⚡⚡⚡ 修改部分：不再预定义 targetDates，而是动态收集 ⚡⚡⚡
+    const todayStr = utils.getNow().date;
     let matchesTodayCount = 0;
     let pendingTodayCount = 0;
-    let scheduleMap = {};
-    targetDates.forEach(d => scheduleMap[d] = []);
+    let tempScheduleMap = {}; // 临时存放所有未来比赛
 
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const rawMatches = allRawMatches[tourn.slug] || [];
@@ -183,12 +174,16 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const day = bjTime.getUTCDate().toString().padStart(2,'0');
                 dateDisplay = `${month}-${day} ${matchTimeStr}`;
 
-                if (scheduleMap[matchDateStr]) {
+                // ⚡⚡⚡ 逻辑：只要日期是今天或未来，就加入待选列表 ⚡⚡⚡
+                if (matchDateStr >= todayStr) {
+                    if (!tempScheduleMap[matchDateStr]) tempScheduleMap[matchDateStr] = [];
+                    
                     if (matchDateStr === todayStr) {
                         matchesTodayCount++;
                         if (!isFinished) pendingTodayCount++;
                     }
-                    scheduleMap[matchDateStr].push({
+
+                    tempScheduleMap[matchDateStr].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
                         tourn: tourn.region, tournSlug: tourn.slug 
@@ -234,10 +229,9 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
                 const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
                 const hour = bj.getUTCHours();
-                const hourNum = parseInt(hour); // ensuring number
+                const hourNum = parseInt(hour);
 
                 let targetH = null;
-                // Simplified time slot logic for stability
                 if(tourn.region === "LCK") targetH = (hourNum <= 16) ? 16 : 18;
                 if(tourn.region === "LPL") targetH = (hourNum <= 15) ? 15 : (hourNum <= 17 ? 17 : 19);
                 
@@ -254,7 +248,15 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         grandTotal += processed;
     }
 
-    Object.keys(scheduleMap).forEach(k => scheduleMap[k].sort((a,b) => a.time.localeCompare(b.time)));
+    // ⚡⚡⚡ 逻辑：排序日期，取出最近的 4 个日期 ⚡⚡⚡
+    const sortedDates = Object.keys(tempScheduleMap).sort();
+    const next4Dates = sortedDates.slice(0, 4);
+    
+    let scheduleMap = {};
+    next4Dates.forEach(k => {
+        scheduleMap[k] = tempScheduleMap[k];
+        scheduleMap[k].sort((a,b) => a.time.localeCompare(b.time));
+    });
 
     let statusText = `<span style="color:#9ca3af; margin-left:6px">💤 NO MATCHES</span>`;
     let nextStreak = 0; 
@@ -625,64 +627,68 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     let scheduleHtml = `<div class="sch-container">`;
     const dates = Object.keys(scheduleMap).sort();
     
-    const getRateHtml = (teamName, slug, bo) => {
-        const stats = globalStats[slug];
-        if(!stats || !stats[teamName]) return "";
-        const s = stats[teamName];
-        let r = null;
-        if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
-        else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
-        if(r === null) return "";
-        return `<span style="font-weight:400;color:#94a3b8;font-size:11px">(${Math.round(r*100)}%)</span>`;
-    };
+    // ⚡⚡⚡ 逻辑：只有当完全没有赛程时，才显示 No Matches ⚡⚡⚡
+    if (dates.length === 0) {
+         scheduleHtml += `<div class="sch-card"><div class="sch-header" style="background:#f8fafc;color:#94a3b8"><span>No Matches Scheduled</span></div><div style="padding:20px;text-align:center;color:#cbd5e1;font-size:14px">No upcoming matches found in current data.</div></div>`;
+    } else {
+        const getRateHtml = (teamName, slug, bo) => {
+            const stats = globalStats[slug];
+            if(!stats || !stats[teamName]) return "";
+            const s = stats[teamName];
+            let r = null;
+            if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
+            else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
+            if(r === null) return "";
+            return `<span style="font-weight:400;color:#94a3b8;font-size:11px">(${Math.round(r*100)}%)</span>`;
+        };
 
-    dates.forEach(d => {
-        const matches = scheduleMap[d];
-        if (matches.length === 0) return; // ⚡⚡⚡ 修改处：如果当天没有比赛，直接跳过生成卡片 ⚡⚡⚡
-
-        const isToday = d === utils.getNow().date;
-        const titleColor = isToday ? "#1e40af" : "#334155";
-        const titleBg = isToday ? "#eff6ff" : "#f8fafc";
-        const titleText = isToday ? `📅 ${d.slice(5)}` : `🗓️ ${d.slice(5)}`;
-        
-        let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><table class="sch-table"><tbody>`;
-        
-        matches.forEach(m => {
-            const boLabel = m.bo ? `BO${m.bo}` : '';
-            const isBo5 = m.bo === 5;
-            const boClass = isBo5 ? "tag-bo-gold" : ""; 
+        dates.forEach(d => {
+            const matches = scheduleMap[d];
             
-            let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
-            let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
-
-            let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
+            const isToday = d === utils.getNow().date;
+            const titleColor = isToday ? "#1e40af" : "#334155";
+            const titleBg = isToday ? "#eff6ff" : "#f8fafc";
+            const titleText = isToday ? `📅 ${d.slice(5)}` : `🗓️ ${d.slice(5)}`;
             
-            if (m.is_finished) {
-                const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-            } else if (m.is_live) {
-                const liveStyle = "color:#10b981;font-weight:700";
-                centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
-            }
+            let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><table class="sch-table"><tbody>`;
             
-            const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
-            const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+            matches.forEach(m => {
+                const boLabel = m.bo ? `BO${m.bo}` : '';
+                const isBo5 = m.bo === 5;
+                const boClass = isBo5 ? "tag-bo-gold" : ""; 
+                
+                let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
+                let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
 
-            cardHtml += `<tr>
-                <td class="sch-margin"></td>
-                <td class="sch-tag-left">${leftTags}</td>
-                <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
-                <td class="sch-center">${centerContent}</td>
-                <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
-                <td class="sch-tag-right">${rightTag}</td>
-                <td class="sch-margin"></td>
-            </tr>`;
+                let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
+                
+                if (m.is_finished) {
+                    const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                    const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                    centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                } else if (m.is_live) {
+                    const liveStyle = "color:#10b981;font-weight:700";
+                    centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
+                }
+                
+                const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
+                const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+
+                cardHtml += `<tr>
+                    <td class="sch-margin"></td>
+                    <td class="sch-tag-left">${leftTags}</td>
+                    <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
+                    <td class="sch-center">${centerContent}</td>
+                    <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
+                    <td class="sch-tag-right">${rightTag}</td>
+                    <td class="sch-margin"></td>
+                </tr>`;
+            });
+            
+            cardHtml += `</tbody></table></div>`;
+            scheduleHtml += cardHtml;
         });
-        
-        cardHtml += `</tbody></table></div>`;
-        scheduleHtml += cardHtml;
-    });
+    }
     scheduleHtml += `</div>`;
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>LoL Insights</title><style>${PYTHON_STYLE}</style>
