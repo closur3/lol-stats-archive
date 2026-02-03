@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.34: 绝对网格重构版
-// 基于: V36.2.33
-// 变更: 废弃Flex嵌套，采用 CSS Grid 定义全行布局，彻底修复对齐问题
+// 🥇 Worker V36.2.38: 视觉极简版 (隐藏滚动条)
+// 基于: V36.2.37
+// 变更: CSS 增加隐藏滚动条逻辑，界面更像原生 App
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.34-GridSystem"; 
+const UI_VERSION = "2026-02-03-V36.2.38-NoScrollbar"; 
 
 // --- 1. 工具库 ---
 const utils = {
@@ -208,37 +208,18 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const dateShort = `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`;
                 
                 stats[t1].history.push({
-                    d: dateShort,
-                    vs: t2,
-                    s: `${s1}-${s2}`,
-                    res: t1 === winner ? 'W' : 'L',
-                    bo: bo,
-                    full: isFull,
-                    ts: ts
+                    d: dateShort, vs: t2, s: `${s1}-${s2}`, res: t1 === winner ? 'W' : 'L', bo: bo, full: isFull, ts: ts
                 });
-
                 stats[t2].history.push({
-                    d: dateShort,
-                    vs: t1,
-                    s: `${s2}-${s1}`,
-                    res: t2 === winner ? 'W' : 'L',
-                    bo: bo,
-                    full: isFull,
-                    ts: ts
+                    d: dateShort, vs: t1, s: `${s2}-${s1}`, res: t2 === winner ? 'W' : 'L', bo: bo, full: isFull, ts: ts
                 });
 
-                const hour = bj.getUTCHours(), day = bj.getUTCDay(), pyDay = day === 0 ? 6 : day - 1;
+                const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
+                const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
+                const hour = bj.getUTCHours();
                 let targetH = null;
                 if(tourn.region === "LCK") targetH = (hour <= 16) ? 16 : 18;
                 if(tourn.region === "LPL") targetH = (hour <= 15) ? 15 : (hour <= 17 ? 17 : 19);
-                
-                const matchObj = {
-                    d: dateShort,
-                    t1: t1,
-                    t2: t2,
-                    s: `${s1}-${s2}`,
-                    f: isFull
-                };
                 
                 const add = (grid, h, d) => { if(grid[h] && grid[h][d]) { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); } };
                 if(targetH) { add(timeGrid[tourn.region], targetH, pyDay); add(timeGrid[tourn.region], "Total", pyDay); add(timeGrid[tourn.region], targetH, 7); add(timeGrid[tourn.region], "Total", 7); }
@@ -247,10 +228,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
             }
         });
         
-        Object.values(stats).forEach(team => {
-            team.history.sort((a, b) => b.ts - a.ts);
-        });
-
+        Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
         debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
         globalStats[tourn.slug] = stats;
         grandTotal += processed;
@@ -260,22 +238,9 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
 
     let statusText = `<span style="color:#9ca3af; margin-left:6px">💤 NO MATCHES</span>`;
     let nextStreak = 0; 
-
     if (matchesTodayCount > 0) {
-        if (pendingTodayCount > 0) {
-            statusText = `<span style="color:#10b981; margin-left:6px; font-weight:bold">● ONGOING</span>`;
-            nextStreak = 0;
-        } else {
-            if (currentStreak >= 1) {
-                statusText = `<span style="color:#9ca3af; margin-left:6px; font-weight:bold">● FINISHED</span>`;
-                nextStreak = 2; 
-            } else {
-                statusText = `<span style="color:#f59e0b; margin-left:6px; font-weight:bold">🟡 VERIFYING...</span>`;
-                nextStreak = 1;
-            }
-        }
-    } else {
-        nextStreak = 0; 
+        if (pendingTodayCount > 0) { statusText = `<span style="color:#10b981; margin-left:6px; font-weight:bold">● ONGOING</span>`; nextStreak = 0; }
+        else { nextStreak = currentStreak >= 1 ? 2 : 1; statusText = nextStreak === 2 ? `<span style="color:#9ca3af; margin-left:6px; font-weight:bold">● FINISHED</span>` : `<span style="color:#f59e0b; margin-left:6px; font-weight:bold">🟡 VERIFYING...</span>`; }
     }
 
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
@@ -283,10 +248,48 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
 
 // --- 5. Markdown 生成器 ---
 function generateMarkdown(tourn, stats, timeGrid) {
-    let md = `# ${tourn.title}\nUpdated: ${utils.getNow().full}\n\n`;
-    md += `| TEAM | SERIES | GAMES | STREAK |\n|---|---|---|---|\n`;
-    const sorted = Object.values(stats).sort((a,b) => b.g_w - a.g_w); 
-    sorted.forEach(s => md += `| ${s.name} | ${s.s_w}-${s.s_t-s.s_w} | ${s.g_w}-${s.g_t-s.g_w} | ${s.strk_w||s.strk_l} |\n`);
+    let md = `# ${tourn.title}\n\n`;
+    md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
+    
+    md += `## 📊 Statistics\n\n`;
+    md += `| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | WR | STREAK | LAST DATE |\n`;
+    md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+    const sorted = Object.values(stats).sort((a,b) => {
+        const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1;
+        const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1;
+        if(rA !== rB) return rA - rB; 
+        const sWA = utils.rate(a.s_w, a.s_t) || 0;
+        const sWB = utils.rate(b.s_w, b.s_t) || 0;
+        return sWB - sWA;
+    });
+
+    sorted.forEach(s => {
+        const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-";
+        const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
+        const serTxt = s.s_t ? `${s.s_w}-${s.s_t-s.s_w}` : "-";
+        const wrTxt = utils.pct(utils.rate(s.s_w, s.s_t));
+        const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
+        const last = s.last ? new Date(s.last+28800000).toISOString().slice(0,10) : "-";
+        md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${wrTxt} | ${strk} | ${last} |\n`;
+    });
+
+    md += `\n## 📅 Time Slot Distribution\n\n`;
+    md += `| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n`;
+    md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+    const rows = tourn.region === "LCK" ? [16, 18, "Total"] : [15, 17, 19, "Total"];
+    rows.forEach(h => {
+        const label = h === "Total" ? `**${tourn.region} Total**` : `${tourn.region} ${h}:00`;
+        let line = `| ${label} |`;
+        for(let w=0; w<8; w++) {
+            const cell = timeGrid[tourn.region][h][w];
+            line += cell.total === 0 ? " - |" : ` ${cell.full}/${cell.total} (${Math.round(cell.full/cell.total*100)}%) |`;
+        }
+        md += line + "\n";
+    });
+
+    md += `\n---\n*Generated by LoL Stats Worker*\n`;
     return md;
 }
 
@@ -305,6 +308,10 @@ const PYTHON_STYLE = `
     
     .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
     .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; }
+    /* 🔥 HIDE SCROLLBARS BUT KEEP SCROLLING */
+    .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar, .log-list::-webkit-scrollbar { display: none; }
+    .wrapper, .match-list, .log-list { -ms-overflow-style: none; scrollbar-width: none; }
+
     .table-title { padding: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
     .table-title a { color: #2563eb; text-decoration: none; }
     table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
@@ -331,8 +338,9 @@ const PYTHON_STYLE = `
     .sch-table td { padding: 8px 4px; }
     .sch-tag-left { width: 35px; text-align: left; padding-left: 5px; }
     .sch-tag-right { width: 35px; text-align: right; padding-right: 5px; }
-    .sch-team-left { text-align: right; font-weight: 700; padding-right: 8px; white-space: nowrap; }
-    .sch-team-right { text-align: left; font-weight: 700; padding-left: 8px; white-space: nowrap; }
+    /* 🔥 Flex for Schedule Alignment */
+    .sch-team-left { display: flex; justify-content: flex-end; align-items: center; padding-right: 8px; font-weight: 700; white-space: nowrap; }
+    .sch-team-right { display: flex; justify-content: flex-start; align-items: center; padding-left: 8px; font-weight: 700; white-space: nowrap; }
     .sch-center { text-align: center; width: 40px; }
     .sch-live { color: #10b981; font-weight:bold; }
     .sch-score { font-weight: 700; font-size: 13px; }
@@ -349,35 +357,23 @@ const PYTHON_STYLE = `
     .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
     .match-list { margin-top: 20px; max-height: 400px; overflow-y: auto; }
     
-    /* 🔥 GRID SYSTEM for Match Items - The Ultimate Fix */
-    .match-item { 
-        display: grid; 
-        align-items: center; 
-        border-bottom: 1px solid #f1f5f9; 
-        padding: 10px 0;
-        font-size: 14px;
-        gap: 0;
-    }
-    
-    /* Template for History: [Date][Res][T1][VS][T2][Score] */
+    /* 🔥 GRID SYSTEM for Match Items (V36.2.34 Base) */
+    .match-item { display: grid; align-items: center; border-bottom: 1px solid #f1f5f9; padding: 10px 0; font-size: 14px; gap: 0; }
     .match-item.history-layout { grid-template-columns: 48px 48px 1fr 24px 1fr 70px; }
-    /* Template for Distribution: [Date][T1][VS][T2][Score] */
     .match-item.dist-layout { grid-template-columns: 48px 1fr 24px 1fr 70px; }
 
-    /* Column Styles */
     .col-date { font-family: monospace; font-size: 13px; color: #94a3b8; text-align: left; }
     .col-res { font-weight: 900; font-size: 13px; text-align: center; }
-    .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; }
+    .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; min-width: 0; }
     .col-vs { text-align: center; color: #94a3b8; font-size: 10px; }
-    .col-t2 { text-align: left; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 5px; }
+    .col-t2 { text-align: left; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 5px; min-width: 0; }
     .col-score { text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; align-items: center; }
 
-    /* Inner Elements */
     .hist-win { color: #10b981; } .hist-loss { color: #f43f5e; }
     .hist-score { font-family: monospace; font-weight: 700; font-size: 16px; color: #0f172a; }
     .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
     
-    /* Log Styles */
+    /* Log Styles (Old Standard) */
     .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
     .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
     .log-entry:nth-child(even) { background-color: #f8fafc; }
@@ -426,7 +422,7 @@ const PYTHON_JS = `
         const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
     }
 
-    // Grid System Render Logic
+    // Grid System Render Logic (V36.2.34 Base)
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score) {
         const fullTag = isFull ? '<span class="hist-full">FULL</span>' : '';
         const scoreStyle = isFull ? 'color:#ef4444' : '';
