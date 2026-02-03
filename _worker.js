@@ -1,0 +1,824 @@
+// ====================================================
+// 🥇 Worker V36.2.34: 绝对网格重构版
+// 基于: V36.2.33
+// 变更: 废弃Flex嵌套，采用 CSS Grid 定义全行布局，彻底修复对齐问题
+// ====================================================
+
+const UI_VERSION = "2026-02-03-V36.2.34-GridSystem"; 
+
+// --- 1. 工具库 ---
+const utils = {
+    getNow: () => {
+        const d = new Date();
+        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+        const bj = new Date(utc + (3600000 * 8));
+        return {
+            obj: bj,
+            full: bj.toISOString().replace("T", " ").slice(0, 19),
+            short: bj.toISOString().slice(5, 19).replace("T", " "), 
+            date: bj.toISOString().slice(0, 10),
+            time: bj.toISOString().slice(11, 16)
+        };
+    },
+    getFutureDates: (days) => {
+        const list = [];
+        const now = utils.getNow().obj;
+        for (let i = 0; i < days; i++) {
+            const next = new Date(now.getTime() + i * 86400000);
+            list.push(next.toISOString().slice(0, 10));
+        }
+        return list; 
+    },
+    shortName: (n, teamMap) => {
+        if(!n) return "Unknown";
+        if(!teamMap) return n;
+        const upper = n.toUpperCase();
+        if (["TBD", "TBA", "TO BE DETERMINED"].some(x => upper.includes(x))) return null;
+        for(let[k,v] of Object.entries(teamMap)) if(upper.includes(k.toUpperCase())) return v;
+        return n.replace(/(Esports|Gaming|Academy|Team|Club)/gi, "").trim();
+    },
+    rate: (n, d) => d > 0 ? n / d : null,
+    pct: (r) => r !== null ? `${Math.round(r * 100)}%` : "-",
+    color: (r, rev = false) => {
+        if (r === null) return "#f1f5f9"; 
+        const val = Math.max(0, Math.min(1, r));
+        const hue = rev ? (1 - val) * 140 : val * 140;
+        return `hsl(${parseInt(hue)}, 55%, 50%)`;
+    },
+    colorDate: (ts, minTs, maxTs) => {
+        if (!ts) return "#9ca3af"; 
+        if (maxTs === minTs) return "hsl(215, 80%, 50%)";
+        const factor = (ts - minTs) / (maxTs - minTs);
+        const sat = Math.round(factor * 60 + 20); 
+        const lig = Math.round(60 - factor * 10);
+        return `hsl(215, ${sat}%, ${lig}%)`;
+    },
+    parseDate: (str) => {
+        if(!str) return null;
+        try { return new Date(str.replace(" ", "T") + "Z"); } catch(e) { return null; }
+    }
+};
+
+// --- 2. GitHub 读取层 ---
+const gh = {
+    fetchJson: async (env, path) => {
+        const url = `https://api.github.com/repos/${env.GITHUB_USER}/${env.GITHUB_REPO}/contents/${path}`;
+        try {
+            const r = await fetch(url, {
+                headers: { 
+                    "User-Agent": "Cloudflare-Worker",
+                    "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+                    "Accept": "application/vnd.github.v3+json"
+                }
+            });
+            if (!r.ok) return null;
+            const data = await r.json();
+            const content = atob(data.content);
+            return JSON.parse(decodeURIComponent(escape(content)));
+        } catch (e) {
+            return null;
+        }
+    }
+};
+
+// --- 3. 抓取逻辑 ---
+async function fetchWithRetry(url, logger, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const r = await fetch(url, {
+                headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" }
+            });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const cType = r.headers.get("content-type");
+            if (cType && !cType.includes("json")) throw new Error("Invalid Content-Type");
+            const data = await r.json();
+            if (!data.cargoquery) throw new Error("Invalid API Structure");
+            return data.cargoquery; 
+        } catch (e) {
+            if (attempt === maxRetries) throw e; 
+            const waitTime = 30000 + Math.floor(Math.random() * 15000); 
+            logger.error(`❌ API Fail: ${e.message}. Retrying in ${Math.round(waitTime/1000)}s...`);
+            await new Promise(res => setTimeout(res, waitTime));
+        }
+    }
+}
+
+async function fetchAllMatches(overviewPage, logger) {
+    let all = [];
+    let offset = 0;
+    const limit = 50;
+    logger.info(`📡 Fetching data for: ${overviewPage}...`);
+    while(true) {
+        const params = new URLSearchParams({
+            action: "cargoquery", format: "json", tables: "MatchSchedule",
+            fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage",
+            where: `OverviewPage='${overviewPage}'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
+        });
+        try {
+            const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger);
+            const batch = batchRaw.map(i => i.title);
+            if (!batch.length) break;
+            all = all.concat(batch);
+            offset += batch.length;
+            if (batch.length < limit) break;
+            await new Promise(res => setTimeout(res, 1000));
+        } catch(e) {
+            throw new Error(`Batch Fail at offset ${offset}: ${e.message}`);
+        }
+    }
+    logger.success(`📦 Received: ${overviewPage} - Got ${all.length} matches.`);
+    return all;
+}
+
+// --- 4. 统计核心 ---
+function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
+    const globalStats = {};
+    const debugInfo = {};
+    const timeGrid = { "LCK": { 16: {}, 18: {}, "Total": {} }, "LPL": { 15: {}, 17: {}, 19: {}, "Total": {} }, "ALL": {} };
+    const initGrid = (t) => { for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; };
+    Object.values(timeGrid.LCK).forEach(initGrid); Object.values(timeGrid.LPL).forEach(initGrid); initGrid(timeGrid.ALL);
+
+    let maxDateTs = 0;
+    let grandTotal = 0;
+    
+    const targetDates = utils.getFutureDates(4); 
+    const todayStr = targetDates[0];
+    let matchesTodayCount = 0;
+    let pendingTodayCount = 0;
+    let scheduleMap = {};
+    targetDates.forEach(d => scheduleMap[d] = []);
+
+    for (const tourn of runtimeConfig.TOURNAMENTS) {
+        const rawMatches = allRawMatches[tourn.slug] || [];
+        const stats = {};
+        let processed = 0, skipped = 0;
+        const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
+
+        rawMatches.forEach(m => {
+            const t1 = utils.shortName(m.Team1 || m["Team 1"], runtimeConfig.TEAM_MAP);
+            const t2 = utils.shortName(m.Team2 || m["Team 2"], runtimeConfig.TEAM_MAP);
+            if(!t1 || !t2) { skipped++; return; } 
+            
+            const s1 = parseInt(m.Team1Score)||0, s2 = parseInt(m.Team2Score)||0;
+            const bo = parseInt(m.BestOf)||3;
+            const isFinished = Math.max(s1, s2) >= Math.ceil(bo/2);
+            const isLive = !isFinished && (s1 > 0 || s2 > 0 || (m.Team1Score !== "" && m.Team1Score != null));
+            
+            const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
+            
+            if (dt) {
+                const bjTime = new Date(dt.getTime() + 28800000);
+                const matchDateStr = bjTime.toISOString().slice(0, 10);
+                const matchTimeStr = bjTime.toISOString().slice(11, 16);
+                
+                if (scheduleMap[matchDateStr]) {
+                    if (matchDateStr === todayStr) {
+                        matchesTodayCount++;
+                        if (!isFinished) pendingTodayCount++;
+                    }
+                    scheduleMap[matchDateStr].push({
+                        time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
+                        is_finished: isFinished, is_live: isLive, 
+                        tourn: tourn.region, tournSlug: tourn.slug 
+                    });
+                }
+            }
+
+            if(!isFinished) { skipped++; return; }
+
+            processed++; ensureTeam(t1); ensureTeam(t2);
+            const winner = s1 > s2 ? t1 : t2, loser = s1 > s2 ? t2 : t1;
+            const isFull = (bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2);
+
+            [t1,t2].forEach(tm => { stats[tm].s_t++; stats[tm].g_t += (s1+s2); });
+            stats[winner].s_w++; stats[t1].g_w += s1; stats[t2].g_w += s2;
+            if(bo===3) { stats[t1].bo3_t++; stats[t2].bo3_t++; if(isFull){stats[t1].bo3_f++; stats[t2].bo3_f++;} }
+            else if(bo===5) { stats[t1].bo5_t++; stats[t2].bo5_t++; if(isFull){stats[t1].bo5_f++; stats[t2].bo5_f++;} }
+
+            if(stats[winner].strk_l > 0) { stats[winner].strk_l=0; stats[winner].strk_w=1; } else stats[winner].strk_w++;
+            if(stats[loser].strk_w > 0) { stats[loser].strk_w=0; stats[loser].strk_l=1; } else stats[loser].strk_l++;
+
+            if(dt) {
+                const ts = dt.getTime();
+                if(ts > stats[t1].last) stats[t1].last = ts;
+                if(ts > stats[t2].last) stats[t2].last = ts;
+                if(ts > maxDateTs) maxDateTs = ts;
+
+                const bj = new Date(ts + 28800000);
+                const dateShort = `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`;
+                
+                stats[t1].history.push({
+                    d: dateShort,
+                    vs: t2,
+                    s: `${s1}-${s2}`,
+                    res: t1 === winner ? 'W' : 'L',
+                    bo: bo,
+                    full: isFull,
+                    ts: ts
+                });
+
+                stats[t2].history.push({
+                    d: dateShort,
+                    vs: t1,
+                    s: `${s2}-${s1}`,
+                    res: t2 === winner ? 'W' : 'L',
+                    bo: bo,
+                    full: isFull,
+                    ts: ts
+                });
+
+                const hour = bj.getUTCHours(), day = bj.getUTCDay(), pyDay = day === 0 ? 6 : day - 1;
+                let targetH = null;
+                if(tourn.region === "LCK") targetH = (hour <= 16) ? 16 : 18;
+                if(tourn.region === "LPL") targetH = (hour <= 15) ? 15 : (hour <= 17 ? 17 : 19);
+                
+                const matchObj = {
+                    d: dateShort,
+                    t1: t1,
+                    t2: t2,
+                    s: `${s1}-${s2}`,
+                    f: isFull
+                };
+                
+                const add = (grid, h, d) => { if(grid[h] && grid[h][d]) { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); } };
+                if(targetH) { add(timeGrid[tourn.region], targetH, pyDay); add(timeGrid[tourn.region], "Total", pyDay); add(timeGrid[tourn.region], targetH, 7); add(timeGrid[tourn.region], "Total", 7); }
+                timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
+                timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
+            }
+        });
+        
+        Object.values(stats).forEach(team => {
+            team.history.sort((a, b) => b.ts - a.ts);
+        });
+
+        debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
+        globalStats[tourn.slug] = stats;
+        grandTotal += processed;
+    }
+
+    Object.keys(scheduleMap).forEach(k => scheduleMap[k].sort((a,b) => a.time.localeCompare(b.time)));
+
+    let statusText = `<span style="color:#9ca3af; margin-left:6px">💤 NO MATCHES</span>`;
+    let nextStreak = 0; 
+
+    if (matchesTodayCount > 0) {
+        if (pendingTodayCount > 0) {
+            statusText = `<span style="color:#10b981; margin-left:6px; font-weight:bold">● ONGOING</span>`;
+            nextStreak = 0;
+        } else {
+            if (currentStreak >= 1) {
+                statusText = `<span style="color:#9ca3af; margin-left:6px; font-weight:bold">● FINISHED</span>`;
+                nextStreak = 2; 
+            } else {
+                statusText = `<span style="color:#f59e0b; margin-left:6px; font-weight:bold">🟡 VERIFYING...</span>`;
+                nextStreak = 1;
+            }
+        }
+    } else {
+        nextStreak = 0; 
+    }
+
+    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
+}
+
+// --- 5. Markdown 生成器 ---
+function generateMarkdown(tourn, stats, timeGrid) {
+    let md = `# ${tourn.title}\nUpdated: ${utils.getNow().full}\n\n`;
+    md += `| TEAM | SERIES | GAMES | STREAK |\n|---|---|---|---|\n`;
+    const sorted = Object.values(stats).sort((a,b) => b.g_w - a.g_w); 
+    sorted.forEach(s => md += `| ${s.name} | ${s.s_w}-${s.s_t-s.s_w} | ${s.g_w}-${s.g_t-s.g_w} | ${s.strk_w||s.strk_l} |\n`);
+    return md;
+}
+
+// --- 6. HTML 渲染器 ---
+const PYTHON_STYLE = `
+    body { font-family: -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; }
+    .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo { font-size: 1.8rem; }
+    .header-title { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+    .header-right { display: flex; gap: 10px; align-items: center; }
+    .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; }
+    .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+    .update-btn { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; }
+    .update-btn:hover { background: #dbeafe; border-color: #93c5fd; }
+    
+    .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
+    .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; }
+    .table-title { padding: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+    .table-title a { color: #2563eb; text-decoration: none; }
+    table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+    th { background: #f8fafc; padding: 14px 8px; font-weight: 600; color: #64748b; border-bottom: 2px solid #f1f5f9; cursor: pointer; transition: 0.2s; }
+    th:hover { background: #eff6ff; color: #2563eb; }
+    td { padding: 12px 8px; text-align: center; border-bottom: 1px solid #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
+    .team-col { position: sticky; left: 0; background: white !important; z-index: 10; border-right: 2px solid #f1f5f9; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; }
+    .team-clickable { cursor: pointer; } 
+    .team-clickable:hover { color: #2563eb; background-color: #f8fafc !important; }
+
+    .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
+    .col-series { width: 80px; } .col-series-wr { width: 100px; } .col-game { width: 80px; } .col-game-wr { width: 100px; }
+    .col-streak { width: 80px; } .col-last { width: 130px; }
+    .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
+    .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
+    
+    .sch-container { display: flex; gap: 15px; margin-top: 40px; justify-content: space-between; }
+    .sch-card { flex: 1; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; min-width: 260px; }
+    .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
+    
+    .sch-table { width: 100%; min-width: auto; font-size: 13px; table-layout: fixed; }
+    .sch-table th { padding: 8px; font-size: 12px; }
+    .sch-table td { padding: 8px 4px; }
+    .sch-tag-left { width: 35px; text-align: left; padding-left: 5px; }
+    .sch-tag-right { width: 35px; text-align: right; padding-right: 5px; }
+    .sch-team-left { text-align: right; font-weight: 700; padding-right: 8px; white-space: nowrap; }
+    .sch-team-right { text-align: left; font-weight: 700; padding-left: 8px; white-space: nowrap; }
+    .sch-center { text-align: center; width: 40px; }
+    .sch-live { color: #10b981; font-weight:bold; }
+    .sch-score { font-weight: 700; font-size: 13px; }
+    .sch-margin { width: 1px; }
+    
+    .tag-pill { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; white-space: nowrap; }
+    .tag-bo-gold { background: #b45309; color: white; }
+    
+    @media (max-width: 1100px) { .sch-container { flex-wrap: wrap; } .sch-card { min-width: 45%; } }
+    @media (max-width: 600px) { .sch-card { min-width: 100%; } .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
+    
+    .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
+    .modal-content { background-color: #fefefe; margin: 12% auto; padding: 25px; border: 1px solid #888; width: 420px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: fadeIn 0.2s; }
+    .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .match-list { margin-top: 20px; max-height: 400px; overflow-y: auto; }
+    
+    /* 🔥 GRID SYSTEM for Match Items - The Ultimate Fix */
+    .match-item { 
+        display: grid; 
+        align-items: center; 
+        border-bottom: 1px solid #f1f5f9; 
+        padding: 10px 0;
+        font-size: 14px;
+        gap: 0;
+    }
+    
+    /* Template for History: [Date][Res][T1][VS][T2][Score] */
+    .match-item.history-layout { grid-template-columns: 48px 48px 1fr 24px 1fr 70px; }
+    /* Template for Distribution: [Date][T1][VS][T2][Score] */
+    .match-item.dist-layout { grid-template-columns: 48px 1fr 24px 1fr 70px; }
+
+    /* Column Styles */
+    .col-date { font-family: monospace; font-size: 13px; color: #94a3b8; text-align: left; }
+    .col-res { font-weight: 900; font-size: 13px; text-align: center; }
+    .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; }
+    .col-vs { text-align: center; color: #94a3b8; font-size: 10px; }
+    .col-t2 { text-align: left; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 5px; }
+    .col-score { text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; align-items: center; }
+
+    /* Inner Elements */
+    .hist-win { color: #10b981; } .hist-loss { color: #f43f5e; }
+    .hist-score { font-family: monospace; font-weight: 700; font-size: 16px; color: #0f172a; }
+    .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
+    
+    /* Log Styles */
+    .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
+    .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
+    .log-entry:nth-child(even) { background-color: #f8fafc; }
+    .log-time { color: #64748b; font-family: monospace; font-size: 15px; white-space: nowrap; text-align: center; }
+    .log-level { font-weight: 800; text-align: center; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; }
+    .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
+    .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+    .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+    .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
+    .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
+    @media (max-width: 600px) {
+        .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; }
+        .log-time { font-size: 12px; opacity: 0.7; text-align: left; }
+        .log-level { display: inline-block; width: auto; padding: 3px 10px; }
+    }
+`;
+
+const PYTHON_JS = `
+    <script>
+    const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
+    
+    function doSort(c,id) {
+        const t=document.getElementById(id),b=t.tBodies[0],r=Array.from(b.rows),k='data-sort-dir-'+c,cur=t.getAttribute(k),
+        next=(!cur)?((c===COL_TEAM)?'asc':'desc'):((cur==='desc')?'asc':'desc');
+        r.sort((ra,rb)=>{
+            let va=ra.cells[c].innerText,vb=rb.cells[c].innerText;
+            if(c===COL_LAST_DATE){va=va==="-"?0:new Date(va).getTime();vb=vb==="-"?0:new Date(vb).getTime();}
+            else{va=parseValue(va);vb=parseValue(vb);}
+            if(va!==vb) return next==='asc'?(va>vb?1:-1):(va<vb?1:-1);
+            if(c===COL_BO3_PCT||c===COL_BO5_PCT){
+                let sA=parseValue(ra.cells[COL_SERIES_WR].innerText), sB=parseValue(rb.cells[COL_SERIES_WR].innerText);
+                if(sA!==sB) return sA > sB ? -1 : 1;
+            }
+            if(c===COL_SERIES || c===COL_SERIES_WR){
+                let gA=parseValue(ra.cells[COL_GAME_WR].innerText), gB=parseValue(rb.cells[COL_GAME_WR].innerText);
+                if(gA!==gB) return gA > gB ? -1 : 1;
+            }
+            return 0;
+        });
+        t.setAttribute(k,next); r.forEach(x=>b.appendChild(x));
+    }
+    function parseValue(v) {
+        if(v==="-")return -1; if(v.includes('%'))return parseFloat(v);
+        if(v.includes('/')){let p=v.split('/');return p[1]==='-'?-1:parseFloat(p[0])/parseFloat(p[1]);}
+        if(v.includes('-')&&v.split('-').length===2)return parseFloat(v.split('-')[0]);
+        const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
+    }
+
+    // Grid System Render Logic
+    function renderMatchItem(mode, date, resTag, team1, team2, isFull, score) {
+        const fullTag = isFull ? '<span class="hist-full">FULL</span>' : '';
+        const scoreStyle = isFull ? 'color:#ef4444' : '';
+        const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
+        const resHtml = mode === 'history' ? \`<span class="col-res">\${resTag}</span>\` : '';
+        
+        return \`<div class="match-item \${layoutClass}">
+            <span class="col-date">\${date}</span>
+            \${resHtml}
+            <span class="col-t1">\${team1}</span>
+            <span class="col-vs">vs</span>
+            <span class="col-t2">\${team2}</span>
+            <div class="col-score">
+                \${fullTag}
+                <span class="hist-score" style="\${scoreStyle}">\${score}</span>
+            </div>
+        </div>\`;
+    }
+
+    // Popup Logic (Time Distribution)
+    function showPopup(t,d,m){
+        const ds=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Total"];
+        document.getElementById('modalTitle').innerText=t+" - "+ds[d];
+        const listHtml = m.map(item => renderMatchItem('dist', item.d, '', item.t1, item.t2, item.f, item.s));
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
+    }
+
+    // Team History Popup
+    function openTeam(slug, teamName) {
+        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
+        const data = window.g_stats[slug][teamName];
+        const history = data.history || [];
+        document.getElementById('modalTitle').innerText = teamName + " - Match History";
+        const listHtml = history.map(h => {
+            const resText = h.res === 'W' ? 'WIN' : 'LOSE';
+            const resClass = h.res === 'W' ? 'hist-win' : 'hist-loss';
+            const resTag = \`<span class="\${resClass}">\${resText}</span>\`;
+            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
+        });
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
+    }
+
+    function renderListHTML(htmlArr) {
+        const l=document.getElementById('modalList');
+        if(!htmlArr || htmlArr.length===0) l.innerHTML="<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
+        else l.innerHTML = htmlArr.join("");
+    }
+
+    function closePopup(){document.getElementById('matchModal').style.display="none";}
+    window.onclick=function(e){if(e.target==document.getElementById('matchModal'))closePopup();}
+    </script>
+`;
+
+function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig) {
+    if (!statusText) statusText = `<span style="color:#9ca3af; margin-left:6px">Status Unknown</span>`;
+    if (!scheduleMap) scheduleMap = {};
+
+    const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
+
+    let tablesHtml = "";
+    runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
+        const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]) : [];
+        const tableId = `t${idx}`;
+        const dbg = debugInfo[t.slug] || {raw:0, processed:0};
+        const debugLabel = `<span style="font-size:10px;color:#94a3b8;font-weight:normal;margin-left:10px">(Fetched:${dbg.raw}/Valid:${dbg.processed})</span>`;
+
+        let minTs = 9999999999999, maxTsLocal = 0;
+        stats.forEach(s => { if(s.last){ if(s.last<minTs)minTs=s.last; if(s.last>maxTsLocal)maxTsLocal=s.last; }});
+        if(minTs===9999999999999)minTs=maxTsLocal;
+
+        stats.sort((a,b) => {
+            const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1.0;
+            const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1.0;
+            if(rA !== rB) return rA - rB; 
+            const sWA = utils.rate(a.s_w, a.s_t) || 0;
+            const sWB = utils.rate(b.s_w, b.s_t) || 0;
+            if(sWA !== sWB) return sWB - sWA;
+            const gWA = utils.rate(a.g_w, a.g_t) || 0;
+            const gWB = utils.rate(b.g_w, b.g_t) || 0;
+            return gWB - gWA;
+        });
+
+        let rows = stats.map(s => {
+            const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
+            const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
+            const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-", bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
+            const serTxt = s.s_t ? `${s.s_w}-${s.s_t-s.s_w}` : "-", gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
+            const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
+            const last = s.last ? new Date(s.last+28800000).toISOString().slice(0,16).replace("T"," ") : "-";
+            const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
+            const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
+            
+            return `<tr><td class="team-col team-clickable" onclick="openTeam('${t.slug}', '${s.name}')">${s.name}</td>
+                <td class="col-bo3" style="background:${s.bo3_t===0?emptyBg:'transparent'};color:${s.bo3_t===0?emptyCol:'inherit'}">${bo3Txt}</td>
+                <td class="col-bo3-pct" style="background:${utils.color(bo3R,true)};color:${bo3R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo3R)}</td>
+                <td class="col-bo5" style="background:${s.bo5_t===0?emptyBg:'transparent'};color:${s.bo5_t===0?emptyCol:'inherit'}">${bo5Txt}</td>
+                <td class="col-bo5-pct" style="background:${utils.color(bo5R,true)};color:${bo5R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo5R)}</td>
+                <td class="col-series" style="background:${s.s_t===0?emptyBg:'transparent'};color:${s.s_t===0?emptyCol:'inherit'}">${serTxt}</td>
+                <td class="col-series-wr" style="background:${utils.color(winR)};color:${winR!==null?'white':emptyCol};font-weight:bold">${utils.pct(winR)}</td>
+                <td class="col-game" style="background:${s.g_t===0?emptyBg:'transparent'};color:${s.g_t===0?emptyCol:'inherit'}">${gamTxt}</td>
+                <td class="col-game-wr" style="background:${utils.color(gameR)};color:${gameR!==null?'white':emptyCol};font-weight:bold">${utils.pct(gameR)}</td>
+                <td class="col-streak" style="background:${s.strk_w===0&&s.strk_l===0?emptyBg:'transparent'};color:${s.strk_w===0&&s.strk_l===0?emptyCol:'inherit'}">${strk}</td>
+                <td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
+        }).join("");
+        tablesHtml += `<div class="wrapper"><div class="table-title"><a href="https://lol.fandom.com/wiki/${t.overview_page}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    });
+
+    let timeHtml = `<div class="wrapper" style="margin-top: 40px;"><div class="table-title">📅 Full Series Distribution</div><table id="time-stats"><thead><tr><th class="team-col">Time Slot</th>`;
+    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => timeHtml += `<th>${d}</th>`);
+    timeHtml += "</tr></thead><tbody>";
+    const renderRow = (region, h, label) => {
+        const isTotal = h === "Total";
+        let tr = `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
+        for(let w=0; w<8; w++) {
+            const c = (region==="ALL") ? timeData.ALL[w] : timeData[region][h][w];
+            if(c.total===0) tr += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
+            else {
+                const r = c.full/c.total;
+                const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                tr += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'>${c.full}/${c.total} <span style='font-size:11px; opacity:0.8; font-weight:normal'>(${Math.round(r*100)}%)</span></td>`;
+            }
+        }
+        return tr + "</tr>";
+    };
+    [["LCK",16,"LCK 16:00"],["LCK",18,"LCK 18:00"],["LCK","Total","LCK Total"],["LPL",15,"LPL 15:00"],["LPL",17,"LPL 17:00"],["LPL",19,"LPL 19:00"],["LPL","Total","LPL Total"]].forEach(r => timeHtml += renderRow(r[0], r[1], r[2]));
+    timeHtml += `<tr style='border-top: 2px solid #cbd5e1; font-weight:800'><td class='team-col'>GRAND</td>`;
+    for(let w=0; w<8; w++) {
+        const c = timeData.ALL[w];
+        if(c.total===0) timeHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
+        else {
+            const r = c.full/c.total;
+            const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+            timeHtml += `<td style='background:${utils.color(r,true)}; color:white; cursor:pointer;' onclick='showPopup("GRAND", ${w}, ${matches})'>${c.full}/${c.total} <span style='font-size:11px; opacity:0.8; font-weight:normal'>(${Math.round(r*100)}%)</span></td>`;
+        }
+    }
+    timeHtml += "</tr></tbody></table></div>";
+
+    let scheduleHtml = `<div class="sch-container">`;
+    const dates = Object.keys(scheduleMap).sort();
+    
+    const getRateHtml = (teamName, slug, bo) => {
+        const stats = globalStats[slug];
+        if(!stats || !stats[teamName]) return "";
+        const s = stats[teamName];
+        let r = null;
+        if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
+        else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
+        if(r === null) return "";
+        return `<span style="font-weight:400;color:#94a3b8;font-size:11px">(${Math.round(r*100)}%)</span>`;
+    };
+
+    dates.forEach(d => {
+        const matches = scheduleMap[d];
+        const isToday = d === utils.getNow().date;
+        const titleColor = isToday ? "#1e40af" : "#334155";
+        const titleBg = isToday ? "#eff6ff" : "#f8fafc";
+        const titleText = isToday ? `📅 ${d.slice(5)}` : `🗓️ ${d.slice(5)}`;
+        
+        let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><table class="sch-table"><tbody>`;
+        
+        if (matches.length === 0) {
+            cardHtml += `<tr><td colspan="5" style="text-align:center;color:#cbd5e1;padding:20px">No Matches</td></tr>`;
+        } else {
+            matches.forEach(m => {
+                const boLabel = m.bo ? `BO${m.bo}` : '';
+                const isBo5 = m.bo === 5;
+                const boClass = isBo5 ? "tag-bo-gold" : ""; 
+                
+                let leftTags = `<span class="tag-pill">${m.tourn}</span>`;
+                let rightTag = `<span class="tag-pill ${boClass}">${boLabel}</span>`;
+
+                let centerContent = `<span style="color:#64748b; font-weight:400; font-size:12px; font-family:'ui-monospace','SFMono-Regular',Menlo,Consolas,monospace; letter-spacing:0px">${m.time}</span>`; 
+                
+                if (m.is_finished) {
+                    const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                    const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
+                    centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                } else if (m.is_live) {
+                    const liveStyle = "color:#10b981;font-weight:700";
+                    centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
+                }
+                
+                const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
+                const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+
+                cardHtml += `<tr>
+                    <td class="sch-margin"></td>
+                    <td class="sch-tag-left">${leftTags}</td>
+                    <td class="sch-team-left team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t1}')">${r1}${m.t1}</td>
+                    <td class="sch-center">${centerContent}</td>
+                    <td class="sch-team-right team-clickable" onclick="openTeam('${m.tournSlug}', '${m.t2}')">${m.t2}${r2}</td>
+                    <td class="sch-tag-right">${rightTag}</td>
+                    <td class="sch-margin"></td>
+                </tr>`;
+            });
+        }
+        cardHtml += `</tbody></table></div>`;
+        scheduleHtml += cardHtml;
+    });
+    scheduleHtml += `</div>`;
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>LoL Insights</title><style>${PYTHON_STYLE}</style>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
+    </head>
+    <body data-ui-version="${UI_VERSION}">
+    <header class="main-header"><div class="header-left"><span class="header-logo">🥇</span><h1 class="header-title">LoL Insights</h1></div>
+    <div class="header-right">
+        <form action="/force" method="POST" style="margin:0"><button class="action-btn update-btn"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button></form>
+        <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
+    </div></header>
+    <div class="container">${tablesHtml} ${timeHtml} ${scheduleHtml} <div class="footer">${statusText} | Updated: ${updateTime.full}</div></div>
+    <div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>
+    ${injectedData}
+    ${PYTHON_JS}</body></html>`;
+}
+
+// --- 5. 主控 (保持不变) ---
+class Logger {
+    constructor() { this.l=[]; }
+    info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
+    error(m) { this.l.push({t:utils.getNow().short, l:'ERROR', m}); }
+    success(m) { this.l.push({t:utils.getNow().short, l:'SUCCESS', m}); }
+    export() { return this.l; }
+}
+
+async function runUpdate(env, force=false) {
+    const l = new Logger();
+    let runtimeConfig = null;
+
+    try {
+        l.info("⚙️ Loading config from GitHub...");
+        const teams = await gh.fetchJson(env, "teams.json");
+        const tourns = await gh.fetchJson(env, "tournaments.json");
+        if (teams && tourns) {
+            runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
+            l.success("✅ Config loaded successfully");
+        }
+    } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
+
+    if (!runtimeConfig) {
+        l.error("🛑 CRITICAL: Failed to load config. Aborting.");
+        return l;
+    }
+
+    if (!force) {
+        const cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
+        const today = utils.getNow().date;
+        const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0 };
+        if (cache && cache.updateTime.date === today && meta.finish_streak >= 2) {
+            l.info("💤 All matches finished & confirmed (Streak 2+). Sleeping...");
+            return l;
+        }
+    }
+
+    l.info("🚀 Update Started...");
+    const allRaw = {};
+    let fetchError = false; 
+
+    for(const t of runtimeConfig.TOURNAMENTS) {
+        try { 
+            allRaw[t.slug] = await fetchAllMatches(t.overview_page, l); 
+        } catch(e) { 
+            l.error(`⚠️ Fetch Error [${t.slug}]: ${e.message}`);
+            fetchError = true; 
+        }
+    }
+    
+    if (fetchError) {
+        l.error("🛑 Update Aborted: One or more tournaments failed. Retaining old data.");
+        return l; 
+    }
+    
+    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
+    const { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak } = runFullAnalysis(allRaw, oldMeta.finish_streak, runtimeConfig);
+    
+    if (oldMeta.total > 0 && grandTotal < oldMeta.total * 0.9 && !force) {
+        l.error(`🛑 Rollback detected (${grandTotal} < ${oldMeta.total}). Skipped.`);
+        return l;
+    }
+
+    await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
+        globalStats, timeGrid, debugInfo, maxDateTs, statusText, scheduleMap, 
+        updateTime: utils.getNow(), runtimeConfig 
+    }));
+    await env.LOL_KV.put("META", JSON.stringify({ total: grandTotal, finish_streak: nextStreak }));
+    
+    l.success(`🎉 Updated. Matches: ${grandTotal}. Streak: ${oldMeta.finish_streak}->${nextStreak}`);
+    return l;
+}
+
+function renderLogPage(logs) {
+    if (!Array.isArray(logs)) logs = [];
+    const entries = logs.map(l => {
+        let lvlClass = "lvl-inf";
+        if(l.l==="ERROR") lvlClass = "lvl-err";
+        if(l.l==="SUCCESS") lvlClass = "lvl-ok";
+        
+        return `<li class="log-entry">
+            <span class="log-time">${l.t}</span>
+            <span class="log-level ${lvlClass}">${l.l}</span>
+            <span class="log-msg">${l.m}</span>
+        </li>`;
+    }).join("");
+
+    const emptyHtml = logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : '';
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>System Logs</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; }
+        .header { padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
+        .header h2 { margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px; }
+        .back-link { color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.9rem; padding: 6px 12px; border-radius: 6px; background: #eff6ff; transition: background 0.2s; }
+        .back-link:hover { background: #dbeafe; }
+        .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
+        .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
+        .log-entry:nth-child(even) { background-color: #f8fafc; }
+        .log-time { color: #64748b; font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas, Liberation Mono, monospace; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: center; }
+        .log-level { font-weight: 800; text-align: center; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
+        .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+        .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+        .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
+        .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
+        @media (max-width: 600px) {
+            .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; }
+            .log-time { font-size: 12px; opacity: 0.7; text-align: left; }
+            .log-level { display: inline-block; width: auto; padding: 3px 10px; }
+        }
+    </style>
+    </head><body>
+    <div class="container">
+        <div class="header"><h2>📜 System Logs</h2><a href="/" class="back-link">← Back to Stats</a></div>
+        <ul class="log-list">${entries}</ul>
+        ${emptyHtml}
+    </div>
+    </body></html>`;
+}
+
+export default {
+    async fetch(request, env, ctx) {
+        const url = new URL(request.url);
+        
+        if (url.pathname === "/archive") {
+            const cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
+            if (!cache || !cache.globalStats || !cache.timeGrid || !cache.runtimeConfig) {
+                return new Response(JSON.stringify({ error: "No data available" }), { status: 503 });
+            }
+            const payload = {};
+            for (const t of cache.runtimeConfig.TOURNAMENTS) {
+                if (cache.globalStats[t.slug]) {
+                    payload[`tournament/${t.slug}.md`] = generateMarkdown(t, cache.globalStats[t.slug], cache.timeGrid);
+                }
+            }
+            return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
+        }
+
+        if(url.pathname === "/force") {
+            const l = await runUpdate(env, true);
+            await env.LOL_KV.put("logs", JSON.stringify(l.export()));
+            return Response.redirect(url.origin + "/logs", 303);
+        }
+
+        if(url.pathname === "/logs") {
+            const logs = await env.LOL_KV.get("logs", {type:"json"}) || [];
+            return new Response(renderLogPage(logs), {headers:{"content-type":"text/html;charset=utf-8"}});
+        }
+
+        const cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
+        if (!cache) {
+             return new Response("Initializing... <a href='/force'>Click to Build</a>", {headers:{"content-type":"text/html"}});
+        }
+
+        const html = renderFullHtml(
+            cache.globalStats, 
+            cache.timeGrid, 
+            cache.updateTime, 
+            cache.debugInfo, 
+            cache.maxDateTs, 
+            cache.statusText, 
+            cache.scheduleMap, 
+            cache.runtimeConfig || { TOURNAMENTS: [] }
+        );
+
+        return new Response(html, {headers:{"content-type":"text/html;charset=utf-8"}});
+    },
+
+    async scheduled(event, env, ctx) {
+        const l = await runUpdate(env, false);
+        await env.LOL_KV.put("logs", JSON.stringify(l.export()));
+    }
+};
