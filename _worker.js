@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.40: 数据列绝对对齐版
-// 基于: V36.2.39
-// 修复: 给数据统计列增加“等宽数字”属性
+// 🥇 Worker V36.2.42: 完美中轴对齐版
+// 基于: V36.2.41
+// 变更: 时间分布表采用“脊柱对齐”布局，确保分数和百分比的间隔线绝对垂直对齐，彻底消除“波浪感”
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.40-PerfectAlign"; 
+const UI_VERSION = "2026-02-03-V36.2.42-SpineAlign"; 
 
 // --- 1. 工具库 ---
 const utils = {
@@ -324,12 +324,19 @@ const PYTHON_STYLE = `
     .team-clickable:hover { color: #2563eb; background-color: #f8fafc !important; }
 
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
-    /* 🔥 FIXED: Monospace Font for Statistical Columns for Perfect Vertical Alignment */
-    .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr {
+    
+    /* 🔥 Global Monospace Font for All Stats */
+    .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr,
+    #time-stats td:not(.team-col) { 
         font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, monospace;
         font-variant-numeric: tabular-nums;
         letter-spacing: 0;
     }
+
+    /* 🔥 New Time Grid Spine Alignment Styles */
+    .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; }
+    .t-val { text-align: right; width: 35px; white-space: nowrap; } /* Right align score to spine */
+    .t-pct { text-align: left; width: 40px; opacity: 0.8; font-size: 11px; white-space: nowrap; } /* Left align pct to spine */
 
     .col-series { width: 80px; } .col-series-wr { width: 100px; } .col-game { width: 80px; } .col-game-wr { width: 100px; }
     .col-streak { width: 80px; } .col-last { width: 130px; }
@@ -551,7 +558,13 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             else {
                 const r = c.full/c.total;
                 const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                tr += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'>${c.full}/${c.total} <span style='font-size:11px; opacity:0.8; font-weight:normal'>(${Math.round(r*100)}%)</span></td>`;
+                // 🔥 NEW: Spine Alignment Construction
+                tr += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'>
+                    <div class="t-cell">
+                        <span class="t-val">${c.full}/${c.total}</span>
+                        <span class="t-pct">(${Math.round(r*100)}%)</span>
+                    </div>
+                </td>`;
             }
         }
         return tr + "</tr>";
@@ -564,7 +577,13 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         else {
             const r = c.full/c.total;
             const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-            timeHtml += `<td style='background:${utils.color(r,true)}; color:white; cursor:pointer;' onclick='showPopup("GRAND", ${w}, ${matches})'>${c.full}/${c.total} <span style='font-size:11px; opacity:0.8; font-weight:normal'>(${Math.round(r*100)}%)</span></td>`;
+            // 🔥 NEW: Spine Alignment Construction
+            timeHtml += `<td style='background:${utils.color(r,true)}; color:white; cursor:pointer;' onclick='showPopup("GRAND", ${w}, ${matches})'>
+                <div class="t-cell">
+                    <span class="t-val">${c.full}/${c.total}</span>
+                    <span class="t-pct">(${Math.round(r*100)}%)</span>
+                </div>
+            </td>`;
         }
     }
     timeHtml += "</tr></tbody></table></div>";
