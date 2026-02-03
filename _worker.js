@@ -4,7 +4,7 @@
 // 修复: 移除赛程表中的 Flex 布局，回归 vertical-align: middle 以完美对齐时间线
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.39-AlignFix"; 
+const UI_VERSION = "2026-02-03-V36.2.39-AlignFix-2"; 
 
 // --- 1. 工具库 ---
 const utils = {
