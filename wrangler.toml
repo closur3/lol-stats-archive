@@ -9,3 +9,12 @@ GITHUB_REPO = "lol-stats-archive"
 [[kv_namespaces]]
 binding = "LOL_KV"
 id = "c96e310d082645b8a8fe254db1c3bc92"
+
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability]
+[observability.traces]
+enabled = true
