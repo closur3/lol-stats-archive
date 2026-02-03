@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.47: 历史战绩增强版 (History Plus)
-// 基于: V36.2.46
-// 变更: 历史战绩弹窗增加未开始(🕒)和进行中(🔵)比赛，时间精确到小时，布局调整
+// 🥇 Worker V36.2.48: 大图标版 (Big Emojis)
+// 基于: V36.2.47
+// 变更: 将历史战绩中的 Emoji 图标 (✅❌🕒🔵) 字号统一放大至 18px
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.47-HistoryPlus-1";
+const UI_VERSION = "2026-02-04-V36.2.48-BigEmojis-1";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -153,7 +153,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         const stats = {};
         let processed = 0, skipped = 0;
         
-        // 🔥 Moved ensureTeam definition up to handle all matches (Live/Upcoming/Finished)
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
         rawMatches.forEach(m => {
@@ -161,7 +160,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
             const t2 = utils.shortName(m.Team2 || m["Team 2"], runtimeConfig.TEAM_MAP);
             if(!t1 || !t2) { skipped++; return; } 
             
-            // ⚡ Initialize teams immediately
             ensureTeam(t1); ensureTeam(t2);
 
             const s1 = parseInt(m.Team1Score)||0, s2 = parseInt(m.Team2Score)||0;
@@ -181,7 +179,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const matchDateStr = bjTime.toISOString().slice(0, 10);
                 const matchTimeStr = bjTime.toISOString().slice(11, 16);
                 
-                // 🕒 Formatted for History: "02-04 16:00"
                 const month = (bjTime.getUTCMonth()+1).toString().padStart(2,'0');
                 const day = bjTime.getUTCDate().toString().padStart(2,'0');
                 dateDisplay = `${month}-${day} ${matchTimeStr}`;
@@ -199,8 +196,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 }
             }
 
-            // 📜 History Injection (Includes Upcoming & Live now)
-            // Determine result status for T1 and T2
             let resT1 = 'N', resT2 = 'N';
             if (isLive) { resT1 = 'LIV'; resT2 = 'LIV'; }
             else if (isFinished) {
@@ -215,7 +210,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 d: dateDisplay, vs: t1, s: `${s2}-${s1}`, res: resT2, bo: bo, full: isFull, ts: ts
             });
 
-            // ⛔ STOP Processing stats if match is not finished
             if(!isFinished) { skipped++; return; }
 
             processed++;
@@ -231,12 +225,10 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
             if(stats[loser].strk_w > 0) { stats[loser].strk_w=0; stats[loser].strk_l=1; } else stats[loser].strk_l++;
 
             if(dt) {
-                // Update "Last Date" tracking only for finished games
                 if(ts > stats[t1].last) stats[t1].last = ts;
                 if(ts > stats[t2].last) stats[t2].last = ts;
                 if(ts > maxDateTs) maxDateTs = ts;
 
-                // Time Grid Analysis (Only for finished matches)
                 const bj = new Date(ts + 28800000);
                 const dateShort = `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`;
                 const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
@@ -253,7 +245,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
             }
         });
         
-        // Sort history by TS descending (Future -> Live -> Newest Finished -> Oldest Finished)
         Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
         debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
         globalStats[tourn.slug] = stats;
@@ -291,7 +282,6 @@ function generateMarkdown(tourn, stats, timeGrid) {
     });
 
     sorted.forEach(s => {
-        // Only show teams that have actual stats (or keep all if preferred, but existing logic persists)
         const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-";
         const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
         const serTxt = s.s_t ? `${s.s_w}-${s.s_t-s.s_w}` : "-";
@@ -335,7 +325,6 @@ const PYTHON_STYLE = `
     
     .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
     .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; }
-    /* 🔥 HIDE SCROLLBARS BUT KEEP SCROLLING */
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar, .log-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list, .log-list { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -352,7 +341,6 @@ const PYTHON_STYLE = `
 
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
     
-    /* 🔥 Global Monospace */
     .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr,
     #time-stats td:not(.team-col) { 
         font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, monospace;
@@ -360,13 +348,11 @@ const PYTHON_STYLE = `
         letter-spacing: 0;
     }
 
-    /* 🔥 Spine Alignment for Main Table (Stats) - FULL BOLD */
     .spine-row { display: flex; justify-content: center; align-items: center; width: 100%; }
     .spine-l { flex: 1; text-align: right; font-weight: 700; }
     .spine-r { flex: 1; text-align: left; font-weight: 700; }
     .spine-sep { width: 12px; text-align: center; opacity: 0.6; font-weight: 700; }
 
-    /* Time Grid Spine */
     .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; }
     .t-val { text-align: right; width: 35px; white-space: nowrap; } 
     .t-pct { text-align: left; width: 40px; opacity: 0.8; font-size: 11px; white-space: nowrap; } 
@@ -404,14 +390,13 @@ const PYTHON_STYLE = `
     .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
     .match-list { margin-top: 20px; max-height: 400px; overflow-y: auto; }
     
-    /* 🔥 GRID SYSTEM for Match Items (V36.2.47 Update) */
     .match-item { display: grid; align-items: center; border-bottom: 1px solid #f1f5f9; padding: 10px 0; font-size: 14px; gap: 0; }
-    /* History: Date(95px) Icon(30px) Team1 vs Team2 Score(60px) */
     .match-item.history-layout { grid-template-columns: 95px 30px 1fr 20px 1fr 60px; }
     .match-item.dist-layout { grid-template-columns: 48px 1fr 24px 1fr 70px; }
 
     .col-date { font-family: monospace; font-size: 13px; color: #94a3b8; text-align: left; }
-    .col-res { font-weight: 900; font-size: 13px; text-align: center; }
+    /* 🔥 BIG EMOJI CHANGE: 13px -> 18px */
+    .col-res { font-weight: 900; font-size: 18px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; min-width: 0; }
     .col-vs { text-align: center; color: #94a3b8; font-size: 10px; }
     .col-t2 { text-align: left; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 5px; min-width: 0; }
@@ -420,9 +405,9 @@ const PYTHON_STYLE = `
     .hist-win { color: #10b981; } .hist-loss { color: #f43f5e; }
     .hist-score { font-family: monospace; font-weight: 700; font-size: 16px; color: #0f172a; }
     .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
-    .hist-icon { font-size: 12px; }
+    /* 🔥 BIG EMOJI CHANGE: 12px -> 18px */
+    .hist-icon { font-size: 18px; }
     
-    /* Log Styles (Old Standard) */
     .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
     .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
     .log-entry:nth-child(even) { background-color: #f8fafc; }
@@ -471,7 +456,6 @@ const PYTHON_JS = `
         const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
     }
 
-    // Grid System Render Logic
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score) {
         const fullTag = isFull ? '<span class="hist-full">FULL</span>' : '';
         const scoreStyle = isFull ? 'color:#ef4444' : '';
@@ -491,7 +475,6 @@ const PYTHON_JS = `
         </div>\`;
     }
 
-    // Popup Logic (Time Distribution)
     function showPopup(t,d,m){
         const ds=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Total"];
         document.getElementById('modalTitle').innerText=t+" - "+ds[d];
@@ -500,7 +483,6 @@ const PYTHON_JS = `
         document.getElementById('matchModal').style.display="block";
     }
 
-    // Team History Popup
     function openTeam(slug, teamName) {
         if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
         const data = window.g_stats[slug][teamName];
@@ -515,7 +497,6 @@ const PYTHON_JS = `
         };
 
         const listHtml = history.map(h => {
-            // Mapping Logic
             const map = resMap[h.res] || resMap['N'];
             const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
             return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
