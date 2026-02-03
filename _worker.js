@@ -1,10 +1,12 @@
 // ====================================================
-// 🥇 Worker V36.2.46: 全员加粗版 (Full Bold)
-// 基于: V36.2.45
-// 变更: 将中间的间隔符 (/ 和 -) 也加粗，确保整行数据视觉权重完全统一
+// 🥇 Worker V36.2.47: 历史弹窗全功能升级版
+// 基于: V36.2.46 (完全保留 V46 的完美视觉布局)
+// 变更: 
+// 1. 数据层: 即使比赛未结束，也将其写入队伍的 history 数组
+// 2. 弹窗层: 增加对 "LIVE" (进行中) 和 "FUT" (未开赛) 状态的渲染支持
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.46-FullBold"; 
+const UI_VERSION = "2026-02-03-V36.2.47-HistoryPlus"; 
 
 // --- 1. 工具库 ---
 const utils = {
@@ -159,6 +161,9 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
             const t2 = utils.shortName(m.Team2 || m["Team 2"], runtimeConfig.TEAM_MAP);
             if(!t1 || !t2) { skipped++; return; } 
             
+            // 🔥 MOVED UP: Ensure teams exist even if match is not finished
+            ensureTeam(t1); ensureTeam(t2);
+
             const s1 = parseInt(m.Team1Score)||0, s2 = parseInt(m.Team2Score)||0;
             const bo = parseInt(m.BestOf)||3;
             const isFinished = Math.max(s1, s2) >= Math.ceil(bo/2);
@@ -166,6 +171,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
             
             const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
             
+            // --- Schedule Map Logic ---
             if (dt) {
                 const bjTime = new Date(dt.getTime() + 28800000);
                 const matchDateStr = bjTime.toISOString().slice(0, 10);
@@ -182,11 +188,70 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                         tourn: tourn.region, tournSlug: tourn.slug 
                     });
                 }
+
+                // --- 🔥 NEW: Push ALL matches to History (Past, Live, Future) ---
+                const ts = dt.getTime();
+                const dateShort = `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`;
+                
+                // Determine Result Tag for History
+                let resTag1 = 'FUT', resTag2 = 'FUT';
+                let scoreText1 = "0-0", scoreText2 = "0-0";
+
+                if (isFinished) {
+                    const winner = s1 > s2 ? t1 : t2;
+                    resTag1 = t1 === winner ? 'W' : 'L';
+                    resTag2 = t2 === winner ? 'W' : 'L';
+                    scoreText1 = `${s1}-${s2}`;
+                    scoreText2 = `${s2}-${s1}`;
+                } else if (isLive) {
+                    resTag1 = 'LIVE'; resTag2 = 'LIVE';
+                    scoreText1 = `${s1}-${s2}`;
+                    scoreText2 = `${s2}-${s1}`;
+                } else {
+                    // Future
+                    resTag1 = 'FUT'; resTag2 = 'FUT';
+                    scoreText1 = "VS"; scoreText2 = "VS"; // Use "VS" for future scores
+                }
+
+                // Push to T1 History
+                stats[t1].history.push({
+                    d: dateShort, vs: t2, s: scoreText1, res: resTag1, bo: bo, 
+                    full: (isFinished && ((bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2))),
+                    ts: ts, time: matchTimeStr // Added time for future match display
+                });
+
+                // Push to T2 History
+                stats[t2].history.push({
+                    d: dateShort, vs: t1, s: scoreText2, res: resTag2, bo: bo, 
+                    full: (isFinished && ((bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2))),
+                    ts: ts, time: matchTimeStr
+                });
+
+                // --- Time Grid Logic (Only for Finished Matches) ---
+                if (isFinished) {
+                    if(ts > stats[t1].last) stats[t1].last = ts;
+                    if(ts > stats[t2].last) stats[t2].last = ts;
+                    if(ts > maxDateTs) maxDateTs = ts;
+
+                    const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: (isFinished && ((bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2))) };
+                    const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
+                    const hour = bj.getUTCHours();
+                    let targetH = null;
+                    if(tourn.region === "LCK") targetH = (hour <= 16) ? 16 : 18;
+                    if(tourn.region === "LPL") targetH = (hour <= 15) ? 15 : (hour <= 17 ? 17 : 19);
+                    
+                    const isFull = matchObj.f; // convenience
+                    const add = (grid, h, d) => { if(grid[h] && grid[h][d]) { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); } };
+                    if(targetH) { add(timeGrid[tourn.region], targetH, pyDay); add(timeGrid[tourn.region], "Total", pyDay); add(timeGrid[tourn.region], targetH, 7); add(timeGrid[tourn.region], "Total", 7); }
+                    timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
+                    timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
+                }
             }
 
             if(!isFinished) { skipped++; return; }
 
-            processed++; ensureTeam(t1); ensureTeam(t2);
+            // --- Stats Aggregation (Only for Finished Matches) ---
+            processed++; 
             const winner = s1 > s2 ? t1 : t2, loser = s1 > s2 ? t2 : t1;
             const isFull = (bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2);
 
@@ -197,38 +262,9 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
 
             if(stats[winner].strk_l > 0) { stats[winner].strk_l=0; stats[winner].strk_w=1; } else stats[winner].strk_w++;
             if(stats[loser].strk_w > 0) { stats[loser].strk_w=0; stats[loser].strk_l=1; } else stats[loser].strk_l++;
-
-            if(dt) {
-                const ts = dt.getTime();
-                if(ts > stats[t1].last) stats[t1].last = ts;
-                if(ts > stats[t2].last) stats[t2].last = ts;
-                if(ts > maxDateTs) maxDateTs = ts;
-
-                const bj = new Date(ts + 28800000);
-                const dateShort = `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`;
-                
-                stats[t1].history.push({
-                    d: dateShort, vs: t2, s: `${s1}-${s2}`, res: t1 === winner ? 'W' : 'L', bo: bo, full: isFull, ts: ts
-                });
-                stats[t2].history.push({
-                    d: dateShort, vs: t1, s: `${s2}-${s1}`, res: t2 === winner ? 'W' : 'L', bo: bo, full: isFull, ts: ts
-                });
-
-                const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
-                const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
-                const hour = bj.getUTCHours();
-                let targetH = null;
-                if(tourn.region === "LCK") targetH = (hour <= 16) ? 16 : 18;
-                if(tourn.region === "LPL") targetH = (hour <= 15) ? 15 : (hour <= 17 ? 17 : 19);
-                
-                const add = (grid, h, d) => { if(grid[h] && grid[h][d]) { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); } };
-                if(targetH) { add(timeGrid[tourn.region], targetH, pyDay); add(timeGrid[tourn.region], "Total", pyDay); add(timeGrid[tourn.region], targetH, 7); add(timeGrid[tourn.region], "Total", 7); }
-                timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
-                timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
-            }
         });
         
-        Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
+        Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts)); // Future matches (larger TS) will be at top
         debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
         globalStats[tourn.slug] = stats;
         grandTotal += processed;
@@ -335,9 +371,9 @@ const PYTHON_STYLE = `
 
     /* 🔥 Spine Alignment for Main Table (Stats) - FULL BOLD */
     .spine-row { display: flex; justify-content: center; align-items: center; width: 100%; }
-    .spine-l { flex: 1; text-align: right; font-weight: 700; } /* Bold */
-    .spine-r { flex: 1; text-align: left; font-weight: 700; } /* Bold */
-    .spine-sep { width: 12px; text-align: center; opacity: 0.6; font-weight: 700; } /* 🔥 NOW BOLD TOO */
+    .spine-l { flex: 1; text-align: right; font-weight: 700; } 
+    .spine-r { flex: 1; text-align: left; font-weight: 700; } 
+    .spine-sep { width: 12px; text-align: center; opacity: 0.6; font-weight: 700; } 
 
     /* Time Grid Spine */
     .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; }
@@ -387,10 +423,12 @@ const PYTHON_STYLE = `
     .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; min-width: 0; }
     .col-vs { text-align: center; color: #94a3b8; font-size: 10px; }
     .col-t2 { text-align: left; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 5px; min-width: 0; }
+    
+    /* 🔥 Updated: Use Spine styles in popup too */
     .col-score { text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; align-items: center; }
+    .hist-score { font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, monospace; font-weight: 700; font-size: 16px; color: #0f172a; width: 60px; } /* Fixed width for spine */
 
-    .hist-win { color: #10b981; } .hist-loss { color: #f43f5e; }
-    .hist-score { font-family: monospace; font-weight: 700; font-size: 16px; color: #0f172a; }
+    .hist-win { color: #10b981; } .hist-loss { color: #f43f5e; } .hist-live { color: #10b981; } .hist-fut { color: #94a3b8; font-size:11px; }
     .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
     
     /* Log Styles (Old Standard) */
@@ -437,10 +475,17 @@ const PYTHON_JS = `
     }
     function parseValue(v) {
         if(v==="-")return -1; if(v.includes('%'))return parseFloat(v);
-        // 🔥 Reverted Ghost logic, regular parsing is fine for Spine layout (v.split works on innerText)
         if(v.includes('/')){let p=v.split('/');return p[1]==='-'?-1:parseFloat(p[0])/parseFloat(p[1]);}
         if(v.includes('-')&&v.split('-').length===2)return parseFloat(v.split('-')[0]);
         const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
+    }
+
+    // 🔥 Client-side Spine Generator (Matches server-side logic)
+    function mkSpine(val, sep) {
+        if(!val || val === "-" || val === "VS") return val; 
+        const parts = val.split(sep);
+        if(parts.length !== 2) return val;
+        return \`<div class="spine-row"><span class="spine-l">\${parts[0]}</span><span class="spine-sep">\${sep}</span><span class="spine-r">\${parts[1]}</span></div>\`;
     }
 
     // Grid System Render Logic (V36.2.34 Base)
@@ -450,6 +495,9 @@ const PYTHON_JS = `
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
         const resHtml = mode === 'history' ? \`<span class="col-res">\${resTag}</span>\` : '';
         
+        // 🔥 Apply Spine to Score if valid
+        const displayScore = (score.includes('-') || score.includes('/')) ? mkSpine(score, score.includes('-')?'-':'/') : score;
+
         return \`<div class="match-item \${layoutClass}">
             <span class="col-date">\${date}</span>
             \${resHtml}
@@ -458,7 +506,7 @@ const PYTHON_JS = `
             <span class="col-t2">\${team2}</span>
             <div class="col-score">
                 \${fullTag}
-                <span class="hist-score" style="\${scoreStyle}">\${score}</span>
+                <span class="hist-score" style="\${scoreStyle}">\${displayScore}</span>
             </div>
         </div>\`;
     }
@@ -478,12 +526,21 @@ const PYTHON_JS = `
         const data = window.g_stats[slug][teamName];
         const history = data.history || [];
         document.getElementById('modalTitle').innerText = teamName + " - Match History";
+        
         const listHtml = history.map(h => {
-            const resText = h.res === 'W' ? 'WIN' : 'LOSE';
-            const resClass = h.res === 'W' ? 'hist-win' : 'hist-loss';
+            let resText = h.res;
+            let resClass = 'hist-win';
+            
+            // 🔥 Logic for LIVE and FUTURE
+            if(h.res === 'W') { resText = 'WIN'; resClass = 'hist-win'; }
+            else if(h.res === 'L') { resText = 'LOSE'; resClass = 'hist-loss'; }
+            else if(h.res === 'LIVE') { resText = 'LIVE'; resClass = 'hist-live'; }
+            else if(h.res === 'FUT') { resText = h.time || 'TBD'; resClass = 'hist-fut'; } // Show time for future
+
             const resTag = \`<span class="\${resClass}">\${resText}</span>\`;
             return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
         });
+        
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
     }
@@ -647,10 +704,11 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 if (m.is_finished) {
                     const s1Style = m.s1 > m.s2 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
                     const s2Style = m.s2 > m.s1 ? "color:#0f172a;font-weight:700" : "color:#64748b;font-weight:700";
-                    centerContent = `<span class="sch-score"><span style="${s1Style}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                    // 🔥 UPDATED: Apply Spine to Schedule cards too
+                    centerContent = mkSpine(`${m.s1}-${m.s2}`, '-');
                 } else if (m.is_live) {
                     const liveStyle = "color:#10b981;font-weight:700";
-                    centerContent = `<span class="sch-score"><span style="${liveStyle}">${m.s1}</span><span style="color:#cbd5e1;margin:0 2px">-</span><span style="${liveStyle}">${m.s2}</span></span>`;
+                    centerContent = mkSpine(`${m.s1}-${m.s2}`, '-'); // Live also gets spine
                 }
                 
                 const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
