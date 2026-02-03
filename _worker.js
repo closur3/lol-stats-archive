@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V36.2.45: 绝对中轴 + 强力粗体版
-// 基于: V36.2.43 (回退 V44 的隐形占位逻辑)
-// 变更: 移除隐形"0"补位，回归原始数据的绝对中轴对齐，并确保数字部分加粗显示
+// 🥇 Worker V36.2.46: 全员加粗版 (Full Bold)
+// 基于: V36.2.45
+// 变更: 将中间的间隔符 (/ 和 -) 也加粗，确保整行数据视觉权重完全统一
 // ====================================================
 
-const UI_VERSION = "2026-02-03-V36.2.45-BoldSpine"; 
+const UI_VERSION = "2026-02-03-V36.2.46-FullBold"; 
 
 // --- 1. 工具库 ---
 const utils = {
@@ -333,11 +333,11 @@ const PYTHON_STYLE = `
         letter-spacing: 0;
     }
 
-    /* 🔥 Spine Alignment for Main Table (Stats) - BOLD NUMBERS */
+    /* 🔥 Spine Alignment for Main Table (Stats) - FULL BOLD */
     .spine-row { display: flex; justify-content: center; align-items: center; width: 100%; }
-    .spine-l { flex: 1; text-align: right; font-weight: 700; } /* 🔥 Bold */
-    .spine-r { flex: 1; text-align: left; font-weight: 700; } /* 🔥 Bold */
-    .spine-sep { width: 12px; text-align: center; opacity: 0.5; font-weight: normal; } /* Separator stays normal */
+    .spine-l { flex: 1; text-align: right; font-weight: 700; } /* Bold */
+    .spine-r { flex: 1; text-align: left; font-weight: 700; } /* Bold */
+    .spine-sep { width: 12px; text-align: center; opacity: 0.6; font-weight: 700; } /* 🔥 NOW BOLD TOO */
 
     /* Time Grid Spine */
     .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; }
