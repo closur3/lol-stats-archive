@@ -379,7 +379,7 @@ const PYTHON_STYLE = `
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.6; font-weight: 700; font-size: 10px; }
 
     /* 赛程区域特有 padding (大按钮) */
-    .sch-row .spine-l, .sch-row .spine-r { padding: 4px 10px; }
+    .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
 
     /* Hover 背景色 */
     .spine-l.clickable:hover, .spine-r.clickable:hover {
