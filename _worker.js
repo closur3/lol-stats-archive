@@ -1,13 +1,13 @@
 // ====================================================
-// 🥇 Worker V38.2.0: 丰富日志 + UI 优化版
-// 基于: V38.1.0
-// 变更:
-// 1. UI: 联赛表头显示上次更新时间 (Updated: ...)，支持绿/灰状态色。
-// 2. UI: 移除底部全局更新时间。
-// 3. Log: 增加详细调度日志 (扫描/冷却/批次/排队)，清晰展示调度逻辑。
+// 🥇 Worker V38.4.0: 终极完美版
+// 基于: V38.3.0
+// 修复:
+// 1. UI: 找回遗失的 TBD 灰色样式 (赛程表中 TBD 显示为灰色)。
+// 2. UI: 保持 .sch-pill.gold 为香槟金配色。
+// 3. Core: 保持分轮调度、丰富日志、追加写入、智能休眠等所有核心逻辑。
 // ====================================================
 
-const UI_VERSION = "2026-02-05-V38.2.0-RichLogUI";
+const UI_VERSION = "2026-02-05-V38.4.0-FinalPolish";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -429,6 +429,8 @@ const PYTHON_STYLE = `
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
 
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
+    
+    /* 香槟金: 浅金背景 + 深棕色文字 */
     .sch-pill.gold { background: #eec170; color: #78350f; }
     
     .sch-live-score { color: #10b981; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -463,7 +465,7 @@ const PYTHON_STYLE = `
     .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
     .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
     .log-entry:nth-child(even) { background-color: #f8fafc; }
-    .log-time { color: #64748b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; white-space: nowrap; text-align: center; font-variant-numeric: tabular-nums; }
+    .log-time { color: #64748b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: center; font-variant-numeric: tabular-nums; }
     .log-level { font-weight: 800; text-align: center; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
     .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
     .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
@@ -598,7 +600,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
         const tableId = `t${idx}`;
         
-        // [新增] 独立表头更新时间逻辑
         const lastTs = updateTimestamps[t.slug];
         let timeStr = "(Pending)";
         let timeColor = "#9ca3af"; // 灰色
@@ -606,7 +607,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         if (lastTs) {
             timeStr = "Updated: " + utils.fmtDate(lastTs);
             const diff = Date.now() - lastTs;
-            // 20分钟内显示绿色，否则灰色
             if (diff < 20 * 60 * 1000) timeColor = "#10b981"; 
         }
         
@@ -755,11 +755,12 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                     midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
                 }
 
+                // [修复] 这里加上了 isTbd 的颜色判断
                 const vsContent = `
                     <div class="spine-row">
-                        <span class="${t1Class}" ${t1Click}>${r1}${m.t1}</span>
+                        <span class="${t1Class}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span>
                         <span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span>
-                        <span class="${t2Class}" ${t2Click}>${m.t2}${r2}</span>
+                        <span class="${t2Class}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span>
                     </div>
                 `;
 
@@ -776,7 +777,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         scheduleHtml += `</div>`;
     }
 
-    // [变更] 移除底部 Updated 时间
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>LoL Insights</title><style>${PYTHON_STYLE}</style>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
     </head>
