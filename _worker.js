@@ -26,7 +26,7 @@ const utils = {
     fmtDate: (ts) => {
         if (!ts) return "(Pending)";
         const d = new Date(ts + 28800000); // UTC+8
-        return d.toISOString().replace("T", " ").slice(0, 19);
+        return d.toISOString().slice(5, 10) + " " + d.toISOString().slice(11, 16);
     },
     shortName: (n, teamMap) => {
         if(!n) return "Unknown";
@@ -605,7 +605,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         let timeColor = "#9ca3af"; // 灰色
         
         if (lastTs) {
-            timeStr = "Updated: " + utils.fmtDate(lastTs);
+            timeStr = utils.fmtDate(lastTs);
             const diff = Date.now() - lastTs;
             if (diff < 20 * 60 * 1000) timeColor = "#10b981"; 
         }
