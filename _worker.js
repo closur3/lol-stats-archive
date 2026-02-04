@@ -581,7 +581,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
         const parts = val.split(sep);
         if(parts.length !== 2) return val;
-        return `<div class="spine-row"><span class="spine-l">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r">${parts[1]}</span></div>`;
+        return `<div class="spine-row"><span class="spine-l" style="font-weight:700">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r" style="font-weight:700">${parts[1]}</span></div>`;
     };
 
     const getRateHtml = (teamName, slug, bo) => {
