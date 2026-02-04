@@ -725,9 +725,9 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 if (m.is_finished) {
                     const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
                     const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
-                    midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span>-<span style="${s2Style}">${m.s2}</span></span>`;
+                    midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
                 } else if (m.is_live) {
-                    midContent = `<span class="sch-live-score">${m.s1}-${m.s2}</span>`;
+                    midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
                 }
 
                 const vsContent = `
