@@ -411,8 +411,8 @@ const PYTHON_STYLE = `
     }
     .sch-row:last-child { border-bottom: none; }
     
-    /* 核心变更: 赛程时间使用普通等宽字体，赛程比分使用完整MONO */
-    .sch-time { width: 60px; color: #94a3b8; font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 12px; font-weight: 700; display:flex; align-items:center; justify-content:center; box-sizing:border-box; } 
+    /* 核心变更: 赛程时间使用普通字体+tabular-nums等宽，赛程比分使用完整MONO */
+    .sch-time { width: 60px; color: #94a3b8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 700; display:flex; align-items:center; justify-content:center; box-sizing:border-box; font-variant-numeric: tabular-nums; } 
     .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: flex-end; padding-right:15px; box-sizing:border-box; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
 
