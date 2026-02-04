@@ -411,16 +411,16 @@ const PYTHON_STYLE = `
     }
     .sch-row:last-child { border-bottom: none; }
     
-    /* 核心变更: 双翼 70px + border-box */
-    .sch-time { width: 60px; color: #94a3b8; font-family: monospace; font-size: 12px; font-weight: 700; display:flex; align-items:center; justify-content:center; box-sizing:border-box; } 
+    /* 核心变更: 赛程时间使用普通等宽字体，赛程比分使用完整MONO */
+    .sch-time { width: 60px; color: #94a3b8; font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 12px; font-weight: 700; display:flex; align-items:center; justify-content:center; box-sizing:border-box; } 
     .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: flex-end; padding-right:15px; box-sizing:border-box; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
 
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
     .sch-pill.gold { background: #b45309; color: white; }
     
-    .sch-live-score { color: #10b981; font-family: monospace; font-weight: 800; font-size: 13px; }
-    .sch-fin-score { color: #334155; font-family: monospace; font-weight: 800; font-size: 13px; }
+    .sch-live-score { color: #10b981; font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, Liberation Mono, monospace; font-weight: 800; font-size: 13px; }
+    .sch-fin-score { color: #334155; font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, Liberation Mono, monospace; font-weight: 800; font-size: 13px; }
     
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
 
