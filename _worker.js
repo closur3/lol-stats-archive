@@ -279,9 +279,9 @@ function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\n`;
     md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
     md += `## 📊 Statistics\n\n`;
-    md += `| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | WR | STREAK | LAST DATE |\n`;
-    md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
-    const sorted = Object.values(stats).sort((a,b) => {
+    md += `| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n`;
+    md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+    const sorted = Object.values(stats).filter(s => s.name !== "TBD").sort((a,b) => {
         const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1;
         const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1;
         if(rA !== rB) return rA - rB; 
@@ -293,10 +293,12 @@ function generateMarkdown(tourn, stats, timeGrid) {
         const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-";
         const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
         const serTxt = s.s_t ? `${s.s_w}-${s.s_t-s.s_w}` : "-";
-        const wrTxt = utils.pct(utils.rate(s.s_w, s.s_t));
+        const serWrTxt = utils.pct(utils.rate(s.s_w, s.s_t));
+        const gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
+        const gamWrTxt = utils.pct(utils.rate(s.g_w, s.g_t));
         const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
         const last = s.last ? new Date(s.last+28800000).toISOString().slice(0,10) : "-";
-        md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${wrTxt} | ${strk} | ${last} |\n`;
+        md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${serWrTxt} | ${gamTxt} | ${gamWrTxt} | ${strk} | ${last} |\n`;
     });
     md += `\n## 📅 Time Slot Distribution\n\n`;
     md += `| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n`;
@@ -417,8 +419,8 @@ const PYTHON_STYLE = `
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
     .sch-pill.gold { background: #b45309; color: white; }
     
-    .sch-live-score { color: #10b981; font-family: monospace; font-weight: 700; font-size: 10px; }
-    .sch-fin-score { color: #334155; font-family: monospace; font-weight: 700; font-size: 10px; }
+    .sch-live-score { color: #10b981; font-family: monospace; font-weight: 800; font-size: 13px; }
+    .sch-fin-score { color: #334155; font-family: monospace; font-weight: 800; font-size: 13px; }
     
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
 
