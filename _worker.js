@@ -638,7 +638,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
 
             const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
-            const last = s.last ? new Date(s.last+28800000).toISOString().slice(0,16).replace("T"," ") : "-";
+            const last = s.last ? new Date(s.last+28800000).toISOString().slice(2,16).replace("T"," ") : "-";
             const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
             const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
             
