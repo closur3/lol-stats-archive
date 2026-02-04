@@ -1,17 +1,13 @@
 // ====================================================
-// 🥇 Worker V38.0.0: 分批轮询调度版
-// 基于: V37.5.0
-// 核心升级:
-// 1. 引入"分轮处理"机制 (UPDATE_ROUNDS = 2)。
-//    - 每次只处理 Ceil(总联赛数 / 轮数) 个请求。
-//    - 实现了天然的负载均衡和错峰更新。
-// 2. 引入"优先级队列"。
-//    - 依据: (当前时间 - 上次更新时间) 倒序排列。
-//    - 效果: 最久没更新的联赛优先处理。
-// 3. 日志显示: 严格保证由上至下为由新至旧。
+// 🥇 Worker V38.2.0: 丰富日志 + UI 优化版
+// 基于: V38.1.0
+// 变更:
+// 1. UI: 联赛表头显示上次更新时间 (Updated: ...)，支持绿/灰状态色。
+// 2. UI: 移除底部全局更新时间。
+// 3. Log: 增加详细调度日志 (扫描/冷却/批次/排队)，清晰展示调度逻辑。
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V38.0.0-BatchQueue";
+const UI_VERSION = "2026-02-05-V38.2.0-RichLogUI";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -26,6 +22,11 @@ const utils = {
             date: bj.toISOString().slice(0, 10),
             time: bj.toISOString().slice(11, 16)
         };
+    },
+    fmtDate: (ts) => {
+        if (!ts) return "(Pending)";
+        const d = new Date(ts + 28800000); // UTC+8
+        return d.toISOString().replace("T", " ").slice(0, 19);
     },
     shortName: (n, teamMap) => {
         if(!n) return "Unknown";
@@ -567,9 +568,10 @@ const PYTHON_JS = `
     </script>
 `;
 
-function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig) {
+function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig, updateTimestamps) {
     if (!statusText) statusText = `<span style="color:#9ca3af; margin-left:6px">Status Unknown</span>`;
     if (!scheduleMap) scheduleMap = {};
+    if (!updateTimestamps) updateTimestamps = {};
 
     const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
 
@@ -595,8 +597,20 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
         const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
         const tableId = `t${idx}`;
-        const dbg = debugInfo[t.slug] || {raw:0, processed:0};
-        const debugLabel = `<span style="font-size:10px;color:#94a3b8;font-weight:normal;margin-left:10px">(Fetched:${dbg.raw}/Valid:${dbg.processed})</span>`;
+        
+        // [新增] 独立表头更新时间逻辑
+        const lastTs = updateTimestamps[t.slug];
+        let timeStr = "(Pending)";
+        let timeColor = "#9ca3af"; // 灰色
+        
+        if (lastTs) {
+            timeStr = "Updated: " + utils.fmtDate(lastTs);
+            const diff = Date.now() - lastTs;
+            // 20分钟内显示绿色，否则灰色
+            if (diff < 20 * 60 * 1000) timeColor = "#10b981"; 
+        }
+        
+        const debugLabel = `<span style="font-size:11px;color:${timeColor};font-weight:600;margin-left:10px">${timeStr}</span>`;
 
         let minTs = 9999999999999, maxTsLocal = 0;
         stats.forEach(s => { if(s.last){ if(s.last<minTs)minTs=s.last; if(s.last>maxTsLocal)maxTsLocal=s.last; }});
@@ -762,6 +776,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         scheduleHtml += `</div>`;
     }
 
+    // [变更] 移除底部 Updated 时间
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>LoL Insights</title><style>${PYTHON_STYLE}</style>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
     </head>
@@ -771,13 +786,13 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         <form action="/force" method="POST" style="margin:0"><button class="action-btn update-btn"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button></form>
         <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
     </div></header>
-    <div class="container">${tablesHtml} ${timeHtml} ${scheduleHtml} <div class="footer">${statusText} | Updated: ${updateTime.full}</div></div>
+    <div class="container">${tablesHtml} ${timeHtml} ${scheduleHtml} <div class="footer">${statusText}</div></div>
     <div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>
     ${injectedData}
     ${PYTHON_JS}</body></html>`;
 }
 
-// --- 5. 主控 (Async 异步并发 + 分批轮询 + 日志修复版) ---
+// --- 5. 主控 (Rich Logging + Batch Scheduler) ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -790,8 +805,6 @@ async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
     const UPDATE_THRESHOLD = 8 * 60 * 1000; 
-    
-    // 🔥 核心配置: 分几轮处理完所有联赛 (2轮 = 每次处理总数的一半)
     const UPDATE_ROUNDS = 2; 
 
     // 1. 读取基础缓存
@@ -802,7 +815,7 @@ async function runUpdate(env, force=false) {
     // 2. 智能早退 (完赛逻辑)
     if (!force) {
         if (cache && cache.updateTime.date === today && meta.finish_streak >= 2) {
-            // l.info("💤 All matches finished..."); 
+            l.success("💤 Sleep Mode: All matches finished (Streak 2+). Standing by."); 
             return l;
         }
     }
@@ -828,43 +841,56 @@ async function runUpdate(env, force=false) {
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    // 5. 核心调度: 候选人筛选 + 优先级排序 + 批量切片
+    // 5. 核心调度: 候选人筛选 (丰富日志)
     const candidates = [];
+    const cooldowns = [];
+
     runtimeConfig.TOURNAMENTS.forEach(t => {
         const lastTs = cache.updateTimestamps[t.slug] || 0;
         const elapsed = NOW - lastTs;
-        // 只有超过 8分钟 阈值或者是新联赛，才有资格进入候选名单
+        const elapsedMins = Math.floor(elapsed / 60000);
+        
         if (force || elapsed >= UPDATE_THRESHOLD) {
-            candidates.push({ slug: t.slug, overview_page: t.overview_page, elapsed: elapsed });
+            candidates.push({ slug: t.slug, overview_page: t.overview_page, elapsed: elapsed, label: `${t.slug}(${elapsedMins}m ago)` });
+        } else {
+            const waitMins = Math.ceil((UPDATE_THRESHOLD - elapsed) / 60000);
+            cooldowns.push(`${t.slug}(-${waitMins}m)`);
         }
     });
+
+    // 打印扫描总览
+    l.info(`🔍 Scan: ${candidates.length} Candidates, ${cooldowns.length} Cooldown.`);
+    if (cooldowns.length > 0) l.info(`❄️ Cooldown: [ ${cooldowns.join(', ')} ]`);
 
     if (candidates.length === 0) {
         // l.success("💤 All data fresh.");
         return l;
     }
 
-    // 排序: 越久没更新的 (elapsed 越大) 越排在前面
+    // 排序: 饥饿时间降序 (最久没更的排前面)
     candidates.sort((a, b) => b.elapsed - a.elapsed);
 
-    // 计算本次批次大小
+    // 计算批次
     const totalLeagues = runtimeConfig.TOURNAMENTS.length;
-    // 如果总数是 3，轮数是 2，Math.ceil(3/2) = 2。第一批处理2个，第二批处理1个。
     const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
     
-    // 切片: 取出优先级最高的前 batchSize 个
+    // 切片: 本轮 Batch vs 下轮 Queue
     const batch = candidates.slice(0, batchSize);
+    const queue = candidates.slice(batchSize);
     
-    l.info(`⚖️ Scheduling: ${batch.length}/${candidates.length} tasks (Total: ${totalLeagues}, Rounds: ${UPDATE_ROUNDS})`);
+    // 打印调度详情
+    l.info(`✅ Batch (${batch.length}): [ ${batch.map(b=>b.label).join(', ')} ] -> GO!`);
+    if (queue.length > 0) {
+        l.info(`⏳ Queue (${queue.length}): [ ${queue.map(q=>q.label).join(', ')} ] -> Wait next run.`);
+    }
 
-    // 6. 并发执行 (只针对选中的 batch)
+    // 6. 并发执行
     const updatePromises = batch.map(c => 
         fetchAllMatches(c.overview_page, l)
             .then(data => ({ status: 'fulfilled', slug: c.slug, data: data }))
             .catch(err => ({ status: 'rejected', slug: c.slug, err: err }))
     );
 
-    l.info(`📡 Fetching ${batch.map(b=>b.slug).join(', ')}...`);
     const results = await Promise.all(updatePromises);
 
     // 7. 合并数据
@@ -884,7 +910,6 @@ async function runUpdate(env, force=false) {
 
     // 8. 全量分析
     let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
-    // 即使本次只有部分联赛更新，rawMatches 里依然有其他联赛的旧数据，保证分析完整
     const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
 
     // 防回滚
@@ -915,7 +940,7 @@ async function runUpdate(env, force=false) {
 
 function renderLogPage(logs) {
     if (!Array.isArray(logs)) logs = [];
-    // 渲染逻辑已经是正确的: logs[0] 是最新的，显示在最上面
+    // 渲染逻辑: 最新在最上
     const entries = logs.map(l => {
         let lvlClass = "lvl-inf";
         if(l.l==="ERROR") lvlClass = "lvl-err";
@@ -1011,7 +1036,8 @@ export default {
             cache.maxDateTs, 
             cache.statusText, 
             cache.scheduleMap, 
-            cache.runtimeConfig || { TOURNAMENTS: [] }
+            cache.runtimeConfig || { TOURNAMENTS: [] },
+            cache.updateTimestamps // [新增] 传入时间戳以便渲染表头
         );
 
         return new Response(html, {headers:{"content-type":"text/html;charset=utf-8"}});
