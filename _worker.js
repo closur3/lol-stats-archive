@@ -1,13 +1,21 @@
 // ====================================================
-// 🥇 Worker V36.2.68: 脊柱绝对对齐修复版
-// 基于: V36.2.67
-// 变更: 
-// 1. 修复左右侧栏宽度计算误差 (Box-Sizing Fix)，确保 vs 绝对居中，不再向左偏 7px
-// 2. 增加 flex-basis: 0 锁死脊柱比例，防止长队名挤偏中轴线
-// 3. 取消今日赛程的蓝色背景
+// 🥇 Worker V37.0.0: 字体体系优化正式版
+// 基于: V36.2.70 经过完整测试验证
+// 里程碑: 主版本号升级，标志字体体系全面现代化
+// 变更历程:
+// 1. 所有MONO字体替换为普通系统字体 + font-variant-numeric: tabular-nums 等宽
+// 2. 统计表/时间分布表字号增大: 13px → 14px
+// 3. 赛程比分字重调整: 800 → 700 (更轻盈)
+// 4. 完整改动:
+//    - 赛程时间/比分: MONO → 普通等宽
+//    - 统计表所有数据列: MONO → 普通等宽
+//    - 时间分布表数据: MONO → 普通等宽
+//    - 历史战绩日期/比分: MONO → 普通等宽
+//    - 日志页面时间: MONO → 普通等宽
+// 5. 验证完成: 代码中零MONO字体残留
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V36.2.68-PerfectSpine";
+const UI_VERSION = "2026-02-04-V37.0.0-FontOptimizeFormal";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -349,6 +357,13 @@ const PYTHON_STYLE = `
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
     
     .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr,
+    .col-streak, .col-last { 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0;
+        font-weight: 700;
+    }
+    
     #time-stats td:not(.team-col) { 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         font-variant-numeric: tabular-nums;
@@ -655,7 +670,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         return tr + "</tr>";
     };
     [["LCK",16,"LCK 16:00"],["LCK",18,"LCK 18:00"],["LCK","Total","LCK Total"],["LPL",15,"LPL 15:00"],["LPL",17,"LPL 17:00"],["LPL",19,"LPL 19:00"],["LPL","Total","LPL Total"]].forEach(r => timeHtml += renderRow(r[0], r[1], r[2]));
-    timeHtml += `<tr style='border-top: 2px solid #cbd5e1; font-weight:800'><td class='team-col'>GRAND</td>`;
+    timeHtml += `<tr style='border-top: 2px solid #cbd5e1; font-weight:700'><td class='team-col'>GRAND</td>`;
     for(let w=0; w<8; w++) {
         const c = timeData.ALL[w];
         if(c.total===0) timeHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
