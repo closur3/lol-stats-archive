@@ -1,16 +1,19 @@
 // ====================================================
-// 🥇 Worker V37.3.0: 最终稳定版
-// 基于: V37.0.0 (UI/统计逻辑) + V37.2.0 (异步架构)
-// 核心保证:
-// 1. 异步并发抓取 (Promise.all)
-// 2. 8分钟更新阈值 (减少KV读写)
-// 3. 智能休眠: 还原了"当日完赛确认后停止运行"的逻辑
-// 4. 零回滚: 所有前端样式、统计算法与原版完全一致
+// 🥇 Worker V38.0.0: 分批轮询调度版
+// 基于: V37.5.0
+// 核心升级:
+// 1. 引入"分轮处理"机制 (UPDATE_ROUNDS = 2)。
+//    - 每次只处理 Ceil(总联赛数 / 轮数) 个请求。
+//    - 实现了天然的负载均衡和错峰更新。
+// 2. 引入"优先级队列"。
+//    - 依据: (当前时间 - 上次更新时间) 倒序排列。
+//    - 效果: 最久没更新的联赛优先处理。
+// 3. 日志显示: 严格保证由上至下为由新至旧。
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V37.3.0-Stable";
+const UI_VERSION = "2026-02-04-V38.0.0-BatchQueue";
 
-// --- 1. 工具库 (完全未改动) ---
+// --- 1. 工具库 ---
 const utils = {
     getNow: () => {
         const d = new Date();
@@ -54,7 +57,7 @@ const utils = {
     }
 };
 
-// --- 2. GitHub 读取层 (完全未改动) ---
+// --- 2. GitHub 读取层 ---
 const gh = {
     fetchJson: async (env, path) => {
         const url = `https://api.github.com/repos/${env.GITHUB_USER}/${env.GITHUB_REPO}/contents/${path}`;
@@ -76,7 +79,7 @@ const gh = {
     }
 };
 
-// --- 3. 抓取逻辑 (保持了 fetchWithRetry 逻辑) ---
+// --- 3. 抓取逻辑 ---
 async function fetchWithRetry(url, logger, maxRetries = 3) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -125,7 +128,7 @@ async function fetchAllMatches(overviewPage, logger) {
     return all;
 }
 
-// --- 4. 统计核心 (完全未改动) ---
+// --- 4. 统计核心 ---
 function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     const globalStats = {};
     const debugInfo = {};
@@ -275,7 +278,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
 }
 
-// --- 5. Markdown 生成器 (完全未改动) ---
+// --- 5. Markdown 生成器 ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\n`;
     md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
@@ -318,7 +321,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
     return md;
 }
 
-// --- 6. HTML 渲染器 (完全未改动) ---
+// --- 6. HTML 渲染器 ---
 const PYTHON_STYLE = `
     body { font-family: -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -774,7 +777,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     ${PYTHON_JS}</body></html>`;
 }
 
-// --- 5. 主控 (Async 异步并发 + 智能休眠版) ---
+// --- 5. 主控 (Async 异步并发 + 分批轮询 + 日志修复版) ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -786,19 +789,20 @@ class Logger {
 async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
-    // 策略: 8分钟阈值
     const UPDATE_THRESHOLD = 8 * 60 * 1000; 
+    
+    // 🔥 核心配置: 分几轮处理完所有联赛 (2轮 = 每次处理总数的一半)
+    const UPDATE_ROUNDS = 2; 
 
     // 1. 读取基础缓存
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
     const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0 };
     const today = utils.getNow().date;
 
-    // 2. 智能早退 (还原原版下班逻辑)
-    // 只有当: 非强制更新 且 缓存日期是今天 且 连续两次确认完赛 时，才直接下班
+    // 2. 智能早退 (完赛逻辑)
     if (!force) {
         if (cache && cache.updateTime.date === today && meta.finish_streak >= 2) {
-            // l.info("💤 All matches finished (Streak 2+). Sleeping..."); 
+            // l.info("💤 All matches finished..."); 
             return l;
         }
     }
@@ -819,38 +823,48 @@ async function runUpdate(env, force=false) {
         return l;
     }
 
-    // 4. 初始化缓存结构 (如果为空)
+    // 4. 初始化缓存结构
     if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    // 5. 筛选 & 构建异步队列
-    const updatePromises = [];
-    const tournsToFetch = [];
-
+    // 5. 核心调度: 候选人筛选 + 优先级排序 + 批量切片
+    const candidates = [];
     runtimeConfig.TOURNAMENTS.forEach(t => {
-        const lastTs = cache.updateTimestamps[t.slug];
-        // 核心判断: 强制更新 OR 从未更新过 OR 超过8分钟
-        const needsUpdate = force || !lastTs || (NOW - lastTs >= UPDATE_THRESHOLD);
-
-        if (needsUpdate) {
-            tournsToFetch.push(t.slug);
-            l.info(`⚡ Trigger Update: ${t.slug} (Last: ${lastTs ? Math.round((NOW-lastTs)/60000)+'m ago' : 'Never'})`);
-            
-            const p = fetchAllMatches(t.overview_page, l)
-                .then(data => ({ status: 'fulfilled', slug: t.slug, data: data }))
-                .catch(err => ({ status: 'rejected', slug: t.slug, err: err }));
-            updatePromises.push(p);
+        const lastTs = cache.updateTimestamps[t.slug] || 0;
+        const elapsed = NOW - lastTs;
+        // 只有超过 8分钟 阈值或者是新联赛，才有资格进入候选名单
+        if (force || elapsed >= UPDATE_THRESHOLD) {
+            candidates.push({ slug: t.slug, overview_page: t.overview_page, elapsed: elapsed });
         }
     });
 
-    if (tournsToFetch.length === 0) {
-        // l.success("💤 All data fresh (<8m)."); 
+    if (candidates.length === 0) {
+        // l.success("💤 All data fresh.");
         return l;
     }
 
-    // 6. 并发执行
-    l.info(`📡 Fetching ${tournsToFetch.length} tournaments concurrently...`);
+    // 排序: 越久没更新的 (elapsed 越大) 越排在前面
+    candidates.sort((a, b) => b.elapsed - a.elapsed);
+
+    // 计算本次批次大小
+    const totalLeagues = runtimeConfig.TOURNAMENTS.length;
+    // 如果总数是 3，轮数是 2，Math.ceil(3/2) = 2。第一批处理2个，第二批处理1个。
+    const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
+    
+    // 切片: 取出优先级最高的前 batchSize 个
+    const batch = candidates.slice(0, batchSize);
+    
+    l.info(`⚖️ Scheduling: ${batch.length}/${candidates.length} tasks (Total: ${totalLeagues}, Rounds: ${UPDATE_ROUNDS})`);
+
+    // 6. 并发执行 (只针对选中的 batch)
+    const updatePromises = batch.map(c => 
+        fetchAllMatches(c.overview_page, l)
+            .then(data => ({ status: 'fulfilled', slug: c.slug, data: data }))
+            .catch(err => ({ status: 'rejected', slug: c.slug, err: err }))
+    );
+
+    l.info(`📡 Fetching ${batch.map(b=>b.slug).join(', ')}...`);
     const results = await Promise.all(updatePromises);
 
     // 7. 合并数据
@@ -868,13 +882,9 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    if (successCount === 0 && Object.keys(cache.rawMatches).length === 0) {
-        l.error("🛑 All fetches failed & no cache. Aborting.");
-        return l;
-    }
-
     // 8. 全量分析
     let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
+    // 即使本次只有部分联赛更新，rawMatches 里依然有其他联赛的旧数据，保证分析完整
     const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
 
     // 防回滚
@@ -899,12 +909,13 @@ async function runUpdate(env, force=false) {
 
     await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, finish_streak: analysis.nextStreak }));
     
-    l.success(`🎉 Sync Complete. Updated: ${successCount}, Failed: ${failCount}, Total: ${analysis.grandTotal}`);
+    l.success(`🎉 Sync Complete. Updated: ${successCount}, Batched: ${batch.length}, Total Parsed: ${analysis.grandTotal}`);
     return l;
 }
 
 function renderLogPage(logs) {
     if (!Array.isArray(logs)) logs = [];
+    // 渲染逻辑已经是正确的: logs[0] 是最新的，显示在最上面
     const entries = logs.map(l => {
         let lvlClass = "lvl-inf";
         if(l.l==="ERROR") lvlClass = "lvl-err";
@@ -973,7 +984,12 @@ export default {
 
         if(url.pathname === "/force") {
             const l = await runUpdate(env, true);
-            await env.LOL_KV.put("logs", JSON.stringify(l.export()));
+            // 日志修复: 追加模式
+            const oldLogs = await env.LOL_KV.get("logs", {type:"json"}) || [];
+            const newLogs = l.export();
+            let combinedLogs = [...newLogs, ...oldLogs];
+            if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+            await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
             return Response.redirect(url.origin + "/logs", 303);
         }
 
@@ -1003,6 +1019,14 @@ export default {
 
     async scheduled(event, env, ctx) {
         const l = await runUpdate(env, false);
-        await env.LOL_KV.put("logs", JSON.stringify(l.export()));
+        // 日志修复: 追加模式
+        const oldLogs = await env.LOL_KV.get("logs", {type:"json"}) || [];
+        const newLogs = l.export();
+        // 只有当真正产生了日志时才写入 (避免空跑浪费KV写额度)
+        if (newLogs.length > 0) {
+            let combinedLogs = [...newLogs, ...oldLogs];
+            if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+            await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+        }
     }
 };
