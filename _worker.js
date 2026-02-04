@@ -1,23 +1,16 @@
 // ====================================================
-// 🥇 Worker V37.0.0: 字体体系优化正式版
-// 基于: V36.2.70 经过完整测试验证
-// 里程碑: 主版本号升级，标志字体体系全面现代化
-// 变更历程:
-// 1. 所有MONO字体替换为普通系统字体 + font-variant-numeric: tabular-nums 等宽
-// 2. 统计表/时间分布表字号增大: 13px → 14px
-// 3. 赛程比分字重调整: 800 → 700 (更轻盈)
-// 4. 完整改动:
-//    - 赛程时间/比分: MONO → 普通等宽
-//    - 统计表所有数据列: MONO → 普通等宽
-//    - 时间分布表数据: MONO → 普通等宽
-//    - 历史战绩日期/比分: MONO → 普通等宽
-//    - 日志页面时间: MONO → 普通等宽
-// 5. 验证完成: 代码中零MONO字体残留
+// 🥇 Worker V37.3.0: 最终稳定版
+// 基于: V37.0.0 (UI/统计逻辑) + V37.2.0 (异步架构)
+// 核心保证:
+// 1. 异步并发抓取 (Promise.all)
+// 2. 8分钟更新阈值 (减少KV读写)
+// 3. 智能休眠: 还原了"当日完赛确认后停止运行"的逻辑
+// 4. 零回滚: 所有前端样式、统计算法与原版完全一致
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V37.0.0-FontOptimizeFormal";
+const UI_VERSION = "2026-02-04-V37.3.0-Stable";
 
-// --- 1. 工具库 ---
+// --- 1. 工具库 (完全未改动) ---
 const utils = {
     getNow: () => {
         const d = new Date();
@@ -61,7 +54,7 @@ const utils = {
     }
 };
 
-// --- 2. GitHub 读取层 ---
+// --- 2. GitHub 读取层 (完全未改动) ---
 const gh = {
     fetchJson: async (env, path) => {
         const url = `https://api.github.com/repos/${env.GITHUB_USER}/${env.GITHUB_REPO}/contents/${path}`;
@@ -83,7 +76,7 @@ const gh = {
     }
 };
 
-// --- 3. 抓取逻辑 ---
+// --- 3. 抓取逻辑 (保持了 fetchWithRetry 逻辑) ---
 async function fetchWithRetry(url, logger, maxRetries = 3) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -132,7 +125,7 @@ async function fetchAllMatches(overviewPage, logger) {
     return all;
 }
 
-// --- 4. 统计核心 ---
+// --- 4. 统计核心 (完全未改动) ---
 function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     const globalStats = {};
     const debugInfo = {};
@@ -282,7 +275,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
 }
 
-// --- 5. Markdown 生成器 (保持不变) ---
+// --- 5. Markdown 生成器 (完全未改动) ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\n`;
     md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
@@ -325,7 +318,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
     return md;
 }
 
-// --- 6. HTML 渲染器 ---
+// --- 6. HTML 渲染器 (完全未改动) ---
 const PYTHON_STYLE = `
     body { font-family: -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -781,7 +774,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     ${PYTHON_JS}</body></html>`;
 }
 
-// --- 5. 主控 (保持不变) ---
+// --- 5. 主控 (Async 异步并发 + 智能休眠版) ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -792,66 +785,121 @@ class Logger {
 
 async function runUpdate(env, force=false) {
     const l = new Logger();
-    let runtimeConfig = null;
+    const NOW = Date.now();
+    // 策略: 8分钟阈值
+    const UPDATE_THRESHOLD = 8 * 60 * 1000; 
 
-    try {
-        l.info("⚙️ Loading config from GitHub...");
-        const teams = await gh.fetchJson(env, "teams.json");
-        const tourns = await gh.fetchJson(env, "tournaments.json");
-        if (teams && tourns) {
-            runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
-            l.success("✅ Config loaded successfully");
-        }
-    } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
+    // 1. 读取基础缓存
+    let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
+    const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0 };
+    const today = utils.getNow().date;
 
-    if (!runtimeConfig) {
-        l.error("🛑 CRITICAL: Failed to load config. Aborting.");
-        return l;
-    }
-
+    // 2. 智能早退 (还原原版下班逻辑)
+    // 只有当: 非强制更新 且 缓存日期是今天 且 连续两次确认完赛 时，才直接下班
     if (!force) {
-        const cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
-        const today = utils.getNow().date;
-        const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0 };
         if (cache && cache.updateTime.date === today && meta.finish_streak >= 2) {
-            l.info("💤 All matches finished & confirmed (Streak 2+). Sleeping...");
+            // l.info("💤 All matches finished (Streak 2+). Sleeping..."); 
             return l;
         }
     }
 
-    l.info("🚀 Update Started...");
-    const allRaw = {};
-    let fetchError = false; 
+    let runtimeConfig = null;
 
-    for(const t of runtimeConfig.TOURNAMENTS) {
-        try { 
-            allRaw[t.slug] = await fetchAllMatches(t.overview_page, l); 
-        } catch(e) { 
-            l.error(`⚠️ Fetch Error [${t.slug}]: ${e.message}`);
-            fetchError = true; 
+    // 3. 加载配置
+    try {
+        const teams = await gh.fetchJson(env, "teams.json");
+        const tourns = await gh.fetchJson(env, "tournaments.json");
+        if (teams && tourns) {
+            runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
         }
-    }
-    
-    if (fetchError) {
-        l.error("🛑 Update Aborted: One or more tournaments failed. Retaining old data.");
-        return l; 
-    }
-    
-    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
-    const { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak } = runFullAnalysis(allRaw, oldMeta.finish_streak, runtimeConfig);
-    
-    if (oldMeta.total > 0 && grandTotal < oldMeta.total * 0.9 && !force) {
-        l.error(`🛑 Rollback detected (${grandTotal} < ${oldMeta.total}). Skipped.`);
+    } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
+
+    if (!runtimeConfig) {
+        l.error("🛑 CRITICAL: Config load failed.");
         return l;
     }
 
+    // 4. 初始化缓存结构 (如果为空)
+    if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
+    if (!cache.rawMatches) cache.rawMatches = {}; 
+    if (!cache.updateTimestamps) cache.updateTimestamps = {};
+
+    // 5. 筛选 & 构建异步队列
+    const updatePromises = [];
+    const tournsToFetch = [];
+
+    runtimeConfig.TOURNAMENTS.forEach(t => {
+        const lastTs = cache.updateTimestamps[t.slug];
+        // 核心判断: 强制更新 OR 从未更新过 OR 超过8分钟
+        const needsUpdate = force || !lastTs || (NOW - lastTs >= UPDATE_THRESHOLD);
+
+        if (needsUpdate) {
+            tournsToFetch.push(t.slug);
+            l.info(`⚡ Trigger Update: ${t.slug} (Last: ${lastTs ? Math.round((NOW-lastTs)/60000)+'m ago' : 'Never'})`);
+            
+            const p = fetchAllMatches(t.overview_page, l)
+                .then(data => ({ status: 'fulfilled', slug: t.slug, data: data }))
+                .catch(err => ({ status: 'rejected', slug: t.slug, err: err }));
+            updatePromises.push(p);
+        }
+    });
+
+    if (tournsToFetch.length === 0) {
+        // l.success("💤 All data fresh (<8m)."); 
+        return l;
+    }
+
+    // 6. 并发执行
+    l.info(`📡 Fetching ${tournsToFetch.length} tournaments concurrently...`);
+    const results = await Promise.all(updatePromises);
+
+    // 7. 合并数据
+    let successCount = 0;
+    let failCount = 0;
+
+    results.forEach(res => {
+        if (res.status === 'fulfilled') {
+            cache.rawMatches[res.slug] = res.data;
+            cache.updateTimestamps[res.slug] = NOW;
+            successCount++;
+        } else {
+            l.error(`⚠️ Failed ${res.slug}: ${res.err.message}`);
+            failCount++;
+        }
+    });
+
+    if (successCount === 0 && Object.keys(cache.rawMatches).length === 0) {
+        l.error("🛑 All fetches failed & no cache. Aborting.");
+        return l;
+    }
+
+    // 8. 全量分析
+    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
+    const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
+
+    // 防回滚
+    if (oldMeta.total > 0 && analysis.grandTotal < oldMeta.total * 0.9 && !force) {
+        l.error(`🛑 Rollback detected. Aborting save.`);
+        return l;
+    }
+
+    // 9. 保存结果
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
-        globalStats, timeGrid, debugInfo, maxDateTs, statusText, scheduleMap, 
-        updateTime: utils.getNow(), runtimeConfig 
+        globalStats: analysis.globalStats,
+        timeGrid: analysis.timeGrid,
+        debugInfo: analysis.debugInfo,
+        maxDateTs: analysis.maxDateTs,
+        statusText: analysis.statusText,
+        scheduleMap: analysis.scheduleMap,
+        updateTime: utils.getNow(),
+        runtimeConfig,
+        rawMatches: cache.rawMatches,
+        updateTimestamps: cache.updateTimestamps 
     }));
-    await env.LOL_KV.put("META", JSON.stringify({ total: grandTotal, finish_streak: nextStreak }));
+
+    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, finish_streak: analysis.nextStreak }));
     
-    l.success(`🎉 Updated. Matches: ${grandTotal}. Streak: ${oldMeta.finish_streak}->${nextStreak}`);
+    l.success(`🎉 Sync Complete. Updated: ${successCount}, Failed: ${failCount}, Total: ${analysis.grandTotal}`);
     return l;
 }
 
