@@ -748,7 +748,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 const vsContent = `
                     <div class="spine-row">
                         <span class="${t1Class}" ${t1Click}>${r1}${m.t1}</span>
-                        <span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:24px">${midContent}</span>
+                        <span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span>
                         <span class="${t2Class}" ${t2Click}>${m.t2}${r2}</span>
                     </div>
                 `;
