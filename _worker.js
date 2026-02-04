@@ -337,7 +337,7 @@ const PYTHON_STYLE = `
 
     .table-title { padding: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
     .table-title a { color: #2563eb; text-decoration: none; }
-    table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+    table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
     th { background: #f8fafc; padding: 14px 8px; font-weight: 600; color: #64748b; border-bottom: 2px solid #f1f5f9; cursor: pointer; transition: 0.2s; }
     th:hover { background: #eff6ff; color: #2563eb; }
     td { padding: 12px 8px; text-align: center; border-bottom: 1px solid #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -350,7 +350,7 @@ const PYTHON_STYLE = `
     
     .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr,
     #time-stats td:not(.team-col) { 
-        font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         font-variant-numeric: tabular-nums;
         letter-spacing: 0;
     }
@@ -436,7 +436,7 @@ const PYTHON_STYLE = `
     .match-item.history-layout { grid-template-columns: 95px auto 1fr 20px 1fr 60px; }
     .match-item.dist-layout { grid-template-columns: 48px 1fr 24px 1fr 70px; }
 
-    .col-date { font-family: monospace; font-size: 13px; color: #94a3b8; text-align: left; }
+    .col-date { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #94a3b8; text-align: left; font-variant-numeric: tabular-nums; }
     .col-res { font-weight: 900; font-size: 16px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; min-width: 0; }
     .col-vs { text-align: center; color: #94a3b8; font-size: 10px; }
@@ -444,14 +444,14 @@ const PYTHON_STYLE = `
     .col-score { text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; align-items: center; }
 
     .hist-win { color: #10b981; } .hist-loss { color: #f43f5e; }
-    .hist-score { font-family: monospace; font-weight: 700; font-size: 16px; color: #0f172a; }
+    .hist-score { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 16px; color: #0f172a; font-variant-numeric: tabular-nums; }
     .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
     .hist-icon { font-size: 16px; }
     
     .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
     .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
     .log-entry:nth-child(even) { background-color: #f8fafc; }
-    .log-time { color: #64748b; font-family: monospace; font-size: 15px; white-space: nowrap; text-align: center; }
+    .log-time { color: #64748b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; white-space: nowrap; text-align: center; font-variant-numeric: tabular-nums; }
     .log-level { font-weight: 800; text-align: center; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
     .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
     .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
@@ -868,7 +868,7 @@ function renderLogPage(logs) {
         .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
         .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
-        .log-time { color: #64748b; font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas, Liberation Mono, monospace; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: center; }
+        .log-time { color: #64748b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: center; font-variant-numeric: tabular-nums; }
         .log-level { font-weight: 800; text-align: center; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
         .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
         .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
