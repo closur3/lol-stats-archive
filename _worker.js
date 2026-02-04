@@ -427,8 +427,8 @@ const PYTHON_STYLE = `
     .sch-row:last-child { border-bottom: none; }
     
     /* 核心变更: 赛程时间使用普通字体+tabular-nums等宽，赛程比分使用完整MONO */
-    .sch-time { width: 50px; color: #94a3b8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 700; display:flex; align-items:center; justify-content:center; box-sizing:border-box; font-variant-numeric: tabular-nums; } 
-    .sch-tag-col { width: 50px; display: flex; align-items:center; justify-content: center; padding-right:0px; box-sizing:border-box; }
+    .sch-time { width: 60px; color: #94a3b8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 700; display:flex; align-items:center; justify-content:center; box-sizing:border-box; font-variant-numeric: tabular-nums; } 
+    .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: center; padding-right:0px; box-sizing:border-box; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
 
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
