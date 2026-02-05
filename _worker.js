@@ -916,7 +916,7 @@ async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
     const UPDATE_THRESHOLD = 8 * 60 * 1000; 
-    const UPDATE_ROUNDS = 1; // 确保分批次逻辑存在
+    const UPDATE_ROUNDS = 2; // 确保分批次逻辑存在
 
     // 1. 读取基础缓存
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
