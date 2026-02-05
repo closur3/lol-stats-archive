@@ -87,15 +87,13 @@ const gh = {
     }
 };
 
-// --- 3. 认证逻辑 (Strict Env) ---
+// --- 3. 认证逻辑 (V38.5.3: Cookie 接力修复版) ---
 async function loginToFandom(env, logger) {
-    // 变更点: 仅从环境变量读取，不再回退到 AUTH_CONFIG
     const user = env.FANDOM_USER;
     const pass = env.FANDOM_PASS;
 
     if (!user || !pass) {
-        // 如果没有配置环境变量，记录错误并返回 null (将降级为匿名访问)
-        logger.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set in variables.");
+        logger.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set.");
         return null;
     }
 
@@ -103,16 +101,28 @@ async function loginToFandom(env, logger) {
     const UA = `LoL-Stats-Worker/1.0 (${user})`; 
 
     try {
-        // Step 1: 获取 Login Token
+        // ==========================================
+        // Step 1: 获取 Token (并捕获临时会话 Cookie)
+        // ==========================================
         const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
             headers: { "User-Agent": UA }
         });
+        
+        if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
+
         const tokenData = await tokenResp.json();
         const loginToken = tokenData?.query?.tokens?.logintoken;
 
         if (!loginToken) throw new Error("Failed to get login token");
 
-        // Step 2: 发送登录请求
+        // 关键修复：抓取第一步返回的临时 Session Cookie
+        // 如果不带这个，第二步就会报 "Session timed out"
+        const step1SetCookie = tokenResp.headers.get("set-cookie");
+        const step1Cookie = utils.extractCookies(step1SetCookie);
+
+        // ==========================================
+        // Step 2: 发送登录请求 (带上 Token 和 Cookie)
+        // ==========================================
         const params = new URLSearchParams();
         params.append("action", "login");
         params.append("format", "json");
@@ -123,21 +133,30 @@ async function loginToFandom(env, logger) {
         const loginResp = await fetch(API, {
             method: "POST",
             body: params,
-            headers: { "User-Agent": UA }
+            headers: { 
+                "User-Agent": UA,
+                "Cookie": step1Cookie // <--- 必须带上第一步的 Cookie！
+            }
         });
 
         const loginData = await loginResp.json();
         
         if (loginData.login && loginData.login.result === "Success") {
-            const setCookie = loginResp.headers.get("set-cookie");
-            const cookieStr = utils.extractCookies(setCookie);
+            // 登录成功，获取最终的长期 Cookie
+            const step2SetCookie = loginResp.headers.get("set-cookie");
+            const finalCookie = utils.extractCookies(step2SetCookie);
+            
             logger.success(`🔐 Authenticated as ${loginData.login.lgusername}`);
-            return { cookie: cookieStr, ua: UA };
+            // 注意：有时候最终 Cookie 需要合并第一步的 Cookie，但在 MediaWiki 中，
+            // 登录成功后的 Set-Cookie 通常包含了我们需要的所有新身份信息。
+            return { cookie: finalCookie, ua: UA };
         } else {
-            throw new Error(loginData.login?.reason || JSON.stringify(loginData));
+            // 打印详细错误原因
+            const reason = loginData.login ? loginData.login.reason : JSON.stringify(loginData);
+            throw new Error(`Login Failed: ${reason}`);
         }
     } catch (e) {
-        logger.error(`❌ Auth Failed: ${e.message}. Fallback to anonymous.`);
+        logger.error(`❌ Auth Error: ${e.message}`);
         return null;
     }
 }
