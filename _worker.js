@@ -138,24 +138,31 @@ async function loginToFandom(env, logger) {
     }
 }
 
-// --- 4. 抓取逻辑 (修改：注入 authContext) ---
-async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
+// --- 4. 抓取逻辑 (带 DEBUG 诊断版) ---
+async function fetchWithRetry(url, logger, authContext = null, maxRetries = 1) {
     const headers = { 
         "User-Agent": authContext?.ua || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" 
     };
-    // 【注入点】如果有 Cookie，则带上
     if (authContext?.cookie) {
         headers["Cookie"] = authContext.cookie;
     }
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const r = await fetch(url, { headers }); // 使用带 Auth 的 headers
+            const r = await fetch(url, { headers }); 
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const cType = r.headers.get("content-type");
             if (cType && !cType.includes("json")) throw new Error("Invalid Content-Type");
+            
             const data = await r.json();
-            if (!data.cargoquery) throw new Error("Invalid API Structure");
+            
+            // 🚨🚨🚨 诊断核心：如果没拿到数据，就把 Fandom 返回的东西打印出来
+            if (!data.cargoquery) {
+                const errorMsg = JSON.stringify(data);
+                logger.error(`🔍 DEBUG FANDOM SAYS: ${errorMsg}`);
+                throw new Error(`API Error: ${data.error ? data.error.code : 'Unknown Structure'}`);
+            }
+
             return data.cargoquery; 
         } catch (e) {
             if (attempt === maxRetries) throw e; 
