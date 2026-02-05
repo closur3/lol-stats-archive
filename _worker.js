@@ -1,13 +1,13 @@
 // ====================================================
-// 🥇 Worker V38.5.1: 终极完美版 (Strict Env)
-// 基于: V38.5.0
-// 修复: 
-// 1. 恢复完整的 runUpdate 智能调度算法 (Candidates/Queue)。
-// 2. 移除硬编码的 AUTH_CONFIG，强制使用后台环境变量。
-// 3. 包含所有 UI/CSS/HTML 渲染逻辑，无任何缩略。
+// 🥇 Worker V38.5.3: 认证稳定版 (Auth Stable)
+// 基于: V38.5.2 + Cookie Relay Fix
+// 状态: 
+// 1. Auth: ✅ 成功 (Cookie接力机制修复了Session超时)
+// 2. Scheduler: ✅ 智能批次调度正常工作
+// 3. UI: ✅ 全功能包含
 // ====================================================
 
-const UI_VERSION = "2026-02-05-V38.5.1-Final";
+const UI_VERSION = "2026-02-05-V38.5.3-AuthStable";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -885,7 +885,7 @@ async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
     const UPDATE_THRESHOLD = 8 * 60 * 1000; 
-    const UPDATE_ROUNDS = 2; // 确保分批次逻辑存在
+    const UPDATE_ROUNDS = 1; // 确保分批次逻辑存在
 
     // 1. 读取基础缓存
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
