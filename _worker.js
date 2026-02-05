@@ -543,7 +543,7 @@ const PYTHON_STYLE = `
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
 
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
-    .sch-pill.gold { background: #f5deb3; color: #9c5326; }
+    .sch-pill.gold { background: #f5deb3; color: #a5643b; }
     
     .sch-live-score { color: #10b981; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
     .sch-fin-score { color: #334155; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
