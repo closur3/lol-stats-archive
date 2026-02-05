@@ -350,7 +350,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
     md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
     md += `## 📊 Statistics\n\n`;
     md += `| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n`;
-    md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+    md += `| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
     const sorted = Object.values(stats).filter(s => s.name !== "TBD").sort((a,b) => {
         const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1;
         const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1;
@@ -372,7 +372,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
     });
     md += `\n## 📅 Time Slot Distribution\n\n`;
     md += `| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n`;
-    md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+    md += `| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
     const rows = tourn.region === "LCK" ? [16, 18, "Total"] : [15, 17, 19, "Total"];
     rows.forEach(h => {
         const label = h === "Total" ? `**${tourn.region} Total**` : `${tourn.region} ${h}:00`;
