@@ -1,10 +1,13 @@
 // ====================================================
-// 🥇 Worker V37.0.1: 字体优化正式版 + Auth
-// 基于: V37.0.0 (用户提供的字体优化版)
-// 修改: 仅注入 Fandom 认证逻辑 (BotPassword)，UI与核心逻辑 100% 保持原样
+// 🥇 Worker V38.5.3: 认证稳定版 (Auth Stable)
+// 基于: V38.5.2 + Cookie Relay Fix
+// 状态: 
+// 1. Auth: ✅ 成功 (Cookie接力机制修复了Session超时)
+// 2. Scheduler: ✅ 智能批次调度正常工作
+// 3. UI: ✅ 全功能包含
 // ====================================================
 
-const UI_VERSION = "2026-02-05-V37.0.1-FontOptimize+Auth";
+const UI_VERSION = "2026-02-05-V38.5.3-AuthStable";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -19,6 +22,11 @@ const utils = {
             date: bj.toISOString().slice(0, 10),
             time: bj.toISOString().slice(11, 16)
         };
+    },
+    fmtDate: (ts) => {
+        if (!ts) return "(Pending)";
+        const d = new Date(ts + 28800000); // UTC+8
+        return d.toISOString().slice(5, 10) + " " + d.toISOString().slice(11, 16);
     },
     shortName: (n, teamMap) => {
         if(!n) return "Unknown";
@@ -48,7 +56,6 @@ const utils = {
         if(!str) return null;
         try { return new Date(str.replace(" ", "T") + "Z"); } catch(e) { return null; }
     },
-    // 【新增】仅增加此函数用于 Cookie 处理
     extractCookies: (headerVal) => {
         if (!headerVal) return "";
         return headerVal.split(',')
@@ -80,7 +87,7 @@ const gh = {
     }
 };
 
-// --- 3. 认证逻辑 (新增模块) ---
+// --- 3. 认证逻辑 (V38.5.3: Cookie 接力修复版) ---
 async function loginToFandom(env, logger) {
     const user = env.FANDOM_USER;
     const pass = env.FANDOM_PASS;
@@ -94,19 +101,28 @@ async function loginToFandom(env, logger) {
     const UA = `LoL-Stats-Worker/1.0 (${user})`; 
 
     try {
-        // Step 1: 获取 Token (并捕获 Set-Cookie)
+        // ==========================================
+        // Step 1: 获取 Token (并捕获临时会话 Cookie)
+        // ==========================================
         const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
             headers: { "User-Agent": UA }
         });
         
         if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
+
         const tokenData = await tokenResp.json();
         const loginToken = tokenData?.query?.tokens?.logintoken;
+
         if (!loginToken) throw new Error("Failed to get login token");
 
-        const step1Cookie = utils.extractCookies(tokenResp.headers.get("set-cookie"));
+        // 关键修复：抓取第一步返回的临时 Session Cookie
+        // 如果不带这个，第二步就会报 "Session timed out"
+        const step1SetCookie = tokenResp.headers.get("set-cookie");
+        const step1Cookie = utils.extractCookies(step1SetCookie);
 
-        // Step 2: 登录 (带上 Token 和 第一步的 Cookie)
+        // ==========================================
+        // Step 2: 发送登录请求 (带上 Token 和 Cookie)
+        // ==========================================
         const params = new URLSearchParams();
         params.append("action", "login");
         params.append("format", "json");
@@ -119,18 +135,25 @@ async function loginToFandom(env, logger) {
             body: params,
             headers: { 
                 "User-Agent": UA,
-                "Cookie": step1Cookie 
+                "Cookie": step1Cookie // <--- 必须带上第一步的 Cookie！
             }
         });
 
         const loginData = await loginResp.json();
         
         if (loginData.login && loginData.login.result === "Success") {
-            const finalCookie = utils.extractCookies(loginResp.headers.get("set-cookie"));
+            // 登录成功，获取最终的长期 Cookie
+            const step2SetCookie = loginResp.headers.get("set-cookie");
+            const finalCookie = utils.extractCookies(step2SetCookie);
+            
             logger.success(`🔐 Authenticated as ${loginData.login.lgusername}`);
+            // 注意：有时候最终 Cookie 需要合并第一步的 Cookie，但在 MediaWiki 中，
+            // 登录成功后的 Set-Cookie 通常包含了我们需要的所有新身份信息。
             return { cookie: finalCookie, ua: UA };
         } else {
-            throw new Error(`Login Failed: ${loginData.login ? loginData.login.reason : JSON.stringify(loginData)}`);
+            // 打印详细错误原因
+            const reason = loginData.login ? loginData.login.reason : JSON.stringify(loginData);
+            throw new Error(`Login Failed: ${reason}`);
         }
     } catch (e) {
         logger.error(`❌ Auth Error: ${e.message}`);
@@ -138,8 +161,8 @@ async function loginToFandom(env, logger) {
     }
 }
 
-// --- 4. 抓取逻辑 (带 DEBUG 诊断版) ---
-async function fetchWithRetry(url, logger, authContext = null, maxRetries = 1) {
+// --- 4. 抓取逻辑 ---
+async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     const headers = { 
         "User-Agent": authContext?.ua || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" 
     };
@@ -149,25 +172,48 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 1) {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const r = await fetch(url, { headers }); 
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const cType = r.headers.get("content-type");
-            if (cType && !cType.includes("json")) throw new Error("Invalid Content-Type");
+            const r = await fetch(url, { headers });
             
-            const data = await r.json();
-            
-            // 🚨🚨🚨 诊断核心：如果没拿到数据，就把 Fandom 返回的东西打印出来
+            // 【关键点 1】先以文本形式获取全部返回内容
+            const rawBody = await r.text();
+
+            // 【关键点 2】检查 HTTP 状态码
+            if (!r.ok) {
+                // 如果状态码不是 2xx，直接抛出包含部分内容的错误
+                throw new Error(`HTTP ${r.status}: ${rawBody.slice(0, 150)}...`);
+            }
+
+            // 【关键点 3】尝试解析 JSON
+            let data;
+            try {
+                data = JSON.parse(rawBody);
+            } catch (e) {
+                // 如果解析失败，说明返回的可能不是 JSON (比如 HTML 报错页)
+                throw new Error(`JSON Parse Fail. Content: ${rawBody.slice(0, 150)}...`);
+            }
+
+            // 【关键点 4】检查业务逻辑错误 (MediaWiki 规范)
+            if (data.error) {
+                // 如果 API 返回了具体的错误对象 (如 code, info)
+                throw new Error(`API Error [${data.error.code}]: ${data.error.info}`);
+            }
+
             if (!data.cargoquery) {
-                const errorMsg = JSON.stringify(data);
-                logger.error(`🔍 DEBUG FANDOM SAYS: ${errorMsg}`);
-                throw new Error(`API Error: ${data.error ? data.error.code : 'Unknown Structure'}`);
+                // 如果结构不对，打印出整个 JSON 的缩略图
+                throw new Error(`Structure Error: ${rawBody.slice(0, 150)}`);
             }
 
             return data.cargoquery; 
+
         } catch (e) {
             if (attempt === maxRetries) throw e; 
-            const waitTime = 30000 + Math.floor(Math.random() * 15000); 
-            logger.error(`❌ API Fail: ${e.message}. Retrying in ${Math.round(waitTime/1000)}s...`);
+            
+            // 随机等待 3~5 秒进行重试
+            const waitTime = 3000 + Math.floor(Math.random() * 2000); 
+            
+            // 在日志中详细记录失败原因
+            logger.error(`❌ Fetch Fail (Attempt ${attempt}): ${e.message}`);
+            
             await new Promise(res => setTimeout(res, waitTime));
         }
     }
@@ -177,22 +223,23 @@ async function fetchAllMatches(overviewPage, logger, authContext) {
     let all = [];
     let offset = 0;
     const limit = 50;
-    logger.info(`📡 Fetching data for: ${overviewPage}...`);
+    logger.info(`📡 Fetching: ${overviewPage}...`);
+    
     while(true) {
         const params = new URLSearchParams({
             action: "cargoquery", format: "json", tables: "MatchSchedule",
             fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
             where: `OverviewPage='${overviewPage}'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
         });
+        
         try {
-            // 【修改】传递 authContext
             const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
             const batch = batchRaw.map(i => i.title);
             if (!batch.length) break;
             all = all.concat(batch);
             offset += batch.length;
             if (batch.length < limit) break;
-            await new Promise(res => setTimeout(res, 1000));
+            await new Promise(res => setTimeout(res, 500)); 
         } catch(e) {
             throw new Error(`Batch Fail at offset ${offset}: ${e.message}`);
         }
@@ -201,7 +248,7 @@ async function fetchAllMatches(overviewPage, logger, authContext) {
     return all;
 }
 
-// --- 5. 统计核心 (V37.0.0 原版 - 未动一行逻辑) ---
+// --- 5. 统计核心 ---
 function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     const globalStats = {};
     const debugInfo = {};
@@ -351,7 +398,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
 }
 
-// --- 6. Markdown 生成器 (V37.0.0 原版) ---
+// --- 6. Markdown 生成器 ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\n`;
     md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
@@ -374,7 +421,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
         const gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
         const gamWrTxt = utils.pct(utils.rate(s.g_w, s.g_t));
         const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
-        const last = s.last ? new Date(s.last+28800000).toISOString().slice(2,16) : "-";
+        const last = s.last ? new Date(s.last+28800000).toISOString().slice(0,10) : "-";
         md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${serWrTxt} | ${gamTxt} | ${gamWrTxt} | ${strk} | ${last} |\n`;
     });
     md += `\n## 📅 Time Slot Distribution\n\n`;
@@ -394,7 +441,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
     return md;
 }
 
-// --- 7. HTML 渲染器 (V37.0.0 原版 - 未动任何样式) ---
+// --- 7. HTML 渲染器 ---
 const PYTHON_STYLE = `
     body { font-family: -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -439,18 +486,14 @@ const PYTHON_STYLE = `
         letter-spacing: 0;
     }
 
-    /* 核心布局: SPINE 系统 */
     .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
     
-    /* 核心变更: flex-basis: 0 锁死比例，padding: 0 恢复统计表紧凑 */
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.6; font-weight: 700; font-size: 10px; }
 
-    /* 赛程区域特有 padding (大按钮) */
     .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
 
-    /* Hover 背景色 */
     .spine-l.clickable:hover, .spine-r.clickable:hover {
         background-color: #eff6ff; 
         color: #2563eb;            
@@ -469,7 +512,7 @@ const PYTHON_STYLE = `
     /* Grid Layout */
     .sch-container { 
         display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; 
-        align-items: start; /* 自然高度 */
+        align-items: start;
     }
     .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
     .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
@@ -495,7 +538,6 @@ const PYTHON_STYLE = `
     }
     .sch-row:last-child { border-bottom: none; }
     
-    /* 核心变更: 赛程时间使用普通字体+tabular-nums等宽，赛程比分使用完整MONO */
     .sch-time { width: 60px; color: #94a3b8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 700; display:flex; align-items:center; justify-content:center; box-sizing:border-box; font-variant-numeric: tabular-nums; } 
     .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: center; padding-right:0px; box-sizing:border-box; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
@@ -535,7 +577,7 @@ const PYTHON_STYLE = `
     .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
     .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
     .log-entry:nth-child(even) { background-color: #f8fafc; }
-    .log-time { color: #64748b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; white-space: nowrap; text-align: center; font-variant-numeric: tabular-nums; }
+    .log-time { color: #64748b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: center; font-variant-numeric: tabular-nums; }
     .log-level { font-weight: 800; text-align: center; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
     .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
     .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
@@ -640,9 +682,10 @@ const PYTHON_JS = `
     </script>
 `;
 
-function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig) {
+function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig, updateTimestamps) {
     if (!statusText) statusText = `<span style="color:#9ca3af; margin-left:6px">Status Unknown</span>`;
     if (!scheduleMap) scheduleMap = {};
+    if (!updateTimestamps) updateTimestamps = {};
 
     const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
 
@@ -668,8 +711,18 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
         const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
         const tableId = `t${idx}`;
-        const dbg = debugInfo[t.slug] || {raw:0, processed:0};
-        const debugLabel = `<span style="font-size:10px;color:#94a3b8;font-weight:normal;margin-left:10px">(Fetched:${dbg.raw}/Valid:${dbg.processed})</span>`;
+        
+        const lastTs = updateTimestamps[t.slug];
+        let timeStr = "(Pending)";
+        let timeColor = "#9ca3af"; 
+        
+        if (lastTs) {
+            timeStr = utils.fmtDate(lastTs);
+            const diff = Date.now() - lastTs;
+            if (diff < 20 * 60 * 1000) timeColor = "#10b981"; 
+        }
+        
+        const debugLabel = `<span style="font-size:11px;color:${timeColor};font-weight:600;margin-left:10px">${timeStr}</span>`;
 
         let minTs = 9999999999999, maxTsLocal = 0;
         stats.forEach(s => { if(s.last){ if(s.last<minTs)minTs=s.last; if(s.last>maxTsLocal)maxTsLocal=s.last; }});
@@ -816,9 +869,9 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
 
                 const vsContent = `
                     <div class="spine-row">
-                        <span class="${t1Class}" ${t1Click}>${r1}${m.t1}</span>
+                        <span class="${t1Class}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span>
                         <span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span>
-                        <span class="${t2Class}" ${t2Click}>${m.t2}${r2}</span>
+                        <span class="${t2Class}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span>
                     </div>
                 `;
 
@@ -844,13 +897,13 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         <form action="/force" method="POST" style="margin:0"><button class="action-btn update-btn"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button></form>
         <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
     </div></header>
-    <div class="container">${tablesHtml} ${timeHtml} ${scheduleHtml} <div class="footer">${statusText} | Updated: ${updateTime.full}</div></div>
+    <div class="container">${tablesHtml} ${timeHtml} ${scheduleHtml} <div class="footer">${statusText}</div></div>
     <div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>
     ${injectedData}
     ${PYTHON_JS}</body></html>`;
 }
 
-// --- 8. 主控 (V37.0.0 原版逻辑 + 认证注入) ---
+// --- 8. 主控 (Rich Logging + Batch Scheduler + Auth) ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -861,77 +914,136 @@ class Logger {
 
 async function runUpdate(env, force=false) {
     const l = new Logger();
+    const NOW = Date.now();
+    const UPDATE_THRESHOLD = 8 * 60 * 1000; 
+    const UPDATE_ROUNDS = 1; // 确保分批次逻辑存在
 
-    // 【新增】认证逻辑
-    const authContext = await loginToFandom(env, l);
-    if (authContext) {
-        l.success("✅ Authenticated. Ready to fetch.");
-    } else {
-        l.info("⚠️ Proceeding anonymously.");
-    }
+    // 1. 读取基础缓存
+    let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
+    const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0 };
+    const today = utils.getNow().date;
 
-    let runtimeConfig = null;
-
-    try {
-        l.info("⚙️ Loading config from GitHub...");
-        const teams = await gh.fetchJson(env, "teams.json");
-        const tourns = await gh.fetchJson(env, "tournaments.json");
-        if (teams && tourns) {
-            runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
-            l.success("✅ Config loaded successfully");
-        }
-    } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
-
-    if (!runtimeConfig) {
-        l.error("🛑 CRITICAL: Failed to load config. Aborting.");
-        return l;
-    }
-
+    // 2. 智能早退 (完赛逻辑)
     if (!force) {
-        const cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
-        const today = utils.getNow().date;
-        const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0 };
         if (cache && cache.updateTime.date === today && meta.finish_streak >= 2) {
-            l.info("💤 All matches finished & confirmed (Streak 2+). Sleeping...");
+            l.success("💤 Sleep Mode: All matches finished (Streak 2+). Standing by."); 
             return l;
         }
     }
 
-    l.info("🚀 Update Started...");
-    const allRaw = {};
-    let fetchError = false; 
+    // 3. 认证 (NEW - 依赖环境变量)
+    const authContext = await loginToFandom(env, l);
+    if (!authContext) {
+        l.info("⚠️ Authentication skipped/failed. Proceeding anonymously.");
+    } else {
+        l.success("✅ Authenticated. Ready to fetch.");
+    }
 
-    // 【保留原版串行逻辑】使用 for...of 循环，天生防止并发限流
-    for(const t of runtimeConfig.TOURNAMENTS) {
-        try { 
-            // 【修改】注入 authContext
-            allRaw[t.slug] = await fetchAllMatches(t.overview_page, l, authContext); 
-        } catch(e) { 
-            l.error(`⚠️ Fetch Error [${t.slug}]: ${e.message}`);
-            fetchError = true; 
+    let runtimeConfig = null;
+
+    // 4. 加载配置
+    try {
+        const teams = await gh.fetchJson(env, "teams.json");
+        const tourns = await gh.fetchJson(env, "tournaments.json");
+        if (teams && tourns) {
+            runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
         }
-    }
-    
-    if (fetchError) {
-        l.error("🛑 Update Aborted: One or more tournaments failed. Retaining old data.");
-        return l; 
-    }
-    
-    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
-    const { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak } = runFullAnalysis(allRaw, oldMeta.finish_streak, runtimeConfig);
-    
-    if (oldMeta.total > 0 && grandTotal < oldMeta.total * 0.9 && !force) {
-        l.error(`🛑 Rollback detected (${grandTotal} < ${oldMeta.total}). Skipped.`);
+    } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
+
+    if (!runtimeConfig) {
+        l.error("🛑 CRITICAL: Config load failed.");
         return l;
     }
 
-    await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
-        globalStats, timeGrid, debugInfo, maxDateTs, statusText, scheduleMap, 
-        updateTime: utils.getNow(), runtimeConfig 
-    }));
-    await env.LOL_KV.put("META", JSON.stringify({ total: grandTotal, finish_streak: nextStreak }));
+    if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
+    if (!cache.rawMatches) cache.rawMatches = {}; 
+    if (!cache.updateTimestamps) cache.updateTimestamps = {};
+
+    // 5. 核心调度 (恢复 V38.4.0 的完整逻辑)
+    const candidates = [];
+    const cooldowns = [];
+
+    runtimeConfig.TOURNAMENTS.forEach(t => {
+        const lastTs = cache.updateTimestamps[t.slug] || 0;
+        const elapsed = NOW - lastTs;
+        const elapsedMins = Math.floor(elapsed / 60000);
+        
+        if (force || elapsed >= UPDATE_THRESHOLD) {
+            candidates.push({ slug: t.slug, overview_page: t.overview_page, elapsed: elapsed, label: `${t.slug}(${elapsedMins}m ago)` });
+        } else {
+            const waitMins = Math.ceil((UPDATE_THRESHOLD - elapsed) / 60000);
+            cooldowns.push(`${t.slug}(-${waitMins}m)`);
+        }
+    });
+
+    l.info(`🔍 Scan: ${candidates.length} Candidates, ${cooldowns.length} Cooldown.`);
+    if (cooldowns.length > 0) l.info(`❄️ Cooldown: [ ${cooldowns.join(', ')} ]`);
+
+    if (candidates.length === 0) return l;
+
+    // 排序: 饥饿时间降序
+    candidates.sort((a, b) => b.elapsed - a.elapsed);
+
+    // 计算批次
+    const totalLeagues = runtimeConfig.TOURNAMENTS.length;
+    const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
     
-    l.success(`🎉 Updated. Matches: ${grandTotal}. Streak: ${oldMeta.finish_streak}->${nextStreak}`);
+    // 切片
+    const batch = candidates.slice(0, batchSize);
+    const queue = candidates.slice(batchSize);
+    
+    l.info(`✅ Batch (${batch.length}): [ ${batch.map(b=>b.label).join(', ')} ] -> GO!`);
+    if (queue.length > 0) {
+        l.info(`⏳ Queue (${queue.length}): [ ${queue.map(q=>q.label).join(', ')} ] -> Wait next run.`);
+    }
+
+    // 6. 并发执行 (传递 authContext)
+    const updatePromises = batch.map(c => 
+        fetchAllMatches(c.overview_page, l, authContext)
+            .then(data => ({ status: 'fulfilled', slug: c.slug, data: data }))
+            .catch(err => ({ status: 'rejected', slug: c.slug, err: err }))
+    );
+
+    const results = await Promise.all(updatePromises);
+
+    // 7. 合并数据
+    let successCount = 0;
+    results.forEach(res => {
+        if (res.status === 'fulfilled') {
+            cache.rawMatches[res.slug] = res.data;
+            cache.updateTimestamps[res.slug] = NOW;
+            successCount++;
+        } else {
+            l.error(`⚠️ Failed ${res.slug}: ${res.err.message}`);
+        }
+    });
+
+    // 8. 全量分析
+    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
+    const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
+
+    if (oldMeta.total > 0 && analysis.grandTotal < oldMeta.total * 0.9 && !force) {
+        l.error(`🛑 Rollback detected. Aborting save.`);
+        return l;
+    }
+
+    // 9. 保存结果
+    await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
+        globalStats: analysis.globalStats,
+        timeGrid: analysis.timeGrid,
+        debugInfo: analysis.debugInfo,
+        maxDateTs: analysis.maxDateTs,
+        statusText: analysis.statusText,
+        scheduleMap: analysis.scheduleMap,
+        updateTime: utils.getNow(),
+        runtimeConfig,
+        rawMatches: cache.rawMatches,
+        updateTimestamps: cache.updateTimestamps 
+    }));
+
+    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, finish_streak: analysis.nextStreak }));
+    
+    l.success(`🎉 Sync Complete. Updated: ${successCount}, Batched: ${batch.length}, Total Parsed: ${analysis.grandTotal}`);
     return l;
 }
 
@@ -1005,7 +1117,11 @@ export default {
 
         if(url.pathname === "/force") {
             const l = await runUpdate(env, true);
-            await env.LOL_KV.put("logs", JSON.stringify(l.export()));
+            const oldLogs = await env.LOL_KV.get("logs", {type:"json"}) || [];
+            const newLogs = l.export();
+            let combinedLogs = [...newLogs, ...oldLogs];
+            if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+            await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
             return Response.redirect(url.origin + "/logs", 303);
         }
 
@@ -1027,7 +1143,8 @@ export default {
             cache.maxDateTs, 
             cache.statusText, 
             cache.scheduleMap, 
-            cache.runtimeConfig || { TOURNAMENTS: [] }
+            cache.runtimeConfig || { TOURNAMENTS: [] },
+            cache.updateTimestamps
         );
 
         return new Response(html, {headers:{"content-type":"text/html;charset=utf-8"}});
@@ -1035,6 +1152,12 @@ export default {
 
     async scheduled(event, env, ctx) {
         const l = await runUpdate(env, false);
-        await env.LOL_KV.put("logs", JSON.stringify(l.export()));
+        const oldLogs = await env.LOL_KV.get("logs", {type:"json"}) || [];
+        const newLogs = l.export();
+        if (newLogs.length > 0) {
+            let combinedLogs = [...newLogs, ...oldLogs];
+            if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+            await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+        }
     }
 };
