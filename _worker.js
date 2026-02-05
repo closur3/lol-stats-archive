@@ -877,8 +877,8 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
 
                 cardHtml += `<div class="sch-row">
                     <span class="sch-time">${m.time}</span>
-                    <span class="sch-time" style="width: auto; margin-right: 5px;">${boLabel ? `<span class="${boClass}">${boLabel}</span>` : ''}</span>
-                    <div class="sch-vs-container" style="flex:1;">${vsContent}</div>
+                    <div class="sch-vs-container">${vsContent}</div>
+                    <div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div>
                 </div>`;
             });
 
