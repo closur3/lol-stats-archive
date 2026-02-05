@@ -367,7 +367,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
         const gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
         const gamWrTxt = utils.pct(utils.rate(s.g_w, s.g_t));
         const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
-        const last = s.last ? new Date(s.last+28800000).toISOString().slice(0,10) : "-";
+        const last = s.last ? new Date(s.last+28800000).toISOString().slice(2,16) : "-";
         md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${serWrTxt} | ${gamTxt} | ${gamWrTxt} | ${strk} | ${last} |\n`;
     });
     md += `\n## 📅 Time Slot Distribution\n\n`;
@@ -494,7 +494,7 @@ const PYTHON_STYLE = `
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
 
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
-    .sch-pill.gold { background: #b45309; color: white; }
+    .sch-pill.gold { background: #eec170; color: #78350f; }
     
     .sch-live-score { color: #10b981; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
     .sch-fin-score { color: #334155; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -690,7 +690,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
 
             const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
-            const last = s.last ? new Date(s.last+28800000).toISOString().slice(0,16).replace("T"," ") : "-";
+            const last = s.last ? new Date(s.last+28800000).toISOString().slice(2,16).replace("T"," ") : "-";
             const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
             const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
             
