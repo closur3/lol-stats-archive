@@ -1,21 +1,10 @@
 // ====================================================
-// 🥇 Worker V37.0.0: 字体体系优化正式版
-// 基于: V36.2.70 经过完整测试验证
-// 里程碑: 主版本号升级，标志字体体系全面现代化
-// 变更历程:
-// 1. 所有MONO字体替换为普通系统字体 + font-variant-numeric: tabular-nums 等宽
-// 2. 统计表/时间分布表字号增大: 13px → 14px
-// 3. 赛程比分字重调整: 800 → 700 (更轻盈)
-// 4. 完整改动:
-//    - 赛程时间/比分: MONO → 普通等宽
-//    - 统计表所有数据列: MONO → 普通等宽
-//    - 时间分布表数据: MONO → 普通等宽
-//    - 历史战绩日期/比分: MONO → 普通等宽
-//    - 日志页面时间: MONO → 普通等宽
-// 5. 验证完成: 代码中零MONO字体残留
+// 🥇 Worker V37.0.1: 字体优化正式版 + Auth
+// 基于: V37.0.0 (用户提供的字体优化版)
+// 修改: 仅注入 Fandom 认证逻辑 (BotPassword)，UI与核心逻辑 100% 保持原样
 // ====================================================
 
-const UI_VERSION = "2026-02-04-V37.0.0-FontOptimizeFormal";
+const UI_VERSION = "2026-02-05-V37.0.1-FontOptimize+Auth";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -58,6 +47,14 @@ const utils = {
     parseDate: (str) => {
         if(!str) return null;
         try { return new Date(str.replace(" ", "T") + "Z"); } catch(e) { return null; }
+    },
+    // 【新增】仅增加此函数用于 Cookie 处理
+    extractCookies: (headerVal) => {
+        if (!headerVal) return "";
+        return headerVal.split(',')
+            .map(c => c.split(';')[0].trim())
+            .filter(c => c.includes('='))
+            .join('; ');
     }
 };
 
@@ -83,13 +80,77 @@ const gh = {
     }
 };
 
-// --- 3. 抓取逻辑 ---
-async function fetchWithRetry(url, logger, maxRetries = 3) {
+// --- 3. 认证逻辑 (新增模块) ---
+async function loginToFandom(env, logger) {
+    const user = env.FANDOM_USER;
+    const pass = env.FANDOM_PASS;
+
+    if (!user || !pass) {
+        logger.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set.");
+        return null;
+    }
+
+    const API = "https://lol.fandom.com/api.php";
+    const UA = `LoL-Stats-Worker/1.0 (${user})`; 
+
+    try {
+        // Step 1: 获取 Token (并捕获 Set-Cookie)
+        const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
+            headers: { "User-Agent": UA }
+        });
+        
+        if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
+        const tokenData = await tokenResp.json();
+        const loginToken = tokenData?.query?.tokens?.logintoken;
+        if (!loginToken) throw new Error("Failed to get login token");
+
+        const step1Cookie = utils.extractCookies(tokenResp.headers.get("set-cookie"));
+
+        // Step 2: 登录 (带上 Token 和 第一步的 Cookie)
+        const params = new URLSearchParams();
+        params.append("action", "login");
+        params.append("format", "json");
+        params.append("lgname", user);
+        params.append("lgpassword", pass);
+        params.append("lgtoken", loginToken);
+
+        const loginResp = await fetch(API, {
+            method: "POST",
+            body: params,
+            headers: { 
+                "User-Agent": UA,
+                "Cookie": step1Cookie 
+            }
+        });
+
+        const loginData = await loginResp.json();
+        
+        if (loginData.login && loginData.login.result === "Success") {
+            const finalCookie = utils.extractCookies(loginResp.headers.get("set-cookie"));
+            logger.success(`🔐 Authenticated as ${loginData.login.lgusername}`);
+            return { cookie: finalCookie, ua: UA };
+        } else {
+            throw new Error(`Login Failed: ${loginData.login ? loginData.login.reason : JSON.stringify(loginData)}`);
+        }
+    } catch (e) {
+        logger.error(`❌ Auth Error: ${e.message}`);
+        return null;
+    }
+}
+
+// --- 4. 抓取逻辑 (修改：注入 authContext) ---
+async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
+    const headers = { 
+        "User-Agent": authContext?.ua || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" 
+    };
+    // 【注入点】如果有 Cookie，则带上
+    if (authContext?.cookie) {
+        headers["Cookie"] = authContext.cookie;
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const r = await fetch(url, {
-                headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" }
-            });
+            const r = await fetch(url, { headers }); // 使用带 Auth 的 headers
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const cType = r.headers.get("content-type");
             if (cType && !cType.includes("json")) throw new Error("Invalid Content-Type");
@@ -105,7 +166,7 @@ async function fetchWithRetry(url, logger, maxRetries = 3) {
     }
 }
 
-async function fetchAllMatches(overviewPage, logger) {
+async function fetchAllMatches(overviewPage, logger, authContext) {
     let all = [];
     let offset = 0;
     const limit = 50;
@@ -117,7 +178,8 @@ async function fetchAllMatches(overviewPage, logger) {
             where: `OverviewPage='${overviewPage}'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
         });
         try {
-            const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger);
+            // 【修改】传递 authContext
+            const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
             const batch = batchRaw.map(i => i.title);
             if (!batch.length) break;
             all = all.concat(batch);
@@ -132,7 +194,7 @@ async function fetchAllMatches(overviewPage, logger) {
     return all;
 }
 
-// --- 4. 统计核心 ---
+// --- 5. 统计核心 (V37.0.0 原版 - 未动一行逻辑) ---
 function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     const globalStats = {};
     const debugInfo = {};
@@ -282,7 +344,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
 }
 
-// --- 5. Markdown 生成器 (保持不变) ---
+// --- 6. Markdown 生成器 (V37.0.0 原版) ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\n`;
     md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
@@ -325,7 +387,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
     return md;
 }
 
-// --- 6. HTML 渲染器 ---
+// --- 7. HTML 渲染器 (V37.0.0 原版 - 未动任何样式) ---
 const PYTHON_STYLE = `
     body { font-family: -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -781,7 +843,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     ${PYTHON_JS}</body></html>`;
 }
 
-// --- 5. 主控 (保持不变) ---
+// --- 8. 主控 (V37.0.0 原版逻辑 + 认证注入) ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -792,6 +854,15 @@ class Logger {
 
 async function runUpdate(env, force=false) {
     const l = new Logger();
+
+    // 【新增】认证逻辑
+    const authContext = await loginToFandom(env, l);
+    if (authContext) {
+        l.success("✅ Authenticated. Ready to fetch.");
+    } else {
+        l.info("⚠️ Proceeding anonymously.");
+    }
+
     let runtimeConfig = null;
 
     try {
@@ -823,9 +894,11 @@ async function runUpdate(env, force=false) {
     const allRaw = {};
     let fetchError = false; 
 
+    // 【保留原版串行逻辑】使用 for...of 循环，天生防止并发限流
     for(const t of runtimeConfig.TOURNAMENTS) {
         try { 
-            allRaw[t.slug] = await fetchAllMatches(t.overview_page, l); 
+            // 【修改】注入 authContext
+            allRaw[t.slug] = await fetchAllMatches(t.overview_page, l, authContext); 
         } catch(e) { 
             l.error(`⚠️ Fetch Error [${t.slug}]: ${e.message}`);
             fetchError = true; 
