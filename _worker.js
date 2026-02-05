@@ -173,16 +173,47 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             const r = await fetch(url, { headers });
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const cType = r.headers.get("content-type");
-            if (cType && !cType.includes("json")) throw new Error("Invalid Content-Type");
-            const data = await r.json();
-            if (!data.cargoquery) throw new Error("Invalid API Structure");
+            
+            // 【关键点 1】先以文本形式获取全部返回内容
+            const rawBody = await r.text();
+
+            // 【关键点 2】检查 HTTP 状态码
+            if (!r.ok) {
+                // 如果状态码不是 2xx，直接抛出包含部分内容的错误
+                throw new Error(`HTTP ${r.status}: ${rawBody.slice(0, 150)}...`);
+            }
+
+            // 【关键点 3】尝试解析 JSON
+            let data;
+            try {
+                data = JSON.parse(rawBody);
+            } catch (e) {
+                // 如果解析失败，说明返回的可能不是 JSON (比如 HTML 报错页)
+                throw new Error(`JSON Parse Fail. Content: ${rawBody.slice(0, 150)}...`);
+            }
+
+            // 【关键点 4】检查业务逻辑错误 (MediaWiki 规范)
+            if (data.error) {
+                // 如果 API 返回了具体的错误对象 (如 code, info)
+                throw new Error(`API Error [${data.error.code}]: ${data.error.info}`);
+            }
+
+            if (!data.cargoquery) {
+                // 如果结构不对，打印出整个 JSON 的缩略图
+                throw new Error(`Structure Error: ${rawBody.slice(0, 150)}`);
+            }
+
             return data.cargoquery; 
+
         } catch (e) {
             if (attempt === maxRetries) throw e; 
+            
+            // 随机等待 3~5 秒进行重试
             const waitTime = 3000 + Math.floor(Math.random() * 2000); 
-            logger.error(`❌ API Fail (Attempt ${attempt}): ${e.message}. Retrying...`);
+            
+            // 在日志中详细记录失败原因
+            logger.error(`❌ Fetch Fail (Attempt ${attempt}): ${e.message}`);
+            
             await new Promise(res => setTimeout(res, waitTime));
         }
     }
