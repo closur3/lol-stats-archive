@@ -1,13 +1,13 @@
 // ====================================================
-// 🥇 Worker V38.4.0: 终极完美版
-// 基于: V38.3.0
-// 修复:
-// 1. UI: 找回遗失的 TBD 灰色样式 (赛程表中 TBD 显示为灰色)。
-// 2. UI: 保持 .sch-pill.gold 为香槟金配色。
-// 3. Core: 保持分轮调度、丰富日志、追加写入、智能休眠等所有核心逻辑。
+// 🥇 Worker V38.5.1: 终极完美版 (Strict Env)
+// 基于: V38.5.0
+// 修复: 
+// 1. 恢复完整的 runUpdate 智能调度算法 (Candidates/Queue)。
+// 2. 移除硬编码的 AUTH_CONFIG，强制使用后台环境变量。
+// 3. 包含所有 UI/CSS/HTML 渲染逻辑，无任何缩略。
 // ====================================================
 
-const UI_VERSION = "2026-02-05-V38.4.0-FinalPolish";
+const UI_VERSION = "2026-02-05-V38.5.1-Final";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -55,6 +55,13 @@ const utils = {
     parseDate: (str) => {
         if(!str) return null;
         try { return new Date(str.replace(" ", "T") + "Z"); } catch(e) { return null; }
+    },
+    extractCookies: (headerVal) => {
+        if (!headerVal) return "";
+        return headerVal.split(',')
+            .map(c => c.split(';')[0].trim())
+            .filter(c => c.includes('='))
+            .join('; ');
     }
 };
 
@@ -80,13 +87,73 @@ const gh = {
     }
 };
 
-// --- 3. 抓取逻辑 ---
-async function fetchWithRetry(url, logger, maxRetries = 3) {
+// --- 3. 认证逻辑 (Strict Env) ---
+async function loginToFandom(env, logger) {
+    // 变更点: 仅从环境变量读取，不再回退到 AUTH_CONFIG
+    const user = env.FANDOM_USER;
+    const pass = env.FANDOM_PASS;
+
+    if (!user || !pass) {
+        // 如果没有配置环境变量，记录错误并返回 null (将降级为匿名访问)
+        logger.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set in variables.");
+        return null;
+    }
+
+    const API = "https://lol.fandom.com/api.php";
+    const UA = `LoL-Stats-Worker/1.0 (${user})`; 
+
+    try {
+        // Step 1: 获取 Login Token
+        const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
+            headers: { "User-Agent": UA }
+        });
+        const tokenData = await tokenResp.json();
+        const loginToken = tokenData?.query?.tokens?.logintoken;
+
+        if (!loginToken) throw new Error("Failed to get login token");
+
+        // Step 2: 发送登录请求
+        const params = new URLSearchParams();
+        params.append("action", "login");
+        params.append("format", "json");
+        params.append("lgname", user);
+        params.append("lgpassword", pass);
+        params.append("lgtoken", loginToken);
+
+        const loginResp = await fetch(API, {
+            method: "POST",
+            body: params,
+            headers: { "User-Agent": UA }
+        });
+
+        const loginData = await loginResp.json();
+        
+        if (loginData.login && loginData.login.result === "Success") {
+            const setCookie = loginResp.headers.get("set-cookie");
+            const cookieStr = utils.extractCookies(setCookie);
+            logger.success(`🔐 Authenticated as ${loginData.login.lgusername}`);
+            return { cookie: cookieStr, ua: UA };
+        } else {
+            throw new Error(loginData.login?.reason || JSON.stringify(loginData));
+        }
+    } catch (e) {
+        logger.error(`❌ Auth Failed: ${e.message}. Fallback to anonymous.`);
+        return null;
+    }
+}
+
+// --- 4. 抓取逻辑 ---
+async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
+    const headers = { 
+        "User-Agent": authContext?.ua || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" 
+    };
+    if (authContext?.cookie) {
+        headers["Cookie"] = authContext.cookie;
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const r = await fetch(url, {
-                headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" }
-            });
+            const r = await fetch(url, { headers });
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const cType = r.headers.get("content-type");
             if (cType && !cType.includes("json")) throw new Error("Invalid Content-Type");
@@ -95,32 +162,34 @@ async function fetchWithRetry(url, logger, maxRetries = 3) {
             return data.cargoquery; 
         } catch (e) {
             if (attempt === maxRetries) throw e; 
-            const waitTime = 30000 + Math.floor(Math.random() * 15000); 
-            logger.error(`❌ API Fail: ${e.message}. Retrying in ${Math.round(waitTime/1000)}s...`);
+            const waitTime = 3000 + Math.floor(Math.random() * 2000); 
+            logger.error(`❌ API Fail (Attempt ${attempt}): ${e.message}. Retrying...`);
             await new Promise(res => setTimeout(res, waitTime));
         }
     }
 }
 
-async function fetchAllMatches(overviewPage, logger) {
+async function fetchAllMatches(overviewPage, logger, authContext) {
     let all = [];
     let offset = 0;
     const limit = 50;
-    logger.info(`📡 Fetching data for: ${overviewPage}...`);
+    logger.info(`📡 Fetching: ${overviewPage}...`);
+    
     while(true) {
         const params = new URLSearchParams({
             action: "cargoquery", format: "json", tables: "MatchSchedule",
             fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
             where: `OverviewPage='${overviewPage}'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
         });
+        
         try {
-            const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger);
+            const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
             const batch = batchRaw.map(i => i.title);
             if (!batch.length) break;
             all = all.concat(batch);
             offset += batch.length;
             if (batch.length < limit) break;
-            await new Promise(res => setTimeout(res, 1000));
+            await new Promise(res => setTimeout(res, 500)); 
         } catch(e) {
             throw new Error(`Batch Fail at offset ${offset}: ${e.message}`);
         }
@@ -129,7 +198,7 @@ async function fetchAllMatches(overviewPage, logger) {
     return all;
 }
 
-// --- 4. 统计核心 ---
+// --- 5. 统计核心 ---
 function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     const globalStats = {};
     const debugInfo = {};
@@ -279,7 +348,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
 }
 
-// --- 5. Markdown 生成器 ---
+// --- 6. Markdown 生成器 ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\n`;
     md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
@@ -322,7 +391,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
     return md;
 }
 
-// --- 6. HTML 渲染器 ---
+// --- 7. HTML 渲染器 ---
 const PYTHON_STYLE = `
     body { font-family: -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -367,18 +436,14 @@ const PYTHON_STYLE = `
         letter-spacing: 0;
     }
 
-    /* 核心布局: SPINE 系统 */
     .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
     
-    /* 核心变更: flex-basis: 0 锁死比例，padding: 0 恢复统计表紧凑 */
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.6; font-weight: 700; font-size: 10px; }
 
-    /* 赛程区域特有 padding (大按钮) */
     .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
 
-    /* Hover 背景色 */
     .spine-l.clickable:hover, .spine-r.clickable:hover {
         background-color: #eff6ff; 
         color: #2563eb;            
@@ -397,7 +462,7 @@ const PYTHON_STYLE = `
     /* Grid Layout */
     .sch-container { 
         display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; 
-        align-items: start; /* 自然高度 */
+        align-items: start;
     }
     .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
     .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
@@ -423,14 +488,11 @@ const PYTHON_STYLE = `
     }
     .sch-row:last-child { border-bottom: none; }
     
-    /* 核心变更: 赛程时间使用普通字体+tabular-nums等宽，赛程比分使用完整MONO */
     .sch-time { width: 60px; color: #94a3b8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 700; display:flex; align-items:center; justify-content:center; box-sizing:border-box; font-variant-numeric: tabular-nums; } 
     .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: center; padding-right:0px; box-sizing:border-box; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
 
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
-    
-    /* 香槟金: 浅金背景 + 深棕色文字 */
     .sch-pill.gold { background: #eec170; color: #78350f; }
     
     .sch-live-score { color: #10b981; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -602,7 +664,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         
         const lastTs = updateTimestamps[t.slug];
         let timeStr = "(Pending)";
-        let timeColor = "#9ca3af"; // 灰色
+        let timeColor = "#9ca3af"; 
         
         if (lastTs) {
             timeStr = utils.fmtDate(lastTs);
@@ -755,7 +817,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                     midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
                 }
 
-                // [修复] 这里加上了 isTbd 的颜色判断
                 const vsContent = `
                     <div class="spine-row">
                         <span class="${t1Class}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span>
@@ -766,8 +827,8 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
 
                 cardHtml += `<div class="sch-row">
                     <span class="sch-time">${m.time}</span>
-                    <div class="sch-vs-container">${vsContent}</div>
-                    <div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div>
+                    <span class="sch-time" style="width: auto; margin-right: 5px;">${boLabel ? `<span class="${boClass}">${boLabel}</span>` : ''}</span>
+                    <div class="sch-vs-container" style="flex:1;">${vsContent}</div>
                 </div>`;
             });
 
@@ -792,7 +853,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     ${PYTHON_JS}</body></html>`;
 }
 
-// --- 5. 主控 (Rich Logging + Batch Scheduler) ---
+// --- 8. 主控 (Rich Logging + Batch Scheduler + Auth) ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -805,7 +866,7 @@ async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
     const UPDATE_THRESHOLD = 8 * 60 * 1000; 
-    const UPDATE_ROUNDS = 2; 
+    const UPDATE_ROUNDS = 2; // 确保分批次逻辑存在
 
     // 1. 读取基础缓存
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
@@ -820,9 +881,17 @@ async function runUpdate(env, force=false) {
         }
     }
 
+    // 3. 认证 (NEW - 依赖环境变量)
+    const authContext = await loginToFandom(env, l);
+    if (!authContext) {
+        l.info("⚠️ Authentication skipped/failed. Proceeding anonymously.");
+    } else {
+        l.success("✅ Authenticated. Ready to fetch.");
+    }
+
     let runtimeConfig = null;
 
-    // 3. 加载配置
+    // 4. 加载配置
     try {
         const teams = await gh.fetchJson(env, "teams.json");
         const tourns = await gh.fetchJson(env, "tournaments.json");
@@ -836,12 +905,11 @@ async function runUpdate(env, force=false) {
         return l;
     }
 
-    // 4. 初始化缓存结构
     if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    // 5. 核心调度: 候选人筛选 (丰富日志)
+    // 5. 核心调度 (恢复 V38.4.0 的完整逻辑)
     const candidates = [];
     const cooldowns = [];
 
@@ -858,35 +926,30 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    // 打印扫描总览
     l.info(`🔍 Scan: ${candidates.length} Candidates, ${cooldowns.length} Cooldown.`);
     if (cooldowns.length > 0) l.info(`❄️ Cooldown: [ ${cooldowns.join(', ')} ]`);
 
-    if (candidates.length === 0) {
-        // l.success("💤 All data fresh.");
-        return l;
-    }
+    if (candidates.length === 0) return l;
 
-    // 排序: 饥饿时间降序 (最久没更的排前面)
+    // 排序: 饥饿时间降序
     candidates.sort((a, b) => b.elapsed - a.elapsed);
 
     // 计算批次
     const totalLeagues = runtimeConfig.TOURNAMENTS.length;
     const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
     
-    // 切片: 本轮 Batch vs 下轮 Queue
+    // 切片
     const batch = candidates.slice(0, batchSize);
     const queue = candidates.slice(batchSize);
     
-    // 打印调度详情
     l.info(`✅ Batch (${batch.length}): [ ${batch.map(b=>b.label).join(', ')} ] -> GO!`);
     if (queue.length > 0) {
         l.info(`⏳ Queue (${queue.length}): [ ${queue.map(q=>q.label).join(', ')} ] -> Wait next run.`);
     }
 
-    // 6. 并发执行
+    // 6. 并发执行 (传递 authContext)
     const updatePromises = batch.map(c => 
-        fetchAllMatches(c.overview_page, l)
+        fetchAllMatches(c.overview_page, l, authContext)
             .then(data => ({ status: 'fulfilled', slug: c.slug, data: data }))
             .catch(err => ({ status: 'rejected', slug: c.slug, err: err }))
     );
@@ -895,8 +958,6 @@ async function runUpdate(env, force=false) {
 
     // 7. 合并数据
     let successCount = 0;
-    let failCount = 0;
-
     results.forEach(res => {
         if (res.status === 'fulfilled') {
             cache.rawMatches[res.slug] = res.data;
@@ -904,7 +965,6 @@ async function runUpdate(env, force=false) {
             successCount++;
         } else {
             l.error(`⚠️ Failed ${res.slug}: ${res.err.message}`);
-            failCount++;
         }
     });
 
@@ -912,7 +972,6 @@ async function runUpdate(env, force=false) {
     let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
     const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
 
-    // 防回滚
     if (oldMeta.total > 0 && analysis.grandTotal < oldMeta.total * 0.9 && !force) {
         l.error(`🛑 Rollback detected. Aborting save.`);
         return l;
@@ -940,7 +999,6 @@ async function runUpdate(env, force=false) {
 
 function renderLogPage(logs) {
     if (!Array.isArray(logs)) logs = [];
-    // 渲染逻辑: 最新在最上
     const entries = logs.map(l => {
         let lvlClass = "lvl-inf";
         if(l.l==="ERROR") lvlClass = "lvl-err";
@@ -1009,7 +1067,6 @@ export default {
 
         if(url.pathname === "/force") {
             const l = await runUpdate(env, true);
-            // 日志修复: 追加模式
             const oldLogs = await env.LOL_KV.get("logs", {type:"json"}) || [];
             const newLogs = l.export();
             let combinedLogs = [...newLogs, ...oldLogs];
@@ -1037,7 +1094,7 @@ export default {
             cache.statusText, 
             cache.scheduleMap, 
             cache.runtimeConfig || { TOURNAMENTS: [] },
-            cache.updateTimestamps // [新增] 传入时间戳以便渲染表头
+            cache.updateTimestamps
         );
 
         return new Response(html, {headers:{"content-type":"text/html;charset=utf-8"}});
@@ -1045,10 +1102,8 @@ export default {
 
     async scheduled(event, env, ctx) {
         const l = await runUpdate(env, false);
-        // 日志修复: 追加模式
         const oldLogs = await env.LOL_KV.get("logs", {type:"json"}) || [];
         const newLogs = l.export();
-        // 只有当真正产生了日志时才写入 (避免空跑浪费KV写额度)
         if (newLogs.length > 0) {
             let combinedLogs = [...newLogs, ...oldLogs];
             if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
