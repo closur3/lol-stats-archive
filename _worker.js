@@ -209,7 +209,7 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             if (attempt === maxRetries) throw e; 
             
             // 随机等待 3~5 秒进行重试
-            const waitTime = 3000 + Math.floor(Math.random() * 2000); 
+            const waitTime = 30000 + Math.floor(Math.random() * 20000); 
             
             // 在日志中详细记录失败原因
             logger.error(`❌ Fetch Fail (Attempt ${attempt}): ${e.message}`);
