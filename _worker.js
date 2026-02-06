@@ -821,7 +821,14 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             const matches = scheduleMap[d];
             const titleColor = "#334155";
             const titleBg = "#f8fafc";
-            const titleText = `📅 ${d.slice(5)}`;
+            
+            // 计算星期几
+            const dateObj = new Date(d + "T00:00:00Z");
+            const dayOfWeek = dateObj.getUTCDay();
+            const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            const dayName = dayNames[dayOfWeek];
+            
+            const titleText = `📅 ${d.slice(5)} ${dayName}`;
             
             let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
             
