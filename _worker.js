@@ -970,7 +970,7 @@ async function runUpdate(env, force=false) {
                 slug: t.slug, 
                 overview_page: t.overview_page, 
                 elapsed: elapsed, 
-                label: `${t.slug}(${elapsedMins}m ago)` 
+                label: `${t.slug} (${elapsedMins}m ago)` 
             });
             needsNetworkUpdate = true;
         } else {
