@@ -979,9 +979,9 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    l.info(`🔍 Scan [${currentMode.toUpperCase()}, ${Math.floor(threshold/60000)}m]: ${candidates.length} Ready | ${waitings.length} Waiting`);
-    if (waitings.length > 0 && candidates.length === 0) {
-        waitings.forEach(w => l.info(`⏳ Waiting: ${w}`));
+    l.info(`🔍 Scan [${currentMode.toUpperCase()}, ${Math.floor(threshold/60000)}m]: ${candidates.length} Candidates | ${waitings.length} Cooldown`);
+    if (waitings.length > 0) {
+        waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`));
     }
 
     // 如果本地扫描没有候选者，直接返回（不联网）
