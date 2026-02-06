@@ -644,7 +644,8 @@ const PYTHON_JS = `
     function showPopup(t,d,m){
         const ds=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Total"];
         document.getElementById('modalTitle').innerText=t+" - "+ds[d];
-        const listHtml = m.map(item => renderMatchItem('dist', item.d, '', item.t1, item.t2, item.f, item.s));
+        const sortedMatches = m.sort((a, b) => a.d.localeCompare(b.d));
+        const listHtml = sortedMatches.map(item => renderMatchItem('dist', item.d, '', item.t1, item.t2, item.f, item.s));
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
     }
