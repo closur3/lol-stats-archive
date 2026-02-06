@@ -979,7 +979,7 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    l.info(`🔍 Scan [${currentMode.toUpperCase()}, ${Math.floor(threshold/60000)}m]: ${candidates.length} Candidates | ${waitings.length} Cooldown`);
+    l.info(`🔍 Scan: ${candidates.length} Candidates | ${waitings.length} Cooldown`);
     if (waitings.length > 0) {
         waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`));
     }
@@ -1012,7 +1012,7 @@ async function runUpdate(env, force=false) {
     const queue = candidates.slice(batchSize);
     
     if (queue.length > 0) {
-        l.info(`⏳ Queue (${queue.length}): [ ${queue.map(q=>q.label).join(', ')} ] -> Wait next run.`);
+        queue.forEach(q => l.info(`⏳ Queued: ${q.label}`));
     }
 
     // 5. 并发执行
@@ -1055,7 +1055,7 @@ async function runUpdate(env, force=false) {
     if (analysis.nextStreak >= 2) {
         // 两次确认都是下班状态，进入慢速序列
         nextMode = "slow";
-        l.success(`📊 All matches finished (Streak ${analysis.nextStreak}). Switching to SLOW mode (60m interval).`);
+        l.success(`📊 All matches finished (Streak=${analysis.nextStreak}). Switching to SLOW mode.`);
     } else {
         // 继续快速序列
         nextMode = "fast";
@@ -1081,7 +1081,7 @@ async function runUpdate(env, force=false) {
         mode: nextMode  // 保存新模式
     }));
     
-    l.success(`🎉 Complete: Updated: ${successCount}, Batched: ${batch.length}, Parsed: ${analysis.grandTotal} | Next: [${nextMode.toUpperCase()}]`);
+    l.success(`🎉 Complete: [${successCount}/${batch.length}] Updates | Mode: ${currentMode.toUpperCase()} -> ${nextMode.toUpperCase()}`);
     return l;
 }
 
