@@ -148,7 +148,7 @@ async function loginToFandom(env, logger) {
             const finalCookie = utils.extractCookies(step2SetCookie);
             
             logger.success(`🔐 Authenticated as ${loginData.login.lgusername}`);
-            return { cookie: finalCookie, ua: UA };
+            return { cookie: finalCookie, ua: UA, username: loginData.login.lgusername };
         } else {
             // 打印详细错误原因
             const reason = loginData.login ? loginData.login.reason : JSON.stringify(loginData);
@@ -956,7 +956,7 @@ async function runUpdate(env, force=false) {
     let currentMode = meta.mode || "fast";  // 当前运行模式
     let needsNetworkUpdate = false;
     let candidates = [];
-    let cooldowns = [];
+    let waitings = [];
 
     // 根据当前模式选择阈值
     const threshold = currentMode === "fast" ? FAST_THRESHOLD : SLOW_THRESHOLD;
@@ -975,13 +975,15 @@ async function runUpdate(env, force=false) {
             });
             needsNetworkUpdate = true;
         } else {
-            const waitMins = Math.ceil((threshold - elapsed) / 60000);
-            cooldowns.push(`${t.slug}(-${waitMins}m)`);
+            const elapsedMinsDisplay = Math.floor(elapsed / 60000);
+            waitings.push(`${t.slug} (${elapsedMinsDisplay}m ago)`);
         }
     });
 
-    l.info(`🔍 Local Scan [${currentMode.toUpperCase()} Mode, Threshold: ${Math.floor(threshold/60000)}m]: ${candidates.length} Candidates, ${cooldowns.length} Cooldown.`);
-    if (cooldowns.length > 0) l.info(`❄️ Cooldown: [ ${cooldowns.join(', ')} ]`);
+    l.info(`🔍 Scan [${currentMode.toUpperCase()}, ${Math.floor(threshold/60000)}m]: ${candidates.length} Ready | ${waitings.length} Waiting`);
+    if (waitings.length > 0 && candidates.length === 0) {
+        waitings.forEach(w => l.info(`⏳ Waiting: ${w}`));
+    }
 
     // 如果本地扫描没有候选者，直接返回（不联网）
     if (!needsNetworkUpdate || candidates.length === 0) {
@@ -994,9 +996,9 @@ async function runUpdate(env, force=false) {
     // ==========================================
     const authContext = await loginToFandom(env, l);
     if (!authContext) {
-        l.info("⚠️ Authentication skipped/failed. Proceeding anonymously.");
+        l.info("⚠️ Auth Failed. Proceeding anonymously.");
     } else {
-        l.success("✅ Authenticated. Ready to fetch.");
+        l.success(`🔐 Auth Success: ${authContext.username || 'User'}`);
     }
 
     // 排序: 饥饿时间降序
@@ -1010,7 +1012,6 @@ async function runUpdate(env, force=false) {
     const batch = candidates.slice(0, batchSize);
     const queue = candidates.slice(batchSize);
     
-    l.info(`✅ Batch (${batch.length}): [ ${batch.map(b=>b.label).join(', ')} ] -> GO!`);
     if (queue.length > 0) {
         l.info(`⏳ Queue (${queue.length}): [ ${queue.map(q=>q.label).join(', ')} ] -> Wait next run.`);
     }
@@ -1081,7 +1082,7 @@ async function runUpdate(env, force=false) {
         mode: nextMode  // 保存新模式
     }));
     
-    l.success(`🎉 Sync Complete. Updated: ${successCount}, Batched: ${batch.length}, Total Parsed: ${analysis.grandTotal}, Mode: ${nextMode}`);
+    l.success(`🎉 Complete: Updated: ${successCount}, Batched: ${batch.length}, Parsed: ${analysis.grandTotal} | Next: [${nextMode.toUpperCase()}]`);
     return l;
 }
 
