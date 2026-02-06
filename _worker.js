@@ -1144,7 +1144,7 @@ export default {
                 return new Response(renderLogPage(logs), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
 
-            // Case 4: 主页 (Dashboard) - 只有访问根路径 "/" 才会触发渲染
+// Case 4: 主页 (Dashboard) - 只有访问根路径 "/" 才会触发渲染
             case "/": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache) {
@@ -1171,9 +1171,47 @@ export default {
                 return new Response(null, { status: 204 });
 
             // 🛑 默认分支：所有未定义的路径统统 404
-            default:
-                return new Response("404 Not Found - Wrong Turn, Summoner!", { status: 404 });
+            default: {
+                const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 Not Found</title>
+    <style>
+        :root { --bg: #ffffff; --text: #000000; }
+        @media (prefers-color-scheme: dark) {
+            :root { --bg: #0a0a0a; --text: #ffffff; }
         }
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+            user-select: none;
+        }
+        h1 {
+            font-weight: 200;
+            font-size: 24px;
+            letter-spacing: 2px;
+            margin: 0;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <h1>404 Not Found</h1>
+</body>
+</html>`;
+
+                return new Response(html, {
+                    status: 404,
+                    headers: { "content-type": "text/html;charset=utf-8" }
+                });
+            }
     },
 
     // 定时任务逻辑保持不变 (它不走 fetch 路由)
