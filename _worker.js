@@ -1,13 +1,14 @@
 // ====================================================
-// 🥇 Worker V38.5.3: 认证稳定版 (Auth Stable)
-// 基于: V38.5.2 + Cookie Relay Fix
+// 🥇 Worker V38.5.4: 双序列模式版 (Dual-Mode)
+// 基于: V38.5.3 + Dual Mode + Local Scan First
 // 状态: 
-// 1. Auth: ✅ 成功 (Cookie接力机制修复了Session超时)
-// 2. Scheduler: ✅ 智能批次调度正常工作
-// 3. UI: ✅ 全功能包含
+// 1. Auth: ✅ 本地扫描后才认证 (按需认证)
+// 2. Mode: ✅ Fast (8m) / Slow (60m) 双序列
+// 3. Scheduler: ✅ 智能批次调度正常工作
+// 4. UI: ✅ 全功能包含
 // ====================================================
 
-const UI_VERSION = "2026-02-05-V38.5.3-AuthStable";
+const UI_VERSION = "2026-02-05-V38.5.4-DualMode";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -147,8 +148,6 @@ async function loginToFandom(env, logger) {
             const finalCookie = utils.extractCookies(step2SetCookie);
             
             logger.success(`🔐 Authenticated as ${loginData.login.lgusername}`);
-            // 注意：有时候最终 Cookie 需要合并第一步的 Cookie，但在 MediaWiki 中，
-            // 登录成功后的 Set-Cookie 通常包含了我们需要的所有新身份信息。
             return { cookie: finalCookie, ua: UA };
         } else {
             // 打印详细错误原因
@@ -911,7 +910,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     ${PYTHON_JS}</body></html>`;
 }
 
-// --- 8. 主控 (Rich Logging + Batch Scheduler + Auth) ---
+// --- 8. 主控 (Rich Logging + Batch Scheduler + Dual Mode) ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -923,33 +922,17 @@ class Logger {
 async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
-    const UPDATE_THRESHOLD = 8 * 60 * 1000; 
-    const UPDATE_ROUNDS = 2; // 确保分批次逻辑存在
+    const FAST_THRESHOLD = 8 * 60 * 1000;        // 快速序列：8分钟
+    const SLOW_THRESHOLD = 60 * 60 * 1000;       // 慢速序列：60分钟
+    const UPDATE_ROUNDS = 2;
 
-    // 1. 读取基础缓存
+    // 1. 读取基础缓存和元数据
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
-    const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0 };
+    const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0, mode: "fast" };
     const today = utils.getNow().date;
 
-    // 2. 智能早退 (完赛逻辑)
-    if (!force) {
-        if (cache && cache.updateTime.date === today && meta.finish_streak >= 2) {
-            l.success("💤 Sleep Mode: All matches finished (Streak 2+). Standing by."); 
-            return l;
-        }
-    }
-
-    // 3. 认证 (NEW - 依赖环境变量)
-    const authContext = await loginToFandom(env, l);
-    if (!authContext) {
-        l.info("⚠️ Authentication skipped/failed. Proceeding anonymously.");
-    } else {
-        l.success("✅ Authenticated. Ready to fetch.");
-    }
-
+    // 2. 加载配置（优先于逻辑判断）
     let runtimeConfig = null;
-
-    // 4. 加载配置
     try {
         const teams = await gh.fetchJson(env, "teams.json");
         const tourns = await gh.fetchJson(env, "tournaments.json");
@@ -967,27 +950,54 @@ async function runUpdate(env, force=false) {
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    // 5. 核心调度 (恢复 V38.4.0 的完整逻辑)
-    const candidates = [];
-    const cooldowns = [];
+    // ==========================================
+    // 3. 本地扫描：检查是否需要更新
+    // ==========================================
+    let currentMode = meta.mode || "fast";  // 当前运行模式
+    let needsNetworkUpdate = false;
+    let candidates = [];
+    let cooldowns = [];
+
+    // 根据当前模式选择阈值
+    const threshold = currentMode === "fast" ? FAST_THRESHOLD : SLOW_THRESHOLD;
 
     runtimeConfig.TOURNAMENTS.forEach(t => {
         const lastTs = cache.updateTimestamps[t.slug] || 0;
         const elapsed = NOW - lastTs;
         const elapsedMins = Math.floor(elapsed / 60000);
         
-        if (force || elapsed >= UPDATE_THRESHOLD) {
-            candidates.push({ slug: t.slug, overview_page: t.overview_page, elapsed: elapsed, label: `${t.slug}(${elapsedMins}m ago)` });
+        if (force || elapsed >= threshold) {
+            candidates.push({ 
+                slug: t.slug, 
+                overview_page: t.overview_page, 
+                elapsed: elapsed, 
+                label: `${t.slug}(${elapsedMins}m ago)` 
+            });
+            needsNetworkUpdate = true;
         } else {
-            const waitMins = Math.ceil((UPDATE_THRESHOLD - elapsed) / 60000);
+            const waitMins = Math.ceil((threshold - elapsed) / 60000);
             cooldowns.push(`${t.slug}(-${waitMins}m)`);
         }
     });
 
-    l.info(`🔍 Scan: ${candidates.length} Candidates, ${cooldowns.length} Cooldown.`);
+    l.info(`🔍 Local Scan [${currentMode.toUpperCase()} Mode, Threshold: ${Math.floor(threshold/60000)}m]: ${candidates.length} Candidates, ${cooldowns.length} Cooldown.`);
     if (cooldowns.length > 0) l.info(`❄️ Cooldown: [ ${cooldowns.join(', ')} ]`);
 
-    if (candidates.length === 0) return l;
+    // 如果本地扫描没有候选者，直接返回（不联网）
+    if (!needsNetworkUpdate || candidates.length === 0) {
+        l.info("⏸️ No update needed. Standing by.");
+        return l;
+    }
+
+    // ==========================================
+    // 4. 确认需要联网后，才进行认证
+    // ==========================================
+    const authContext = await loginToFandom(env, l);
+    if (!authContext) {
+        l.info("⚠️ Authentication skipped/failed. Proceeding anonymously.");
+    } else {
+        l.success("✅ Authenticated. Ready to fetch.");
+    }
 
     // 排序: 饥饿时间降序
     candidates.sort((a, b) => b.elapsed - a.elapsed);
@@ -1005,7 +1015,7 @@ async function runUpdate(env, force=false) {
         l.info(`⏳ Queue (${queue.length}): [ ${queue.map(q=>q.label).join(', ')} ] -> Wait next run.`);
     }
 
-    // 6. 并发执行 (传递 authContext)
+    // 5. 并发执行
     const updatePromises = batch.map(c => 
         fetchAllMatches(c.overview_page, l, authContext)
             .then(data => ({ status: 'fulfilled', slug: c.slug, data: data }))
@@ -1014,7 +1024,7 @@ async function runUpdate(env, force=false) {
 
     const results = await Promise.all(updatePromises);
 
-    // 7. 合并数据
+    // 6. 合并数据
     let successCount = 0;
     results.forEach(res => {
         if (res.status === 'fulfilled') {
@@ -1026,13 +1036,29 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    // 8. 全量分析
-    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0 };
+    // 7. 全量分析
+    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0, mode: "fast" };
     const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
 
     if (oldMeta.total > 0 && analysis.grandTotal < oldMeta.total * 0.9 && !force) {
         l.error(`🛑 Rollback detected. Aborting save.`);
         return l;
+    }
+
+    // ==========================================
+    // 8. 更新元数据：完赛逻辑和模式转换
+    // ==========================================
+    let nextMode = currentMode;
+    let nextStreak = analysis.nextStreak;
+
+    // 判断是否进入完赛状态
+    if (analysis.nextStreak >= 2) {
+        // 两次确认都是下班状态，进入慢速序列
+        nextMode = "slow";
+        l.success(`📊 All matches finished (Streak ${analysis.nextStreak}). Switching to SLOW mode (60m interval).`);
+    } else {
+        // 继续快速序列
+        nextMode = "fast";
     }
 
     // 9. 保存结果
@@ -1049,9 +1075,13 @@ async function runUpdate(env, force=false) {
         updateTimestamps: cache.updateTimestamps 
     }));
 
-    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, finish_streak: analysis.nextStreak }));
+    await env.LOL_KV.put("META", JSON.stringify({ 
+        total: analysis.grandTotal, 
+        finish_streak: nextStreak,
+        mode: nextMode  // 保存新模式
+    }));
     
-    l.success(`🎉 Sync Complete. Updated: ${successCount}, Batched: ${batch.length}, Total Parsed: ${analysis.grandTotal}`);
+    l.success(`🎉 Sync Complete. Updated: ${successCount}, Batched: ${batch.length}, Total Parsed: ${analysis.grandTotal}, Mode: ${nextMode}`);
     return l;
 }
 
@@ -1144,7 +1174,7 @@ export default {
                 return new Response(renderLogPage(logs), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
 
-// Case 4: 主页 (Dashboard) - 只有访问根路径 "/" 才会触发渲染
+            // Case 4: 主页 (Dashboard)
             case "/": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache) {
