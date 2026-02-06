@@ -1108,59 +1108,78 @@ function renderLogPage(logs) {
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
-        
-        if (url.pathname === "/archive") {
-            const cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
-            if (!cache || !cache.globalStats || !cache.timeGrid || !cache.runtimeConfig) {
-                return new Response(JSON.stringify({ error: "No data available" }), { status: 503 });
-            }
-            const payload = {};
-            for (const t of cache.runtimeConfig.TOURNAMENTS) {
-                if (cache.globalStats[t.slug]) {
-                    payload[`tournament/${t.slug}.md`] = generateMarkdown(t, cache.globalStats[t.slug], cache.timeGrid);
+
+        // 🚦 路由指挥中心
+        switch (url.pathname) {
+
+            //Case 1: 归档接口 (API)
+            case "/archive": {
+                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                if (!cache || !cache.globalStats || !cache.timeGrid || !cache.runtimeConfig) {
+                    return new Response(JSON.stringify({ error: "No data available" }), { status: 503 });
                 }
+                const payload = {};
+                for (const t of cache.runtimeConfig.TOURNAMENTS) {
+                    if (cache.globalStats[t.slug]) {
+                        payload[`tournament/${t.slug}.md`] = generateMarkdown(t, cache.globalStats[t.slug], cache.timeGrid);
+                    }
+                }
+                return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
             }
-            return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
+
+            // Case 2: 强制更新 (Trigger)
+            case "/force": {
+                const l = await runUpdate(env, true);
+                const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+                const newLogs = l.export();
+                let combinedLogs = [...newLogs, ...oldLogs];
+                if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+                await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+                return Response.redirect(url.origin + "/logs", 303);
+            }
+
+            // Case 3: 查看日志 (Log Viewer)
+            case "/logs": {
+                const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+                return new Response(renderLogPage(logs), { headers: { "content-type": "text/html;charset=utf-8" } });
+            }
+
+            // Case 4: 主页 (Dashboard) - 只有访问根路径 "/" 才会触发渲染
+            case "/": {
+                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                if (!cache) {
+                    return new Response("Initializing... <a href='/force'>Click to Build</a>", { headers: { "content-type": "text/html" } });
+                }
+
+                const html = renderFullHtml(
+                    cache.globalStats,
+                    cache.timeGrid,
+                    cache.updateTime,
+                    cache.debugInfo,
+                    cache.maxDateTs,
+                    cache.statusText,
+                    cache.scheduleMap,
+                    cache.runtimeConfig || { TOURNAMENTS: [] },
+                    cache.updateTimestamps
+                );
+
+                return new Response(html, { headers: { "content-type": "text/html;charset=utf-8" } });
+            }
+
+            // Case 5: 浏览器图标 (防止控制台爆红)
+            case "/favicon.ico":
+                return new Response(null, { status: 204 });
+
+            // 🛑 默认分支：所有未定义的路径统统 404
+            default:
+                return new Response("404 Not Found - Wrong Turn, Summoner!", { status: 404 });
         }
-
-        if(url.pathname === "/force") {
-            const l = await runUpdate(env, true);
-            const oldLogs = await env.LOL_KV.get("logs", {type:"json"}) || [];
-            const newLogs = l.export();
-            let combinedLogs = [...newLogs, ...oldLogs];
-            if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-            await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
-            return Response.redirect(url.origin + "/logs", 303);
-        }
-
-        if(url.pathname === "/logs") {
-            const logs = await env.LOL_KV.get("logs", {type:"json"}) || [];
-            return new Response(renderLogPage(logs), {headers:{"content-type":"text/html;charset=utf-8"}});
-        }
-
-        const cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
-        if (!cache) {
-             return new Response("Initializing... <a href='/force'>Click to Build</a>", {headers:{"content-type":"text/html"}});
-        }
-
-        const html = renderFullHtml(
-            cache.globalStats, 
-            cache.timeGrid, 
-            cache.updateTime, 
-            cache.debugInfo, 
-            cache.maxDateTs, 
-            cache.statusText, 
-            cache.scheduleMap, 
-            cache.runtimeConfig || { TOURNAMENTS: [] },
-            cache.updateTimestamps
-        );
-
-        return new Response(html, {headers:{"content-type":"text/html;charset=utf-8"}});
     },
 
+    // 定时任务逻辑保持不变 (它不走 fetch 路由)
     async scheduled(event, env, ctx) {
         const l = await runUpdate(env, false);
-        const oldLogs = await env.LOL_KV.get("logs", {type:"json"}) || [];
+        const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
         const newLogs = l.export();
         if (newLogs.length > 0) {
             let combinedLogs = [...newLogs, ...oldLogs];
