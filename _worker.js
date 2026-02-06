@@ -147,7 +147,6 @@ async function loginToFandom(env, logger) {
             const step2SetCookie = loginResp.headers.get("set-cookie");
             const finalCookie = utils.extractCookies(step2SetCookie);
             
-            logger.success(`🔐 Authenticated as ${loginData.login.lgusername}`);
             return { cookie: finalCookie, ua: UA, username: loginData.login.lgusername };
         } else {
             // 打印详细错误原因
@@ -998,7 +997,7 @@ async function runUpdate(env, force=false) {
     if (!authContext) {
         l.info("⚠️ Auth Failed. Proceeding anonymously.");
     } else {
-        l.success(`🔐 Auth Success: ${authContext.username || 'User'}`);
+        l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
     }
 
     // 排序: 饥饿时间降序
