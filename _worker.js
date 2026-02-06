@@ -1212,6 +1212,7 @@ export default {
                     headers: { "content-type": "text/html;charset=utf-8" }
                 });
             }
+        }
     },
 
     // 定时任务逻辑保持不变 (它不走 fetch 路由)
