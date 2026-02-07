@@ -1057,7 +1057,11 @@ async function runUpdate(env, force=false) {
     if (analysis.nextStreak >= 2) {
         // 两次确认都是下班状态，进入慢速序列
         nextMode = "slow";
-        l.success(`📊 All matches finished (Streak ${analysis.nextStreak}). Switching to SLOW mode (60m interval).`);
+        l.success(`🌙 All matches finished (Streak ${analysis.nextStreak}/2). Switching to SLOW mode.`);
+    } else if (analysis.nextStreak === 1) {
+        // 第一次确认下班状态
+        l.info(`🟡 Matches finished (Streak 1/2). Waiting for second confirmation.`);
+        nextMode = "fast";
     } else {
         // 继续快速序列
         nextMode = "fast";
