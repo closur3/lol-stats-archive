@@ -988,7 +988,7 @@ async function runUpdate(env, force=false) {
 
 // 如果本地扫描没有候选者，直接返回
     if (!needsNetworkUpdate || candidates.length === 0) {
-        l.info("⏸️ SlowMode: Threshold not met. No update needed");
+        l.info("⏸️ Slowmode: Threshold not met. Update skipped");
         return l;
     }
 
@@ -1053,7 +1053,7 @@ async function runUpdate(env, force=false) {
         // 只有全部成功，才信任 Analysis 的判断
         if (analysis.nextStreak >= 2) {
             nextMode = "slow";
-            l.success(`🌙 GoodNight: All matches finished & confirmed (Streak 2+). Entering SLOW mode`);
+            l.success(`🌙 Goodnight: All matches finished & confirmed (Streak 2+). Entering SLOW mode`);
         } else if (analysis.nextStreak === 1) {
             l.info(`🟡 Verifying: All matches finished (Streak 1/2). Waiting for second confirmation`);
             nextMode = "fast";
