@@ -206,10 +206,10 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             const waitSecs = Math.floor(waitTime / 1000);
             
             if (attempt >= maxRetries) {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} → Max retries exceeded`);
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} → Retrying in ${waitSecs}s...`);
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitSecs}s...`);
                 await new Promise(res => setTimeout(res, waitTime));
             }
             
