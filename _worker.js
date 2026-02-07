@@ -215,6 +215,8 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
                 logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} → Retrying in ${waitSecs}s...`);
                 await new Promise(res => setTimeout(res, waitTime));
             }
+            
+            attempt++;
         }
     }
 }
