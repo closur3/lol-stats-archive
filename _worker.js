@@ -174,10 +174,7 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
         try {
             const r = await fetch(url, { headers });
             
-            // 处理 429 Rate Limit (Fandom 有时返回 429 有时返回 503)
-            if (r.status === 429) {
-                 throw new Error(`Rate Limit Exceeded (HTTP 429)`);
-            }
+            if (r.status === 429) throw new Error(`HTTP 429 Rate Limit`);
 
             const rawBody = await r.text();
 
