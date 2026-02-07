@@ -1053,7 +1053,6 @@ async function runUpdate(env, force=false) {
 
     // ✅ 核心修复：如果有失败，禁止下班，强制保持 FAST 模式
     if (failureCount > 0) {
-        l.error(`🛡️ Protect: ${failureCount} updates failed. Forcing FAST mode to retry.`);
         nextMode = "fast";     // 强制快速重试
         nextStreak = 0;        // 重置下班计数器，防止误判
         statusMsg = " (Retry Pending)";
@@ -1076,7 +1075,7 @@ async function runUpdate(env, force=false) {
         timeGrid: analysis.timeGrid,
         debugInfo: analysis.debugInfo,
         maxDateTs: analysis.maxDateTs,
-        statusText: analysis.statusText + statusMsg, // 在 UI 上也提示
+        statusText: analysis.statusText
         scheduleMap: analysis.scheduleMap,
         updateTime: utils.getNow(),
         runtimeConfig,
