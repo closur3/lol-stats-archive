@@ -1052,8 +1052,8 @@ async function runUpdate(env, force=false) {
 
     // ✅ 核心修复：如果有失败，禁止下班，强制保持 FAST 模式
     if (failureCount > 0) {
-        nextMode = "fast";     // 强制快速重试
-        nextStreak = 0;        // 重置下班计数器，防止误判
+        nextMode = "fast";
+        nextStreak = 0;    
     } else {
         // 只有全部成功，才信任 Analysis 的判断
         if (analysis.nextStreak >= 2) {
