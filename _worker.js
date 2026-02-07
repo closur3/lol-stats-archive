@@ -203,22 +203,19 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             return data.cargoquery; 
 
         } catch (e) {
-            // 增加等待时间波动，应对 Rate Limit
-            const baseWait = 35000; // 提升基础等待到 35s
-            const jitter = Math.floor(Math.random() * 25000); // +0~25s
+            const baseWait = 30000;
+            const jitter = Math.floor(Math.random() * 15000);
             const waitTime = baseWait + jitter;
             const waitSecs = Math.floor(waitTime / 1000);
             
             if (attempt >= maxRetries) {
-                // ✅ 修复点：最后一次失败不再 log，直接 throw，避免与外层日志重复
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} → Max retries exceeded`);
                 throw e;
             } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitSecs}s...`);
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} → Retrying in ${waitSecs}s...`);
                 await new Promise(res => setTimeout(res, waitTime));
             }
         }
-        
-        attempt++;
     }
 }
 
@@ -1028,8 +1025,6 @@ async function runUpdate(env, force=false) {
             cache.updateTimestamps[res.slug] = NOW;
             successCount++;
         } else {
-            // 这里记录详细错误，因为 fetchWithRetry 不再记录最后一次错误
-            l.error(`⚠️ Failed ${res.slug}: ${res.err.message}`);
             failureCount++;
         }
     });
