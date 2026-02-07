@@ -159,7 +159,7 @@ async function loginToFandom(env, logger) {
     }
 }
 
-// --- 4. 抓取逻辑 ---
+// --- 4. 抓取逻辑 (修复版) ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     const headers = { 
         "User-Agent": authContext?.ua || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" 
@@ -168,13 +168,17 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
         headers["Cookie"] = authContext.cookie;
     }
 
-    // ✅ 修复点：改用 while 循环 + 手动递增，确保 attempt 计数绝对准确
     let attempt = 1;
 
     while (attempt <= maxRetries) {
         try {
             const r = await fetch(url, { headers });
             
+            // 处理 429 Rate Limit (Fandom 有时返回 429 有时返回 503)
+            if (r.status === 429) {
+                 throw new Error(`Rate Limit Exceeded (HTTP 429)`);
+            }
+
             const rawBody = await r.text();
 
             if (!r.ok) {
@@ -199,11 +203,14 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             return data.cargoquery; 
 
         } catch (e) {
-            const waitTime = 30000 + Math.floor(Math.random() * 20000);
+            // 增加等待时间波动，应对 Rate Limit
+            const baseWait = 35000; // 提升基础等待到 35s
+            const jitter = Math.floor(Math.random() * 25000); // +0~25s
+            const waitTime = baseWait + jitter;
             const waitSecs = Math.floor(waitTime / 1000);
             
             if (attempt >= maxRetries) {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
+                // ✅ 修复点：最后一次失败不再 log，直接 throw，避免与外层日志重复
                 throw e;
             } else {
                 logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitSecs}s...`);
@@ -211,7 +218,6 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             }
         }
         
-        // ✅ 关键修复：循环末尾显式递增
         attempt++;
     }
 }
@@ -983,36 +989,25 @@ async function runUpdate(env, force=false) {
         waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`));
     }
 
-    // 如果本地扫描没有候选者，直接返回（不联网）
+// 如果本地扫描没有候选者，直接返回
     if (!needsNetworkUpdate || candidates.length === 0) {
         l.info("⏸️ No update needed. Standing by.");
         return l;
     }
 
-    // ==========================================
-    // 4. 确认需要联网后，才进行认证
-    // ==========================================
+    // 4. 认证
     const authContext = await loginToFandom(env, l);
-    if (!authContext) {
-        l.info("⚠️ Auth Failed. Proceeding anonymously.");
-    } else {
-        l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
-    }
+    if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously.");
+    else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
 
-    // 排序: 饥饿时间降序
     candidates.sort((a, b) => b.elapsed - a.elapsed);
 
-    // 计算批次
     const totalLeagues = runtimeConfig.TOURNAMENTS.length;
     const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
-    
-    // 切片
     const batch = candidates.slice(0, batchSize);
     const queue = candidates.slice(batchSize);
     
-    if (queue.length > 0) {
-        queue.forEach(q => l.info(`⏳ Queued: ${q.label}`));
-    }
+    if (queue.length > 0) queue.forEach(q => l.info(`⏳ Queued: ${q.label}`));
 
     // 5. 并发执行
     const updatePromises = batch.map(c => 
@@ -1023,15 +1018,19 @@ async function runUpdate(env, force=false) {
 
     const results = await Promise.all(updatePromises);
 
-    // 6. 合并数据
+    // 6. 合并数据 & 错误统计
     let successCount = 0;
+    let failureCount = 0; // ✅ 新增：失败计数
+    
     results.forEach(res => {
         if (res.status === 'fulfilled') {
             cache.rawMatches[res.slug] = res.data;
             cache.updateTimestamps[res.slug] = NOW;
             successCount++;
         } else {
+            // 这里记录详细错误，因为 fetchWithRetry 不再记录最后一次错误
             l.error(`⚠️ Failed ${res.slug}: ${res.err.message}`);
+            failureCount++;
         }
     });
 
@@ -1039,29 +1038,36 @@ async function runUpdate(env, force=false) {
     let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0, mode: "fast" };
     const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
 
+    // 回滚保护
     if (oldMeta.total > 0 && analysis.grandTotal < oldMeta.total * 0.9 && !force) {
         l.error(`🛑 Rollback detected. Aborting save.`);
         return l;
     }
 
     // ==========================================
-    // 8. 更新元数据：完赛逻辑和模式转换
+    // 8. 更新元数据：熔断保护逻辑 (Critical Fix)
     // ==========================================
     let nextMode = currentMode;
     let nextStreak = analysis.nextStreak;
+    let statusMsg = "";
 
-    // 判断是否进入完赛状态
-    if (analysis.nextStreak >= 2) {
-        // 两次确认都是下班状态，进入慢速序列
-        nextMode = "slow";
-        l.success(`🌙 All matches finished (Streak ${analysis.nextStreak}/2) Switching to SLOW mode`);
-    } else if (analysis.nextStreak === 1) {
-        // 第一次确认下班状态
-        l.info(`🟡 All matches finished (Streak 1/2) Waiting for second confirmation`);
-        nextMode = "fast";
+    // ✅ 核心修复：如果有失败，禁止下班，强制保持 FAST 模式
+    if (failureCount > 0) {
+        l.error(`🛡️ Protect: ${failureCount} updates failed. Forcing FAST mode to retry.`);
+        nextMode = "fast";     // 强制快速重试
+        nextStreak = 0;        // 重置下班计数器，防止误判
+        statusMsg = " (Retry Pending)";
     } else {
-        // 继续快速序列
-        nextMode = "fast";
+        // 只有全部成功，才信任 Analysis 的判断
+        if (analysis.nextStreak >= 2) {
+            nextMode = "slow";
+            l.success(`🌙 All matches finished (Streak ${analysis.nextStreak}/2). Switching to SLOW mode`);
+        } else if (analysis.nextStreak === 1) {
+            l.info(`🟡 All matches finished (Streak 1/2). Waiting for second confirmation`);
+            nextMode = "fast";
+        } else {
+            nextMode = "fast";
+        }
     }
 
     // 9. 保存结果
@@ -1070,7 +1076,7 @@ async function runUpdate(env, force=false) {
         timeGrid: analysis.timeGrid,
         debugInfo: analysis.debugInfo,
         maxDateTs: analysis.maxDateTs,
-        statusText: analysis.statusText,
+        statusText: analysis.statusText + statusMsg, // 在 UI 上也提示
         scheduleMap: analysis.scheduleMap,
         updateTime: utils.getNow(),
         runtimeConfig,
@@ -1078,18 +1084,23 @@ async function runUpdate(env, force=false) {
         updateTimestamps: cache.updateTimestamps 
     }));
 
+    // 即使失败，也保存 Mode (确保被强制设为 fast)
     await env.LOL_KV.put("META", JSON.stringify({ 
         total: analysis.grandTotal, 
         finish_streak: nextStreak,
-        mode: nextMode  // 保存新模式
+        mode: nextMode 
     }));
     
     let modeDisplay = "";
-    if (nextMode !== currentMode) {
-        modeDisplay = ` -> ${nextMode.toUpperCase()}`;
+    if (nextMode !== currentMode) modeDisplay = ` -> ${nextMode.toUpperCase()}`;
+    
+    // 调整最终日志的语气
+    if (failureCount > 0) {
+        l.error(`🚧 Complete: Success ${successCount}/${batch.length} | Force: FAST`);
+    } else {
+        l.success(`🎉 Complete: Success ${successCount}/${batch.length} | Next: ${currentMode.toUpperCase()}${modeDisplay}`);
     }
     
-    l.success(`🎉 Complete: Success ${successCount}/${batch.length} | Next: ${currentMode.toUpperCase()}${modeDisplay}`);
     return l;
 }
 
