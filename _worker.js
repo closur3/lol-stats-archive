@@ -991,7 +991,7 @@ async function runUpdate(env, force=false) {
 
 // 如果本地扫描没有候选者，直接返回
     if (!needsNetworkUpdate || candidates.length === 0) {
-        l.info("⏸️ No update needed. Standing by.");
+        l.info("⏸️ No update needed. Standing by");
         return l;
     }
 
