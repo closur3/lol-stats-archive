@@ -991,13 +991,13 @@ async function runUpdate(env, force=false) {
 
 // 如果本地扫描没有候选者，直接返回
     if (!needsNetworkUpdate || candidates.length === 0) {
-        l.info("⏸️ No update needed. Standing by");
+        l.info("⏸️ SlowMode: Threshold not met. No update needed");
         return l;
     }
 
     // 4. 认证
     const authContext = await loginToFandom(env, l);
-    if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously.");
+    if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously");
     else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
 
     candidates.sort((a, b) => b.elapsed - a.elapsed);
@@ -1040,7 +1040,7 @@ async function runUpdate(env, force=false) {
 
     // 回滚保护
     if (oldMeta.total > 0 && analysis.grandTotal < oldMeta.total * 0.9 && !force) {
-        l.error(`🛑 Rollback detected. Aborting save.`);
+        l.error(`🛑 Rollback: Detected data anomaly. Aborting save`);
         return l;
     }
 
@@ -1058,9 +1058,9 @@ async function runUpdate(env, force=false) {
         // 只有全部成功，才信任 Analysis 的判断
         if (analysis.nextStreak >= 2) {
             nextMode = "slow";
-            l.success(`🌙 All matches finished (Streak ${analysis.nextStreak}/2). Switching to SLOW mode`);
+            l.success(`🌙 GoodNight: All matches finished & confirmed (Streak 2+). Entering SLOW mode`);
         } else if (analysis.nextStreak === 1) {
-            l.info(`🟡 All matches finished (Streak 1/2). Waiting for second confirmation`);
+            l.info(`🟡 Verifying: All matches finished (Streak 1/2). Waiting for second confirmation`);
             nextMode = "fast";
         } else {
             nextMode = "fast";
