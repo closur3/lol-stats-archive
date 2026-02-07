@@ -981,7 +981,7 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    l.info(`🔍 Scan: ${candidates.length} Candidates | ${waitings.length} Cooldown`);
+    l.info(`🔍 Detection: ${candidates.length} Candidates | ${waitings.length} Cooldown`);
     if (waitings.length > 0) {
         waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`));
     }
