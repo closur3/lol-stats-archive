@@ -204,15 +204,17 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             return data.cargoquery; 
 
         } catch (e) {
-            if (attempt === maxRetries) throw e; 
+            // 随机等待 30~50 秒进行重试
+            const waitTime = 30000 + Math.floor(Math.random() * 20000);
+            const waitSecs = Math.floor(waitTime / 1000);
             
-            // 随机等待 3~5 秒进行重试
-            const waitTime = 30000 + Math.floor(Math.random() * 20000); 
-            
-            // 在日志中详细记录失败原因
-            logger.error(`❌ Fetch Fail (Attempt ${attempt}): ${e.message}`);
-            
-            await new Promise(res => setTimeout(res, waitTime));
+            if (attempt === maxRetries) {
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} → Max retries exceeded`);
+                throw e;
+            } else {
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} → Retrying in ${waitSecs}s...`);
+                await new Promise(res => setTimeout(res, waitTime));
+            }
         }
     }
 }
@@ -221,7 +223,7 @@ async function fetchAllMatches(overviewPage, logger, authContext) {
     let all = [];
     let offset = 0;
     const limit = 50;
-    logger.info(`📡 Fetching: ${overviewPage}...`);
+    logger.info(`📡 Fetching: ${overviewPage}`);
     
     while(true) {
         const params = new URLSearchParams({
@@ -1055,7 +1057,7 @@ async function runUpdate(env, force=false) {
     if (analysis.nextStreak >= 2) {
         // 两次确认都是下班状态，进入慢速序列
         nextMode = "slow";
-        l.success(`📊 All matches finished (Streak=${analysis.nextStreak}). Switching to SLOW mode.`);
+        l.success(`📊 All matches finished (Streak ${analysis.nextStreak}). Switching to SLOW mode (60m interval).`);
     } else {
         // 继续快速序列
         nextMode = "fast";
@@ -1081,9 +1083,13 @@ async function runUpdate(env, force=false) {
         mode: nextMode  // 保存新模式
     }));
     
-    l.success(`🎉 Complete: [${successCount}/${batch.length}] Updates | Mode: ${currentMode.toUpperCase()} -> ${nextMode.toUpperCase()}`);
+    let modeDisplay = "";
+    if (nextMode !== currentMode) {
+        modeDisplay = ` -> ${nextMode.toUpperCase()}`;
+    }
+    
+    l.success(`🎉 Complete: Success ${successCount}/${batch.length} | Next: ${currentMode.toUpperCase()}${modeDisplay}`);
     return l;
-}
 
 function renderLogPage(logs) {
     if (!Array.isArray(logs)) logs = [];
