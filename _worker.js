@@ -1073,7 +1073,7 @@ async function runUpdate(env, force=false) {
         timeGrid: analysis.timeGrid,
         debugInfo: analysis.debugInfo,
         maxDateTs: analysis.maxDateTs,
-        statusText: analysis.statusText
+        statusText: analysis.statusText,
         scheduleMap: analysis.scheduleMap,
         updateTime: utils.getNow(),
         runtimeConfig,
