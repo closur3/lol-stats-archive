@@ -1090,6 +1090,7 @@ async function runUpdate(env, force=false) {
     
     l.success(`🎉 Complete: Success ${successCount}/${batch.length} | Next: ${currentMode.toUpperCase()}${modeDisplay}`);
     return l;
+}
 
 function renderLogPage(logs) {
     if (!Array.isArray(logs)) logs = [];
