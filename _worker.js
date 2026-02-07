@@ -1088,14 +1088,14 @@ async function runUpdate(env, force=false) {
 // 10. 最终总结 (极简模式：仅在模式改变时显示状态流转)
     if (failureCount > 0) {
         // 🚨 红色警报：有失败，强制熔断
-        l.error(`🚨 Complete: Success ${successCount}/${batch.length} | 🛡️ Force: FAST`);
+        l.error(`🚨 Complete: Success ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal} | 🛡️ Force: FAST`);
     } else {
         if (nextMode !== currentMode) {
             // ⚡ 状态改变：高亮显示变更 (例如: FAST -> SLOW)
-            l.success(`⚡ Complete: Success ${successCount}/${batch.length} | 🔀 ${currentMode.toUpperCase()} -> ${nextMode.toUpperCase()}`);
+            l.success(`⚡ Complete: Success ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal} | 🔀 ${currentMode.toUpperCase()} -> ${nextMode.toUpperCase()}`);
         } else {
             // ✅ 一切照旧：不显示Mode文字，保持极简
-            l.success(`🎉 Complete: Success ${successCount}/${batch.length}`);
+            l.success(`🎉 Complete: Success Updated ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal}`);
         }
     }
 
