@@ -168,47 +168,41 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
         headers["Cookie"] = authContext.cookie;
     }
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // ✅ 修复点：改用 while 循环 + 手动递增，确保 attempt 计数绝对准确
+    let attempt = 1;
+
+    while (attempt <= maxRetries) {
         try {
             const r = await fetch(url, { headers });
             
-            // 【关键点 1】先以文本形式获取全部返回内容
             const rawBody = await r.text();
 
-            // 【关键点 2】检查 HTTP 状态码
             if (!r.ok) {
-                // 如果状态码不是 2xx，直接抛出包含部分内容的错误
                 throw new Error(`HTTP ${r.status}: ${rawBody.slice(0, 150)}...`);
             }
 
-            // 【关键点 3】尝试解析 JSON
             let data;
             try {
                 data = JSON.parse(rawBody);
             } catch (e) {
-                // 如果解析失败，说明返回的可能不是 JSON (比如 HTML 报错页)
                 throw new Error(`JSON Parse Fail. Content: ${rawBody.slice(0, 150)}...`);
             }
 
-            // 【关键点 4】检查业务逻辑错误 (MediaWiki 规范)
             if (data.error) {
-                // 如果 API 返回了具体的错误对象 (如 code, info)
                 throw new Error(`API Error [${data.error.code}]: ${data.error.info}`);
             }
 
             if (!data.cargoquery) {
-                // 如果结构不对，打印出整个 JSON 的缩略图
                 throw new Error(`Structure Error: ${rawBody.slice(0, 150)}`);
             }
 
             return data.cargoquery; 
 
         } catch (e) {
-            // 随机等待 30~50 秒进行重试
             const waitTime = 30000 + Math.floor(Math.random() * 20000);
             const waitSecs = Math.floor(waitTime / 1000);
             
-            if (attempt === maxRetries) {
+            if (attempt >= maxRetries) {
                 logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
@@ -216,6 +210,9 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
                 await new Promise(res => setTimeout(res, waitTime));
             }
         }
+        
+        // ✅ 关键修复：循环末尾显式递增
+        attempt++;
     }
 }
 
