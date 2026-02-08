@@ -1,12 +1,12 @@
 // ====================================================
-// 🥇 Worker V38.9.0: Clean Fonts & Nav
+// 🥇 Worker V39.0.0: Consistent UI & Archive Polish
 // Features:
 // 1. Core: Global CST (UTC+8)
-// 2. Archive: Static Snapshot with Collapsible Tables
-// 3. UI: Clean System Fonts + Archive Navigation
+// 2. Archive: "Exact Replica" Headers with Collapse
+// 3. UI: 2-Digit Year + Unified Button Styles
 // ====================================================
 
-const UI_VERSION = "2026-02-09-V38.9.0-CleanFonts";
+const UI_VERSION = "2026-02-09-V39.0.0-ArchivePolish";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -26,10 +26,14 @@ const utils = {
         };
     },
     
+    // Updated: Now includes 2-digit Year (YY-MM-DD HH:mm)
     fmtDate: (ts) => {
         if (!ts) return "(Pending)";
         const d = utils.toCST(ts);
-        return d.toISOString().slice(5, 10) + " " + d.toISOString().slice(11, 16);
+        // ISO is YYYY-MM-DDTHH:mm...
+        // Slice 2,10 gives YY-MM-DD
+        // Slice 11,16 gives HH:mm
+        return d.toISOString().slice(2, 10) + " " + d.toISOString().slice(11, 16);
     },
 
     shortName: (n, teamMap) => {
@@ -471,18 +475,20 @@ const PYTHON_STYLE = `
     .header-logo { font-size: 1.8rem; }
     .header-title { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
     .header-right { display: flex; gap: 10px; align-items: center; }
+    
+    /* Unified Action Button Style (Removed special update-btn color) */
     .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
     .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
-    .update-btn { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; }
-    .update-btn:hover { background: #dbeafe; border-color: #93c5fd; }
     
     .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
     .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; }
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar, .log-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list, .log-list { -ms-overflow-style: none; scrollbar-width: none; }
 
+    /* Home Page Table Title */
     .table-title { padding: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
     .table-title a { color: #2563eb; text-decoration: none; }
+
     table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
     th { background: #f8fafc; padding: 14px 8px; font-weight: 600; color: #64748b; border-bottom: 2px solid #f1f5f9; cursor: pointer; transition: 0.2s; }
     th:hover { background: #eff6ff; color: #2563eb; }
@@ -546,19 +552,19 @@ const PYTHON_STYLE = `
     .sch-fin-score { color: #334155; font-size: 13px; }
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
 
-    /* Archive Mode Styles (The Collapse Magic) */
+    /* Archive Mode Styles (Exact Replica) */
     details.arch-sec { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s; }
     
-    summary.arch-sum { padding: 12px 20px; font-weight: 700; cursor: pointer; background: #fff; color: #1e293b; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; user-select: none; list-style: none; }
+    /* Updated Summary to match .table-title exactly */
+    summary.arch-sum { padding: 15px; font-weight: 700; cursor: pointer; background: #fff; color: #1e293b; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; user-select: none; list-style: none; min-height: 20px; }
     summary.arch-sum::-webkit-details-marker { display: none; }
-    summary.arch-sum:hover { background: #f8fafc; color: #2563eb; }
+    summary.arch-sum:hover { background: #f8fafc; }
+    summary.arch-sum a { color: #2563eb; text-decoration: none; }
     
-    .arch-title-area { display: flex; align-items: center; gap: 10px; }
+    .arch-title-wrapper { display: flex; align-items: center; gap: 10px; }
     .arch-indicator { font-size: 16px; color: #94a3b8; font-weight: 400; line-height: 1; width: 16px; text-align: center; }
     details.arch-sec[open] .arch-indicator { content: '-'; transform: rotate(180deg); } 
-    details.arch-sec[open] summary.arch-sum { border-bottom: 1px solid #e2e8f0; background: #f1f5f9; color: #2563eb; }
-
-    .arch-time { font-size: 12px; font-weight: normal; opacity: 0.6; font-family: inherit; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    details.arch-sec[open] summary.arch-sum { border-bottom: 1px solid #e2e8f0; background: #fff; }
 
     .arch-content .wrapper { box-shadow: none; border: none; margin-bottom: 0 !important; border-radius: 0; }
     .arch-content .table-title { display: none; } 
@@ -692,6 +698,9 @@ const PYTHON_JS = `
 
 function renderPageShell(title, bodyContent, statusText = "", navMode = "home") {
     let navBtn = "";
+    // Icon Swap Logic
+    const logoIcon = navMode === "archive" ? "📦" : "🥇";
+    
     if (navMode === "home") {
         navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
     } else if (navMode === "archive") {
@@ -700,10 +709,10 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>
     <style>${PYTHON_STYLE}</style>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>">
     </head>
     <body data-ui-version="${UI_VERSION}">
-    <header class="main-header"><div class="header-left"><span class="header-logo">🥇</span><h1 class="header-title">${title}</h1></div>
+    <header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div>
     <div class="header-right">
         ${navBtn}
         <form action="/force" method="POST" style="margin:0"><button class="action-btn update-btn"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button></form>
@@ -754,11 +763,12 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
         let timeColor = "#9ca3af"; 
         
         if (lastTs) {
-            timeStr = utils.fmtDate(lastTs);
+            timeStr = utils.fmtDate(lastTs); // Uses new YY-MM-DD HH:mm format
             const diff = Date.now() - lastTs;
             if (diff < 20 * 60 * 1000) timeColor = "#10b981"; 
         }
         
+        // Consistent Bold/Colored Date Label for BOTH Home and Archive
         const debugLabel = `<span style="font-size:11px;color:${timeColor};font-weight:600;margin-left:10px">${timeStr}</span>`;
 
         let minTs = 9999999999999, maxTsLocal = 0;
@@ -816,7 +826,11 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
         const hasTimeData = timeRows.length > 0;
         const mainWrapperStyle = isArchive ? "" : (hasTimeData ? "margin-bottom:0; border-bottom:none; border-radius:12px 12px 0 0;" : "margin-bottom:25px;");
 
-        sectionHtml += `<div class="wrapper" style="${mainWrapperStyle}"><div class="table-title"><a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        // The Table Body (Shared between Home and Archive)
+        const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
+        
+        // Prepare Wrapper for Table
+        sectionHtml += `<div class="wrapper" style="${mainWrapperStyle}">${tableBody}</div>`;
 
         if (hasTimeData) {
             const timeWrapperStyle = isArchive ? "margin-top:0; border-top:1px solid #f1f5f9;" : "margin-top:0; border-top:1px solid #f1f5f9; border-radius:0 0 12px 12px; margin-bottom:25px;";
@@ -842,24 +856,37 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
             sectionHtml += "</tbody></table></div>";
         }
 
+        // Header Logic: Exact Same HTML Structure for Title + Time
+        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a>`;
+        
         if (isArchive) {
-            let updateInfo = "";
-            if(updateTimestamps[t.slug]) {
-                const d = utils.toCST(updateTimestamps[t.slug]);
-                updateInfo = d.toISOString().slice(2, 16).replace("T", " ");
-            }
+            // Archive: Use Summary as the Header, but style it exactly like table-title
+            // plus the collapse indicator
+            const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">+</span> ${titleLink}</div> ${debugLabel}`;
             
             tablesHtml += `<details class="arch-sec">
                 <summary class="arch-sum">
-                    <div class="arch-title-area">
-                         <span class="arch-indicator">+</span>
-                         <span>${t.title}</span>
-                    </div>
-                    <span class="arch-time">${updateInfo}</span>
+                    ${headerContent}
                 </summary>
                 ${sectionHtml}
             </details>`;
         } else {
+            // Home: Use Standard .table-title inside the first wrapper
+            // We need to inject the title back into the first wrapper which was created above.
+            // Since we built sectionHtml sequentially, we can wrap the Title div and prepend it to sectionHtml? 
+            // No, the table-title is PART of the first wrapper in the Home layout.
+            // Let's reconstruction specifically for Home to match the requested HTML structure.
+            
+            // Re-open the first wrapper tag string to inject the title
+            const headerContent = `<div>${titleLink}</div> ${debugLabel}`;
+            const titleDiv = `<div class="table-title">${headerContent}</div>`;
+            
+            // Hacky but efficient: Replace the opening <div class="wrapper"...> with <div class="wrapper"...> + Title
+            sectionHtml = sectionHtml.replace('class="wrapper"', `class="wrapper"><div class="table-title">${headerContent}</div><div class="table-content-placeholder" style="display:none"></div>`);
+            
+            // Clean up the placeholder if present (it's just to ensure we inserted after the wrapper start)
+             sectionHtml = sectionHtml.replace('<div class="table-content-placeholder" style="display:none"></div>', '');
+
             tablesHtml += sectionHtml;
         }
     });
