@@ -603,9 +603,18 @@ const PYTHON_STYLE = `
     
     /* Spine Layout */
     .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
-    .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; }
-    .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; }
+    
+    .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
+    .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.6; font-weight: 700; font-size: 10px; }
+
+    .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
+
+    .spine-l.clickable:hover, .spine-r.clickable:hover {
+        background-color: #eff6ff; 
+        color: #2563eb;            
+        cursor: pointer;
+    }
 
     /* Cell Alignment - 完美脊柱对齐 (Spine Alignment) */
     .t-cell { 
