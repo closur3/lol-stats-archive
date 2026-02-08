@@ -405,21 +405,32 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         });
     });
 
-    let statusText = `<span style="color:#9ca3af; font-weight:normal; font-size:12px">💤 NOMATCHES</span>`;
+    let statusText = "";
     let nextStreak = 0;
 
-    if (matchesTodayCount > 0) {
-        if (pendingTodayCount > 0) {
-            statusText = `<span style="color:#10b981; font-weight:normal; font-size:12px">🎮 ONGOING</span>`;
-            nextStreak = 0;
+    // 场景 1: 比赛正在进行中 -> 保持兴奋 (Fast Mode)
+    if (matchesTodayCount > 0 && pendingTodayCount > 0) {
+        statusText = `<span style="color:#10b981; font-weight:normal; font-size:12px">🎮 ONGOING</span>`;
+        nextStreak = 0;
+    } 
+    // 场景 2: (今天没比赛 OR 全部打完) -> 进入确认流程 (Fast -> Slow)
+    else {
+        // 如果上次是 Streak 1 (已验证一次)，这次就进 Streak 2 (慢速)；否则进 Streak 1 (验证中)
+        nextStreak = currentStreak >= 1 ? 2 : 1;
+        
+        // 根据具体情况显示文案
+        if (matchesTodayCount === 0) {
+            // Case A: 今天没比赛
+            statusText = nextStreak === 2
+                ? `<span style="color:#9ca3af; font-weight:normal; font-size:12px">💤 NOMATCHES</span>`
+                : `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
         } else {
-            nextStreak = currentStreak >= 1 ? 2 : 1;
-            statusText =
-                nextStreak === 2
-                    ? `<span style="color:#9ca3af; font-weight:normal; font-size:12px">✔️ FINISHED</span>`
-                    : `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
+            // Case B: 比赛全部打完
+            statusText = nextStreak === 2
+                ? `<span style="color:#9ca3af; font-weight:normal; font-size:12px">✔️ FINISHED</span>`
+                : `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
         }
-}
+    }
 
 
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
