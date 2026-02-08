@@ -1,20 +1,24 @@
 // ====================================================
-// 🥇 Worker V38.5.5: 稳定防封版 (Stable & Safe)
-// 基于: V38.5.4 + RateLimit Fix + Playoffs Support + Serial Mode
-// 修复日志:
-// 1. Fix: ✅ 修复 fetchWithRetry 无限重试死循环 (attempt++)
-// 2. Feat: ✅ 支持季后赛抓取 (LIKE 模糊匹配)
-// 3. Safe: ✅ 全局串行抓取 + 礼貌间隙 (翻页2s, 联赛间3s)
+// 🥇 Worker V38.6.0: Midnight Force & Global CST
+// Base: V38.5.5 (User Provided)
+// Addons:
+// 1. Core: ✅ 全局引入 utils.toCST，统一管理 UTC+8 时区
+// 2. Feat: ✅ 新增跨天强制刷新 (New Day Force Update)
 // ====================================================
 
-const UI_VERSION = "2026-02-08-V38.5.5-Stable";
+const UI_VERSION = "2026-02-09-V38.6.0-GlobalCST";
 
-// --- 1. 工具库 ---
+// --- 1. 工具库 (Global UTC+8 Core) ---
+// 核心定义：所有时间计算的基础偏移量
+const CST_OFFSET = 8 * 60 * 60 * 1000; 
+
 const utils = {
+    // [核心] 将任意 UTC 时间戳转换为 北京时间 Date 对象
+    // 使用方法: utils.toCST(ts).getUTCHours() 即为北京小时
+    toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
+
     getNow: () => {
-        const d = new Date();
-        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-        const bj = new Date(utc + (3600000 * 8));
+        const bj = utils.toCST(); // 自动获取当前北京时间
         return {
             obj: bj,
             full: bj.toISOString().replace("T", " ").slice(0, 19),
@@ -23,11 +27,13 @@ const utils = {
             time: bj.toISOString().slice(11, 16)
         };
     },
+    
     fmtDate: (ts) => {
         if (!ts) return "(Pending)";
-        const d = new Date(ts + 28800000); // UTC+8
+        const d = utils.toCST(ts);
         return d.toISOString().slice(5, 10) + " " + d.toISOString().slice(11, 16);
     },
+
     shortName: (n, teamMap) => {
         if(!n) return "Unknown";
         if(!teamMap) return n;
@@ -36,14 +42,17 @@ const utils = {
         for(let[k,v] of Object.entries(teamMap)) if(upper.includes(k.toUpperCase())) return v;
         return n.replace(/(Esports|Gaming|Academy|Team|Club)/gi, "").trim();
     },
+
     rate: (n, d) => d > 0 ? n / d : null,
     pct: (r) => r !== null ? `${Math.round(r * 100)}%` : "-",
+    
     color: (r, rev = false) => {
         if (r === null) return "#f1f5f9"; 
         const val = Math.max(0, Math.min(1, r));
         const hue = rev ? (1 - val) * 140 : val * 140;
         return `hsl(${parseInt(hue)}, 55%, 50%)`;
     },
+    
     colorDate: (ts, minTs, maxTs) => {
         if (!ts) return "#9ca3af"; 
         if (maxTs === minTs) return "hsl(215, 80%, 50%)";
@@ -52,16 +61,15 @@ const utils = {
         const lig = Math.round(60 - factor * 10);
         return `hsl(215, ${sat}%, ${lig}%)`;
     },
+    
     parseDate: (str) => {
         if(!str) return null;
         try { return new Date(str.replace(" ", "T") + "Z"); } catch(e) { return null; }
     },
+    
     extractCookies: (headerVal) => {
         if (!headerVal) return "";
-        return headerVal.split(',')
-            .map(c => c.split(';')[0].trim())
-            .filter(c => c.includes('='))
-            .join('; ');
+        return headerVal.split(',').map(c => c.split(';')[0].trim()).filter(c => c.includes('=')).join('; ');
     }
 };
 
@@ -101,9 +109,7 @@ async function loginToFandom(env, logger) {
     const UA = `LoL-Stats-Worker/1.0 (${user})`; 
 
     try {
-        // ==========================================
-        // Step 1: 获取 Token (并捕获临时会话 Cookie)
-        // ==========================================
+        // Step 1: 获取 Token
         const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
             headers: { "User-Agent": UA }
         });
@@ -115,14 +121,10 @@ async function loginToFandom(env, logger) {
 
         if (!loginToken) throw new Error("Failed to get login token");
 
-        // 关键修复：抓取第一步返回的临时 Session Cookie
-        // 如果不带这个，第二步就会报 "Session timed out"
         const step1SetCookie = tokenResp.headers.get("set-cookie");
         const step1Cookie = utils.extractCookies(step1SetCookie);
 
-        // ==========================================
-        // Step 2: 发送登录请求 (带上 Token 和 Cookie)
-        // ==========================================
+        // Step 2: 发送登录请求
         const params = new URLSearchParams();
         params.append("action", "login");
         params.append("format", "json");
@@ -135,20 +137,17 @@ async function loginToFandom(env, logger) {
             body: params,
             headers: { 
                 "User-Agent": UA,
-                "Cookie": step1Cookie // <--- 必须带上第一步的 Cookie！
+                "Cookie": step1Cookie 
             }
         });
 
         const loginData = await loginResp.json();
         
         if (loginData.login && loginData.login.result === "Success") {
-            // 登录成功，获取最终的长期 Cookie
             const step2SetCookie = loginResp.headers.get("set-cookie");
             const finalCookie = utils.extractCookies(step2SetCookie);
-            
             return { cookie: finalCookie, ua: UA, username: loginData.login.lgusername };
         } else {
-            // 打印详细错误原因
             const reason = loginData.login ? loginData.login.reason : JSON.stringify(loginData);
             throw new Error(`Login Failed: ${reason}`);
         }
@@ -218,7 +217,6 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
 }
 
 async function fetchAllMatches(sourceInput, logger, authContext) {
-    // 支持传入单个字符串或字符串数组
     const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
     let all = [];
 
@@ -231,7 +229,6 @@ async function fetchAllMatches(sourceInput, logger, authContext) {
             const params = new URLSearchParams({
                 action: "cargoquery", format: "json", tables: "MatchSchedule",
                 fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
-                // 6. 使用 LIKE 模糊匹配，自动包含季后赛 (Playoffs)
                 where: `OverviewPage LIKE '${overviewPage}%'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
             });
 
@@ -243,14 +240,10 @@ async function fetchAllMatches(sourceInput, logger, authContext) {
                 offset += batch.length;
                 if (batch.length < limit) break;
                 
-                // 翻页等待 (保持你现有的设置)
                 await new Promise(res => setTimeout(res, 2000)); 
 
             } catch(e) {
-                // [新增] 明确的翻页失败日志
                 logger.error(`💥 Pagination: ${overviewPage} (Offset: ${offset}) -> ${e.message}`);
-                
-                // 保持原有的抛出逻辑，中断当前任务
                 throw new Error(`Batch Fail at offset ${offset} for ${overviewPage}: ${e.message}`);
             }
         }
@@ -265,7 +258,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     const globalStats = {};
     const debugInfo = {};
     
-    // [动态初始化] 不再预设 LCK/LPL，只初始化全局总计
+    // [动态初始化]
     const timeGrid = { "ALL": {} };
     const createSlot = () => { const t = {}; for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; return t; };
     timeGrid.ALL = createSlot(); 
@@ -305,12 +298,13 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
 
             if (dt) {
                 ts = dt.getTime();
-                const bjTime = new Date(ts + 28800000);
-                const matchDateStr = bjTime.toISOString().slice(0, 10);
-                const matchTimeStr = bjTime.toISOString().slice(11, 16);
+                // [UTC+8 Update] 使用 utils.toCST
+                const bj = utils.toCST(ts);
+                const matchDateStr = bj.toISOString().slice(0, 10);
+                const matchTimeStr = bj.toISOString().slice(11, 16);
                 
-                const month = (bjTime.getUTCMonth()+1).toString().padStart(2,'0');
-                const day = bjTime.getUTCDate().toString().padStart(2,'0');
+                const month = (bj.getUTCMonth()+1).toString().padStart(2,'0');
+                const day = bj.getUTCDate().toString().padStart(2,'0');
                 dateDisplay = `${month}-${day} ${matchTimeStr}`;
 
                 if (matchDateStr >= todayStr) {
@@ -369,7 +363,8 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 if(ts > stats[t2].last) stats[t2].last = ts;
                 if(ts > maxDateTs) maxDateTs = ts;
 
-                const bj = new Date(ts + 28800000);
+                // [UTC+8 Update] 使用 utils.toCST
+                const bj = utils.toCST(ts);
                 const dateShort = `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`;
                 const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
                 const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
@@ -378,16 +373,15 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const hour = bj.getUTCHours();
                 const targetH = hour;
 
-                // 遇缺即补：如果该联赛或该小时的槽位不存在，立即创建
                 if (!timeGrid[tourn.region]) timeGrid[tourn.region] = { "Total": createSlot() };
                 if (!timeGrid[tourn.region][targetH]) timeGrid[tourn.region][targetH] = createSlot();
                 
                 const add = (grid, h, d) => { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); };
                 
-                add(timeGrid[tourn.region], targetH, pyDay);      // 具体小时
-                add(timeGrid[tourn.region], "Total", pyDay);      // 赛区总计
-                add(timeGrid[tourn.region], targetH, 7);          // 该小时的周总计
-                add(timeGrid[tourn.region], "Total", 7);          // 赛区大满贯
+                add(timeGrid[tourn.region], targetH, pyDay);      
+                add(timeGrid[tourn.region], "Total", pyDay);      
+                add(timeGrid[tourn.region], targetH, 7);          
+                add(timeGrid[tourn.region], "Total", 7);          
                 
                 timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
                 timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
@@ -444,7 +438,8 @@ function generateMarkdown(tourn, stats, timeGrid) {
         const gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
         const gamWrTxt = utils.pct(utils.rate(s.g_w, s.g_t));
         const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
-        const last = s.last ? new Date(s.last+28800000).toISOString().slice(0,10) : "-";
+        // [UTC+8 Update] utils.toCST
+        const last = s.last ? utils.toCST(s.last).toISOString().slice(0,10) : "-";
         md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${serWrTxt} | ${gamTxt} | ${gamWrTxt} | ${strk} | ${last} |\n`;
     });
     md += `\n## 📅 Time Slot Distribution\n\n`;
@@ -774,7 +769,8 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
 
             const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
-            const last = s.last ? new Date(s.last+28800000).toISOString().slice(2,16).replace("T"," ") : "-";
+            // [UTC+8 Update] utils.toCST
+            const last = s.last ? utils.toCST(s.last).toISOString().slice(2,16).replace("T"," ") : "-";
             const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
             const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
             
@@ -792,10 +788,8 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         }).join("");
 
         // [布局融合] 
-        // 1. 获取主页面链接 (兼容多源数组)
         const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
 
-        // 2. 动态提取该联赛的时间列
         let timeRows = [];
         if (timeData[t.region]) {
             timeRows = Object.keys(timeData[t.region])
@@ -807,14 +801,12 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         
         const hasTimeData = timeRows.length > 0;
         
-        // 3. 样式动态调整：如果有下方时间表，则主表底部变直角
         const mainWrapperStyle = hasTimeData 
             ? "margin-bottom:0; border-bottom:none; border-radius:12px 12px 0 0;" 
             : "margin-bottom:25px;";
 
         tablesHtml += `<div class="wrapper" style="${mainWrapperStyle}"><div class="table-title"><a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 
-        // 4. 插入时间分布表 (紧贴在主表下方)
         if (hasTimeData) {
             tablesHtml += `<div class="wrapper" style="margin-top:0; border-top:1px solid #f1f5f9; border-radius:0 0 12px 12px; margin-bottom:25px;">
                 <table style="font-variant-numeric:tabular-nums; border-top:none;">
@@ -823,7 +815,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                         <th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
             
             ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => {
-                // 同样添加样式禁用交互
                 tablesHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`;
             });
             tablesHtml += "</tr></thead><tbody>";
@@ -966,16 +957,14 @@ class Logger {
 async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
-    const FAST_THRESHOLD = 8 * 60 * 1000;        // 快速序列：8分钟
-    const SLOW_THRESHOLD = 60 * 60 * 1000;       // 慢速序列：60分钟
-    const UPDATE_ROUNDS = 1;
+    const FAST_THRESHOLD = 8 * 60 * 1000;       
+    const SLOW_THRESHOLD = 60 * 60 * 1000;      
+    const UPDATE_ROUNDS = 2;
 
-    // 1. 读取基础缓存和元数据
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
     const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0, mode: "fast" };
     const today = utils.getNow().date;
 
-    // 2. 加载配置（优先于逻辑判断）
     let runtimeConfig = null;
     try {
         const teams = await gh.fetchJson(env, "teams.json");
@@ -994,15 +983,11 @@ async function runUpdate(env, force=false) {
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    // ==========================================
-    // 3. 本地扫描：检查是否需要更新
-    // ==========================================
-    let currentMode = meta.mode || "fast";  // 当前运行模式
+    let currentMode = meta.mode || "fast"; 
     let needsNetworkUpdate = false;
     let candidates = [];
     let waitings = [];
 
-    // 根据当前模式选择阈值
     const threshold = currentMode === "fast" ? FAST_THRESHOLD : SLOW_THRESHOLD;
 
     runtimeConfig.TOURNAMENTS.forEach(t => {
@@ -1010,17 +995,27 @@ async function runUpdate(env, force=false) {
         const elapsed = NOW - lastTs;
         const elapsedMins = Math.floor(elapsed / 60000);
         
-        if (force || elapsed >= threshold) {
+        // ============================================================
+        // [新增] 跨天强制刷新判定 (Global CST)
+        // ============================================================
+        // 使用 utils.toCST 自动获取北京时间的日期
+        const dayNow = utils.toCST(NOW).getUTCDate();
+        const dayLast = utils.toCST(lastTs).getUTCDate();
+        
+        // 只要日期变了 (例如从8号变成9号)，就是新的一天 -> 必须刷新
+        const isNewDay = dayNow !== dayLast;
+        // ============================================================
+        
+        if (force || elapsed >= threshold || isNewDay) {
             candidates.push({ 
                 slug: t.slug, 
                 overview_page: t.overview_page, 
                 elapsed: elapsed, 
-                label: `${t.slug} (${elapsedMins}m ago)` 
+                label: `${t.slug} (${elapsedMins}m ago)${isNewDay ? ' [🌅 New Day]' : ''}` 
             });
             needsNetworkUpdate = true;
         } else {
-            const elapsedMinsDisplay = Math.floor(elapsed / 60000);
-            waitings.push(`${t.slug} (${elapsedMinsDisplay}m ago)`);
+            waitings.push(`${t.slug} (${elapsedMins}m ago)`);
         }
     });
 
@@ -1029,13 +1024,11 @@ async function runUpdate(env, force=false) {
         waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`));
     }
 
-    // 如果本地扫描没有候选者，直接返回
     if (!needsNetworkUpdate || candidates.length === 0) {
         l.info("⏸️ Slowmode: Threshold not met. Update skipped");
         return l;
     }
 
-    // 4. 认证
     const authContext = await loginToFandom(env, l);
     if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously");
     else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
@@ -1049,8 +1042,6 @@ async function runUpdate(env, force=false) {
     
     if (queue.length > 0) queue.forEach(q => l.info(`⏳ Queued: ${q.label}`));
 
-    // 5. 串行执行 (Sequential Execution) - 全局控速核心
-    // 取消了 Promise.all，改为 for 循环
     const results = [];
     for (const c of batch) {
         try {
@@ -1066,7 +1057,6 @@ async function runUpdate(env, force=false) {
         }
     }
 
-    // 6. 合并数据 & 错误统计
     let successCount = 0;
     let failureCount = 0; 
     
@@ -1080,28 +1070,21 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    // 7. 全量分析
     let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0, mode: "fast" };
     const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
 
-    // 回滚保护
     if (oldMeta.total > 0 && analysis.grandTotal < oldMeta.total * 0.9 && !force) {
         l.error(`🛑 Rollback: Detected data anomaly. Aborting save`);
         return l;
     }
 
-    // ==========================================
-    // 8. 更新元数据：熔断保护逻辑
-    // ==========================================
     let nextMode = currentMode;
     let nextStreak = analysis.nextStreak;
 
-    // 核心修复：如果有失败，禁止下班，强制保持 FAST 模式
     if (failureCount > 0) {
         nextMode = "fast";
         nextStreak = 0;    
     } else {
-        // 只有全部成功，才信任 Analysis 的判断
         if (analysis.nextStreak >= 2) {
             nextMode = "slow";
             l.success(`🌙 Goodnight: All matches finished & confirmed (Streak 2+). Entering SLOW mode`);
@@ -1113,7 +1096,6 @@ async function runUpdate(env, force=false) {
         }
     }
 
-    // 9. 保存结果
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
         globalStats: analysis.globalStats,
         timeGrid: analysis.timeGrid,
@@ -1127,7 +1109,6 @@ async function runUpdate(env, force=false) {
         updateTimestamps: cache.updateTimestamps 
     }));
 
-    // 即使失败，也保存 Mode (确保被强制设为 fast)
     await env.LOL_KV.put("META", JSON.stringify({ 
         total: analysis.grandTotal, 
         finish_streak: nextStreak,
@@ -1137,7 +1118,6 @@ async function runUpdate(env, force=false) {
     let modeDisplay = "";
     if (nextMode !== currentMode) modeDisplay = ` -> ${nextMode.toUpperCase()}`;
     
-    // 10. 最终总结
     if (failureCount > 0) {
         l.error(`🚨 Complete: Success ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal} | 🛡️ Force: FAST`);
     } else {
@@ -1150,6 +1130,7 @@ async function runUpdate(env, force=false) {
 
     return l;
 }
+
 function renderLogPage(logs) {
     if (!Array.isArray(logs)) logs = [];
     const entries = logs.map(l => {
@@ -1204,10 +1185,7 @@ export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
 
-        // 🚦 路由指挥中心
         switch (url.pathname) {
-
-            //Case 1: 归档接口 (API)
             case "/archive": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache || !cache.globalStats || !cache.timeGrid || !cache.runtimeConfig) {
@@ -1222,7 +1200,6 @@ export default {
                 return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
             }
 
-            // Case 2: 强制更新 (Trigger)
             case "/force": {
                 const l = await runUpdate(env, true);
                 const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
@@ -1233,13 +1210,11 @@ export default {
                 return Response.redirect(url.origin + "/logs", 303);
             }
 
-            // Case 3: 查看日志 (Log Viewer)
             case "/logs": {
                 const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
                 return new Response(renderLogPage(logs), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
 
-            // Case 4: 主页 (Dashboard)
             case "/": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache) {
@@ -1261,11 +1236,9 @@ export default {
                 return new Response(html, { headers: { "content-type": "text/html;charset=utf-8" } });
             }
 
-            // Case 5: 浏览器图标 (防止控制台爆红)
             case "/favicon.ico":
                 return new Response(null, { status: 204 });
 
-            // 🛑 默认分支：所有未定义的路径统统 404
             default: {
                 const html = `<!DOCTYPE html>
 <html>
@@ -1310,7 +1283,6 @@ export default {
         }
     },
 
-    // 定时任务逻辑保持不变 (它不走 fetch 路由)
     async scheduled(event, env, ctx) {
         const l = await runUpdate(env, false);
         const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
