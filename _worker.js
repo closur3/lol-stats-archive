@@ -608,9 +608,9 @@ const PYTHON_STYLE = `
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.6; font-weight: 700; font-size: 10px; }
     
     /* Cell Alignment */
-    .t-cell { display: flex; justify-content: center; align-items: center; gap: 4px; height: 100%; }
-    .t-val { text-align: right; width: 35px; white-space: nowrap; font-weight: 700; } 
-    .t-pct { text-align: left; width: 40px; opacity: 0.9; font-size: 11px; white-space: nowrap; } 
+    .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; height: 100%; }
+    .t-val { text-align: right; white-space: nowrap; font-weight: 700; }
+    .t-pct { text-align: left; opacity: 0.9; font-size: 11px; white-space: nowrap; }
 
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
     
