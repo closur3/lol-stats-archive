@@ -815,7 +815,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 <table style="font-variant-numeric:tabular-nums; border-top:none;">
                 <thead>
                     <tr style="border-bottom:none;">
-                        <th class="team-col" style="cursor:default; pointer-events:none;">Time</th>`;
+                        <th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
             
             ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => {
                 // 同样添加样式禁用交互
