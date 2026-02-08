@@ -1,24 +1,22 @@
 // ====================================================
-// 🥇 Worker V38.6.0: Midnight Force & Global CST
-// Base: V38.5.5 (User Provided)
-// Addons:
-// 1. Core: ✅ 全局引入 utils.toCST，统一管理 UTC+8 时区
-// 2. Feat: ✅ 新增跨天强制刷新 (New Day Force Update)
+// 🥇 Worker V38.8.0: Archive Shell & Collapsible Views
+// Features:
+// 1. Core: Global CST (UTC+8)
+// 2. Archive: Static Snapshot with Collapsible Tables
+// 3. UI: Shell + Content architecture for instant styling
 // ====================================================
 
-const UI_VERSION = "2026-02-09-V38.6.0-GlobalCST";
+const UI_VERSION = "2026-02-09-V38.8.0-ArchiveShell";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
-// 核心定义：所有时间计算的基础偏移量
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
 
 const utils = {
     // [核心] 将任意 UTC 时间戳转换为 北京时间 Date 对象
-    // 使用方法: utils.toCST(ts).getUTCHours() 即为北京小时
     toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
 
     getNow: () => {
-        const bj = utils.toCST(); // 自动获取当前北京时间
+        const bj = utils.toCST();
         return {
             obj: bj,
             full: bj.toISOString().replace("T", " ").slice(0, 19),
@@ -95,7 +93,7 @@ const gh = {
     }
 };
 
-// --- 3. 认证逻辑 (V38.5.3: Cookie 接力修复版) ---
+// --- 3. 认证逻辑 ---
 async function loginToFandom(env, logger) {
     const user = env.FANDOM_USER;
     const pass = env.FANDOM_PASS;
@@ -109,7 +107,6 @@ async function loginToFandom(env, logger) {
     const UA = `LoL-Stats-Worker/1.0 (${user})`; 
 
     try {
-        // Step 1: 获取 Token
         const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
             headers: { "User-Agent": UA }
         });
@@ -124,7 +121,6 @@ async function loginToFandom(env, logger) {
         const step1SetCookie = tokenResp.headers.get("set-cookie");
         const step1Cookie = utils.extractCookies(step1SetCookie);
 
-        // Step 2: 发送登录请求
         const params = new URLSearchParams();
         params.append("action", "login");
         params.append("format", "json");
@@ -157,7 +153,7 @@ async function loginToFandom(env, logger) {
     }
 }
 
-// --- 4. 抓取逻辑 (修复版) ---
+// --- 4. 抓取逻辑 ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     const headers = { 
         "User-Agent": authContext?.ua || "LoL-Stats-Worker/1.0 (HsuX)" 
@@ -201,13 +197,12 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             const baseWait = 30000;
             const jitter = Math.floor(Math.random() * 15000);
             const waitTime = baseWait + jitter;
-            const waitSecs = Math.floor(waitTime / 1000);
             
             if (attempt >= maxRetries) {
                 logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitSecs}s...`);
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${Math.floor(waitTime/1000)}s...`);
                 await new Promise(res => setTimeout(res, waitTime));
             }
             
@@ -258,7 +253,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     const globalStats = {};
     const debugInfo = {};
     
-    // [动态初始化]
     const timeGrid = { "ALL": {} };
     const createSlot = () => { const t = {}; for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; return t; };
     timeGrid.ALL = createSlot(); 
@@ -298,7 +292,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
 
             if (dt) {
                 ts = dt.getTime();
-                // [UTC+8 Update] 使用 utils.toCST
                 const bj = utils.toCST(ts);
                 const matchDateStr = bj.toISOString().slice(0, 10);
                 const matchTimeStr = bj.toISOString().slice(11, 16);
@@ -363,13 +356,11 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 if(ts > stats[t2].last) stats[t2].last = ts;
                 if(ts > maxDateTs) maxDateTs = ts;
 
-                // [UTC+8 Update] 使用 utils.toCST
                 const bj = utils.toCST(ts);
                 const dateShort = `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`;
                 const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
                 const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
                 
-                // [动态提取时间]
                 const hour = bj.getUTCHours();
                 const targetH = hour;
 
@@ -380,8 +371,8 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 
                 add(timeGrid[tourn.region], targetH, pyDay);      
                 add(timeGrid[tourn.region], "Total", pyDay);      
-                add(timeGrid[tourn.region], targetH, 7);          
-                add(timeGrid[tourn.region], "Total", 7);          
+                add(timeGrid[tourn.region], targetH, 7);           
+                add(timeGrid[tourn.region], "Total", 7);           
                 
                 timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
                 timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
@@ -408,35 +399,27 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     let statusText = "";
     let nextStreak = 0;
 
-    // 场景 1: 比赛正在进行中 -> 保持兴奋 (Fast Mode)
     if (matchesTodayCount > 0 && pendingTodayCount > 0) {
         statusText = `<span style="color:#10b981; font-weight:normal; font-size:12px">🎮 ONGOING</span>`;
         nextStreak = 0;
     } 
-    // 场景 2: (今天没比赛 OR 全部打完) -> 进入确认流程 (Fast -> Slow)
     else {
-        // 如果上次是 Streak 1 (已验证一次)，这次就进 Streak 2 (慢速)；否则进 Streak 1 (验证中)
         nextStreak = currentStreak >= 1 ? 2 : 1;
-        
-        // 根据具体情况显示文案
         if (matchesTodayCount === 0) {
-            // Case A: 今天没比赛
             statusText = nextStreak === 2
                 ? `<span style="color:#9ca3af; font-weight:normal; font-size:12px">💤 NOMATCHES</span>`
                 : `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
         } else {
-            // Case B: 比赛全部打完
             statusText = nextStreak === 2
                 ? `<span style="color:#9ca3af; font-weight:normal; font-size:12px">✔️ FINISHED</span>`
                 : `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
         }
     }
 
-
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
 }
 
-// --- 6. Markdown 生成器 ---
+// --- 6. Markdown 生成器 (Backup) ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\n`;
     md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
@@ -459,7 +442,6 @@ function generateMarkdown(tourn, stats, timeGrid) {
         const gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
         const gamWrTxt = utils.pct(utils.rate(s.g_w, s.g_t));
         const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
-        // [UTC+8 Update] utils.toCST
         const last = s.last ? utils.toCST(s.last).toISOString().slice(0,10) : "-";
         md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${serWrTxt} | ${gamTxt} | ${gamWrTxt} | ${strk} | ${last} |\n`;
     });
@@ -480,7 +462,8 @@ function generateMarkdown(tourn, stats, timeGrid) {
     return md;
 }
 
-// --- 7. HTML 渲染器 ---
+// --- 7. HTML 渲染器 & 页面外壳 ---
+
 const PYTHON_STYLE = `
     body { font-family: -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -588,6 +571,19 @@ const PYTHON_STYLE = `
     .sch-fin-score { color: #334155; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
     
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+
+    /* [NEW] Archive Mode Styles (The Collapse Magic) */
+    details.arch-sec { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s; }
+    summary.arch-sum { padding: 12px 20px; font-weight: 700; cursor: pointer; background: #fff; color: #1e293b; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; user-select: none; list-style: none; }
+    summary.arch-sum::-webkit-details-marker { display: none; }
+    summary.arch-sum:hover { background: #f8fafc; color: #2563eb; }
+    summary.arch-sum:after { content: '+'; font-size: 18px; color: #94a3b8; font-weight: 400; font-family: monospace; }
+    details.arch-sec[open] summary.arch-sum:after { content: '-'; }
+    details.arch-sec[open] summary.arch-sum { border-bottom: 1px solid #e2e8f0; background: #f1f5f9; color: #2563eb; }
+    
+    /* In Archive mode, remove margins from the table wrapper since details handles it */
+    .arch-content .wrapper { box-shadow: none; border: none; margin-bottom: 0 !important; border-radius: 0; }
+    .arch-content .table-title { display: none; } /* Hide original title in archive */
 
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
@@ -722,8 +718,28 @@ const PYTHON_JS = `
     </script>
 `;
 
-function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs, statusText, scheduleMap, runtimeConfig, updateTimestamps) {
-    if (!statusText) statusText = `<span style="color:#9ca3af; margin-left:6px">Status Unknown</span>`;
+// --- 新增：通用页面外壳渲染器 ---
+function renderPageShell(title, bodyContent, statusText = "") {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>
+    <style>${PYTHON_STYLE}</style>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
+    </head>
+    <body data-ui-version="${UI_VERSION}">
+    <header class="main-header"><div class="header-left"><span class="header-logo">🥇</span><h1 class="header-title">LoL Insights</h1></div>
+    <div class="header-right">
+        <form action="/force" method="POST" style="margin:0"><button class="action-btn update-btn"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button></form>
+        <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
+    </div></header>
+    <div class="container">
+        ${bodyContent}
+        <div class="footer">${statusText}</div>
+    </div>
+    <div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>
+    ${PYTHON_JS}</body></html>`;
+}
+
+// --- 改造：只生成核心内容的渲染器 ---
+function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
     if (!scheduleMap) scheduleMap = {};
     if (!updateTimestamps) updateTimestamps = {};
 
@@ -748,6 +764,12 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
     };
 
     let tablesHtml = "";
+    if (isArchive) {
+        tablesHtml += `<div style="text-align:center; padding: 15px 0 25px 0; color:#64748b; font-size:13px; font-family:monospace;">
+            📦 <b>Archive Snapshot</b><br>Generated: ${utils.getNow().full}
+        </div><div class="arch-content">`;
+    }
+
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
         const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
         const tableId = `t${idx}`;
@@ -790,7 +812,6 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
 
             const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
-            // [UTC+8 Update] utils.toCST
             const last = s.last ? utils.toCST(s.last).toISOString().slice(2,16).replace("T"," ") : "-";
             const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
             const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
@@ -808,162 +829,107 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 <td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
         }).join("");
 
-        // [布局融合] 
+        let sectionHtml = "";
         const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
 
         let timeRows = [];
         if (timeData[t.region]) {
-            timeRows = Object.keys(timeData[t.region])
-                .filter(k => k !== "Total")
-                .map(Number)
-                .sort((a,b) => a - b);
+            timeRows = Object.keys(timeData[t.region]).filter(k => k !== "Total").map(Number).sort((a,b) => a - b);
             timeRows.push("Total");
         }
         
         const hasTimeData = timeRows.length > 0;
-        
-        const mainWrapperStyle = hasTimeData 
-            ? "margin-bottom:0; border-bottom:none; border-radius:12px 12px 0 0;" 
-            : "margin-bottom:25px;";
+        const mainWrapperStyle = isArchive ? "" : (hasTimeData ? "margin-bottom:0; border-bottom:none; border-radius:12px 12px 0 0;" : "margin-bottom:25px;");
 
-        tablesHtml += `<div class="wrapper" style="${mainWrapperStyle}"><div class="table-title"><a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        sectionHtml += `<div class="wrapper" style="${mainWrapperStyle}"><div class="table-title"><a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 
         if (hasTimeData) {
-            tablesHtml += `<div class="wrapper" style="margin-top:0; border-top:1px solid #f1f5f9; border-radius:0 0 12px 12px; margin-bottom:25px;">
-                <table style="font-variant-numeric:tabular-nums; border-top:none;">
-                <thead>
-                    <tr style="border-bottom:none;">
-                        <th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
-            
-            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => {
-                tablesHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`;
-            });
-            tablesHtml += "</tr></thead><tbody>";
+            const timeWrapperStyle = isArchive ? "margin-top:0; border-top:1px solid #f1f5f9;" : "margin-top:0; border-top:1px solid #f1f5f9; border-radius:0 0 12px 12px; margin-bottom:25px;";
+            sectionHtml += `<div class="wrapper" style="${timeWrapperStyle}"><table style="font-variant-numeric:tabular-nums; border-top:none;"><thead><tr style="border-bottom:none;"><th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
+            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => { sectionHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`; });
+            sectionHtml += "</tr></thead><tbody>";
 
             timeRows.forEach(h => {
                 const isTotal = h === "Total";
                 const label = isTotal ? "Total" : `${h}:00`;
-                
-                tablesHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
-                
+                sectionHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
                 for(let w=0; w<8; w++) {
                     const c = (timeData[t.region][h] && timeData[t.region][h][w]) ? timeData[t.region][h][w] : {total:0};
-                    if(c.total===0) tablesHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
+                    if(c.total===0) sectionHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
                     else {
                         const r = c.full/c.total;
                         const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                        tablesHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'>
-                            <div class="t-cell">
-                                <span class="t-val">${c.full}/${c.total}</span>
-                                <span class="t-pct">(${Math.round(r*100)}%)</span>
-                            </div>
-                        </td>`;
+                        sectionHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}/${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
                     }
                 }
-                tablesHtml += "</tr>";
+                sectionHtml += "</tr>";
             });
-            tablesHtml += "</tbody></table></div>";
+            sectionHtml += "</tbody></table></div>";
+        }
+
+        if (isArchive) {
+            let updateInfo = "(Pending)";
+            if(updateTimestamps[t.slug]) updateInfo = utils.fmtDate(updateTimestamps[t.slug]);
+            
+            tablesHtml += `<details class="arch-sec">
+                <summary class="arch-sum">
+                    <span>${t.title}</span>
+                    <span style="font-size:11px; font-weight:normal; opacity:0.5; margin-right:10px; font-family:monospace;">${updateInfo}</span>
+                </summary>
+                ${sectionHtml}
+            </details>`;
+        } else {
+            tablesHtml += sectionHtml;
         }
     });
 
+    if (isArchive) tablesHtml += `</div>`;
+
     let scheduleHtml = "";
-    const dates = Object.keys(scheduleMap).sort();
-    
-    if (dates.length === 0) {
-        scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
-    } else {
-        scheduleHtml = `<div class="sch-container">`;
+    if (!isArchive) {
+        const dates = Object.keys(scheduleMap).sort();
+        if (dates.length === 0) {
+            scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
+        } else {
+            scheduleHtml = `<div class="sch-container">`;
+            dates.forEach(d => {
+                const matches = scheduleMap[d];
+                const dateObj = new Date(d + "T00:00:00Z");
+                const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dateObj.getUTCDay()];
+                let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:#f8fafc;color:#334155"><span>📅 ${d.slice(5)} ${dayName}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
+                let lastGroupKey = "";
 
-        dates.forEach(d => {
-            const matches = scheduleMap[d];
-            const titleColor = "#334155";
-            const titleBg = "#f8fafc";
-            
-            const dateObj = new Date(d + "T00:00:00Z");
-            const dayOfWeek = dateObj.getUTCDay();
-            const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-            const dayName = dayNames[dayOfWeek];
-            
-            const titleText = `📅 ${d.slice(5)} ${dayName}`;
-            
-            let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
-            
-            let lastGroupKey = "";
+                matches.forEach(m => {
+                    const blockName = m.blockName ? m.blockName : "";
+                    const groupKey = `${m.tourn}_${blockName}`;
+                    if (groupKey !== lastGroupKey) {
+                        cardHtml += `<div class="sch-group-header" style="background:#f8fafc"><div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box"><span class="spine-l" style="font-weight:800">${m.tourn}</span><span class="spine-sep">/</span><span class="spine-r" style="font-weight:800; opacity:0.7">${blockName || "REGULAR"}</span></div></div>`;
+                        lastGroupKey = groupKey;
+                    }
+                    const boLabel = m.bo ? `BO${m.bo}` : '';
+                    const isBo5 = m.bo === 5;
+                    const boClass = isBo5 ? "sch-pill gold" : "sch-pill"; 
+                    const isTbd1 = m.t1 === "TBD", isTbd2 = m.t2 === "TBD";
+                    const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`;
+                    const t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
+                    const r1 = getRateHtml(m.t1, m.tournSlug, m.bo), r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+                    let midContent = `<span style="color:#cbd5e1;font-size:10px;margin:0 2px">vs</span>`;
+                    if (m.is_finished) {
+                        const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
+                        const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
+                        midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                    } else if (m.is_live) midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
 
-            matches.forEach(m => {
-                const blockName = m.blockName ? m.blockName : "";
-                const groupKey = `${m.tourn}_${blockName}`;
-
-                if (groupKey !== lastGroupKey) {
-                    const blockDisplay = blockName || "REGULAR"; 
-                    cardHtml += `<div class="sch-group-header" style="background:${titleBg}">
-                        <div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box">
-                            <span class="spine-l" style="font-weight:800">${m.tourn}</span>
-                            <span class="spine-sep">/</span>
-                            <span class="spine-r" style="font-weight:800; opacity:0.7">${blockDisplay}</span>
-                        </div>
-                    </div>`;
-                    lastGroupKey = groupKey;
-                }
-
-                const boLabel = m.bo ? `BO${m.bo}` : '';
-                const isBo5 = m.bo === 5;
-                const boClass = isBo5 ? "sch-pill gold" : "sch-pill"; 
-                
-                const isTbd1 = m.t1 === "TBD";
-                const isTbd2 = m.t2 === "TBD";
-                const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`;
-                const t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
-                
-                const t1Class = isTbd1 ? "spine-l" : "spine-l clickable";
-                const t2Class = isTbd2 ? "spine-r" : "spine-r clickable";
-
-                const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
-                const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
-
-                let midContent = `<span style="color:#cbd5e1;font-size:10px;margin:0 2px">vs</span>`;
-                if (m.is_finished) {
-                    const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
-                    const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
-                    midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-                } else if (m.is_live) {
-                    midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
-                }
-
-                const vsContent = `
-                    <div class="spine-row">
-                        <span class="${t1Class}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span>
-                        <span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span>
-                        <span class="${t2Class}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span>
-                    </div>
-                `;
-
-                cardHtml += `<div class="sch-row">
-                    <span class="sch-time">${m.time}</span>
-                    <div class="sch-vs-container">${vsContent}</div>
-                    <div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div>
-                </div>`;
+                    cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
+                });
+                cardHtml += `</div></div>`;
+                scheduleHtml += cardHtml;
             });
-
-            cardHtml += `</div></div>`; 
-            scheduleHtml += cardHtml;
-        });
-        scheduleHtml += `</div>`;
+            scheduleHtml += `</div>`;
+        }
     }
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>LoL Insights</title><style>${PYTHON_STYLE}</style>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
-    </head>
-    <body data-ui-version="${UI_VERSION}">
-    <header class="main-header"><div class="header-left"><span class="header-logo">🥇</span><h1 class="header-title">LoL Insights</h1></div>
-    <div class="header-right">
-        <form action="/force" method="POST" style="margin:0"><button class="action-btn update-btn"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button></form>
-        <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
-    </div></header>
-    <div class="container">${tablesHtml} ${scheduleHtml} <div class="footer">${statusText}</div></div>
-    <div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>
-    ${injectedData}
-    ${PYTHON_JS}</body></html>`;
+    return `${tablesHtml} ${scheduleHtml} ${injectedData}`;
 }
 
 // --- 8. 主控 (Rich Logging + Batch Scheduler + Dual Mode) ---
@@ -984,8 +950,7 @@ async function runUpdate(env, force=false) {
 
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
     const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0, mode: "fast" };
-    const today = utils.getNow().date;
-
+    
     let runtimeConfig = null;
     try {
         const teams = await gh.fetchJson(env, "teams.json");
@@ -1016,16 +981,10 @@ async function runUpdate(env, force=false) {
         const elapsed = NOW - lastTs;
         const elapsedMins = Math.floor(elapsed / 60000);
         
-        // ============================================================
-        // [新增] 跨天强制刷新判定 (Global CST)
-        // ============================================================
-        // 使用 utils.toCST 自动获取北京时间的日期
         const dayNow = utils.toCST(NOW).getUTCDate();
         const dayLast = utils.toCST(lastTs).getUTCDate();
         
-        // 只要日期变了 (例如从8号变成9号)，就是新的一天 -> 必须刷新
         const isNewDay = dayNow !== dayLast;
-        // ============================================================
         
         if (force || elapsed >= threshold || isNewDay) {
             if (isNewDay) {
@@ -1120,6 +1079,7 @@ async function runUpdate(env, force=false) {
         }
     }
 
+    // Save Live Cache
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
         globalStats: analysis.globalStats,
         timeGrid: analysis.timeGrid,
@@ -1132,6 +1092,19 @@ async function runUpdate(env, force=false) {
         rawMatches: cache.rawMatches,
         updateTimestamps: cache.updateTimestamps 
     }));
+
+    // Save Archive Fragment (Static Snapshot)
+    const archiveFragment = renderContentOnly(
+        analysis.globalStats,
+        analysis.timeGrid,
+        analysis.debugInfo,
+        analysis.maxDateTs,
+        analysis.scheduleMap,
+        runtimeConfig,
+        cache.updateTimestamps,
+        true // isArchive = TRUE
+    );
+    await env.LOL_KV.put("ARCHIVE_FRAGMENT", archiveFragment);
 
     await env.LOL_KV.put("META", JSON.stringify({ 
         total: analysis.grandTotal, 
@@ -1210,7 +1183,7 @@ export default {
         const url = new URL(request.url);
 
         switch (url.pathname) {
-            case "/archive": {
+            case "/backup": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache || !cache.globalStats || !cache.timeGrid || !cache.runtimeConfig) {
                     return new Response(JSON.stringify({ error: "No data available" }), { status: 503 });
@@ -1238,6 +1211,16 @@ export default {
                 const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
                 return new Response(renderLogPage(logs), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
+            
+            // [NEW] Archive Route
+            case "/archive": {
+                const fragment = await env.LOL_KV.get("ARCHIVE_FRAGMENT");
+                if (!fragment) {
+                     return new Response("No archive data available. Please wait for the next update.", { headers: { "content-type": "text/html" } });
+                }
+                const fullPage = renderPageShell("LoL Stats - Archive", fragment, "Archive View");
+                return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
+            }
 
             case "/": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
@@ -1245,19 +1228,20 @@ export default {
                     return new Response("Initializing... <a href='/force'>Click to Build</a>", { headers: { "content-type": "text/html" } });
                 }
 
-                const html = renderFullHtml(
+                const homeFragment = renderContentOnly(
                     cache.globalStats,
                     cache.timeGrid,
-                    cache.updateTime,
                     cache.debugInfo,
                     cache.maxDateTs,
-                    cache.statusText,
                     cache.scheduleMap,
                     cache.runtimeConfig || { TOURNAMENTS: [] },
-                    cache.updateTimestamps
+                    cache.updateTimestamps,
+                    false
                 );
 
-                return new Response(html, { headers: { "content-type": "text/html;charset=utf-8" } });
+                const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText);
+
+                return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
             }
 
             case "/favicon.ico":
