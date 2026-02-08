@@ -606,11 +606,35 @@ const PYTHON_STYLE = `
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; }
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.6; font-weight: 700; font-size: 10px; }
+
+    /* Cell Alignment - 完美脊柱对齐 (Spine Alignment) */
+    .t-cell { 
+        display: flex; 
+        align-items: center; 
+        width: 100%; 
+        height: 100%; 
+    }
     
-    /* Cell Alignment */
-    .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; height: 100%; }
-    .t-val { text-align: right; white-space: nowrap; font-weight: 700; }
-    .t-pct { text-align: left; opacity: 0.9; font-size: 11px; white-space: nowrap; }
+    /* 核心：flex: 1 + flex-basis: 0 确保分界线永远在 50% 处 */
+    .t-val { 
+        flex: 1; 
+        flex-basis: 0; 
+        text-align: right; 
+        font-weight: 700; 
+        padding-right: 4px; /* 脊柱间距 */
+        white-space: nowrap;
+    } 
+    
+    .t-pct { 
+        flex: 1; 
+        flex-basis: 0; 
+        text-align: left; 
+        opacity: 0.9; 
+        font-size: 11px; 
+        font-weight: 700; 
+        padding-left: 4px; /* 脊柱间距 */
+        white-space: nowrap;
+    }
 
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
     
