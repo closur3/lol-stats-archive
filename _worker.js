@@ -259,9 +259,11 @@ async function fetchAllMatches(sourceInput, logger, authContext) {
 function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     const globalStats = {};
     const debugInfo = {};
-    const timeGrid = { "LCK": { 16: {}, 18: {}, "Total": {} }, "LPL": { 15: {}, 17: {}, 19: {}, "Total": {} }, "ALL": {} };
-    const initGrid = (t) => { for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; };
-    Object.values(timeGrid.LCK).forEach(initGrid); Object.values(timeGrid.LPL).forEach(initGrid); initGrid(timeGrid.ALL);
+    
+    // [动态初始化] 不再预设 LCK/LPL，只初始化全局总计
+    const timeGrid = { "ALL": {} };
+    const createSlot = () => { const t = {}; for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; return t; };
+    timeGrid.ALL = createSlot(); 
 
     let maxDateTs = 0;
     let grandTotal = 0;
@@ -366,13 +368,22 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 const dateShort = `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`;
                 const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
                 const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
-                const hour = bj.getUTCHours();
-                let targetH = null;
-                if(tourn.region === "LCK") targetH = (hour <= 16) ? 16 : 18;
-                if(tourn.region === "LPL") targetH = (hour <= 15) ? 15 : (hour <= 17 ? 17 : 19);
                 
-                const add = (grid, h, d) => { if(grid[h] && grid[h][d]) { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); } };
-                if(targetH) { add(timeGrid[tourn.region], targetH, pyDay); add(timeGrid[tourn.region], "Total", pyDay); add(timeGrid[tourn.region], targetH, 7); add(timeGrid[tourn.region], "Total", 7); }
+                // [动态提取时间]
+                const hour = bj.getUTCHours();
+                const targetH = hour;
+
+                // 遇缺即补：如果该联赛或该小时的槽位不存在，立即创建
+                if (!timeGrid[tourn.region]) timeGrid[tourn.region] = { "Total": createSlot() };
+                if (!timeGrid[tourn.region][targetH]) timeGrid[tourn.region][targetH] = createSlot();
+                
+                const add = (grid, h, d) => { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); };
+                
+                add(timeGrid[tourn.region], targetH, pyDay);      // 具体小时
+                add(timeGrid[tourn.region], "Total", pyDay);      // 赛区总计
+                add(timeGrid[tourn.region], targetH, 7);          // 该小时的周总计
+                add(timeGrid[tourn.region], "Total", 7);          // 赛区大满贯
+                
                 timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
                 timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
             }
@@ -715,16 +726,11 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         return `<span style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px">(${Math.round(r*100)}%)</span>`;
     };
 
-// ... (保留之前的 const getRateHtml = ... )
-
     let tablesHtml = "";
-
-    // 1. 遍历联赛，同时生成 [主统计表] 和 [时间分布表]
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
         const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
         const tableId = `t${idx}`;
         
-        // --- (A) 原始统计表逻辑 (保持不变) ---
         const lastTs = updateTimestamps[t.slug];
         let timeStr = "(Pending)";
         let timeColor = "#9ca3af"; 
@@ -756,10 +762,12 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         let rows = stats.map(s => {
             const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
             const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
+            
             const bo3Txt = s.bo3_t ? mkSpine(`${s.bo3_f}/${s.bo3_t}`, '/') : "-";
             const bo5Txt = s.bo5_t ? mkSpine(`${s.bo5_f}/${s.bo5_t}`, '/') : "-";
             const serTxt = s.s_t ? mkSpine(`${s.s_w}-${s.s_t-s.s_w}`, '-') : "-";
             const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
+
             const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
             const last = s.last ? new Date(s.last+28800000).toISOString().slice(2,16).replace("T"," ") : "-";
             const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
@@ -778,26 +786,31 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 <td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
         }).join("");
 
-        // --- (B) 组合 HTML 生成 ---
+        // [布局融合] 
+        // 1. 获取主页面链接 (兼容多源数组)
         const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
-        
-        // 判断是否有时间分布数据
+
+        // 2. 动态提取该联赛的时间列
         let timeRows = [];
-        if (t.region === "LCK") timeRows = [16, 18, "Total"];
-        else if (t.region === "LPL") timeRows = [15, 17, 19, "Total"];
+        if (timeData[t.region]) {
+            timeRows = Object.keys(timeData[t.region])
+                .filter(k => k !== "Total")
+                .map(Number)
+                .sort((a,b) => a - b);
+            timeRows.push("Total");
+        }
         
         const hasTimeData = timeRows.length > 0;
-
-        // 样式微调：如果有时间表，主表的下圆角设为 0，margin-bottom 设为 0
+        
+        // 3. 样式动态调整：如果有下方时间表，则主表底部变直角
         const mainWrapperStyle = hasTimeData 
             ? "margin-bottom:0; border-bottom:none; border-radius:12px 12px 0 0;" 
             : "margin-bottom:25px;";
 
         tablesHtml += `<div class="wrapper" style="${mainWrapperStyle}"><div class="table-title"><a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 
-        // --- (C) 插入时间分布表 (如果存在) ---
+        // 4. 插入时间分布表 (紧贴在主表下方)
         if (hasTimeData) {
-            // 时间表 Wrapper：上圆角为 0，margin-top 为 0，顶部添加浅色分割线
             tablesHtml += `<div class="wrapper" style="margin-top:0; border-top:1px solid #f1f5f9; border-radius:0 0 12px 12px; margin-bottom:25px;">
                 <table style="font-variant-numeric:tabular-nums; border-top:none;">
                 <thead>
@@ -812,11 +825,10 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
             timeRows.forEach(h => {
                 const isTotal = h === "Total";
                 const label = isTotal ? "Total" : `${h}:00`;
-                // 生成行
                 tablesHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
                 
                 for(let w=0; w<8; w++) {
-                    const c = timeData[t.region][h][w];
+                    const c = (timeData[t.region][h] && timeData[t.region][h][w]) ? timeData[t.region][h][w] : {total:0};
                     if(c.total===0) tablesHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
                     else {
                         const r = c.full/c.total;
@@ -835,67 +847,91 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         }
     });
 
-    // 2. 移除原有的 timeHtml 生成代码 (已整合进上方循环)
-
-    // 3. 保持 scheduleHtml 不变
     let scheduleHtml = "";
     const dates = Object.keys(scheduleMap).sort();
     
-    // ... (scheduleHtml 生成逻辑保持原样，无需变动) ...
-    // 为节省篇幅，此处省略 scheduleHtml 的具体生成代码 (即 if (dates.length === 0) ... 到 scheduleHtml += 结束)
     if (dates.length === 0) {
         scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
     } else {
         scheduleHtml = `<div class="sch-container">`;
+
         dates.forEach(d => {
-             // ... 你的原有逻辑 ...
-             const matches = scheduleMap[d];
-             // (这里复制你原本的 scheduleHtml 生成逻辑即可，未做修改)
-             const titleColor = "#334155";
-             const titleBg = "#f8fafc";
-             const dateObj = new Date(d + "T00:00:00Z");
-             const dayOfWeek = dateObj.getUTCDay();
-             const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-             const dayName = dayNames[dayOfWeek];
-             const titleText = `📅 ${d.slice(5)} ${dayName}`;
-             let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
-             let lastGroupKey = "";
-             matches.forEach(m => {
-                 const blockName = m.blockName ? m.blockName : "";
-                 const groupKey = `${m.tourn}_${blockName}`;
-                 if (groupKey !== lastGroupKey) {
-                     const blockDisplay = blockName || "REGULAR"; 
-                     cardHtml += `<div class="sch-group-header" style="background:${titleBg}"><div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box"><span class="spine-l" style="font-weight:800">${m.tourn}</span><span class="spine-sep">/</span><span class="spine-r" style="font-weight:800; opacity:0.7">${blockDisplay}</span></div></div>`;
-                     lastGroupKey = groupKey;
-                 }
-                 const boLabel = m.bo ? `BO${m.bo}` : '';
-                 const isBo5 = m.bo === 5;
-                 const boClass = isBo5 ? "sch-pill gold" : "sch-pill"; 
-                 const isTbd1 = m.t1 === "TBD"; const isTbd2 = m.t2 === "TBD";
-                 const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`;
-                 const t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
-                 const t1Class = isTbd1 ? "spine-l" : "spine-l clickable";
-                 const t2Class = isTbd2 ? "spine-r" : "spine-r clickable";
-                 const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
-                 const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
-                 let midContent = `<span style="color:#cbd5e1;font-size:10px;margin:0 2px">vs</span>`;
-                 if (m.is_finished) {
-                     const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
-                     const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
-                     midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-                 } else if (m.is_live) {
-                     midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
-                 }
-                 const vsContent = `<div class="spine-row"><span class="${t1Class}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span><span class="${t2Class}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div>`;
-                 cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container">${vsContent}</div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
-             });
-             cardHtml += `</div></div>`; 
-             scheduleHtml += cardHtml;
+            const matches = scheduleMap[d];
+            const titleColor = "#334155";
+            const titleBg = "#f8fafc";
+            
+            const dateObj = new Date(d + "T00:00:00Z");
+            const dayOfWeek = dateObj.getUTCDay();
+            const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            const dayName = dayNames[dayOfWeek];
+            
+            const titleText = `📅 ${d.slice(5)} ${dayName}`;
+            
+            let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
+            
+            let lastGroupKey = "";
+
+            matches.forEach(m => {
+                const blockName = m.blockName ? m.blockName : "";
+                const groupKey = `${m.tourn}_${blockName}`;
+
+                if (groupKey !== lastGroupKey) {
+                    const blockDisplay = blockName || "REGULAR"; 
+                    cardHtml += `<div class="sch-group-header" style="background:${titleBg}">
+                        <div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box">
+                            <span class="spine-l" style="font-weight:800">${m.tourn}</span>
+                            <span class="spine-sep">/</span>
+                            <span class="spine-r" style="font-weight:800; opacity:0.7">${blockDisplay}</span>
+                        </div>
+                    </div>`;
+                    lastGroupKey = groupKey;
+                }
+
+                const boLabel = m.bo ? `BO${m.bo}` : '';
+                const isBo5 = m.bo === 5;
+                const boClass = isBo5 ? "sch-pill gold" : "sch-pill"; 
+                
+                const isTbd1 = m.t1 === "TBD";
+                const isTbd2 = m.t2 === "TBD";
+                const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`;
+                const t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
+                
+                const t1Class = isTbd1 ? "spine-l" : "spine-l clickable";
+                const t2Class = isTbd2 ? "spine-r" : "spine-r clickable";
+
+                const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
+                const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+
+                let midContent = `<span style="color:#cbd5e1;font-size:10px;margin:0 2px">vs</span>`;
+                if (m.is_finished) {
+                    const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
+                    const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
+                    midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                } else if (m.is_live) {
+                    midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
+                }
+
+                const vsContent = `
+                    <div class="spine-row">
+                        <span class="${t1Class}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span>
+                        <span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span>
+                        <span class="${t2Class}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span>
+                    </div>
+                `;
+
+                cardHtml += `<div class="sch-row">
+                    <span class="sch-time">${m.time}</span>
+                    <div class="sch-vs-container">${vsContent}</div>
+                    <div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div>
+                </div>`;
+            });
+
+            cardHtml += `</div></div>`; 
+            scheduleHtml += cardHtml;
         });
         scheduleHtml += `</div>`;
     }
 
-    // 4. 返回 HTML (注意：移除了 ${timeHtml})
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>LoL Insights</title><style>${PYTHON_STYLE}</style>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
     </head>
