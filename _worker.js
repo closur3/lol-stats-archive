@@ -715,11 +715,16 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         return `<span style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px">(${Math.round(r*100)}%)</span>`;
     };
 
+// ... (保留之前的 const getRateHtml = ... )
+
     let tablesHtml = "";
+
+    // 1. 遍历联赛，同时生成 [主统计表] 和 [时间分布表]
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
         const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
         const tableId = `t${idx}`;
         
+        // --- (A) 原始统计表逻辑 (保持不变) ---
         const lastTs = updateTimestamps[t.slug];
         let timeStr = "(Pending)";
         let timeColor = "#9ca3af"; 
@@ -751,12 +756,10 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         let rows = stats.map(s => {
             const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
             const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
-            
             const bo3Txt = s.bo3_t ? mkSpine(`${s.bo3_f}/${s.bo3_t}`, '/') : "-";
             const bo5Txt = s.bo5_t ? mkSpine(`${s.bo5_f}/${s.bo5_t}`, '/') : "-";
             const serTxt = s.s_t ? mkSpine(`${s.s_w}-${s.s_t-s.s_w}`, '-') : "-";
             const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
-
             const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
             const last = s.last ? new Date(s.last+28800000).toISOString().slice(2,16).replace("T"," ") : "-";
             const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
@@ -774,136 +777,125 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 <td class="col-streak" style="background:${s.strk_w===0&&s.strk_l===0?emptyBg:'transparent'};color:${s.strk_w===0&&s.strk_l===0?emptyCol:'inherit'}">${strk}</td>
                 <td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
         }).join("");
+
+        // --- (B) 组合 HTML 生成 ---
         const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
-        tablesHtml += `<div class="wrapper"><div class="table-title"><a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        
+        // 判断是否有时间分布数据
+        let timeRows = [];
+        if (t.region === "LCK") timeRows = [16, 18, "Total"];
+        else if (t.region === "LPL") timeRows = [15, 17, 19, "Total"];
+        
+        const hasTimeData = timeRows.length > 0;
+
+        // 样式微调：如果有时间表，主表的下圆角设为 0，margin-bottom 设为 0
+        const mainWrapperStyle = hasTimeData 
+            ? "margin-bottom:0; border-bottom:none; border-radius:12px 12px 0 0;" 
+            : "margin-bottom:25px;";
+
+        tablesHtml += `<div class="wrapper" style="${mainWrapperStyle}"><div class="table-title"><a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+
+        // --- (C) 插入时间分布表 (如果存在) ---
+        if (hasTimeData) {
+            // 时间表 Wrapper：上圆角为 0，margin-top 为 0，顶部添加浅色分割线
+            tablesHtml += `<div class="wrapper" style="margin-top:0; border-top:1px solid #f1f5f9; border-radius:0 0 12px 12px; margin-bottom:25px;">
+                <table style="font-variant-numeric:tabular-nums; border-top:none;">
+                <thead>
+                    <tr style="border-bottom:none;">
+                        <th class="team-col" style="padding:8px; border-bottom:1px solid #f1f5f9; font-size:12px; color:#94a3b8">Time Slot</th>`;
+            
+            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => {
+                tablesHtml += `<th style="padding:8px; border-bottom:1px solid #f1f5f9; font-size:12px; color:#94a3b8">${d}</th>`;
+            });
+            tablesHtml += "</tr></thead><tbody>";
+
+            timeRows.forEach(h => {
+                const isTotal = h === "Total";
+                const label = isTotal ? "Total" : `${h}:00`;
+                // 生成行
+                tablesHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
+                
+                for(let w=0; w<8; w++) {
+                    const c = timeData[t.region][h][w];
+                    if(c.total===0) tablesHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
+                    else {
+                        const r = c.full/c.total;
+                        const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                        tablesHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'>
+                            <div class="t-cell">
+                                <span class="t-val">${c.full}/${c.total}</span>
+                                <span class="t-pct">(${Math.round(r*100)}%)</span>
+                            </div>
+                        </td>`;
+                    }
+                }
+                tablesHtml += "</tr>";
+            });
+            tablesHtml += "</tbody></table></div>";
+        }
     });
 
-    let timeHtml = `<div class="wrapper" style="margin-top: 40px;"><div class="table-title">📅 Full Series Distribution</div><table id="time-stats"><thead><tr><th class="team-col">Time Slot</th>`;
-    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => timeHtml += `<th>${d}</th>`);
-    timeHtml += "</tr></thead><tbody>";
-    const renderRow = (region, h, label) => {
-        const isTotal = h === "Total";
-        let tr = `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
-        for(let w=0; w<8; w++) {
-            const c = (region==="ALL") ? timeData.ALL[w] : timeData[region][h][w];
-            if(c.total===0) tr += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
-            else {
-                const r = c.full/c.total;
-                const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                tr += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'>
-                    <div class="t-cell">
-                        <span class="t-val">${c.full}/${c.total}</span>
-                        <span class="t-pct">(${Math.round(r*100)}%)</span>
-                    </div>
-                </td>`;
-            }
-        }
-        return tr + "</tr>";
-    };
-    [["LCK",16,"LCK 16:00"],["LCK",18,"LCK 18:00"],["LCK","Total","LCK Total"],["LPL",15,"LPL 15:00"],["LPL",17,"LPL 17:00"],["LPL",19,"LPL 19:00"],["LPL","Total","LPL Total"]].forEach(r => timeHtml += renderRow(r[0], r[1], r[2]));
-    timeHtml += `<tr style='border-top: 2px solid #cbd5e1; font-weight:700'><td class='team-col'>GRAND</td>`;
-    for(let w=0; w<8; w++) {
-        const c = timeData.ALL[w];
-        if(c.total===0) timeHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
-        else {
-            const r = c.full/c.total;
-            const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-            timeHtml += `<td style='background:${utils.color(r,true)}; color:white; cursor:pointer;' onclick='showPopup("GRAND", ${w}, ${matches})'>
-                <div class="t-cell">
-                    <span class="t-val">${c.full}/${c.total}</span>
-                    <span class="t-pct">(${Math.round(r*100)}%)</span>
-                </div>
-            </td>`;
-        }
-    }
-    timeHtml += "</tr></tbody></table></div>";
+    // 2. 移除原有的 timeHtml 生成代码 (已整合进上方循环)
 
+    // 3. 保持 scheduleHtml 不变
     let scheduleHtml = "";
     const dates = Object.keys(scheduleMap).sort();
     
+    // ... (scheduleHtml 生成逻辑保持原样，无需变动) ...
+    // 为节省篇幅，此处省略 scheduleHtml 的具体生成代码 (即 if (dates.length === 0) ... 到 scheduleHtml += 结束)
     if (dates.length === 0) {
         scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
     } else {
         scheduleHtml = `<div class="sch-container">`;
-
         dates.forEach(d => {
-            const matches = scheduleMap[d];
-            const titleColor = "#334155";
-            const titleBg = "#f8fafc";
-            
-            // 计算星期几
-            const dateObj = new Date(d + "T00:00:00Z");
-            const dayOfWeek = dateObj.getUTCDay();
-            const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-            const dayName = dayNames[dayOfWeek];
-            
-            const titleText = `📅 ${d.slice(5)} ${dayName}`;
-            
-            let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
-            
-            let lastGroupKey = "";
-
-            matches.forEach(m => {
-                const blockName = m.blockName ? m.blockName : "";
-                const groupKey = `${m.tourn}_${blockName}`;
-
-                if (groupKey !== lastGroupKey) {
-                    const blockDisplay = blockName || "REGULAR"; 
-                    cardHtml += `<div class="sch-group-header" style="background:${titleBg}">
-                        <div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box">
-                            <span class="spine-l" style="font-weight:800">${m.tourn}</span>
-                            <span class="spine-sep">/</span>
-                            <span class="spine-r" style="font-weight:800; opacity:0.7">${blockDisplay}</span>
-                        </div>
-                    </div>`;
-                    lastGroupKey = groupKey;
-                }
-
-                const boLabel = m.bo ? `BO${m.bo}` : '';
-                const isBo5 = m.bo === 5;
-                const boClass = isBo5 ? "sch-pill gold" : "sch-pill"; 
-                
-                const isTbd1 = m.t1 === "TBD";
-                const isTbd2 = m.t2 === "TBD";
-                const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`;
-                const t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
-                
-                const t1Class = isTbd1 ? "spine-l" : "spine-l clickable";
-                const t2Class = isTbd2 ? "spine-r" : "spine-r clickable";
-
-                const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
-                const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
-
-                let midContent = `<span style="color:#cbd5e1;font-size:10px;margin:0 2px">vs</span>`;
-                if (m.is_finished) {
-                    const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
-                    const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
-                    midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-                } else if (m.is_live) {
-                    midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
-                }
-
-                const vsContent = `
-                    <div class="spine-row">
-                        <span class="${t1Class}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span>
-                        <span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span>
-                        <span class="${t2Class}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span>
-                    </div>
-                `;
-
-                cardHtml += `<div class="sch-row">
-                    <span class="sch-time">${m.time}</span>
-                    <div class="sch-vs-container">${vsContent}</div>
-                    <div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div>
-                </div>`;
-            });
-
-            cardHtml += `</div></div>`; 
-            scheduleHtml += cardHtml;
+             // ... 你的原有逻辑 ...
+             const matches = scheduleMap[d];
+             // (这里复制你原本的 scheduleHtml 生成逻辑即可，未做修改)
+             const titleColor = "#334155";
+             const titleBg = "#f8fafc";
+             const dateObj = new Date(d + "T00:00:00Z");
+             const dayOfWeek = dateObj.getUTCDay();
+             const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+             const dayName = dayNames[dayOfWeek];
+             const titleText = `📅 ${d.slice(5)} ${dayName}`;
+             let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:${titleBg};color:${titleColor}"><span>${titleText}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
+             let lastGroupKey = "";
+             matches.forEach(m => {
+                 const blockName = m.blockName ? m.blockName : "";
+                 const groupKey = `${m.tourn}_${blockName}`;
+                 if (groupKey !== lastGroupKey) {
+                     const blockDisplay = blockName || "REGULAR"; 
+                     cardHtml += `<div class="sch-group-header" style="background:${titleBg}"><div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box"><span class="spine-l" style="font-weight:800">${m.tourn}</span><span class="spine-sep">/</span><span class="spine-r" style="font-weight:800; opacity:0.7">${blockDisplay}</span></div></div>`;
+                     lastGroupKey = groupKey;
+                 }
+                 const boLabel = m.bo ? `BO${m.bo}` : '';
+                 const isBo5 = m.bo === 5;
+                 const boClass = isBo5 ? "sch-pill gold" : "sch-pill"; 
+                 const isTbd1 = m.t1 === "TBD"; const isTbd2 = m.t2 === "TBD";
+                 const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`;
+                 const t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
+                 const t1Class = isTbd1 ? "spine-l" : "spine-l clickable";
+                 const t2Class = isTbd2 ? "spine-r" : "spine-r clickable";
+                 const r1 = getRateHtml(m.t1, m.tournSlug, m.bo);
+                 const r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+                 let midContent = `<span style="color:#cbd5e1;font-size:10px;margin:0 2px">vs</span>`;
+                 if (m.is_finished) {
+                     const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
+                     const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
+                     midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                 } else if (m.is_live) {
+                     midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
+                 }
+                 const vsContent = `<div class="spine-row"><span class="${t1Class}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span><span class="${t2Class}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div>`;
+                 cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container">${vsContent}</div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
+             });
+             cardHtml += `</div></div>`; 
+             scheduleHtml += cardHtml;
         });
         scheduleHtml += `</div>`;
     }
 
+    // 4. 返回 HTML (注意：移除了 ${timeHtml})
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>LoL Insights</title><style>${PYTHON_STYLE}</style>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
     </head>
@@ -913,7 +905,7 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
         <form action="/force" method="POST" style="margin:0"><button class="action-btn update-btn"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button></form>
         <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
     </div></header>
-    <div class="container">${tablesHtml} ${timeHtml} ${scheduleHtml} <div class="footer">${statusText}</div></div>
+    <div class="container">${tablesHtml} ${scheduleHtml} <div class="footer">${statusText}</div></div>
     <div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>
     ${injectedData}
     ${PYTHON_JS}</body></html>`;
