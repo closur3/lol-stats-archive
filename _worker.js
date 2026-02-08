@@ -927,7 +927,7 @@ async function runUpdate(env, force=false) {
     const NOW = Date.now();
     const FAST_THRESHOLD = 8 * 60 * 1000;        // 快速序列：8分钟
     const SLOW_THRESHOLD = 60 * 60 * 1000;       // 慢速序列：60分钟
-    const UPDATE_ROUNDS = 2;
+    const UPDATE_ROUNDS = 1;
 
     // 1. 读取基础缓存和元数据
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
