@@ -405,19 +405,19 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         });
     });
 
-    let statusText = `<span style="color:#9ca3af; font-weight:bold; font-size:12px">💤 NOMATCHES</span>`;
+    let statusText = `<span style="color:#9ca3af; font-weight:normal; font-size:12px">💤 NOMATCHES</span>`;
     let nextStreak = 0;
 
     if (matchesTodayCount > 0) {
         if (pendingTodayCount > 0) {
-            statusText = `<span style="color:#10b981; font-weight:bold; font-size:12px">🎮 ONGOING</span>`;
+            statusText = `<span style="color:#10b981; font-weight:normal; font-size:12px">🎮 ONGOING</span>`;
             nextStreak = 0;
         } else {
             nextStreak = currentStreak >= 1 ? 2 : 1;
             statusText =
                 nextStreak === 2
-                    ? `<span style="color:#9ca3af; font-weight:bold; font-size:12px">✔️ FINISHED</span>`
-                    : `<span style="color:#f59e0b; font-weight:bold; font-size:12px">👀 VERIFYING</span>`;
+                    ? `<span style="color:#9ca3af; font-weight:normal; font-size:12px">✔️ FINISHED</span>`
+                    : `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
         }
 }
 
