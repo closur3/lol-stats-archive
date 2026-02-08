@@ -466,25 +466,24 @@ function generateMarkdown(tourn, stats, timeGrid) {
 // --- 7. HTML 渲染器 & 页面外壳 ---
 
 const PYTHON_STYLE = `
-    /* 全局重置与字体 */
+    /* 全局重置 */
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; margin: 0; padding: 0; color: #0f172a; }
     
-    /* 顶部导航栏 */
+    /* Header */
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .header-left { display: flex; align-items: center; gap: 12px; }
     .header-logo { font-size: 1.8rem; }
     .header-title { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
     .header-right { display: flex; gap: 10px; align-items: center; }
 
-    /* 统一按钮样式 */
+    /* Button */
     .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
     .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
     
-    /* 布局容器 */
+    /* Container */
     .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
     
-    /* [核心修改] 表格容器 Wrapper */
-    /* padding-bottom: 0 和 overflow: hidden 确保底部无白边 */
+    /* Wrapper (Single Card for Stats+Time) */
     .wrapper { 
         width: 100%; 
         overflow-x: auto; 
@@ -500,12 +499,11 @@ const PYTHON_STYLE = `
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar, .log-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list, .log-list { -ms-overflow-style: none; scrollbar-width: none; }
 
-    /* [核心修改] 表格通用样式 */
-    /* border-collapse: collapse 消除单元格间隙 */
+    /* Table Reset */
     table { 
         width: 100%; 
         min-width: 1000px; 
-        border-collapse: collapse; 
+        border-collapse: collapse; /* 关键：合并边框 */
         border-spacing: 0; 
         font-size: 14px; 
         table-layout: fixed; 
@@ -513,6 +511,7 @@ const PYTHON_STYLE = `
         border: none;
     }
     
+    /* Header Cells */
     th { 
         background: #f8fafc; 
         padding: 14px 8px; 
@@ -524,33 +523,26 @@ const PYTHON_STYLE = `
     }
     th:hover { background: #eff6ff; color: #2563eb; }
 
-    /* [核心修改] 单元格样式 */
-    /* border: none 移除所有白色分隔线 */
+    /* Data Cells - 彻底移除所有边框 */
     td { 
         padding: 12px 8px; 
         text-align: center; 
-        border: none !important; 
+        border: none !important; /* 强制无边框 */
         white-space: nowrap; 
         overflow: hidden; 
         text-overflow: ellipsis; 
     }
 
-    /* 仅给“数据统计表”增加极淡的行分隔线（提升可读性），热力图则完全无边框 */
-    .wrapper > table:first-of-type tr { border-bottom: 1px solid #f8fafc; }
-    
-    /* [核心修改] 移除最后一行底边框，防止底部出现白条 */
-    .wrapper > table tr:last-child, 
-    .wrapper > table tr:last-child td { 
-        border-bottom: none !important; 
-    }
+    /* Row Reset - 确保行本身也没有底边框 */
+    tr { border: none !important; }
 
-    /* 冻结首列样式 */
+    /* Sticky Team Column */
     .team-col { 
         position: sticky; 
         left: 0; 
         background: white !important; 
         z-index: 10; 
-        border-right: 1px solid #f1f5f9 !important; /* 右侧分割线 */
+        border-right: 1px solid #f1f5f9 !important; /* 仅保留右侧分割线，区分队名和数据 */
         text-align: left; 
         font-weight: 800; 
         padding-left: 15px; 
@@ -560,7 +552,7 @@ const PYTHON_STYLE = `
     .team-clickable { cursor: pointer; } 
     .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
 
-    /* 标题样式：首页与存档页完全统一 */
+    /* Titles */
     .table-title, summary.arch-sum { 
         padding: 15px; 
         font-weight: 700; 
@@ -572,58 +564,57 @@ const PYTHON_STYLE = `
     }
     .table-title a, summary.arch-sum a { color: #2563eb; text-decoration: none; }
 
-    /* [核心修改] 存档页 Details 样式 */
+    /* Archive Details */
     details.arch-sec { 
         background: #fff; 
         border: 1px solid #cbd5e1; 
-        border-radius: 12px; /* 圆角与首页一致 */
+        border-radius: 12px; 
         margin-bottom: 15px; 
         overflow: hidden; 
         box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
         transition: all 0.2s; 
+        display: block; /* 兼容旧版 */
     }
-    summary.arch-sum { cursor: pointer; user-select: none; list-style: none; min-height: 20px; }
+    summary.arch-sum { cursor: pointer; user-select: none; list-style: none; min-height: 20px; display: flex; }
     summary.arch-sum::-webkit-details-marker { display: none; }
     summary.arch-sum:hover { background: #f8fafc; }
     
-    /* 展开后，内部不需要额外边框 */
     details.arch-sec[open] summary.arch-sum { border-bottom: 1px solid #f1f5f9; }
-    details.arch-sec .wrapper { 
-        margin-bottom: 0; 
-        border: none; 
-        box-shadow: none; 
-        border-radius: 0; 
-    }
+    details.arch-sec .wrapper { margin-bottom: 0; border: none; box-shadow: none; border-radius: 0; }
+
+    /* 兼容补丁：防止旧缓存导致样式错乱 */
+    .arch-content .wrapper { box-shadow: none !important; border: none !important; margin-bottom: 0 !important; border-radius: 0 !important; }
+    .arch-content .table-title { display: none !important; }
 
     .arch-title-wrapper { display: flex; align-items: center; gap: 10px; }
     .arch-indicator { font-size: 16px; color: #94a3b8; font-weight: 400; line-height: 1; width: 16px; text-align: center; }
     details.arch-sec[open] .arch-indicator { transform: rotate(180deg); } 
 
-    /* 列宽控制 */
+    /* Column Widths */
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
     .col-series { width: 80px; } .col-series-wr { width: 100px; } .col-game { width: 80px; } .col-game-wr { width: 100px; }
     .col-streak { width: 80px; } .col-last { width: 130px; }
 
-    /* 字体统一 */
+    /* Fonts */
     .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr,
     .col-streak, .col-last, .sch-time, .hist-score, .col-date, .log-time, .sch-fin-score, .sch-live-score { 
         font-family: inherit; font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: 0;
     }
     
-    /* Spine (胜负比分条) */
+    /* Spine Layout */
     .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; }
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.6; font-weight: 700; font-size: 10px; }
     
-    /* [核心修改] 热力图单元格 */
+    /* Cell Alignment */
     .t-cell { display: flex; justify-content: center; align-items: center; gap: 4px; height: 100%; }
     .t-val { text-align: right; width: 35px; white-space: nowrap; font-weight: 700; } 
     .t-pct { text-align: left; width: 40px; opacity: 0.9; font-size: 11px; white-space: nowrap; } 
 
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
     
-    /* 赛程网格布局 */
+    /* Schedule Grid */
     .sch-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; align-items: start; }
     .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
     .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
@@ -645,11 +636,11 @@ const PYTHON_STYLE = `
     .sch-fin-score { color: #334155; font-size: 13px; }
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; }
 
-    /* 响应式调整 */
+    /* Mobile */
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
     
-    /* 弹窗样式 */
+    /* Modal */
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
     .modal-content { background-color: #fefefe; margin: 12% auto; padding: 25px; border: 1px solid #888; width: 420px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: fadeIn 0.2s; }
     .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
@@ -669,7 +660,7 @@ const PYTHON_STYLE = `
     .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
     .hist-icon { font-size: 16px; }
     
-    /* 日志样式 */
+    /* Logs */
     .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
     .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
     .log-entry:nth-child(even) { background-color: #f8fafc; }
