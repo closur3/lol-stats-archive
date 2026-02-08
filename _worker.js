@@ -1018,7 +1018,7 @@ async function runUpdate(env, force=false) {
             
             // 8. 全局限速：每抓完一个联赛，休息 3 秒，避免多联赛并发挤爆 IP
             // 只有当还有任务没做时才等待
-            l.info(`☕ League ${c.slug} done. Cooling down 3s...`);
+            l.info(`☕ Waiting: ${c.slug} done. Cooling down 3s...`);
             await new Promise(res => setTimeout(res, 3000));
             
         } catch (err) {
