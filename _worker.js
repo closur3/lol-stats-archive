@@ -763,12 +763,11 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
         let timeColor = "#9ca3af"; 
         
         if (lastTs) {
-            timeStr = utils.fmtDate(lastTs); // Uses new YY-MM-DD HH:mm format
+            timeStr = utils.fmtDate(lastTs);
             const diff = Date.now() - lastTs;
             if (diff < 20 * 60 * 1000) timeColor = "#10b981"; 
         }
         
-        // Consistent Bold/Colored Date Label for BOTH Home and Archive
         const debugLabel = `<span style="font-size:11px;color:${timeColor};font-weight:600;margin-left:10px">${timeStr}</span>`;
 
         let minTs = 9999999999999, maxTsLocal = 0;
@@ -814,80 +813,65 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
                 <td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
         }).join("");
 
-        let sectionHtml = "";
         const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
 
+        // 1. 生成主表内容 (无Wrapper)
+        const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
+        
+        // 2. 生成时间表内容 (无Wrapper，前面加分割线)
         let timeRows = [];
         if (timeData[t.region]) {
             timeRows = Object.keys(timeData[t.region]).filter(k => k !== "Total").map(Number).sort((a,b) => a - b);
             timeRows.push("Total");
         }
-        
         const hasTimeData = timeRows.length > 0;
-        const mainWrapperStyle = isArchive ? "" : (hasTimeData ? "margin-bottom:0; border-bottom:none; border-radius:12px 12px 0 0;" : "margin-bottom:25px;");
-
-        // The Table Body (Shared between Home and Archive)
-        const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
         
-        // Prepare Wrapper for Table
-        sectionHtml += `<div class="wrapper" style="${mainWrapperStyle}">${tableBody}</div>`;
-
+        let timeTableHtml = "";
         if (hasTimeData) {
-            const timeWrapperStyle = isArchive ? "margin-top:0; border-top:1px solid #f1f5f9;" : "margin-top:0; border-top:1px solid #f1f5f9; border-radius:0 0 12px 12px; margin-bottom:25px;";
-            sectionHtml += `<div class="wrapper" style="${timeWrapperStyle}"><table style="font-variant-numeric:tabular-nums; border-top:none;"><thead><tr style="border-bottom:none;"><th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
-            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => { sectionHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`; });
-            sectionHtml += "</tr></thead><tbody>";
+            // 注意：这里是一个内部的 border-top 分割线，不再是独立的 wrapper
+            timeTableHtml += `<div style="border-top: 1px solid #f1f5f9; width:100%;"></div>`;
+            timeTableHtml += `<table style="font-variant-numeric:tabular-nums; border-top:none;"><thead><tr style="border-bottom:none;"><th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
+            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => { timeTableHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`; });
+            timeTableHtml += "</tr></thead><tbody>";
 
             timeRows.forEach(h => {
                 const isTotal = h === "Total";
                 const label = isTotal ? "Total" : `${h}:00`;
-                sectionHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
+                timeTableHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
                 for(let w=0; w<8; w++) {
                     const c = (timeData[t.region][h] && timeData[t.region][h][w]) ? timeData[t.region][h][w] : {total:0};
-                    if(c.total===0) sectionHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
+                    if(c.total===0) timeTableHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
                     else {
                         const r = c.full/c.total;
                         const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                        sectionHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}/${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
+                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}/${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
                     }
                 }
-                sectionHtml += "</tr>";
+                timeTableHtml += "</tr>";
             });
-            sectionHtml += "</tbody></table></div>";
+            timeTableHtml += "</tbody></table>";
         }
 
-        // Header Logic: Exact Same HTML Structure for Title + Time
         const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a>`;
         
+        // 3. 组装：现在无论是主表还是时间表，都放在同一个 .wrapper (div) 里
         if (isArchive) {
-            // Archive: Use Summary as the Header, but style it exactly like table-title
-            // plus the collapse indicator
+            // Archive 模式：Header 放在 Summary 里，内容放在 details 展开后的一个 wrapper 里
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">+</span> ${titleLink}</div> ${debugLabel}`;
-            
             tablesHtml += `<details class="arch-sec">
-                <summary class="arch-sum">
-                    ${headerContent}
-                </summary>
-                ${sectionHtml}
+                <summary class="arch-sum">${headerContent}</summary>
+                <div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">
+                    ${tableBody}
+                    ${timeTableHtml}
+                </div>
             </details>`;
         } else {
-            // Home: Use Standard .table-title inside the first wrapper
-            // We need to inject the title back into the first wrapper which was created above.
-            // Since we built sectionHtml sequentially, we can wrap the Title div and prepend it to sectionHtml? 
-            // No, the table-title is PART of the first wrapper in the Home layout.
-            // Let's reconstruction specifically for Home to match the requested HTML structure.
-            
-            // Re-open the first wrapper tag string to inject the title
-            const headerContent = `<div>${titleLink}</div> ${debugLabel}`;
-            const titleDiv = `<div class="table-title">${headerContent}</div>`;
-            
-            // Hacky but efficient: Replace the opening <div class="wrapper"...> with <div class="wrapper"...> + Title
-            sectionHtml = sectionHtml.replace('class="wrapper"', `class="wrapper"><div class="table-title">${headerContent}</div><div class="table-content-placeholder" style="display:none"></div>`);
-            
-            // Clean up the placeholder if present (it's just to ensure we inserted after the wrapper start)
-             sectionHtml = sectionHtml.replace('<div class="table-content-placeholder" style="display:none"></div>', '');
-
-            tablesHtml += sectionHtml;
+            // Home 模式：Header 是 wrapper 的一部分（或者放在 wrapper 里），然后接着是 Table1，Table2
+            tablesHtml += `<div class="wrapper">
+                <div class="table-title"><div>${titleLink}</div> ${debugLabel}</div>
+                ${tableBody}
+                ${timeTableHtml}
+            </div>`;
         }
     });
 
