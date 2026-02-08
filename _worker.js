@@ -217,35 +217,41 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     }
 }
 
-async function fetchAllMatches(overviewPage, logger, authContext) {
+async function fetchAllMatches(sourceInput, logger, authContext) {
+    // 支持传入单个字符串或字符串数组
+    const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
     let all = [];
-    let offset = 0;
-    const limit = 50;
-    logger.info(`📡 Fetching: ${overviewPage}`);
-    
-    while(true) {
-        const params = new URLSearchParams({
-            action: "cargoquery", format: "json", tables: "MatchSchedule",
-            fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
-            // 6. 使用 LIKE 模糊匹配，自动包含季后赛 (Playoffs)
-            where: `OverviewPage LIKE '${overviewPage}%'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
-        });
+
+    for (const overviewPage of pages) {
+        let offset = 0;
+        const limit = 50;
+        logger.info(`📡 Fetching: ${overviewPage}`);
         
-        try {
-            const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
-            const batch = batchRaw.map(i => i.title);
-            if (!batch.length) break;
-            all = all.concat(batch);
-            offset += batch.length;
-            if (batch.length < limit) break;
+        while(true) {
+            const params = new URLSearchParams({
+                action: "cargoquery", format: "json", tables: "MatchSchedule",
+                fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
+                // 6. 使用 LIKE 模糊匹配，自动包含季后赛 (Playoffs)
+                where: `OverviewPage LIKE '${overviewPage}%'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
+            });
             
-            // 7. 页间限速：从 500ms 增加到 2000ms
-            await new Promise(res => setTimeout(res, 2000)); 
-        } catch(e) {
-            throw new Error(`Batch Fail at offset ${offset}: ${e.message}`);
+            try {
+                const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
+                const batch = batchRaw.map(i => i.title);
+                if (!batch.length) break;
+                all = all.concat(batch);
+                offset += batch.length;
+                if (batch.length < limit) break;
+                
+                // 7. 页间限速：从 500ms 增加到 2000ms
+                await new Promise(res => setTimeout(res, 2000)); 
+            } catch(e) {
+                throw new Error(`Batch Fail at offset ${offset} for ${overviewPage}: ${e.message}`);
+            }
         }
     }
-    logger.success(`📦 Received: ${overviewPage} - Got ${all.length} matches`);
+    
+    logger.success(`📦 Received: Got ${all.length} matches from ${pages.length} sources`);
     return all;
 }
 
@@ -768,7 +774,8 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 <td class="col-streak" style="background:${s.strk_w===0&&s.strk_l===0?emptyBg:'transparent'};color:${s.strk_w===0&&s.strk_l===0?emptyCol:'inherit'}">${strk}</td>
                 <td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
         }).join("");
-        tablesHtml += `<div class="wrapper"><div class="table-title"><a href="https://lol.fandom.com/wiki/${t.overview_page}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
+        tablesHtml += `<div class="wrapper"><div class="table-title"><a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a> ${debugLabel}</div><table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     });
 
     let timeHtml = `<div class="wrapper" style="margin-top: 40px;"><div class="table-title">📅 Full Series Distribution</div><table id="time-stats"><thead><tr><th class="team-col">Time Slot</th>`;
@@ -1017,7 +1024,7 @@ async function runUpdate(env, force=false) {
             
             // 8. 全局限速：每抓完一个联赛，休息 3 秒，避免多联赛并发挤爆 IP
             // 只有当还有任务没做时才等待
-            await new Promise(res => setTimeout(res, 3000));
+            if (c !== batch[batch.length - 1]) await new Promise(res => setTimeout(res, 3000));
             
         } catch (err) {
             results.push({ status: 'rejected', slug: c.slug, err: err });
