@@ -162,7 +162,7 @@ async function loginToFandom(env, logger) {
 // --- 4. 抓取逻辑 (修复版) ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     const headers = { 
-        "User-Agent": authContext?.ua || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" 
+        "User-Agent": authContext?.ua || "LoL-Stats-Worker/1.0 (HsuX)" 
     };
     if (authContext?.cookie) {
         headers["Cookie"] = authContext.cookie;
@@ -228,7 +228,8 @@ async function fetchAllMatches(overviewPage, logger, authContext) {
         const params = new URLSearchParams({
             action: "cargoquery", format: "json", tables: "MatchSchedule",
             fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
-            where: `OverviewPage='${overviewPage}'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
+            // 6. 使用 LIKE 模糊匹配，自动包含季后赛 (Playoffs)
+            where: `OverviewPage LIKE '${overviewPage}%'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
         });
         
         try {
@@ -238,7 +239,9 @@ async function fetchAllMatches(overviewPage, logger, authContext) {
             all = all.concat(batch);
             offset += batch.length;
             if (batch.length < limit) break;
-            await new Promise(res => setTimeout(res, 500)); 
+            
+            // 7. 页间限速：从 500ms 增加到 2000ms
+            await new Promise(res => setTimeout(res, 2000)); 
         } catch(e) {
             throw new Error(`Batch Fail at offset ${offset}: ${e.message}`);
         }
@@ -985,7 +988,7 @@ async function runUpdate(env, force=false) {
         waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`));
     }
 
-// 如果本地扫描没有候选者，直接返回
+    // 如果本地扫描没有候选者，直接返回
     if (!needsNetworkUpdate || candidates.length === 0) {
         l.info("⏸️ Slowmode: Threshold not met. Update skipped");
         return l;
@@ -1005,18 +1008,27 @@ async function runUpdate(env, force=false) {
     
     if (queue.length > 0) queue.forEach(q => l.info(`⏳ Queued: ${q.label}`));
 
-    // 5. 并发执行
-    const updatePromises = batch.map(c => 
-        fetchAllMatches(c.overview_page, l, authContext)
-            .then(data => ({ status: 'fulfilled', slug: c.slug, data: data }))
-            .catch(err => ({ status: 'rejected', slug: c.slug, err: err }))
-    );
-
-    const results = await Promise.all(updatePromises);
+    // 5. 串行执行 (Sequential Execution) - 全局控速核心
+    // 取消了 Promise.all，改为 for 循环
+    const results = [];
+    for (const c of batch) {
+        try {
+            const data = await fetchAllMatches(c.overview_page, l, authContext);
+            results.push({ status: 'fulfilled', slug: c.slug, data: data });
+            
+            // 8. 全局限速：每抓完一个联赛，休息 3 秒，避免多联赛并发挤爆 IP
+            // 只有当还有任务没做时才等待
+            l.info(`☕ League ${c.slug} done. Cooling down 3s...`);
+            await new Promise(res => setTimeout(res, 3000));
+            
+        } catch (err) {
+            results.push({ status: 'rejected', slug: c.slug, err: err });
+        }
+    }
 
     // 6. 合并数据 & 错误统计
     let successCount = 0;
-    let failureCount = 0; // ✅ 新增：失败计数
+    let failureCount = 0; 
     
     results.forEach(res => {
         if (res.status === 'fulfilled') {
@@ -1039,12 +1051,12 @@ async function runUpdate(env, force=false) {
     }
 
     // ==========================================
-    // 8. 更新元数据：熔断保护逻辑 (Critical Fix)
+    // 8. 更新元数据：熔断保护逻辑
     // ==========================================
     let nextMode = currentMode;
     let nextStreak = analysis.nextStreak;
 
-    // ✅ 核心修复：如果有失败，禁止下班，强制保持 FAST 模式
+    // 核心修复：如果有失败，禁止下班，强制保持 FAST 模式
     if (failureCount > 0) {
         nextMode = "fast";
         nextStreak = 0;    
@@ -1085,23 +1097,19 @@ async function runUpdate(env, force=false) {
     let modeDisplay = "";
     if (nextMode !== currentMode) modeDisplay = ` -> ${nextMode.toUpperCase()}`;
     
-// 10. 最终总结 (极简模式：仅在模式改变时显示状态流转)
+    // 10. 最终总结
     if (failureCount > 0) {
-        // 🚨 红色警报：有失败，强制熔断
         l.error(`🚨 Complete: Success ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal} | 🛡️ Force: FAST`);
     } else {
         if (nextMode !== currentMode) {
-            // ⚡ 状态改变：高亮显示变更 (例如: FAST -> SLOW)
             l.success(`⚡ Complete: Success ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal} | 🔀 ${currentMode.toUpperCase()} -> ${nextMode.toUpperCase()}`);
         } else {
-            // ✅ 一切照旧：不显示Mode文字，保持极简
-            l.success(`🎉 Complete: Success Updated ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal}`);
+            l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal}`);
         }
     }
 
     return l;
 }
-
 function renderLogPage(logs) {
     if (!Array.isArray(logs)) logs = [];
     const entries = logs.map(l => {
