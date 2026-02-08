@@ -815,16 +815,18 @@ function renderFullHtml(globalStats, timeData, updateTime, debugInfo, maxDateTs,
                 <table style="font-variant-numeric:tabular-nums; border-top:none;">
                 <thead>
                     <tr style="border-bottom:none;">
-                        <th class="team-col" style="padding:8px; border-bottom:1px solid #f1f5f9; font-size:12px; color:#94a3b8">Time Slot</th>`;
+                        <th class="team-col" style="cursor:default; pointer-events:none;">Time</th>`;
             
             ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => {
-                tablesHtml += `<th style="padding:8px; border-bottom:1px solid #f1f5f9; font-size:12px; color:#94a3b8">${d}</th>`;
+                // 同样添加样式禁用交互
+                tablesHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`;
             });
             tablesHtml += "</tr></thead><tbody>";
 
             timeRows.forEach(h => {
                 const isTotal = h === "Total";
                 const label = isTotal ? "Total" : `${h}:00`;
+                
                 tablesHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
                 
                 for(let w=0; w<8; w++) {
