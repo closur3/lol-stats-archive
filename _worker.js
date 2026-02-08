@@ -234,7 +234,7 @@ async function fetchAllMatches(sourceInput, logger, authContext) {
                 // 6. 使用 LIKE 模糊匹配，自动包含季后赛 (Playoffs)
                 where: `OverviewPage LIKE '${overviewPage}%'`, limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
             });
-            
+
             try {
                 const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
                 const batch = batchRaw.map(i => i.title);
@@ -243,9 +243,14 @@ async function fetchAllMatches(sourceInput, logger, authContext) {
                 offset += batch.length;
                 if (batch.length < limit) break;
                 
-                // 7. 页间限速：从 500ms 增加到 2000ms
+                // 翻页等待 (保持你现有的设置)
                 await new Promise(res => setTimeout(res, 2000)); 
+
             } catch(e) {
+                // [新增] 明确的翻页失败日志
+                logger.error(`💥 Pagination: ${overviewPage} (Offset: ${offset}) -> ${e.message}`);
+                
+                // 保持原有的抛出逻辑，中断当前任务
                 throw new Error(`Batch Fail at offset ${offset} for ${overviewPage}: ${e.message}`);
             }
         }
@@ -1052,12 +1057,12 @@ async function runUpdate(env, force=false) {
             const data = await fetchAllMatches(c.overview_page, l, authContext);
             results.push({ status: 'fulfilled', slug: c.slug, data: data });
             
-            // 8. 全局限速：每抓完一个联赛，休息 3 秒，避免多联赛并发挤爆 IP
-            // 只有当还有任务没做时才等待
-            if (c !== batch[batch.length - 1]) await new Promise(res => setTimeout(res, 3000));
-            
         } catch (err) {
             results.push({ status: 'rejected', slug: c.slug, err: err });
+        }
+
+        if (c !== batch[batch.length - 1]) {
+            await new Promise(res => setTimeout(res, 3000));
         }
     }
 
