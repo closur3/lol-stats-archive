@@ -1,12 +1,12 @@
 // ====================================================
-// 🥇 Worker V38.8.0: Archive Shell & Collapsible Views
+// 🥇 Worker V38.9.0: Clean Fonts & Nav
 // Features:
 // 1. Core: Global CST (UTC+8)
 // 2. Archive: Static Snapshot with Collapsible Tables
-// 3. UI: Shell + Content architecture for instant styling
+// 3. UI: Clean System Fonts + Archive Navigation
 // ====================================================
 
-const UI_VERSION = "2026-02-09-V38.8.0-ArchiveShell";
+const UI_VERSION = "2026-02-09-V38.9.0-CleanFonts";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -371,8 +371,8 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 
                 add(timeGrid[tourn.region], targetH, pyDay);      
                 add(timeGrid[tourn.region], "Total", pyDay);      
-                add(timeGrid[tourn.region], targetH, 7);           
-                add(timeGrid[tourn.region], "Total", 7);           
+                add(timeGrid[tourn.region], targetH, 7);            
+                add(timeGrid[tourn.region], "Total", 7);            
                 
                 timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
                 timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
@@ -465,13 +465,13 @@ function generateMarkdown(tourn, stats, timeGrid) {
 // --- 7. HTML 渲染器 & 页面外壳 ---
 
 const PYTHON_STYLE = `
-    body { font-family: -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; margin: 0; padding: 0; color: #0f172a; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .header-left { display: flex; align-items: center; gap: 12px; }
     .header-logo { font-size: 1.8rem; }
     .header-title { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
     .header-right { display: flex; gap: 10px; align-items: center; }
-    .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; }
+    .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
     .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
     .update-btn { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; }
     .update-btn:hover { background: #dbeafe; border-color: #93c5fd; }
@@ -495,32 +495,20 @@ const PYTHON_STYLE = `
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
     
     .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr,
-    .col-streak, .col-last { 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    .col-streak, .col-last, .sch-time, .hist-score, .col-date, .log-time, .sch-fin-score, .sch-live-score { 
+        font-family: inherit;
         font-variant-numeric: tabular-nums;
-        letter-spacing: 0;
         font-weight: 700;
-    }
-    
-    #time-stats td:not(.team-col) { 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        font-variant-numeric: tabular-nums;
         letter-spacing: 0;
     }
-
-    .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
     
+    .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.6; font-weight: 700; font-size: 10px; }
 
     .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
-
-    .spine-l.clickable:hover, .spine-r.clickable:hover {
-        background-color: #eff6ff; 
-        color: #2563eb;            
-        cursor: pointer;
-    }
+    .spine-l.clickable:hover, .spine-r.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
     
     .t-cell { display: flex; justify-content: center; align-items: center; gap: 6px; }
     .t-val { text-align: right; width: 35px; white-space: nowrap; } 
@@ -529,61 +517,51 @@ const PYTHON_STYLE = `
     .col-series { width: 80px; } .col-series-wr { width: 100px; } .col-game { width: 80px; } .col-game-wr { width: 100px; }
     .col-streak { width: 80px; } .col-last { width: 130px; }
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
-    .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
+    
+    .footer { display: none; }
     
     /* Grid Layout */
-    .sch-container { 
-        display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; 
-        align-items: start;
-    }
+    .sch-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; align-items: start; }
     .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
     .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
-    
     .sch-body { display: flex; flex-direction: column; flex: 1; padding-bottom: 0; }
     
     /* TAB */
-    .sch-group-header { 
-        border-bottom: 1px solid #e2e8f0; border-top: 1px solid #e2e8f0;
-        padding: 4px 0; color: #475569; font-size: 11px; letter-spacing: 0.5px;
-    }
+    .sch-group-header { border-bottom: 1px solid #e2e8f0; border-top: 1px solid #e2e8f0; padding: 4px 0; color: #475569; font-size: 11px; letter-spacing: 0.5px; }
     .sch-group-header .spine-l { justify-content: flex-end; padding-right: 2px; }
     .sch-group-header .spine-r { justify-content: flex-start; padding-left: 2px; opacity: 0.7; }
     .sch-group-header:first-child { border-top: none; }
     
     /* Match Row */
-    .sch-row { 
-        display: flex; align-items: stretch;
-        padding: 0; 
-        border-bottom: 1px solid #f8fafc; font-size: 13px; color: #334155;
-        min-height: 36px;
-        flex: 0 0 auto;
-    }
+    .sch-row { display: flex; align-items: stretch; padding: 0; border-bottom: 1px solid #f8fafc; font-size: 13px; color: #334155; min-height: 36px; flex: 0 0 auto; }
     .sch-row:last-child { border-bottom: none; }
-    
-    .sch-time { width: 60px; color: #94a3b8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 700; display:flex; align-items:center; justify-content:center; box-sizing:border-box; font-variant-numeric: tabular-nums; } 
+    .sch-time { width: 60px; color: #94a3b8; font-size: 12px; display:flex; align-items:center; justify-content:center; box-sizing:border-box; } 
     .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: center; padding-right:0px; box-sizing:border-box; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
 
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
     .sch-pill.gold { background: #f2d49c; color: #9c5326; }
     
-    .sch-live-score { color: #10b981; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
-    .sch-fin-score { color: #334155; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
-    
+    .sch-live-score { color: #10b981; font-size: 13px; }
+    .sch-fin-score { color: #334155; font-size: 13px; }
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
 
-    /* [NEW] Archive Mode Styles (The Collapse Magic) */
+    /* Archive Mode Styles (The Collapse Magic) */
     details.arch-sec { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s; }
+    
     summary.arch-sum { padding: 12px 20px; font-weight: 700; cursor: pointer; background: #fff; color: #1e293b; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; user-select: none; list-style: none; }
     summary.arch-sum::-webkit-details-marker { display: none; }
     summary.arch-sum:hover { background: #f8fafc; color: #2563eb; }
-    summary.arch-sum:after { content: '+'; font-size: 18px; color: #94a3b8; font-weight: 400; font-family: monospace; }
-    details.arch-sec[open] summary.arch-sum:after { content: '-'; }
-    details.arch-sec[open] summary.arch-sum { border-bottom: 1px solid #e2e8f0; background: #f1f5f9; color: #2563eb; }
     
-    /* In Archive mode, remove margins from the table wrapper since details handles it */
+    .arch-title-area { display: flex; align-items: center; gap: 10px; }
+    .arch-indicator { font-size: 16px; color: #94a3b8; font-weight: 400; line-height: 1; width: 16px; text-align: center; }
+    details.arch-sec[open] .arch-indicator { content: '-'; transform: rotate(180deg); } 
+    details.arch-sec[open] summary.arch-sum { border-bottom: 1px solid #e2e8f0; background: #f1f5f9; color: #2563eb; }
+
+    .arch-time { font-size: 12px; font-weight: normal; opacity: 0.6; font-family: inherit; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
     .arch-content .wrapper { box-shadow: none; border: none; margin-bottom: 0 !important; border-radius: 0; }
-    .arch-content .table-title { display: none; } /* Hide original title in archive */
+    .arch-content .table-title { display: none; } 
 
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
@@ -597,7 +575,7 @@ const PYTHON_STYLE = `
     .match-item.history-layout { grid-template-columns: 95px auto 1fr 20px 1fr 60px; }
     .match-item.dist-layout { grid-template-columns: 48px 1fr 24px 1fr 70px; }
 
-    .col-date { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #94a3b8; text-align: left; font-variant-numeric: tabular-nums; }
+    .col-date { font-size: 13px; color: #94a3b8; text-align: left; }
     .col-res { font-weight: 900; font-size: 16px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; min-width: 0; }
     .col-vs { text-align: center; color: #94a3b8; font-size: 10px; }
@@ -605,25 +583,19 @@ const PYTHON_STYLE = `
     .col-score { text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; align-items: center; }
 
     .hist-win { color: #10b981; } .hist-loss { color: #f43f5e; }
-    .hist-score { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 16px; color: #0f172a; font-variant-numeric: tabular-nums; }
+    .hist-score { font-size: 16px; color: #0f172a; }
     .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
     .hist-icon { font-size: 16px; }
     
     .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
     .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
     .log-entry:nth-child(even) { background-color: #f8fafc; }
-    .log-time { color: #64748b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: center; font-variant-numeric: tabular-nums; }
+    .log-time { color: #64748b; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: center; }
     .log-level { font-weight: 800; text-align: center; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
     .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
     .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
     .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
     .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
-    .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
-    @media (max-width: 600px) {
-        .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; }
-        .log-time { font-size: 12px; opacity: 0.7; text-align: left; }
-        .log-level { display: inline-block; width: auto; padding: 3px 10px; }
-    }
 `;
 
 const PYTHON_JS = `
@@ -718,27 +690,32 @@ const PYTHON_JS = `
     </script>
 `;
 
-// --- 新增：通用页面外壳渲染器 ---
-function renderPageShell(title, bodyContent, statusText = "") {
+function renderPageShell(title, bodyContent, statusText = "", navMode = "home") {
+    let navBtn = "";
+    if (navMode === "home") {
+        navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
+    } else if (navMode === "archive") {
+        navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
+    }
+
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>
     <style>${PYTHON_STYLE}</style>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>">
     </head>
     <body data-ui-version="${UI_VERSION}">
-    <header class="main-header"><div class="header-left"><span class="header-logo">🥇</span><h1 class="header-title">LoL Insights</h1></div>
+    <header class="main-header"><div class="header-left"><span class="header-logo">🥇</span><h1 class="header-title">${title}</h1></div>
     <div class="header-right">
+        ${navBtn}
         <form action="/force" method="POST" style="margin:0"><button class="action-btn update-btn"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button></form>
         <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
     </div></header>
     <div class="container">
         ${bodyContent}
-        <div class="footer">${statusText}</div>
     </div>
     <div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>
     ${PYTHON_JS}</body></html>`;
 }
 
-// --- 改造：只生成核心内容的渲染器 ---
 function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
     if (!scheduleMap) scheduleMap = {};
     if (!updateTimestamps) updateTimestamps = {};
@@ -765,9 +742,7 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
 
     let tablesHtml = "";
     if (isArchive) {
-        tablesHtml += `<div style="text-align:center; padding: 15px 0 25px 0; color:#64748b; font-size:13px; font-family:monospace;">
-            📦 <b>Archive Snapshot</b><br>Generated: ${utils.getNow().full}
-        </div><div class="arch-content">`;
+        tablesHtml += `<div class="arch-content">`;
     }
 
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
@@ -868,13 +843,19 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
         }
 
         if (isArchive) {
-            let updateInfo = "(Pending)";
-            if(updateTimestamps[t.slug]) updateInfo = utils.fmtDate(updateTimestamps[t.slug]);
+            let updateInfo = "";
+            if(updateTimestamps[t.slug]) {
+                const d = utils.toCST(updateTimestamps[t.slug]);
+                updateInfo = d.toISOString().slice(2, 16).replace("T", " ");
+            }
             
             tablesHtml += `<details class="arch-sec">
                 <summary class="arch-sum">
-                    <span>${t.title}</span>
-                    <span style="font-size:11px; font-weight:normal; opacity:0.5; margin-right:10px; font-family:monospace;">${updateInfo}</span>
+                    <div class="arch-title-area">
+                         <span class="arch-indicator">+</span>
+                         <span>${t.title}</span>
+                    </div>
+                    <span class="arch-time">${updateInfo}</span>
                 </summary>
                 ${sectionHtml}
             </details>`;
@@ -884,7 +865,7 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
     });
 
     if (isArchive) tablesHtml += `</div>`;
-
+    
     let scheduleHtml = "";
     if (!isArchive) {
         const dates = Object.keys(scheduleMap).sort();
@@ -944,8 +925,8 @@ class Logger {
 async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
-    const FAST_THRESHOLD = 8 * 60 * 1000;       
-    const SLOW_THRESHOLD = 60 * 60 * 1000;      
+    const FAST_THRESHOLD = 8 * 60 * 1000;        
+    const SLOW_THRESHOLD = 60 * 60 * 1000;       
     const UPDATE_ROUNDS = 2;
 
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
@@ -1079,7 +1060,6 @@ async function runUpdate(env, force=false) {
         }
     }
 
-    // Save Live Cache
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
         globalStats: analysis.globalStats,
         timeGrid: analysis.timeGrid,
@@ -1093,7 +1073,6 @@ async function runUpdate(env, force=false) {
         updateTimestamps: cache.updateTimestamps 
     }));
 
-    // Save Archive Fragment (Static Snapshot)
     const archiveFragment = renderContentOnly(
         analysis.globalStats,
         analysis.timeGrid,
@@ -1102,7 +1081,7 @@ async function runUpdate(env, force=false) {
         analysis.scheduleMap,
         runtimeConfig,
         cache.updateTimestamps,
-        true // isArchive = TRUE
+        true 
     );
     await env.LOL_KV.put("ARCHIVE_FRAGMENT", archiveFragment);
 
@@ -1212,13 +1191,12 @@ export default {
                 return new Response(renderLogPage(logs), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
             
-            // [NEW] Archive Route
             case "/archive": {
                 const fragment = await env.LOL_KV.get("ARCHIVE_FRAGMENT");
                 if (!fragment) {
-                     return new Response("No archive data available. Please wait for the next update.", { headers: { "content-type": "text/html" } });
+                      return new Response("No archive data available. Please wait for the next update.", { headers: { "content-type": "text/html" } });
                 }
-                const fullPage = renderPageShell("LoL Stats - Archive", fragment, "Archive View");
+                const fullPage = renderPageShell("LoL Archive", fragment, "", "archive");
                 return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
             }
 
@@ -1239,7 +1217,7 @@ export default {
                     false
                 );
 
-                const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText);
+                const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
 
                 return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
             }
