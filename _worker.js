@@ -1,14 +1,13 @@
 // ====================================================
-// 🥇 Worker V38.5.4: 双序列模式版 (Dual-Mode)
-// 基于: V38.5.3 + Dual Mode + Local Scan First
-// 状态: 
-// 1. Auth: ✅ 本地扫描后才认证 (按需认证)
-// 2. Mode: ✅ Fast (8m) / Slow (60m) 双序列
-// 3. Scheduler: ✅ 智能批次调度正常工作
-// 4. UI: ✅ 全功能包含
+// 🥇 Worker V38.5.5: 稳定防封版 (Stable & Safe)
+// 基于: V38.5.4 + RateLimit Fix + Playoffs Support + Serial Mode
+// 修复日志:
+// 1. Fix: ✅ 修复 fetchWithRetry 无限重试死循环 (attempt++)
+// 2. Feat: ✅ 支持季后赛抓取 (LIKE 模糊匹配)
+// 3. Safe: ✅ 全局串行抓取 + 礼貌间隙 (翻页2s, 联赛间3s)
 // ====================================================
 
-const UI_VERSION = "2026-02-05-V38.5.4-DualMode";
+const UI_VERSION = "2026-02-08-V38.5.5-Stable";
 
 // --- 1. 工具库 ---
 const utils = {
@@ -1018,7 +1017,6 @@ async function runUpdate(env, force=false) {
             
             // 8. 全局限速：每抓完一个联赛，休息 3 秒，避免多联赛并发挤爆 IP
             // 只有当还有任务没做时才等待
-            l.info(`☕ Waiting: ${c.slug} done. Cooling down 3s...`);
             await new Promise(res => setTimeout(res, 3000));
             
         } catch (err) {
