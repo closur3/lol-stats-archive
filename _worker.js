@@ -1007,11 +1007,14 @@ async function runUpdate(env, force=false) {
         // ============================================================
         
         if (force || elapsed >= threshold || isNewDay) {
+            if (isNewDay) {
+                l.info(`🌅 Newday: exiting SLOW mode and resetting streak`);
+            }
             candidates.push({ 
                 slug: t.slug, 
                 overview_page: t.overview_page, 
                 elapsed: elapsed, 
-                label: `${t.slug} (${elapsedMins}m ago)${isNewDay ? ' [🌅 New Day]' : ''}` 
+                label: `${t.slug} (${elapsedMins}m ago)` 
             });
             needsNetworkUpdate = true;
         } else {
