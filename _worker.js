@@ -250,9 +250,10 @@ async function fetchAllMatches(sourceInput, logger, authContext) {
 }
 
 // --- 5. 统计核心 ---
-function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
+function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
     const globalStats = {};
     const debugInfo = {};
+    const tournMeta = {}; // [NEW] Store per-tournament meta (streak/mode)
     
     const timeGrid = { "ALL": {} };
     const createSlot = () => { const t = {}; for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; return t; };
@@ -263,17 +264,22 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     
     const todayStr = utils.getNow().date;
     const allFutureMatches = {}; 
-    let matchesTodayCount = 0;
-    let pendingTodayCount = 0;
+    
+    // [MOVED] Counters are now per-tournament inside the loop
 
     runtimeConfig.TOURNAMENTS.forEach((tourn, tournIdx) => {
         const rawMatches = allRawMatches[tourn.slug] || [];
         const stats = {};
         let processed = 0, skipped = 0;
         
+        // [NEW] Per-tournament counters
+        let t_matchesToday = 0;
+        let t_pendingToday = 0;
+        
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
         rawMatches.forEach(m => {
+            // ... (Team name processing lines 270-280 remain same) ...
             const t1 = utils.shortName(m.Team1 || m["Team 1"], runtimeConfig.TEAM_MAP);
             const t2 = utils.shortName(m.Team2 || m["Team 2"], runtimeConfig.TEAM_MAP);
             if(!t1 || !t2) { skipped++; return; } 
@@ -303,11 +309,11 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
 
                 if (matchDateStr >= todayStr) {
                     if (matchDateStr === todayStr) {
-                        matchesTodayCount++;
-                        if (!isFinished) pendingTodayCount++;
+                        t_matchesToday++; // [UPDATED] Local counter
+                        if (!isFinished) t_pendingToday++; // [UPDATED] Local counter
                     }
                     if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
-                    
+                    // ... (Future matches push logic remains same) ...
                     let blockName = m.Tab || "";
                     if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") {
                         if (m.Round) blockName = m.Round;
@@ -323,7 +329,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                     });
                 }
             }
-
+            // ... (Rest of match processing remains same) ...
             let resT1 = 'N', resT2 = 'N';
             if (isLive) { resT1 = 'LIV'; resT2 = 'LIV'; }
             else if (isFinished) {
@@ -358,10 +364,10 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 if(ts > maxDateTs) maxDateTs = ts;
 
                 const bj = utils.toCST(ts);
-                const dateShort = `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`;
-                const matchObj = { d: dateShort, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
+                const matchDateStr = bj.toISOString().slice(0, 10); // Fix: Ensure matchDateStr available here if needed or re-derive
+                // ... (TimeGrid logic lines 385-403 remain same) ...
+                const matchObj = { d: `${(bj.getUTCMonth()+1).toString().padStart(2,'0')}-${bj.getUTCDate().toString().padStart(2,'0')}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
                 const pyDay = bj.getUTCDay() === 0 ? 6 : bj.getUTCDay() - 1;
-                
                 const hour = bj.getUTCHours();
                 const targetH = hour;
 
@@ -384,6 +390,23 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
         globalStats[tourn.slug] = stats;
         grandTotal += processed;
+
+        // [NEW] Calculate Status Per Tournament
+        const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
+        let nextStreak = 0;
+        let nextMode = "fast";
+
+        if (t_matchesToday > 0 && t_pendingToday > 0) {
+            // Ongoing
+            nextStreak = 0;
+            nextMode = "fast";
+        } else {
+            // Finished for today OR No matches today
+            // Logic: 0 -> 1 (Verify) -> 2 (Slow)
+            nextStreak = prevT.streak >= 1 ? 2 : 1;
+            nextMode = nextStreak >= 2 ? "slow" : "fast";
+        }
+        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode };
     });
 
     let scheduleMap = {};
@@ -397,27 +420,21 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         });
     });
 
+    // [NEW] Generate Global Status Text based on aggregation
     let statusText = "";
-    let nextStreak = 0;
-
-    if (matchesTodayCount > 0 && pendingTodayCount > 0) {
+    const metaValues = Object.values(tournMeta);
+    const anyOngoing = metaValues.some(m => m.streak === 0 && m.mode === "fast");
+    const anyVerifying = metaValues.some(m => m.streak === 1);
+    
+    if (anyOngoing) {
         statusText = `<span style="color:#10b981; font-weight:normal; font-size:12px">🎮 ONGOING</span>`;
-        nextStreak = 0;
-    } 
-    else {
-        nextStreak = currentStreak >= 1 ? 2 : 1;
-        if (matchesTodayCount === 0) {
-            statusText = nextStreak === 2
-                ? `<span style="color:#9ca3af; font-weight:normal; font-size:12px">💤 NOMATCHES</span>`
-                : `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
-        } else {
-            statusText = nextStreak === 2
-                ? `<span style="color:#9ca3af; font-weight:normal; font-size:12px">✔️ FINISHED</span>`
-                : `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
-        }
+    } else if (anyVerifying) {
+        statusText = `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
+    } else {
+        statusText = `<span style="color:#9ca3af; font-weight:normal; font-size:12px">✔️ FINISHED</span>`;
     }
 
-    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
+    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
 }
 
 // --- 6. Markdown 生成器 (Backup) ---
@@ -1040,11 +1057,11 @@ async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
     const FAST_THRESHOLD = 8 * 60 * 1000;        
-    const SLOW_THRESHOLD = 60 * 60 * 1000;       
+    const SLOW_THRESHOLD = 60 * 60 * 1000;        
     const UPDATE_ROUNDS = 2;
 
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
-    const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0, mode: "fast" };
+    const meta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, tournaments: {} };
     
     let runtimeConfig = null;
     try {
@@ -1064,13 +1081,11 @@ async function runUpdate(env, force=false) {
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    let currentMode = meta.mode || "fast"; 
     let needsNetworkUpdate = false;
     let candidates = [];
     let waitings = [];
 
-    const threshold = currentMode === "fast" ? FAST_THRESHOLD : SLOW_THRESHOLD;
-
+    // [NEW] Loop through tournaments and use INDIVIDUAL thresholds
     runtimeConfig.TOURNAMENTS.forEach(t => {
         const lastTs = cache.updateTimestamps[t.slug] || 0;
         const elapsed = NOW - lastTs;
@@ -1078,32 +1093,38 @@ async function runUpdate(env, force=false) {
         
         const dayNow = utils.toCST(NOW).getUTCDate();
         const dayLast = utils.toCST(lastTs).getUTCDate();
-        
         const isNewDay = dayNow !== dayLast;
+
+        // Retrieve per-tournament mode (Default: fast)
+        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0 };
+        const currentMode = tMeta.mode;
+        const threshold = currentMode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
         if (force || elapsed >= threshold || isNewDay) {
             if (isNewDay) {
-                l.info(`🌅 Newday: exiting SLOW mode and resetting streak`);
+                l.info(`🌅 Newday: [${t.slug}] Exit SLOW mode & Resetting triggers`);
             }
             candidates.push({ 
                 slug: t.slug, 
                 overview_page: t.overview_page, 
                 elapsed: elapsed, 
-                label: `${t.slug} (${elapsedMins}m ago)` 
+                label: `${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})` 
             });
             needsNetworkUpdate = true;
         } else {
-            waitings.push(`${t.slug} (${elapsedMins}m ago)`);
+            waitings.push(`${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
         }
     });
 
     l.info(`🔍 Detection: ${candidates.length} Candidates | ${waitings.length} Cooldown`);
     if (waitings.length > 0) {
-        waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`));
+        // Sample logging to avoid spam
+        if(waitings.length <= 3) waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`));
+        else l.info(`❄️ Cooldown: ${waitings.length} leagues waiting...`);
     }
 
     if (!needsNetworkUpdate || candidates.length === 0) {
-        l.info("⏸️ Slowmode: Threshold not met. Update skipped");
+        l.info("⏸️ All leagues within threshold. Update skipped");
         return l;
     }
 
@@ -1148,32 +1169,30 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0, mode: "fast" };
-    const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
+    // [UPDATED] Read old meta securely and pass to analysis
+    const oldTournMeta = meta.tournaments || {};
+    const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig);
 
-    if (oldMeta.total > 0 && analysis.grandTotal < oldMeta.total * 0.9 && !force) {
+    if (meta.total > 0 && analysis.grandTotal < meta.total * 0.9 && !force) {
         l.error(`🛑 Rollback: Detected data anomaly. Aborting save`);
         return l;
     }
-
-    let nextMode = currentMode;
-    let nextStreak = analysis.nextStreak;
-
-    if (failureCount > 0) {
-        nextMode = "fast";
-        nextStreak = 0;    
-    } else {
-        if (analysis.nextStreak >= 2) {
-            nextMode = "slow";
-            l.success(`🌙 Goodnight: All matches finished & confirmed (Streak 2+). Entering SLOW mode`);
-        } else if (analysis.nextStreak === 1) {
-            l.info(`🟡 Verifying: All matches finished (Streak 1/2). Waiting for second confirmation`);
-            nextMode = "fast";
-        } else {
-            nextMode = "fast";
+    // [NEW] 状态跳变日志 (State Transitions Logging)
+    Object.keys(analysis.tournMeta).forEach(slug => {
+        const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
+        const newMode = analysis.tournMeta[slug].mode;
+        const streak = analysis.tournMeta[slug].streak;
+        
+        // 1. 进入慢速模式 (Fast -> Slow)
+        if (oldMode === "fast" && newMode === "slow") {
+            l.success(`💤 Slowmode: ${slug} All matches finished (Streak ${streak}). Entering SLOW mode`);
         }
-    }
-
+        // 2. 唤醒 (Slow -> Fast)
+        else if (oldMode === "slow" && newMode === "fast") {
+            l.info(`⚡ Fastmode: ${slug} Active matches detected. Waking up FAST mode`);
+        }
+    });
+    // [NEW] Persist the new per-tournament meta
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
         globalStats: analysis.globalStats,
         timeGrid: analysis.timeGrid,
@@ -1201,21 +1220,20 @@ async function runUpdate(env, force=false) {
 
     await env.LOL_KV.put("META", JSON.stringify({ 
         total: analysis.grandTotal, 
-        finish_streak: nextStreak,
-        mode: nextMode 
+        tournaments: analysis.tournMeta // Save the per-tournament states
     }));
     
-    let modeDisplay = "";
-    if (nextMode !== currentMode) modeDisplay = ` -> ${nextMode.toUpperCase()}`;
+    // Logging Summary
+    let modeSummary = [];
+    Object.entries(analysis.tournMeta).forEach(([k, v]) => {
+        if(v.mode === "fast") modeSummary.push(`${k}:FAST`);
+    });
+    const summaryStr = modeSummary.length > 0 ? modeSummary.join(", ") : "All SLOW";
     
     if (failureCount > 0) {
-        l.error(`🚨 Complete: Success ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal} | 🛡️ Force: FAST`);
+        l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Next: [${summaryStr}]`);
     } else {
-        if (nextMode !== currentMode) {
-            l.success(`⚡ Complete: Success ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal} | 🔀 ${currentMode.toUpperCase()} -> ${nextMode.toUpperCase()}`);
-        } else {
-            l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed ${analysis.grandTotal}`);
-        }
+        l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Next: [${summaryStr}]`);
     }
 
     return l;
