@@ -1058,7 +1058,7 @@ async function runUpdate(env, force=false) {
     const NOW = Date.now();
     const FAST_THRESHOLD = 8 * 60 * 1000;        
     const SLOW_THRESHOLD = 60 * 60 * 1000;        
-    const UPDATE_ROUNDS = 2;
+    const UPDATE_ROUNDS = 1;
 
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
     const meta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, tournaments: {} };
@@ -1185,7 +1185,7 @@ async function runUpdate(env, force=false) {
         
         // 1. 进入慢速模式 (Fast -> Slow)
         if (oldMode === "fast" && newMode === "slow") {
-            l.success(`💤 Slowmode: ${slug} All matches finished (Streak ${streak}). Entering SLOW mode`);
+            l.success(`💤 Slowmode: ${slug} Matches finished (Streak ${streak}). Entering SLOW mode`);
         }
         // 2. 唤醒 (Slow -> Fast)
         else if (oldMode === "slow" && newMode === "fast") {
@@ -1231,9 +1231,9 @@ async function runUpdate(env, force=false) {
     const summaryStr = modeSummary.length > 0 ? modeSummary.join(", ") : "All SLOW";
     
     if (failureCount > 0) {
-        l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Next: [${summaryStr}]`);
+        l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
     } else {
-        l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Next: [${summaryStr}]`);
+        l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
     }
 
     return l;
