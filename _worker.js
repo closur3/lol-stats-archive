@@ -822,6 +822,7 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
     </div></header>
     <div class="container">
         ${bodyContent}
+        <div class="footer">${statusText}</div>
     </div>
     <div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>
     ${PYTHON_JS}</body></html>`;
