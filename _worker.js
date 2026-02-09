@@ -1124,7 +1124,7 @@ async function runUpdate(env, force=false) {
     }
 
     if (!needsNetworkUpdate || candidates.length === 0) {
-        l.info("⏸️ All leagues within threshold. Update skipped");
+        l.info("⏸️ Threshold not met. Update skippedd");
         return l;
     }
 
