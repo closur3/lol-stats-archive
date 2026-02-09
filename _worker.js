@@ -646,7 +646,8 @@ const PYTHON_STYLE = `
     }
 
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
-    
+    .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
+
     /* Schedule Grid */
     .sch-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; align-items: start; }
     .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
