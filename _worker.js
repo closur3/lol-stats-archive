@@ -266,12 +266,6 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
     let matchesTodayCount = 0;
     let pendingTodayCount = 0;
 
-    // 新增：按联赛统计今日比赛
-    const leagueTodayStats = {};
-    runtimeConfig.TOURNAMENTS.forEach(t => {
-        leagueTodayStats[t.slug] = { total: 0, pending: 0 };
-    });
-
     runtimeConfig.TOURNAMENTS.forEach((tourn, tournIdx) => {
         const rawMatches = allRawMatches[tourn.slug] || [];
         const stats = {};
@@ -310,12 +304,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
                 if (matchDateStr >= todayStr) {
                     if (matchDateStr === todayStr) {
                         matchesTodayCount++;
-                        // 新增：统计该联赛今日比赛
-                        leagueTodayStats[tourn.slug].total++;
-                        if (!isFinished) {
-                            pendingTodayCount++;
-                            leagueTodayStats[tourn.slug].pending++;
-                        }
+                        if (!isFinished) pendingTodayCount++;
                     }
                     if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
                     
@@ -428,17 +417,7 @@ function runFullAnalysis(allRawMatches, currentStreak, runtimeConfig) {
         }
     }
 
-    return { 
-        globalStats, 
-        timeGrid, 
-        debugInfo, 
-        maxDateTs, 
-        grandTotal, 
-        statusText, 
-        scheduleMap, 
-        nextStreak,
-        leagueTodayStats  // 新增
-    };
+    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, nextStreak };
 }
 
 // --- 6. Markdown 生成器 (Backup) ---
@@ -1065,10 +1044,7 @@ async function runUpdate(env, force=false) {
     const UPDATE_ROUNDS = 2;
 
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
-    const meta = await env.LOL_KV.get("META", {type:"json"}) || { 
-        league_streaks: {},
-        mode: "fast" 
-    };
+    const meta = await env.LOL_KV.get("META", {type:"json"}) || { finish_streak: 0, mode: "fast" };
     
     let runtimeConfig = null;
     try {
@@ -1172,10 +1148,7 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { 
-        league_streaks: {}, 
-        mode: "fast" 
-    };
+    let oldMeta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, finish_streak: 0, mode: "fast" };
     const analysis = runFullAnalysis(cache.rawMatches, oldMeta.finish_streak, runtimeConfig);
 
     if (oldMeta.total > 0 && analysis.grandTotal < oldMeta.total * 0.9 && !force) {
@@ -1183,46 +1156,21 @@ async function runUpdate(env, force=false) {
         return l;
     }
 
-    // 新增：按联赛独立计算 nextStreak
-    const leagueStreaks = oldMeta.league_streaks || {};
-    const leagueNextStreaks = {};
-    
-    runtimeConfig.TOURNAMENTS.forEach(t => {
-        const slug = t.slug;
-        const currentStreak = leagueStreaks[slug] || 0;
-        const todayStats = analysis.leagueTodayStats[slug];
-        
-        let nextStreak = 0;
-        
-        if (todayStats.total > 0 && todayStats.pending > 0) {
-            // 今日有比赛且有进行中的 -> 保持快速模式
-            nextStreak = 0;
-        } else {
-            // 今日无比赛或全部完赛
-            nextStreak = currentStreak >= 1 ? 2 : 1;
-        }
-        
-        leagueNextStreaks[slug] = nextStreak;
-    });
-
     let nextMode = currentMode;
+    let nextStreak = analysis.nextStreak;
 
     if (failureCount > 0) {
         nextMode = "fast";
+        nextStreak = 0;    
     } else {
-        // 检查所有联赛是否都完赛确认（streak >= 2）
-        const allStreakGte2 = Object.values(leagueNextStreaks).every(s => s >= 2);
-        if (allStreakGte2) {
+        if (analysis.nextStreak >= 2) {
             nextMode = "slow";
-            l.success(`🌙 Goodnight: All leagues confirmed finished. Entering SLOW mode`);
+            l.success(`🌙 Goodnight: All matches finished & confirmed (Streak 2+). Entering SLOW mode`);
+        } else if (analysis.nextStreak === 1) {
+            l.info(`🟡 Verifying: All matches finished (Streak 1/2). Waiting for second confirmation`);
+            nextMode = "fast";
         } else {
             nextMode = "fast";
-            const verifyingLeagues = Object.entries(leagueNextStreaks)
-                .filter(([_, s]) => s === 1)
-                .map(([slug, _]) => slug);
-            if (verifyingLeagues.length > 0) {
-                l.info(`🟡 Verifying: ${verifyingLeagues.join(', ')} waiting for second confirmation`);
-            }
         }
     }
 
@@ -1252,8 +1200,8 @@ async function runUpdate(env, force=false) {
     await env.LOL_KV.put("ARCHIVE_FRAGMENT", archiveFragment);
 
     await env.LOL_KV.put("META", JSON.stringify({ 
-        total: analysis.grandTotal,
-        league_streaks: leagueNextStreaks,  // 修改：改为联赛级别的streaks
+        total: analysis.grandTotal, 
+        finish_streak: nextStreak,
         mode: nextMode 
     }));
     
