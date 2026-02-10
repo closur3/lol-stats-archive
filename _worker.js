@@ -582,31 +582,224 @@ const PYTHON_STYLE = `
     }
     .table-title a, summary.arch-sum a { color: #2563eb; text-decoration: none; }
 
-    /* Archive Details */
-    details.arch-sec { 
-        background: #fff; 
-        border: 2px solid #cbd5e1; 
-        border-radius: 12px; 
-        margin-bottom: 15px; 
-        overflow: hidden; 
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
-        transition: all 0.2s; 
-        display: block; /* 兼容旧版 */
+    /* ============ Archive Details 主容器 ============ */
+    details.arch-sec {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #2563eb;          /* 左蓝条 */
+        border-radius: 12px;
+        margin-bottom: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: all 0.3s ease;
+        display: block;
     }
-    summary.arch-sum { cursor: pointer; user-select: none; list-style: none; min-height: 20px; display: flex; }
-    summary.arch-sum::-webkit-details-marker { display: none; }
-    summary.arch-sum:hover { background: #f8fafc; }
-    
-    details.arch-sec[open] summary.arch-sum { border-bottom: 1px solid #f1f5f9; }
-    details.arch-sec .wrapper { margin-bottom: 0; border: none; box-shadow: none; border-radius: 0; }
 
-    /* 兼容补丁：防止旧缓存导致样式错乱 */
-    .arch-content .wrapper { box-shadow: none !important; border: none !important; margin-bottom: 0 !important; border-radius: 0 !important; }
-    .arch-content .table-title { display: none !important; }
+    details.arch-sec:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-color: #cbd5e1;
+    }
 
-    .arch-title-wrapper { display: flex; align-items: center; gap: 10px; }
-    .arch-indicator { font-size: 16px; color: #94a3b8; font-weight: 400; line-height: 1; width: 16px; text-align: center; }
-    details.arch-sec[open] .arch-indicator { transform: rotate(180deg); } 
+    details.arch-sec[open] {
+        box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12);
+        border-color: #2563eb;
+    }
+
+    details.arch-sec[open]:hover {
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.15);
+    }
+
+    /* ============ Archive Summary 头部 ============ */
+    summary.arch-sum {
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+        min-height: 48px;                        /* 大卡片高度 */
+        display: flex;
+        padding: 12px 16px;
+        background: linear-gradient(135deg, #f8fafc 0%, #fff 100%);
+        border-bottom: none;
+        align-items: center;
+        transition: background 0.2s;
+    }
+
+    summary.arch-sum:hover {
+        background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+    }
+
+    summary.arch-sum::-webkit-details-marker {
+        display: none;                           /* 隐藏默认三角 */
+    }
+
+    details.arch-sec[open] summary.arch-sum {
+        background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+    }
+
+    /* ============ 标题包装器 ============ */
+    .arch-title-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+        min-width: 0;                            /* 让长文本能省略 */
+    }
+
+    .arch-title-wrapper a {
+        color: #0f172a;
+        font-weight: 700;
+        text-decoration: none;
+        transition: color 0.2s;
+        font-size: 15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;                 /* 长文本省略... */
+    }
+
+    .arch-title-wrapper a:hover {
+        color: #2563eb;
+    }
+
+    /* ============ 指示符（❯ 符号） ============ */
+    .arch-indicator {
+        font-size: 18px;
+        color: #2563eb;                          /* 蓝色 */
+        font-weight: 600;
+        transition: transform 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        margin-right: 8px;
+    }
+
+    details.arch-sec[open] .arch-indicator {
+        transform: rotate(90deg);                /* ❯ 旋转90° */
+    }
+
+    /* ============ 时间标签 ============ */
+    .time-label {
+        font-size: 11px;
+        color: #94a3b8;
+        font-weight: 600;
+        margin-left: 12px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    /* ============ 表格相关样式 ============ */
+    table {
+        width: 100%;
+        min-width: 1000px;
+        border-collapse: collapse;
+        border-spacing: 0;
+        font-size: 14px;
+        table-layout: fixed;
+        margin: 0;
+        border: none;
+    }
+
+    th {
+        background: #f8fafc;
+        padding: 14px 8px;
+        font-weight: 600;
+        color: #64748b;
+        border-bottom: 2px solid #f1f5f9;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+    th:hover {
+        background: #eff6ff;
+        color: #2563eb;
+    }
+
+    td {
+        padding: 12px 8px;
+        text-align: center;
+        border: none !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    tr {
+        border: none !important;
+    }
+
+    /* TEAM 列特殊样式 */
+    .team-col {
+        position: sticky;
+        left: 0;
+        background: white !important;
+        z-index: 10;
+        border-right: 2px solid #f1f5f9 !important;
+        border-bottom: 2px solid #f1f5f9 !important;
+        text-align: left;
+        font-weight: 800;
+        padding-left: 15px;
+        width: 80px;
+        transition: 0.2s;
+    }
+
+    .team-clickable {
+        cursor: pointer;
+    }
+
+    .team-clickable:hover {
+        color: #2563eb;
+        background-color: #eff6ff !important;
+    }
+
+    /* ============ 响应式设计 ============ */
+    @media (max-width: 768px) {
+        summary.arch-sum {
+            flex-wrap: wrap;
+            min-height: auto;
+        }
+
+        .arch-title-wrapper {
+            flex-basis: 100%;
+        }
+
+        .time-label {
+            order: 3;
+            flex-basis: 100%;
+            padding-top: 8px;
+            padding-left: 30px;
+            margin-left: 0;
+        }
+
+        .arch-indicator {
+            margin-right: 12px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .arch-title-wrapper a {
+            font-size: 14px;
+        }
+
+        .arch-indicator {
+            font-size: 16px;
+            width: 18px;
+            height: 18px;
+        }
+
+        .time-label {
+            font-size: 10px;
+        }
+
+        details.arch-sec {
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        summary.arch-sum {
+            padding: 10px 14px;
+        }
+    }
 
     /* Column Widths */
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
