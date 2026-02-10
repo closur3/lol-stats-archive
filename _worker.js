@@ -505,30 +505,19 @@ const PYTHON_STYLE = `
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar, .log-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list, .log-list { -ms-overflow-style: none; scrollbar-width: none; }
 
-    /* ========================================= */
-    /* Table Reset - 网格线核心修改区域 (Grid)    */
-    /* ========================================= */
-    
+    /* =================表格样式核心修改================= */
     table { 
         width: 100%; 
         min-width: 1000px; 
-        
-        /* 关键：使用分离模式以便 box-shadow 生效 */
         border-collapse: separate; 
         border-spacing: 0; 
-        
         font-size: 14px; 
         table-layout: fixed; 
         margin: 0; 
-        
-        /* 补齐最左侧和最顶部的边框，形成闭合 */
-        border-top: 1px solid #f1f5f9; 
-        border-left: 1px solid #f1f5f9;
-        border-right: none;
-        border-bottom: none;
+        border: none; 
     }
-    
-    /* Header Cells */
+
+    /* 表头 (TH) - 稍微深一点点 (0.05透明度)，因为表头通常背景色较深 */
     th { 
         background: #f8fafc; 
         padding: 14px 8px; 
@@ -536,30 +525,28 @@ const PYTHON_STYLE = `
         color: #64748b; 
         cursor: pointer; 
         transition: 0.2s; 
-        
-        /* 使用内阴影画右边框和下边框 */
-        box-shadow: inset -1px -1px 0 #f1f5f9;
+        /* 参数解释：X偏移-1px | Y偏移-1px | 模糊2px | 颜色透明度0.05 */
+        box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.05);
         border: none !important;
     }
     th:hover { background: #eff6ff; color: #2563eb; }
 
-    /* Data Cells */
+    /* 数据格 (TD) - 最浅淡 (0.03透明度)，保证视觉干净 */
     td { 
         padding: 12px 8px; 
         text-align: center; 
         white-space: nowrap; 
         overflow: hidden; 
         text-overflow: ellipsis; 
-        
-        /* 使用内阴影画右边框和下边框 */
-        box-shadow: inset -1px -1px 0 #f1f5f9;
+        /* 极其柔和的阴影，只起分割作用，不抢眼 */
+        box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.03);
         border: none !important;
     }
 
-    /* Row Reset */
+    /* 行 (TR) */
     tr { border: none !important; }
 
-    /* Sticky Team Column - 固定列修正 */
+    /* 固定列 (.team-col) - 加强一点点立体感 (0.06透明度) */
     .team-col { 
         position: sticky; 
         left: 0; 
@@ -570,16 +557,11 @@ const PYTHON_STYLE = `
         padding-left: 15px; 
         width: 80px; 
         transition: 0.2s; 
-        
-        /* 强制覆盖阴影，确保滚动时边框跟随 */
-        box-shadow: inset -1px -1px 0 #f1f5f9 !important; 
+        /* 增加 X轴偏移到 -2px 和模糊到 3px，制造"浮起"的投影感 */
+        box-shadow: inset -2px -1px 3px rgba(0, 0, 0, 0.06) !important; 
         border: none !important;
-        outline: none !important; /* 移除 outline */
+        outline: none !important;
     }
-    
-    /* ========================================= */
-    /* End Table Grid              */
-    /* ========================================= */
 
     .team-clickable { cursor: pointer; } 
     .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
