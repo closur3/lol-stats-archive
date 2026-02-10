@@ -1,12 +1,13 @@
 // ====================================================
-// 🥇 Worker V39.1.0: Perfect UI & Seamless Tables
-// Features:
-// 1. UI: Seamless Heatmap (No White Lines)
-// 2. Layout: Single Wrapper for Stats + Time
-// 3. Archive: Exact Replica of Home Style
+// 🥇 Worker V39.5.0: 精致视觉与全端渲染优化
+// 更新特性:
+// 1. 兼容性：修复电脑端 Chrome/Edge 浏览器阴影不渲染的问题 (渲染引擎优化)
+// 2. 视觉深度：重构 box-shadow 方案，将锐利白线改为半透明柔和阴影，完美融合色块
+// 3. 极致轻量：统一固定列与普通单元格的投影参数，消除视觉上的“厚重感”与“断层感”
+// 4. 黄金平衡：表头与数据行采用非对称透明度微调，确保各背景色下视觉权重完全一致
 // ====================================================
 
-const UI_VERSION = "2026-02-09-V39.1.0-PerfectUI";
+const UI_VERSION = "2026-02-11-V39.5.0-RefinedShadow";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
