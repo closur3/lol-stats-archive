@@ -218,7 +218,7 @@ async function fetchAllMatches(sourceInput, logger, authContext) {
 
     for (const overviewPage of pages) {
         let offset = 0;
-        const limit = 50;
+        const limit = 100;
         logger.info(`📡 Fetching: ${overviewPage}`);
         
         while(true) {
@@ -559,7 +559,7 @@ const PYTHON_STYLE = `
         left: 0; 
         background: white !important; 
         z-index: 10; 
-        border-right: 1px solid #f1f5f9 !important; /* 仅保留右侧分割线，区分队名和数据 */
+        border-right: 2px solid #f1f5f9 !important; /* 仅保留右侧分割线，区分队名和数据 */
         text-align: left; 
         font-weight: 800; 
         padding-left: 15px; 
@@ -573,7 +573,7 @@ const PYTHON_STYLE = `
     .table-title, summary.arch-sum { 
         padding: 15px; 
         font-weight: 700; 
-        border-bottom: 1px solid #f1f5f9; 
+        border-bottom: 2px solid #f1f5f9; 
         display: flex; 
         justify-content: space-between; 
         align-items: center; 
@@ -584,7 +584,7 @@ const PYTHON_STYLE = `
     /* Archive Details */
     details.arch-sec { 
         background: #fff; 
-        border: 1px solid #cbd5e1; 
+        border: 2px solid #cbd5e1; 
         border-radius: 12px; 
         margin-bottom: 15px; 
         overflow: hidden; 
