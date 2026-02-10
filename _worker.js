@@ -557,8 +557,7 @@ const PYTHON_STYLE = `
         padding-left: 15px; 
         width: 80px; 
         transition: 0.2s; 
-        /* 增加 X轴偏移到 -2px 和模糊到 3px，制造"浮起"的投影感 */
-        box-shadow: inset -2px -1px 3px rgba(0, 0, 0, 0.06) !important; 
+        box-shadow: inset -2px 0 2px -1px rgba(0, 0, 0, 0.04) !important;
         border: none !important;
         outline: none !important;
     }
