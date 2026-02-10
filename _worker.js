@@ -441,7 +441,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
 // --- 6. Markdown 生成器 (Backup) ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\n`;
-    md += `**Updated:** ${utils.getNow().full} (CST)\n\n---\n\n`;
+    md += `**Updated:** {{UPDATED_TIME}} (CST)\n\n---\n\n`;
     md += `## 📊 Statistics\n\n`;
     md += `| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n`;
     md += `| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
