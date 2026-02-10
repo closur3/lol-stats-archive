@@ -557,7 +557,7 @@ const PYTHON_STYLE = `
         padding-left: 15px; 
         width: 80px; 
         transition: 0.2s; 
-        box-shadow: inset -2px 0 2px -1px rgba(0, 0, 0, 0.04) !important;
+        box-shadow: inset -1px -1px 1px rgba(0, 0, 0, 0.03) !important;
         border: none !important;
         outline: none !important;
     }
