@@ -921,7 +921,7 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
         // 3. 组装：现在无论是主表还是时间表，都放在同一个 .wrapper (div) 里
         if (isArchive) {
             // Archive 模式：Header 放在 Summary 里，内容放在 details 展开后的一个 wrapper 里
-            const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">+</span> ${titleLink}</div> ${debugLabel}`;
+            const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
             tablesHtml += `<details class="arch-sec">
                 <summary class="arch-sum">${headerContent}</summary>
                 <div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">
