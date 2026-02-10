@@ -534,7 +534,7 @@ const PYTHON_STYLE = `
         padding: 14px 8px; 
         font-weight: 600; 
         color: #64748b; 
-        border-bottom: 1px solid #f1f5f9; 
+        border-bottom: 2px solid #f1f5f9; 
         cursor: pointer; 
         transition: 0.2s; 
     }
@@ -560,6 +560,7 @@ const PYTHON_STYLE = `
         background: white !important; 
         z-index: 10; 
         border-right: 2px solid #f1f5f9 !important; /* 仅保留右侧分割线，区分队名和数据 */
+        border-bottom: 1px solid #f1f5f9 !important;
         text-align: left; 
         font-weight: 800; 
         padding-left: 15px; 
