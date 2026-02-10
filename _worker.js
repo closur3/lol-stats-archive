@@ -567,7 +567,7 @@ const PYTHON_STYLE = `
     
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
-    .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.6; font-weight: 700; font-size: 10px; }
+    .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.8; font-weight: 700; font-size: 10px; }
 
     .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
 
