@@ -559,8 +559,8 @@ const PYTHON_STYLE = `
         left: 0; 
         background: white !important; 
         z-index: 10; 
-        border-right: 2px solid #f1f5f9 !important; /* 仅保留右侧分割线，区分队名和数据 */
-        border-bottom: 2px solid #f1f5f9 !important;
+        border-right: 1px solid #f1f5f9 !important; /* 仅保留右侧分割线，区分队名和数据 */
+        border-bottom: 1px solid #f1f5f9 !important;
         text-align: left; 
         font-weight: 800; 
         padding-left: 15px; 
