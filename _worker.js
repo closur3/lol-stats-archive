@@ -519,7 +519,7 @@ const PYTHON_STYLE = `
     tr { border: none !important; }
 
     /* Sticky Team Column */
-    .team-col { position: sticky; left: 0; background: white !important; z-index: 10; border: none !important; outline: 1px solid #f1f5f9; outline-offset: -1px; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; }
+    .team-col { position: sticky; left: 0; background: white !important; z-index: 10; border: none !important; outline: 1px solid #f1f5f9; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; }
     .team-clickable { cursor: pointer; } 
     .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
 
