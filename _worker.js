@@ -1344,44 +1344,9 @@ export default {
                 return new Response(null, { status: 204 });
 
             default: {
-                const html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 Not Found</title>
-    <style>
-        :root { --bg: #ffffff; --text: #000000; }
-        @media (prefers-color-scheme: dark) {
-            :root { --bg: #0a0a0a; --text: #ffffff; }
-        }
-        body {
-            margin: 0;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-            user-select: none;
-        }
-        h1 {
-            font-weight: 200;
-            font-size: 24px;
-            letter-spacing: 2px;
-            margin: 0;
-            opacity: 0.8;
-        }
-    </style>
-</head>
-<body>
-    <h1>404 Not Found</h1>
-</body>
-</html>`;
-
-                return new Response(html, {
+                return new Response("404 Not Found", {
                     status: 404,
-                    headers: { "content-type": "text/html;charset=utf-8" }
+                    headers: { "content-type": "text/plain;charset=utf-8" }
                 });
             }
         }
