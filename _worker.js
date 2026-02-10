@@ -505,21 +505,82 @@ const PYTHON_STYLE = `
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar, .log-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list, .log-list { -ms-overflow-style: none; scrollbar-width: none; }
 
-    /* Table Reset */
-    table { width: 100%; min-width: 1000px; border-collapse: collapse; border-spacing: 0; font-size: 14px; table-layout: fixed; margin: 0; border: none; }
+    /* ========================================= */
+    /* Table Reset - 网格线核心修改区域 (Grid)    */
+    /* ========================================= */
+    
+    table { 
+        width: 100%; 
+        min-width: 1000px; 
+        
+        /* 关键：使用分离模式以便 box-shadow 生效 */
+        border-collapse: separate; 
+        border-spacing: 0; 
+        
+        font-size: 14px; 
+        table-layout: fixed; 
+        margin: 0; 
+        
+        /* 补齐最左侧和最顶部的边框，形成闭合 */
+        border-top: 1px solid #f1f5f9; 
+        border-left: 1px solid #f1f5f9;
+        border-right: none;
+        border-bottom: none;
+    }
     
     /* Header Cells */
-    th { background: #f8fafc; padding: 14px 8px; font-weight: 600; color: #64748b; border-bottom: 2px solid #f1f5f9; cursor: pointer; transition: 0.2s; }
+    th { 
+        background: #f8fafc; 
+        padding: 14px 8px; 
+        font-weight: 600; 
+        color: #64748b; 
+        cursor: pointer; 
+        transition: 0.2s; 
+        
+        /* 使用内阴影画右边框和下边框 */
+        box-shadow: inset -1px -1px 0 #f1f5f9;
+        border: none !important;
+    }
     th:hover { background: #eff6ff; color: #2563eb; }
 
-    /* Data Cells - 彻底移除所有边框 */
-    td { padding: 12px 8px; text-align: center; border: none !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Data Cells */
+    td { 
+        padding: 12px 8px; 
+        text-align: center; 
+        white-space: nowrap; 
+        overflow: hidden; 
+        text-overflow: ellipsis; 
+        
+        /* 使用内阴影画右边框和下边框 */
+        box-shadow: inset -1px -1px 0 #f1f5f9;
+        border: none !important;
+    }
 
-    /* Row Reset - 确保行本身也没有底边框 */
+    /* Row Reset */
     tr { border: none !important; }
 
-    /* Sticky Team Column */
-    .team-col { position: sticky; left: 0; background: white !important; z-index: 10; border: none !important; outline: 1px solid #f1f5f9; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; }
+    /* Sticky Team Column - 固定列修正 */
+    .team-col { 
+        position: sticky; 
+        left: 0; 
+        background: white !important; 
+        z-index: 10; 
+        text-align: left; 
+        font-weight: 800; 
+        padding-left: 15px; 
+        width: 80px; 
+        transition: 0.2s; 
+        
+        /* 强制覆盖阴影，确保滚动时边框跟随 */
+        box-shadow: inset -1px -1px 0 #f1f5f9 !important; 
+        border: none !important;
+        outline: none !important; /* 移除 outline */
+    }
+    
+    /* ========================================= */
+    /* End Table Grid              */
+    /* ========================================= */
+
     .team-clickable { cursor: pointer; } 
     .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
 
@@ -529,7 +590,7 @@ const PYTHON_STYLE = `
     
     /* ============ Archive Details 主容器 ============ */
     details.arch-sec { background: #fff; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.3s ease; display: block; }
-    details.arch-sec:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* border-color: #cbd5e1; */ }
+    details.arch-sec:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     details.arch-sec[open] { box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12); border-color: #2563eb; }
     details.arch-sec[open]:hover { box-shadow: 0 6px 20px rgba(37, 99, 235, 0.15); }
 
@@ -585,13 +646,12 @@ const PYTHON_STYLE = `
         height: 100%; 
     }
     
-    /* 核心：flex: 1 + flex-basis: 0 确保分界线永远在 50% 处 */
     .t-val { 
         flex: 1; 
         flex-basis: 0; 
         text-align: right; 
         font-weight: 700; 
-        padding-right: 4px; /* 脊柱间距 */
+        padding-right: 4px; 
         white-space: nowrap;
     } 
     
@@ -602,7 +662,7 @@ const PYTHON_STYLE = `
         opacity: 0.9; 
         font-size: 11px; 
         font-weight: 700; 
-        padding-left: 4px; /* 脊柱间距 */
+        padding-left: 4px; 
         white-space: nowrap;
     }
 
