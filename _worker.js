@@ -539,7 +539,7 @@ const PYTHON_STYLE = `
         overflow: hidden; 
         text-overflow: ellipsis; 
         /* 极其柔和的阴影，只起分割作用，不抢眼 */
-        box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.03);
+        box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.04);
         border: none !important;
     }
 
@@ -557,7 +557,7 @@ const PYTHON_STYLE = `
         padding-left: 15px; 
         width: 80px; 
         transition: 0.2s; 
-        box-shadow: inset -1px -1px 1px rgba(0, 0, 0, 0.03) !important;
+        box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.04) !important;
         border: none !important;
         outline: none !important;
     }
