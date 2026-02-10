@@ -529,7 +529,7 @@ const PYTHON_STYLE = `
     
     /* ============ Archive Details 主容器 ============ */
     details.arch-sec { background: #fff; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.3s ease; display: block; }
-    details.arch-sec:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: #cbd5e1; }
+    details.arch-sec:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* border-color: #cbd5e1; */ }
     details.arch-sec[open] { box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12); border-color: #2563eb; }
     details.arch-sec[open]:hover { box-shadow: 0 6px 20px rgba(37, 99, 235, 0.15); }
 
