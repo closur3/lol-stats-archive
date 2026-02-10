@@ -519,7 +519,22 @@ const PYTHON_STYLE = `
     tr { border: none !important; }
 
     /* Sticky Team Column */
-    .team-col { position: sticky; left: 0; background: white !important; z-index: 10; border-right: 1px solid #f1f5f9 !important; border-bottom: 1px solid #f1f5f9 !important; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; }
+    .team-col { 
+        position: sticky; 
+        left: 0; 
+        background: white !important; 
+        z-index: 10; 
+        border: none !important;
+        box-shadow: 
+            1px 0 0 #e2e8f0,              /* 右边框（细线） */
+            2px 0 8px rgba(0,0,0,0.06),   /* 右侧阴影（层次感） */
+            0 1px 0 #f1f5f9;              /* 下边框 */
+        text-align: left; 
+        font-weight: 800; 
+        padding-left: 15px; 
+        width: 80px; 
+        transition: 0.2s; 
+    }
     .team-clickable { cursor: pointer; } 
     .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
 
