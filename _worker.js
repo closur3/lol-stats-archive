@@ -957,7 +957,7 @@ function renderLogPage(logs) {
             display: grid;
             grid-template-columns: min-content 90px 1fr;
             gap: 25px;
-            padding: 17px 20px;
+            padding: 16px 20px;
             border-bottom: 1px solid #f1f5f9;
             font-size: 15px;
             align-items: center;
@@ -979,7 +979,7 @@ function renderLogPage(logs) {
             justify-content: center;
             align-items: center;
             width: 100%;
-            padding: 5px 0;
+            padding: 6px 0;
             border-radius: 6px;
             font-size: 12px;
             text-transform: uppercase;
