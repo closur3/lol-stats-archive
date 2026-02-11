@@ -595,9 +595,9 @@ const PYTHON_STYLE = `
     .time-label { font-size: 11px; color: #94a3b8; font-weight: 600; margin-left: 12px; white-space: nowrap; flex-shrink: 0; }
 
     /* Column Widths */
-    .col-bo3 { width: 70px; } .col-bo3-pct { width: 85px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 85px; }
-    .col-series { width: 80px; } .col-series-wr { width: 100px; } .col-game { width: 80px; } .col-game-wr { width: 100px; }
-    .col-streak { width: 80px; } .col-last { width: 130px; }
+    .col-bo3 { width: 70px; } .col-bo3-pct { width: 70px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 70px; }
+    .col-series { width: 70px; } .col-series-wr { width: 70px; } .col-game { width: 70px; } .col-game-wr { width: 70px; }
+    .col-streak { width: 70px; } .col-last { width: 130px; }
 
     /* Fonts */
     .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr,
