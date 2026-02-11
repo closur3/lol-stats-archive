@@ -1,12 +1,11 @@
 // ====================================================
-// 🥇 Worker V41.0.0: Resilience & Stability Update
+// 🥇 Worker V41.1.0: Smart Schedule & UI Polish
 // 更新特性:
-// 1. 稳定性升级: 移除全局熔断，引入联赛级独立熔断 (Circuit Breaker)
-// 2. 容错增强: 单联赛数据异常(跌幅>10%)仅回滚该联赛，不影响全局
-// 3. 日志优化: 区分显示 成功/忽略(熔断)/失败 的统计详情
+// 1. 智能调度: 即使当日有赛程，仅在【最早开赛时间】到达后才进入快速模式，大幅节省资源
+// 2. 状态细分: 新增 ⏳ WAITING (等待开赛) 状态，明确区分"进行中"与"等待中"
 // ====================================================
 
-const UI_VERSION = "2026-02-12-V41.0.0-Resilience-Update";
+const UI_VERSION = "2026-02-12-V41.1.0-Smart-Schedule";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -389,8 +388,10 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
 
     if (metaValues.some(m => m.streak === 0 && m.mode === "fast")) {
         statusText = `<div style="${boxStyle} color:#10b981;"><span style="${iconStyle}">🎮</span><span>ONGOING</span></div>`;
+    } else if (metaValues.some(m => m.streak === 0 && m.mode === "slow")) {
+        statusText = `<div style="${boxStyle} color:#8b5cf6;"><span style="${iconStyle}">⏳</span><span>WAITING</span></div>`;
     } else if (metaValues.some(m => m.streak === 1)) {
-        statusText = `<div style="${boxStyle} color:#f59e0b;"><span style="${iconStyle}">👀</span><span>VERIFYING</span></div>`;
+        statusText = `<div style="${boxStyle} color:#3b82f6;"><span style="${iconStyle}">👀</span><span>VERIFYING</span></div>`;
     } else {
         statusText = `<div style="${boxStyle} color:#94a3b8;"><span style="${iconStyle}">✔️</span><span>FINISHED</span></div>`;
     }
