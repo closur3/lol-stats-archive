@@ -597,7 +597,7 @@ const PYTHON_STYLE = `
     /* Column Widths */
     .col-bo3 { width: 70px; } .col-bo3-pct { width: 70px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 70px; }
     .col-series { width: 70px; } .col-series-wr { width: 70px; } .col-game { width: 70px; } .col-game-wr { width: 70px; }
-    .col-streak { width: 70px; } .col-last { width: 140px; }
+    .col-streak { width: 70px; } .col-last { width: 130px; }
 
     /* Fonts */
     .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr,
@@ -804,7 +804,7 @@ const PYTHON_JS = `
 
         const listHtml = history.map(h => {
             const map = resMap[h.res] || resMap['N'];
-            const resTag = `<span class="${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">${map.t}</span>`;
+            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
             return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
         });
         
