@@ -7,7 +7,7 @@
 // 4. 黄金平衡：表头与数据行采用非对称透明度微调，确保各背景色下视觉权重完全一致
 // ====================================================
 
-const UI_VERSION = "2026-02-11-V39.5.0-RefinedShadow";
+const UI_VERSION = "2026-02-11-V39.6.0-InteractiveStats";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -774,6 +774,27 @@ const PYTHON_JS = `
         const history = data.history || [];
         document.getElementById('modalTitle').innerText = teamName + " - Schedule";
         
+// [NEW] 专用统计弹窗 (过滤 BO3/BO5/Series)
+    function openStats(slug, teamName, type) {
+        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
+        const data = window.g_stats[slug][teamName];
+        let history = data.history || [];
+        let titleSuffix = "";
+
+        // 根据类型过滤历史记录
+        if (type === 'bo3') {
+            history = history.filter(h => h.bo === 3);
+            titleSuffix = " - BO3 History";
+        } else if (type === 'bo5') {
+            history = history.filter(h => h.bo === 5);
+            titleSuffix = " - BO5 History";
+        } else {
+            // Series 显示所有记录
+            titleSuffix = " - Series History";
+        }
+
+        document.getElementById('modalTitle').innerText = teamName + titleSuffix;
+        
         const resMap = {
             'W': { t: '✅', c: '' },
             'L': { t: '❌', c: '' },
@@ -783,9 +804,10 @@ const PYTHON_JS = `
 
         const listHtml = history.map(h => {
             const map = resMap[h.res] || resMap['N'];
-            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
+            const resTag = `<span class="${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">${map.t}</span>`;
             return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
         });
+        
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
     }
@@ -906,12 +928,17 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
             const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
             const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
             
+            // [NEW] 动态生成交互属性 (Class & OnClick)
+            // 只有当 count > 0 时才添加点击效果和事件
+            const cls = (base, count) => count > 0 ? `${base} team-clickable` : base;
+            const clk = (slug, name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${name}', '${type}')"` : "";
+            
             return `<tr><td class="team-col team-clickable" onclick="openTeam('${t.slug}', '${s.name}')">${s.name}</td>
-                <td class="col-bo3" style="background:${s.bo3_t===0?emptyBg:'transparent'};color:${s.bo3_t===0?emptyCol:'inherit'}">${bo3Txt}</td>
+                <td class="${cls('col-bo3', s.bo3_t)}" ${clk(t.slug, s.name, 'bo3', s.bo3_t)} style="background:${s.bo3_t===0?emptyBg:'transparent'};color:${s.bo3_t===0?emptyCol:'inherit'}">${bo3Txt}</td>
                 <td class="col-bo3-pct" style="background:${utils.color(bo3R,true)};color:${bo3R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo3R)}</td>
-                <td class="col-bo5" style="background:${s.bo5_t===0?emptyBg:'transparent'};color:${s.bo5_t===0?emptyCol:'inherit'}">${bo5Txt}</td>
+                <td class="${cls('col-bo5', s.bo5_t)}" ${clk(t.slug, s.name, 'bo5', s.bo5_t)} style="background:${s.bo5_t===0?emptyBg:'transparent'};color:${s.bo5_t===0?emptyCol:'inherit'}">${bo5Txt}</td>
                 <td class="col-bo5-pct" style="background:${utils.color(bo5R,true)};color:${bo5R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo5R)}</td>
-                <td class="col-series" style="background:${s.s_t===0?emptyBg:'transparent'};color:${s.s_t===0?emptyCol:'inherit'}">${serTxt}</td>
+                <td class="${cls('col-series', s.s_t)}" ${clk(t.slug, s.name, 'series', s.s_t)} style="background:${s.s_t===0?emptyBg:'transparent'};color:${s.s_t===0?emptyCol:'inherit'}">${serTxt}</td>
                 <td class="col-series-wr" style="background:${utils.color(winR)};color:${winR!==null?'white':emptyCol};font-weight:bold">${utils.pct(winR)}</td>
                 <td class="col-game" style="background:${s.g_t===0?emptyBg:'transparent'};color:${s.g_t===0?emptyCol:'inherit'}">${gamTxt}</td>
                 <td class="col-game-wr" style="background:${utils.color(gameR)};color:${gameR!==null?'white':emptyCol};font-weight:bold">${utils.pct(gameR)}</td>
