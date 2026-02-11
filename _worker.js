@@ -711,8 +711,18 @@ const PYTHON_STYLE = `
 
 const PYTHON_JS = `
     <script>
+    // --- 1. 全局常量定义 ---
     const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
-    
+
+    // [优化] 提取全局图标映射，避免重复定义
+    const RES_MAP = {
+        'W': { t: '✅', c: '' },
+        'L': { t: '❌', c: '' },
+        'LIV': { t: '🔵', c: '' },
+        'N': { t: '🕒', c: '' }
+    };
+
+    // --- 2. 排序与解析工具 ---
     function doSort(c,id) {
         const t=document.getElementById(id),b=t.tBodies[0],r=Array.from(b.rows),k='data-sort-dir-'+c,cur=t.getAttribute(k),
         next=(!cur)?((c===COL_TEAM)?'asc':'desc'):((cur==='desc')?'asc':'desc');
@@ -733,6 +743,7 @@ const PYTHON_JS = `
         });
         t.setAttribute(k,next); r.forEach(x=>b.appendChild(x));
     }
+    
     function parseValue(v) {
         if(v==="-")return -1; if(v.includes('%'))return parseFloat(v);
         if(v.includes('/')){let p=v.split('/');return p[1]==='-'?-1:parseFloat(p[0])/parseFloat(p[1]);}
@@ -740,10 +751,12 @@ const PYTHON_JS = `
         const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
     }
 
+    // --- 3. HTML 渲染核心 ---
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score) {
         const fullTag = isFull ? '<span class="hist-full">FULL</span>' : '';
         const scoreStyle = isFull ? 'color:#ef4444' : '';
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
+        // 注意：Worker 中字符串内 JS 模板变量需要转义 \\$
         const resHtml = mode === 'history' ? \`<span class="col-res">\${resTag}</span>\` : '';
         
         return \`<div class="match-item \${layoutClass}">
@@ -759,6 +772,13 @@ const PYTHON_JS = `
         </div>\`;
     }
 
+    function renderListHTML(htmlArr) {
+        const l=document.getElementById('modalList');
+        if(!htmlArr || htmlArr.length===0) l.innerHTML="<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
+        else l.innerHTML = htmlArr.join("");
+    }
+
+    // --- 4. 弹窗逻辑 ---
     function showPopup(t,d,m){
         const ds=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Total"];
         document.getElementById('modalTitle').innerText=t+" - "+ds[d];
@@ -768,42 +788,15 @@ const PYTHON_JS = `
         document.getElementById('matchModal').style.display="block";
     }
 
+    // [逻辑1] 点击队名：显示所有历史
     function openTeam(slug, teamName) {
         if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
         const data = window.g_stats[slug][teamName];
         const history = data.history || [];
         document.getElementById('modalTitle').innerText = teamName + " - Schedule";
         
-// [NEW] 专用统计弹窗 (过滤 BO3/BO5/Series)
-    function openStats(slug, teamName, type) {
-        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
-        const data = window.g_stats[slug][teamName];
-        let history = data.history || [];
-        let titleSuffix = "";
-
-        // 根据类型过滤历史记录
-        if (type === 'bo3') {
-            history = history.filter(h => h.bo === 3);
-            titleSuffix = " - BO3 History";
-        } else if (type === 'bo5') {
-            history = history.filter(h => h.bo === 5);
-            titleSuffix = " - BO5 History";
-        } else {
-            // Series 显示所有记录
-            titleSuffix = " - Series History";
-        }
-
-        document.getElementById('modalTitle').innerText = teamName + titleSuffix;
-        
-        const resMap = {
-            'W': { t: '✅', c: '' },
-            'L': { t: '❌', c: '' },
-            'LIV': { t: '🔵', c: '' },
-            'N': { t: '🕒', c: '' }
-        };
-
         const listHtml = history.map(h => {
-            const map = resMap[h.res] || resMap['N'];
+            const map = RES_MAP[h.res] || RES_MAP['N'];
             const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
             return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
         });
@@ -812,10 +805,34 @@ const PYTHON_JS = `
         document.getElementById('matchModal').style.display="block";
     }
 
-    function renderListHTML(htmlArr) {
-        const l=document.getElementById('modalList');
-        if(!htmlArr || htmlArr.length===0) l.innerHTML="<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
-        else l.innerHTML = htmlArr.join("");
+    // [逻辑2] 点击数据格：显示分类历史 (BO3/BO5/Series)
+    function openStats(slug, teamName, type) {
+        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
+        const data = window.g_stats[slug][teamName];
+        let history = data.history || [];
+        let titleSuffix = "";
+
+        // 过滤逻辑
+        if (type === 'bo3') {
+            history = history.filter(h => h.bo === 3);
+            titleSuffix = " - BO3 History";
+        } else if (type === 'bo5') {
+            history = history.filter(h => h.bo === 5);
+            titleSuffix = " - BO5 History";
+        } else {
+            titleSuffix = " - Series History";
+        }
+
+        document.getElementById('modalTitle').innerText = teamName + titleSuffix;
+        
+        const listHtml = history.map(h => {
+            const map = RES_MAP[h.res] || RES_MAP['N'];
+            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
+            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
+        });
+        
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
     }
 
     function closePopup(){document.getElementById('matchModal').style.display="none";}
