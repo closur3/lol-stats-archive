@@ -239,6 +239,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         let processed = 0, skipped = 0;
         let t_matchesToday = 0;
         let t_pendingToday = 0;
+        let earliestPendingTs = Infinity;
         
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
@@ -285,6 +286,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
                     if (matchDateStr === todayStr) {
                         t_matchesToday++;
                         if (!isFinished) t_pendingToday++;
+                        if (ts < earliestPendingTs) earliestPendingTs = ts;
                     }
                     if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
                     
@@ -357,8 +359,17 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
 
         const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
         let nextStreak = 0, nextMode = "fast";
-        if (t_matchesToday > 0 && t_pendingToday > 0) { nextStreak = 0; nextMode = "fast"; }
-        else { nextStreak = prevT.streak >= 1 ? 2 : 1; nextMode = nextStreak >= 2 ? "slow" : "fast"; }
+
+        // [修改] 智能调度逻辑：仅当时间到达开赛时间后，才切换为 FAST 模式
+        if (t_matchesToday > 0 && t_pendingToday > 0) { 
+            nextStreak = 0; 
+            // 如果当前时间 >= 最早开赛时间，进入快速模式；否则保持慢速等待
+            nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
+        } else { 
+            nextStreak = prevT.streak >= 1 ? 2 : 1; 
+            nextMode = nextStreak >= 2 ? "slow" : "fast"; 
+        }
+        
         tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode };
     });
 
@@ -861,7 +872,7 @@ async function runUpdate(env, force=false) {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
         const newMode = analysis.tournMeta[slug].mode;
         const streak = analysis.tournMeta[slug].streak;
-        if (oldMode === "fast" && newMode === "slow") l.success(`💤 Slowmode: ${slug} Matches finished (Streak ${streak}). Entering SLOW mode`);
+        if (oldMode === "fast" && newMode === "slow") l.success(`💤 Slowmode: ${slug} Off-peak hours (Streak ${streak}). Entering SLOW mode`);
         else if (oldMode === "slow" && newMode === "fast") l.info(`⚡ Fastmode: ${slug} Active matches detected. Waking up FAST mode`);
     });
 
