@@ -22,7 +22,7 @@ const utils = {
         return {
             obj: d,
             full: iso,
-            short: iso.slice(3),
+            short: iso.slice(2),
             date: iso.slice(0, 10),
             time: iso.slice(11, 16)
         };
