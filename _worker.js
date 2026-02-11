@@ -389,9 +389,9 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
     if (metaValues.some(m => m.streak === 0 && m.mode === "fast")) {
         statusText = `<div style="${boxStyle} color:#10b981;"><span style="${iconStyle}">🎮</span><span>ONGOING</span></div>`;
     } else if (metaValues.some(m => m.streak === 0 && m.mode === "slow")) {
-        statusText = `<div style="${boxStyle} color:#8b5cf6;"><span style="${iconStyle}">⏳</span><span>WAITING</span></div>`;
+        statusText = `<div style="${boxStyle} color:#4961c4;"><span style="${iconStyle}">⏳</span><span>WAITING</span></div>`;
     } else if (metaValues.some(m => m.streak === 1)) {
-        statusText = `<div style="${boxStyle} color:#3b82f6;"><span style="${iconStyle}">👀</span><span>VERIFYING</span></div>`;
+        statusText = `<div style="${boxStyle} color:#737373;"><span style="${iconStyle}">👀</span><span>VERIFYING</span></div>`;
     } else {
         statusText = `<div style="${boxStyle} color:#94a3b8;"><span style="${iconStyle}">✔️</span><span>FINISHED</span></div>`;
     }
