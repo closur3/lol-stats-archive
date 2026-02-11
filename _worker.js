@@ -771,6 +771,9 @@ const PYTHON_JS = `
         // 注意：Worker 中字符串内 JS 模板变量需要转义 \\$
         const resHtml = mode === 'history' ? \`<span class="col-res">\${resTag}</span>\` : '';
         
+        // [NEW] 给比分的连字符添加间距
+        const fmtScore = (score || "").toString().replace('-', '<span style="margin:0 1px">-</span>');
+        
         return \`<div class="match-item \${layoutClass}">
             <span class="col-date">\${date}</span>
             \${resHtml}
@@ -779,7 +782,7 @@ const PYTHON_JS = `
             <span class="col-t2">\${team2}</span>
             <div class="col-score">
                 \${fullTag}
-                <span class="hist-score" style="\${scoreStyle}">\${score}</span>
+                <span class="hist-score" style="\${scoreStyle}">\${fmtScore}</span>
             </div>
         </div>\`;
     }
