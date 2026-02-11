@@ -815,12 +815,12 @@ const PYTHON_JS = `
         // 过滤逻辑
         if (type === 'bo3') {
             history = history.filter(h => h.bo === 3);
-            titleSuffix = " - BO3 History";
+            titleSuffix = " - BO3";
         } else if (type === 'bo5') {
             history = history.filter(h => h.bo === 5);
-            titleSuffix = " - BO5 History";
+            titleSuffix = " - BO5";
         } else {
-            titleSuffix = " - Series History";
+            titleSuffix = " - Series";
         }
 
         document.getElementById('modalTitle').innerText = teamName + titleSuffix;
