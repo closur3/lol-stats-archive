@@ -979,7 +979,7 @@ function renderLogPage(logs) {
             justify-content: center;
             align-items: center;
             width: 100%;
-            padding: 4px 0;
+            padding: 6px 0;
             border-radius: 6px;
             font-size: 12px;
             text-transform: uppercase;
