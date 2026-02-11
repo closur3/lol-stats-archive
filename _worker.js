@@ -642,13 +642,8 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
         const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
         const tableId = `t${idx}`;
         const lastTs = updateTimestamps[t.slug];
-        let timeStr = "(Pending)", timeColor = "#9ca3af"; 
-        if (lastTs) {
-            timeStr = utils.fmtDate(lastTs); 
-            const diff = Date.now() - lastTs;
-            if (diff < 20 * 60 * 1000) timeColor = "#10b981"; 
-        }
-        const debugLabel = `<span style="font-size:11px;color:${timeColor};font-weight:600;margin-left:10px">${timeStr}</span>`;
+        const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
+        const debugLabel = `<span style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px">${timeStr}</span>`;
 
         let minTs = 9999999999999, maxTsLocal = 0;
         stats.forEach(s => { if(s.last){ if(s.last<minTs)minTs=s.last; if(s.last>maxTsLocal)maxTsLocal=s.last; }});
