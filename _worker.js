@@ -1,12 +1,12 @@
 // ====================================================
-// 🥇 Worker V40.0.0: High-Performance CPU Optimized
+// 🥇 Worker V41.0.0: Resilience & Stability Update
 // 更新特性:
-// 1. 性能核心: 引入 Team Name Memoization，解析耗时减少 90%
-// 2. 架构升级: 首页 HTML 预渲染 (SSR) 存入 KV，读请求 CPU 消耗接近 0
-// 3. 运算优化: 移除循环内 toISOString/Date 操作，改用位运算与整数偏移
+// 1. 稳定性升级: 移除全局熔断，引入联赛级独立熔断 (Circuit Breaker)
+// 2. 容错增强: 单联赛数据异常(跌幅>10%)仅回滚该联赛，不影响全局
+// 3. 日志优化: 区分显示 成功/忽略(熔断)/失败 的统计详情
 // ====================================================
 
-const UI_VERSION = "2026-02-12-V40.0.0-CPU-Optimized";
+const UI_VERSION = "2026-02-12-V41.0.0-Resilience-Update";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
