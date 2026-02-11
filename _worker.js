@@ -421,18 +421,30 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         });
     });
 
-    // [NEW] Generate Global Status Text based on aggregation
+// [NEW] Generate Global Status Text based on aggregation
     let statusText = "";
     const metaValues = Object.values(tournMeta);
     const anyOngoing = metaValues.some(m => m.streak === 0 && m.mode === "fast");
     const anyVerifying = metaValues.some(m => m.streak === 1);
     
+    // [CSS修复] 使用 inline-flex + align-items:center 实现绝对垂直居中
+    // gap:4px 控制图标和文字的间距
+    // transform: translateY(-1px) 用于微调 Emoji 的视觉重心（Emoji 通常偏高）
+    const boxStyle = "display:inline-flex; align-items:center; justify-content:center; gap:5px; font-weight:600; font-size:12px; padding: 4px 10px; border-radius: 20px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;";
+    const iconStyle = "font-size: 14px; line-height: 1; display: block; transform: translateY(-1px);"; 
+
     if (anyOngoing) {
-        statusText = `<span style="color:#10b981; font-weight:normal; font-size:12px">🎮 ONGOING</span>`;
+        statusText = `<div style="${boxStyle} color:#10b981;">
+            <span style="${iconStyle}">🎮</span><span>ONGOING</span>
+        </div>`;
     } else if (anyVerifying) {
-        statusText = `<span style="color:#f59e0b; font-weight:normal; font-size:12px">👀 VERIFYING</span>`;
+        statusText = `<div style="${boxStyle} color:#f59e0b;">
+            <span style="${iconStyle}">👀</span><span>VERIFYING</span>
+        </div>`;
     } else {
-        statusText = `<span style="color:#9ca3af; font-weight:normal; font-size:12px">✔️ FINISHED</span>`;
+        statusText = `<div style="${boxStyle} color:#94a3b8;">
+            <span style="${iconStyle}">✔️</span><span>FINISHED</span>
+        </div>`;
     }
 
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
