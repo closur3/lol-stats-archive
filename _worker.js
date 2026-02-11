@@ -22,7 +22,7 @@ const utils = {
         return {
             obj: d,
             full: iso,
-            short: iso, 
+            short: iso.slice(5),
             date: iso.slice(0, 10),
             time: iso.slice(11, 16)
         };
@@ -667,7 +667,7 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
             const serTxt = s.s_t ? mkSpine(`${s.s_w}-${s.s_t-s.s_w}`, '-') : "-";
             const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
             const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
-            const last = s.last ? utils.fmtDate(s.last).slice(2) : "-";
+            const last = s.last ? utils.fmtDate(s.last).slice(0) : "-";
             const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
             const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
             const cls = (base, count) => count > 0 ? `${base} team-clickable` : base;
