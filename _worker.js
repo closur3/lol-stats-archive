@@ -506,10 +506,10 @@ const PYTHON_STYLE = `
     .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
     .hist-icon { font-size: 16px; }
     .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
-    .log-entry { display: grid; grid-template-columns: 115px 90px 1fr; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
+    .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
     .log-entry:nth-child(even) { background-color: #f8fafc; }
     .log-time { color: #64748b; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: center; }
-    .log-level { font-weight: 800; text-align: center; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; }
     .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
     .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
     .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
