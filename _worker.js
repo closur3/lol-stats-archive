@@ -894,7 +894,155 @@ function renderLogPage(logs) {
         if(l.l==="SUCCESS") lvlClass = "lvl-ok";
         return `<li class="log-entry"><span class="log-time">${l.t}</span><span class="log-level ${lvlClass}">${l.l}</span><span class="log-msg">${l.m}</span></li>`;
     }).join("");
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>System Logs</title><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>"><style>body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 20px; } .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; } .header { padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; } .header h2 { margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px; } .back-link { color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.9rem; padding: 6px 12px; border-radius: 6px; background: #eff6ff; transition: background 0.2s; } .back-link:hover { background: #dbeafe; } .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; } .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; } .log-entry:nth-child(even) { background-color: #f8fafc; } .log-time { color: #64748b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: center; font-variant-numeric: tabular-nums; } .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 4px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; } .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; } .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; } .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; } .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; } .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; } @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } .log-time { font-size: 12px; opacity: 0.7; text-align: left; } .log-level { display: inline-block; width: auto; padding: 3px 10px; } } </style></head><body><div class="container"><div class="header"><h2>📜 System Logs</h2><a href="/" class="back-link">← Back to Stats</a></div><ul class="log-list">${entries}</ul>${logs.length===0?`<div class="empty-logs">No logs found for today.</div>`:''}</div></body></html>`;
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Logs</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f1f5f9;
+            color: #0f172a;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+        .header {
+            padding: 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+        }
+        .header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .back-link {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: #eff6ff;
+            transition: background 0.2s;
+        }
+        .back-link:hover {
+            background: #dbeafe;
+        }
+        .log-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .log-entry {
+            display: grid;
+            grid-template-columns: min-content 90px 1fr;
+            gap: 25px;
+            padding: 17px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 15px;
+            align-items: center;
+        }
+        .log-entry:nth-child(even) {
+            background-color: #f8fafc;
+        }
+        .log-time {
+            color: #64748b;
+            font-size: 15px;
+            white-space: nowrap;
+            letter-spacing: -0.5px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .log-level {
+            font-weight: 800;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            padding: 4px 0;
+            border-radius: 6px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1;
+        }
+        .lvl-inf {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #dbeafe;
+        }
+        .lvl-ok {
+            background: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #dcfce7;
+        }
+        .lvl-err {
+            background: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fee2e2;
+        }
+        .log-msg {
+            color: #334155;
+            word-break: break-word;
+            line-height: 1.5;
+            font-weight: 500;
+        }
+        .empty-logs {
+            padding: 40px;
+            text-align: center;
+            color: #94a3b8;
+            font-style: italic;
+        }
+        @media (max-width: 600px) {
+            .log-entry {
+                grid-template-columns: 1fr;
+                gap: 8px;
+                padding: 15px;
+            }
+            .log-time {
+                font-size: 12px;
+                opacity: 0.7;
+                text-align: left;
+            }
+            .log-level {
+                display: inline-block;
+                width: auto;
+                padding: 3px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>📜 System Logs</h2>
+            <a href="/" class="back-link">← Back to Stats</a>
+        </div>
+        <ul class="log-list">${entries}</ul>
+        ${logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : ''}
+    </div>
+</body>
+</html>`;
 }
 
 export default {
