@@ -826,22 +826,37 @@ async function runUpdate(env, force=false) {
     }
 
     let successCount = 0, failureCount = 0; 
+    
+    // [MODIFIED] 结果处理循环：引入单联赛熔断机制
     results.forEach(res => {
         if (res.status === 'fulfilled') {
-            cache.rawMatches[res.slug] = res.data;
-            cache.updateTimestamps[res.slug] = NOW;
-            successCount++;
-        } else failureCount++;
+            const slug = res.slug;
+            const newData = res.data || [];
+            const oldData = cache.rawMatches[slug] || [];
+            
+            // 🛡️ 联赛级熔断 (Circuit Breaker)
+            // 规则：如果非强制更新，且旧数据存在(>10条)，新数据量暴跌至旧数据的 90% 以下，视为异常
+            if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
+                l.error(`🛡️ Ignored: ${slug} dropped from ${oldData.length} to ${newData.length}`);
+                // 此时视为失败，不更新 cache.rawMatches，也不更新时间戳（以便下次继续尝试）
+                failureCount++;
+            } else {
+                cache.rawMatches[slug] = newData;
+                cache.updateTimestamps[slug] = NOW;
+                successCount++;
+            }
+        } else {
+            // 网络请求本身失败
+            failureCount++;
+        }
     });
 
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig);
 
-    if (meta.total > 0 && analysis.grandTotal < meta.total * 0.9 && !force) {
-        l.error(`🛑 Rollback: Detected data anomaly. Aborting save`);
-        return l;
-    }
-    
+    // [REMOVED] 删除了全局熔断逻辑
+    // if (meta.total > 0 && analysis.grandTotal < meta.total * 0.9 && !force) ...
+
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
         const newMode = analysis.tournMeta[slug].mode;
@@ -851,7 +866,6 @@ async function runUpdate(env, force=false) {
     });
 
     // [CPU OPTIMIZATION 5] Pre-render HTML for Home Route
-    // SSR (Server Side Rendering) at build time, serving static HTML at runtime.
     const homeFragment = renderContentOnly(
         analysis.globalStats, analysis.timeGrid, analysis.debugInfo, analysis.maxDateTs,
         analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, false
@@ -860,7 +874,6 @@ async function runUpdate(env, force=false) {
     // Save to KV with pre-rendered HTML
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
         globalStats: analysis.globalStats,
-        // timeGrid/debugInfo etc kept for archival if needed, but homeHtml is the key
         timeGrid: analysis.timeGrid,
         debugInfo: analysis.debugInfo,
         maxDateTs: analysis.maxDateTs,
@@ -870,7 +883,7 @@ async function runUpdate(env, force=false) {
         runtimeConfig,
         rawMatches: cache.rawMatches,
         updateTimestamps: cache.updateTimestamps,
-        homeHtml: homeFragment // <--- Stored static HTML
+        homeHtml: homeFragment 
     }));
 
     const archiveFragment = renderContentOnly(
@@ -881,7 +894,8 @@ async function runUpdate(env, force=false) {
 
     await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
     
-    if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
+    // 日志统计显示逻辑微调
+    if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Ignored: ${failureCount} · Total Parsed: ${analysis.grandTotal}`);
     else l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
     return l;
 }
