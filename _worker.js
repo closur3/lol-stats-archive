@@ -186,7 +186,7 @@ async function fetchAllMatches(sourceInput, logger, authContext, dateFilter = nu
             try {
                 const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
                 const batch = batchRaw.map(i => i.title);
-                logger.success(`📦 Received: Got ${batch.length} matches from ${overviewPage}`);
+                logger.success(`📦 Received: ${slug} Got ${batch.length} matches`);
                 
                 if (!batch.length) break;
                 
@@ -204,7 +204,6 @@ async function fetchAllMatches(sourceInput, logger, authContext, dateFilter = nu
             }
         }
     }
-    // logger.success(`📦 Received: Got ${all.length} matches from ${pages.length} sources`);
     return all;
 }
 
@@ -866,7 +865,7 @@ async function runUpdate(env, force=false) {
             if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.slug} Fetching today's matches`);
             else l.info(`📡 FullSync: ${c.slug} Fetching entire matches`);
 
-            const data = await fetchAllMatches(c.overview_page, l, authContext, dateQuery);
+            const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
             
             // 标记 isDelta 以便后续处理
             results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
@@ -944,7 +943,7 @@ async function runUpdate(env, force=false) {
                     return; // 直接返回，不执行下面的 successCount++
                 } else {
                     cache.rawMatches[slug] = newData;
-                    l.success(`📡 FullSync: Overwrote ${slug} with ${newData.length} matches`);
+                    l.success(`💾 Overwrote: ${slug} Overwrote ${newData.length} matches`);
                 }
             }
 
