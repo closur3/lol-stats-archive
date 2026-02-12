@@ -163,7 +163,7 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     }
 }
 
-async function fetchAllMatches(sourceInput, logger, authContext, dateFilter = null) {
+async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilter = null) {
     const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
     let all = [];
     for (const overviewPage of pages) {
@@ -199,7 +199,7 @@ async function fetchAllMatches(sourceInput, logger, authContext, dateFilter = nu
                 
                 await new Promise(res => setTimeout(res, 2000)); 
             } catch(e) {
-                logger.error(`💥 Pagination: ${overviewPage} (Offset: ${offset}) -> ${e.message}`);
+                logger.error(`💥 Pagination: ${slug} (Offset: ${offset}) -> ${e.message}`);
                 throw new Error(`Batch Fail`);
             }
         }
