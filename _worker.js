@@ -152,10 +152,13 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
         } catch (e) {
             const waitTime = 30000 + Math.floor(Math.random() * 15000);
             if (attempt >= maxRetries) {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message}`);
+                logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
+            } else {
+                logger.info(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${Math.floor(waitTime/1000)}s...`);
+                
+                await new Promise(res => setTimeout(res, waitTime));
             }
-            await new Promise(res => setTimeout(res, waitTime));
             attempt++;
         }
     }
@@ -184,6 +187,7 @@ async function fetchAllMatches(sourceInput, logger, authContext, dateFilter = nu
             try {
                 const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
                 const batch = batchRaw.map(i => i.title);
+                logger.success(`📦 Received: Got ${batch.length} matches from ${overviewPage}`);
                 
                 if (!batch.length) break;
                 
