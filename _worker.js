@@ -155,8 +155,7 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
                 logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
-                logger.info(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${Math.floor(waitTime/1000)}s...`);
-                
+                logger.info(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${Math.floor(waitTime/1000)}s...`);               
                 await new Promise(res => setTimeout(res, waitTime));
             }
             attempt++;
