@@ -816,7 +816,7 @@ async function runUpdate(env, force=false) {
         const threshold = currentMode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
         if (force || elapsed >= threshold || isNewDay) {
-            if (isNewDay) l.info(`🌅 New Day: ${t.slug} Force daily check triggered`);
+            if (isNewDay) l.info(`🌅 NEW-DAY: ${t.slug} Force daily check triggered`);
             // 将 isNewDay 标记传递给后续逻辑
             candidates.push({ 
                 slug: t.slug, 
@@ -860,8 +860,8 @@ async function runUpdate(env, force=false) {
             
             const dateQuery = isFullFetch ? null : todayUTC;
 
-            if (!isFullFetch) l.info(`🛰️ Delta Sync: ${c.slug} Fetching today's matches`);
-            else l.info(`📡 Full Sync: ${c.slug} Fetching entire matches`);
+            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.slug} Fetching today's matches`);
+            else l.info(`📡 FullSync: ${c.slug} Fetching entire matches`);
 
             const data = await fetchAllMatches(c.overview_page, l, authContext, dateQuery);
             
@@ -912,16 +912,16 @@ async function runUpdate(env, force=false) {
                         mergedData.sort((a,b) => (a.DateTime_UTC||"").localeCompare(b.DateTime_UTC||""));
                         cache.rawMatches[slug] = mergedData;
                         cache.updateTimestamps[slug] = NOW;
-                        l.success(`♻️ Merged: ${slug} updated ${changesCount} matches`);
+                        l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches`);
                         successCount++;
                     } else {
-                        l.info(`💤 No Change: ${slug} live data identical`);
+                        l.info(`💤 Identical: ${slug} Data has not changed`);
                         // 数据虽没变，但我们确认了状态，更新时间戳
                         cache.updateTimestamps[slug] = NOW; 
                         successCount++;
                     }
                 } else {
-                    l.info(`💤 No Match: ${slug} has no matches scheduled for today`);
+                    l.info(`💤 OFF-DAY: ${slug} Has no matches for today`);
                     cache.updateTimestamps[slug] = NOW;
                     successCount++;
                 }
@@ -947,8 +947,8 @@ async function runUpdate(env, force=false) {
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
         const newMode = analysis.tournMeta[slug].mode;
-        if (oldMode === "fast" && newMode === "slow") l.success(`💤 SLOW Mode: ${slug} Entering SLOW mode`);
-        else if (oldMode === "slow" && newMode === "fast") l.info(`⚡ FAST Mode: ${slug} Activating FAST mode`);
+        if (oldMode === "fast" && newMode === "slow") l.success(`💤 SlowMode: ${slug} Entering SLOW mode`);
+        else if (oldMode === "slow" && newMode === "fast") l.info(`⚡ FastMode: ${slug} Activating FAST mode`);
     });
 
     const homeFragment = renderContentOnly(
