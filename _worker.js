@@ -884,49 +884,47 @@ async function runUpdate(env, force=false) {
             const oldData = cache.rawMatches[slug] || [];
             
             if (res.isDelta) {
-                // === [FIXED] 强力增量合并 (自动清洗脏数据) ===
+                // === [FIXED V41.2.2] 智能增量合并 (ID优先 + TBD防碰撞) ===
                 if (newData.length > 0) {
-                    let mergedData = [...oldData];
+                    const matchMap = new Map();
+
+                    // 1. 唯一键生成器 (核心修复：防止 TBD 覆盖)
+                    const getUniqueKey = (m) => {
+                        // A. 优先使用官方 ID (最准确)
+                        if (m.N_MatchInPage) return String(m.N_MatchInPage);
+                        if (m["N MatchInPage"]) return String(m["N MatchInPage"]);
+                        
+                        // B. 兜底策略：使用 时间+主队+客队 (解决同一时间的 TBD vs TBD)
+                        return `${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
+                    };
+
+                    // 2. 载入旧数据作为基准 (建立索引)
+                    oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
+
+                    // 3. 合并新数据 (检测变动)
                     let changesCount = 0;
-
-                    newData.forEach(newItem => {
-                        // 1. 寻找匹配：兼容多种 ID 格式，并增加[时间+主队]双重保险
-                        const idx = mergedData.findIndex(oldItem => {
-                            const idMatch = (oldItem.N_MatchInPage === newItem.N_MatchInPage) || 
-                                           (oldItem["N MatchInPage"] === newItem["N MatchInPage"]);
-                            const timeMatch = oldItem.DateTime_UTC === newItem.DateTime_UTC && 
-                                              oldItem.Team1 === newItem.Team1;
-                            return idMatch || timeMatch;
-                        });
-
-                        if (idx !== -1) {
-                            // 2. 找到记录：检查实质变化
-                            if (JSON.stringify(mergedData[idx]) !== JSON.stringify(newItem)) {
-                                mergedData[idx] = newItem; 
-                                changesCount++;
-                            }
-                        } else {
-                            // 3. 没找到：追加新数据
-                            mergedData.push(newItem);
+                    newData.forEach(m => {
+                        const key = getUniqueKey(m);
+                        const oldM = matchMap.get(key);
+                        
+                        // 仅当是新比赛 OR 数据内容发生实质变化时才写入
+                        if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
+                            matchMap.set(key, m);
                             changesCount++;
                         }
                     });
-                    
-                    if (changesCount > 0) {
-                        // 4. [关键] 强力去重：根据 (时间 + 主队) 清洗整个数组
-                        // 这会自动修复之前因 Bug 产生的重复数据
-                        const uniqueMap = new Map();
-                        mergedData.forEach(m => {
-                            const key = `${m.DateTime_UTC}_${m.Team1}`;
-                            uniqueMap.set(key, m); // 后面的会覆盖前面的，保证最新
-                        });
-                        mergedData = Array.from(uniqueMap.values());
 
-                        // 5. 重新排序
-                        mergedData.sort((a,b) => (a.DateTime_UTC||"").localeCompare(b.DateTime_UTC||""));
-                        
-                        cache.rawMatches[slug] = mergedData;
-                        l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches`);
+                    if (changesCount > 0) {
+                        // 4. 转回数组并重新排序 (确保时间顺序)
+                        const mergedList = Array.from(matchMap.values());
+                        mergedList.sort((a, b) => {
+                            const tA = a.DateTime_UTC || "9999-99-99";
+                            const tB = b.DateTime_UTC || "9999-99-99";
+                            return tA.localeCompare(tB);
+                        });
+
+                        cache.rawMatches[slug] = mergedList;
+                        l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches (Total: ${mergedList.length})`);
                     } else {
                         l.info(`💤 Identical: ${slug} Data has not changed`);
                     }
@@ -938,9 +936,8 @@ async function runUpdate(env, force=false) {
                 // === 全量模式：熔断保护 ===
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
                     l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
-                    // 触发熔断时，不更新数据，也不更新时间戳，视为失败以便引起注意
                     failureCount++; 
-                    return; // 直接返回，不执行下面的 successCount++
+                    return; // 触发熔断，跳过更新
                 } else {
                     cache.rawMatches[slug] = newData;
                     l.success(`💾 Overwrote: ${slug} Overwrote ${newData.length} matches`);
