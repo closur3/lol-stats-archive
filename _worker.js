@@ -818,7 +818,7 @@ async function runUpdate(env, force=false) {
         const threshold = currentMode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
         if (force || elapsed >= threshold || isNewDay) {
-            if (isNewDay) l.info(`🌅 NEW-DAY: ${t.slug} Force daily check triggered`);
+            if (isNewDay) l.info(`🌅 NewDay: ${t.slug} Force daily check triggered`);
             // 将 isNewDay 标记传递给后续逻辑
             candidates.push({ 
                 slug: t.slug, 
@@ -931,7 +931,7 @@ async function runUpdate(env, force=false) {
                         l.info(`💤 Identical: ${slug} Data has not changed`);
                     }
                 } else {
-                    l.info(`💤 OFF-DAY: ${slug} No matches for today`);
+                    l.info(`💤 OffDay: ${slug} No matches for today`);
                 }
 
             } else {
