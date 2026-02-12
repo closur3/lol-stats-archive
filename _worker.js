@@ -411,7 +411,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
         const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-"; const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
         const serTxt = s.s_t ? `${s.s_w}-${s.s_t-s.s_w}` : "-"; const gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
         const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
-        const last = s.last ? utils.fmtDate(s.last).slice(0,10) : "-";
+        const last = s.last ? utils.fmtDate(s.last) : "-";
         md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${utils.pct(utils.rate(s.s_w, s.s_t))} | ${gamTxt} | ${utils.pct(utils.rate(s.g_w, s.g_t))} | ${strk} | ${last} |\n`;
     });
     md += `\n## 📅 Time Slot Distribution\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
