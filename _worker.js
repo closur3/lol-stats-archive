@@ -882,60 +882,74 @@ async function runUpdate(env, force=false) {
             const oldData = cache.rawMatches[slug] || [];
             
             if (res.isDelta) {
-                // === [NEW] 增量合并逻辑 ===
+                // === [FIXED] 强力增量合并 (自动清洗脏数据) ===
                 if (newData.length > 0) {
                     let mergedData = [...oldData];
                     let changesCount = 0;
 
                     newData.forEach(newItem => {
-                        // 寻找匹配的旧记录 (根据 概览页 + 场次编号)
-                        const idx = mergedData.findIndex(oldItem => 
-                            oldItem.OverviewPage === newItem.OverviewPage && 
-                            oldItem.N_MatchInPage === newItem.N_MatchInPage
-                        );
+                        // 1. 寻找匹配：兼容多种 ID 格式，并增加[时间+主队]双重保险
+                        const idx = mergedData.findIndex(oldItem => {
+                            const idMatch = (oldItem.N_MatchInPage === newItem.N_MatchInPage) || 
+                                           (oldItem["N MatchInPage"] === newItem["N MatchInPage"]);
+                            const timeMatch = oldItem.DateTime_UTC === newItem.DateTime_UTC && 
+                                              oldItem.Team1 === newItem.Team1;
+                            return idMatch || timeMatch;
+                        });
 
                         if (idx !== -1) {
-                            // 检查是否有实质变化 (分数/状态)
+                            // 2. 找到记录：检查实质变化
                             if (JSON.stringify(mergedData[idx]) !== JSON.stringify(newItem)) {
-                                mergedData[idx] = newItem; // 替换旧记录
+                                mergedData[idx] = newItem; 
                                 changesCount++;
                             }
                         } else {
-                            // 新增比赛 (追加)
+                            // 3. 没找到：追加新数据
                             mergedData.push(newItem);
                             changesCount++;
                         }
                     });
                     
                     if (changesCount > 0) {
-                        // 重新排序
+                        // 4. [关键] 强力去重：根据 (时间 + 主队) 清洗整个数组
+                        // 这会自动修复之前因 Bug 产生的重复数据
+                        const uniqueMap = new Map();
+                        mergedData.forEach(m => {
+                            const key = `${m.DateTime_UTC}_${m.Team1}`;
+                            uniqueMap.set(key, m); // 后面的会覆盖前面的，保证最新
+                        });
+                        mergedData = Array.from(uniqueMap.values());
+
+                        // 5. 重新排序
                         mergedData.sort((a,b) => (a.DateTime_UTC||"").localeCompare(b.DateTime_UTC||""));
+                        
                         cache.rawMatches[slug] = mergedData;
-                        cache.updateTimestamps[slug] = NOW;
                         l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches`);
-                        successCount++;
                     } else {
                         l.info(`💤 Identical: ${slug} Data has not changed`);
-                        // 数据虽没变，但我们确认了状态，更新时间戳
-                        cache.updateTimestamps[slug] = NOW; 
-                        successCount++;
                     }
                 } else {
-                    l.info(`💤 OFF-DAY: ${slug} Has no matches for today`);
-                    cache.updateTimestamps[slug] = NOW;
-                    successCount++;
+                    l.info(`💤 OFF-DAY: ${slug} No matches for today`);
                 }
+
             } else {
-                // === [OLD] 全量替换逻辑 (含熔断) ===
+                // === 全量模式：熔断保护 ===
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
                     l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
-                    failureCount++;
+                    // 触发熔断时，不更新数据，也不更新时间戳，视为失败以便引起注意
+                    failureCount++; 
+                    return; // 直接返回，不执行下面的 successCount++
                 } else {
                     cache.rawMatches[slug] = newData;
-                    cache.updateTimestamps[slug] = NOW;
-                    successCount++;
+                    l.success(`📡 FullSync: Overwrote ${slug} with ${newData.length} matches`);
                 }
             }
+
+            // [UNIFIED] 只要未触发熔断且请求成功，统一更新时间戳和计数
+            // 确保 "No Change" 的情况也被计为成功
+            cache.updateTimestamps[slug] = NOW;
+            successCount++;
+
         } else {
             failureCount++;
         }
