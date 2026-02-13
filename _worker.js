@@ -1,12 +1,12 @@
 // ====================================================
-// 🥇 Worker V41.2.0: Hybrid Delta Sync
+// 🥇 Worker V41.2.1: Smart Full Sync
 // 更新特性:
-// 1. 混合更新: 每日0点或无缓存时全量抓取，赛中仅增量抓取当日数据
-// 2. 精准合并: 增量模式下，仅修改变动的场次，不覆盖历史数据
-// 3. 极速响应: 赛中 API 耗时从 3s 降至 0.3s，彻底解决 Rate Limit
+// 1. 策略优化: 慢速模式(Slow Mode)下强制全量抓取，确保赛程变动同步
+// 2. 混合更新: 仅在快速模式(Fast Mode)且非跨天时启用增量抓取
+// 3. 稳定性: 保持原有熔断与精准合并机制
 // ====================================================
 
-const UI_VERSION = "2026-02-12-V41.2.0-Delta-Sync";
+const UI_VERSION = "2026-02-14-V41.2.1-Smart-Sync";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -825,7 +825,8 @@ async function runUpdate(env, force=false) {
                 overview_page: t.overview_page, 
                 elapsed: elapsed, 
                 label: `${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
-                isNewDay: isNewDay 
+                isNewDay: isNewDay,
+                mode: currentMode // [MODIFIED] 记录当前模式用于后续判断
             });
             needsNetworkUpdate = true;
         } else {
@@ -857,8 +858,9 @@ async function runUpdate(env, force=false) {
         try {
             // [MODIFIED] 智能判定：全量 vs 增量
             const oldData = cache.rawMatches[c.slug] || [];
-            // 触发全量的条件：强制刷新 OR 新的一天 OR 缓存为空
-            const isFullFetch = force || c.isNewDay || oldData.length === 0;
+            // 触发全量的条件：强制刷新 OR 新的一天 OR 缓存为空 OR 慢速模式
+            // 逻辑：慢速模式意味着可能不在赛中，需要全量同步来捕捉赛程变动或延期
+            const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
             
             const dateQuery = isFullFetch ? null : todayUTC;
 
