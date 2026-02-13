@@ -926,7 +926,7 @@ async function runUpdate(env, force=false) {
                         cache.rawMatches[slug] = mergedList;
                         l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches (Total: ${mergedList.length})`);
                     } else {
-                        l.info(`💤 Identical: ${slug} Data has not changed`);
+                        l.info(`💤 Identical: ${slug} Data not changed`);
                     }
                 } else {
                     l.info(`💤 OffDay: ${slug} No matches for today`);
