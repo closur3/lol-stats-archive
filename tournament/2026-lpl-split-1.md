@@ -1,10 +1,10 @@
 # 2026 LPL Split 1
 
-Updated: 2026-02-17 20:36 (CST)
+Updated: 2026-02-17 20:53:47 (CST)
 
 ---
 
-## 📊 Statisti
+## 📊 Statistics
 
 | TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
