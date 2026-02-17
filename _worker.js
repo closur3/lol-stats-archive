@@ -95,7 +95,7 @@ async function loginToFandom(env, logger) {
     
     // [新增] 显式匿名模式支持
     if (user && user.trim().toLowerCase() === "anonymous") {
-        logger.info("👻 Mode: Anonymous (Login Skipped by Config)");
+        logger.info("👻 Anonymous: Login Skipped by Config");
         // 返回特殊标记对象，确保后续逻辑知道这是有意为之的匿名访问
         return { isAnonymous: true };
     }
