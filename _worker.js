@@ -175,7 +175,7 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
     const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
     let all = [];
     for (const overviewPage of pages) {
-        let offset = 0; const limit = 50;
+        let offset = 0; const limit = 100;
         while(true) {
             let whereClause = `OverviewPage LIKE '${overviewPage}%'`;
             if (dateFilter) {
