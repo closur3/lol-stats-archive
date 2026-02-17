@@ -4,7 +4,7 @@ Updated: 2026-02-17 20:29:22 (CST)
 
 ---
 
-## 📊 Statistics
+## 📊 Stat
 
 | TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
