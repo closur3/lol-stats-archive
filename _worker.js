@@ -1,12 +1,12 @@
 // ====================================================
-// 🥇 Worker V41.2.1: Smart Full Sync
+// 🥇 Worker V41.2.2: Smart Full Sync + Anon Support
 // 更新特性:
-// 1. 策略优化: 慢速模式(Slow Mode)下强制全量抓取，确保赛程变动同步
-// 2. 混合更新: 仅在快速模式(Fast Mode)且非跨天时启用增量抓取
-// 3. 稳定性: 保持原有熔断与精准合并机制
+// 1. 匿名支持: FANDOM_USER 设置为 "anonymous" 时直接跳过登录
+// 2. 策略优化: 慢速模式(Slow Mode)下强制全量抓取
+// 3. 混合更新: 仅在快速模式(Fast Mode)且非跨天时启用增量抓取
 // ====================================================
 
-const UI_VERSION = "2026-02-14-V41.2.1-Smart-Sync";
+const UI_VERSION = "2026-02-15-V41.2.2-Anon-Support";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -89,9 +89,17 @@ const gh = {
     }
 };
 
-// --- 3. 认证逻辑 (不变) ---
+// --- 3. 认证逻辑 (Updated for Anon Support) ---
 async function loginToFandom(env, logger) {
     const user = env.FANDOM_USER;
+    
+    // [新增] 显式匿名模式支持
+    if (user && user.trim().toLowerCase() === "anonymous") {
+        logger.info("👻 Mode: Anonymous (Login Skipped by Config)");
+        // 返回特殊标记对象，确保后续逻辑知道这是有意为之的匿名访问
+        return { isAnonymous: true };
+    }
+
     const pass = env.FANDOM_PASS;
     if (!user || !pass) {
         logger.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set.");
@@ -169,10 +177,8 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
     for (const overviewPage of pages) {
         let offset = 0; const limit = 50;
         while(true) {
-            // [MODIFIED] 动态构建 Where 子句
             let whereClause = `OverviewPage LIKE '${overviewPage}%'`;
             if (dateFilter) {
-                // 增量模式：只查 UTC 时间为“今天”的比赛
                 whereClause += ` AND DateTime_UTC >= '${dateFilter} 00:00:00' AND DateTime_UTC <= '${dateFilter} 23:59:59'`;
             }
 
@@ -193,8 +199,7 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
                 all = all.concat(batch);
                 offset += batch.length;
                 
-                // [MODIFIED] 增量模式下数据极少，无需翻页，一次即止
-                if (dateFilter) break;
+                if (dateFilter) break; // 增量模式一次即止
                 if (batch.length < limit) break;
                 
                 await new Promise(res => setTimeout(res, 2000)); 
@@ -223,7 +228,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
     const todayStr = utils.getNow().date;
     const allFutureMatches = {}; 
 
-    // [CPU OPTIMIZATION 1] 预处理 TeamMap，避免循环内 Object.entries
+    // [CPU OPTIMIZATION 1] 预处理 TeamMap
     const teamMapEntries = runtimeConfig.TEAM_MAP ? Object.entries(runtimeConfig.TEAM_MAP).map(([k,v]) => ({k: k.toUpperCase(), v})) : [];
     
     // [CPU OPTIMIZATION 2] Memoization Cache for Name Resolution
@@ -237,7 +242,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         if (upper.includes("TBD") || upper.includes("TBA") || upper.includes("TO BE DETERMINED")) {
             res = "TBD";
         } else {
-            // 使用 find 代替循环 entries，虽然仍是 O(M) 但省去了 entries 创建开销
             const match = teamMapEntries.find(e => upper.includes(e.k));
             if (match) res = match.v;
             else res = raw.replace(/(Esports|Gaming|Academy|Team|Club)/gi, "").trim();
@@ -246,7 +250,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         return res;
     };
 
-    // [Helper] 整数补零
     const pad2 = (n) => n < 10 ? '0'+n : n;
 
     runtimeConfig.TOURNAMENTS.forEach((tourn, tournIdx) => {
@@ -260,7 +263,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
         rawMatches.forEach(m => {
-            // [CPU OPTIMIZATION 3] 使用缓存解析名字
             const t1 = resolveName(m.Team1 || m["Team 1"]);
             const t2 = resolveName(m.Team2 || m["Team 2"]);
             if(!t1 || !t2) { skipped++; return; } 
@@ -279,10 +281,8 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
 
             if (dt) {
                 ts = dt.getTime();
-                // [CPU OPTIMIZATION 4] 纯整数运算代替 toISOString/slice，大幅减少 GC
-                // 北京时间 = UTC + Offset
                 const localTs = ts + CST_OFFSET;
-                const localD = new Date(localTs); // 这里必须 new Date 才能正确处理闰年/月天数，但避免了 String 处理
+                const localD = new Date(localTs); 
                 
                 const y = localD.getUTCFullYear();
                 const mo = localD.getUTCMonth() + 1;
@@ -290,12 +290,8 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
                 const ho = localD.getUTCHours();
                 const mi = localD.getUTCMinutes();
                 
-                // 构建 matchDateStr: YYYY-MM-DD
                 const matchDateStr = `${y}-${pad2(mo)}-${pad2(da)}`;
-                // 构建 matchTimeStr: HH:mm
                 const matchTimeStr = `${pad2(ho)}:${pad2(mi)}`;
-                
-                // dateDisplay: MM-DD HH:mm
                 dateDisplay = `${pad2(mo)}-${pad2(da)} ${matchTimeStr}`;
 
                 if (matchDateStr >= todayStr) {
@@ -317,13 +313,11 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
                     });
                 }
 
-                // TimeGrid Logic (Using integers directly)
                 if (isFinished) {
                     if(ts > stats[t1].last) stats[t1].last = ts;
                     if(ts > stats[t2].last) stats[t2].last = ts;
                     if(ts > maxDateTs) maxDateTs = ts;
 
-                    // getUTCDay: 0(Sun)..6(Sat). 我们需要 0(Mon)..6(Sun)
                     const wd = localD.getUTCDay();
                     const pyDay = wd === 0 ? 6 : wd - 1;
                     const targetH = ho;
@@ -376,10 +370,9 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
         let nextStreak = 0, nextMode = "fast";
 
-        // [修改] 智能调度逻辑：仅当时间到达开赛时间后，才切换为 FAST 模式
+        // [智能调度]
         if (t_matchesToday > 0 && t_pendingToday > 0) { 
             nextStreak = 0; 
-            // 如果当前时间 >= 最早开赛时间，进入快速模式；否则保持慢速等待
             nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
         } else { 
             nextStreak = prevT.streak >= 1 ? 2 : 1; 
@@ -843,7 +836,14 @@ async function runUpdate(env, force=false) {
     }
 
     const authContext = await loginToFandom(env, l);
-    if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously"); else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
+    // [Modified] 日志优化
+    if (authContext?.isAnonymous) {
+        // 显式匿名，已记录日志，此处跳过
+    } else if (!authContext) {
+        l.info("⚠️ Auth Failed. Proceeding anonymously"); 
+    } else {
+        l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
+    }
 
     candidates.sort((a, b) => b.elapsed - a.elapsed);
     const totalLeagues = runtimeConfig.TOURNAMENTS.length;
