@@ -2,8 +2,8 @@ name: Archive Stats
 
 on:
   schedule:
-    - cron: '0 0 * * *' # 每天北京时间 10:00 自动运行
-  workflow_dispatch: # 随时可以手动点运行
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   archive:
@@ -24,43 +24,42 @@ jobs:
           import re
           from datetime import datetime, timedelta, timezone
 
-          # 1. 设定北京时间 (CST)
           cst_tz = timezone(timedelta(hours=8))
           now_cst = datetime.now(cst_tz).strftime("%Y-%m-%d %H:%M:%S")
 
           url = os.environ["WORKER_URL"]
           print(f"正在抓取: {url}")
-          
+
           try:
               resp = requests.get(url, timeout=30)
               resp.raise_for_status()
               data = resp.json()
-              
+
               for file_path, content in data.items():
-                  # 注入本次 Action 运行的真实时间
-                  new_full_content = content.replace("{{UPDATED_TIME}}", now_cst)
-                  os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                  
-                  # 2. 核心比对逻辑：忽略时间戳行，对比数据
                   should_write = True
+
                   if os.path.exists(file_path):
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
-                      
-                      # 抹除旧文件和新内容里的 Updated 行再比对
-                      clean_old = re.sub(r"\*\*Updated:\*\*.*\(CST\)", "", old_content).strip()
-                      clean_new = re.sub(r"\*\*Updated:\*\*.*\(CST\)", "", new_full_content).strip()
-                      
+
+                      clean_old = re.sub(
+                          r"\*\*Updated:\*\* \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \(CST\)",
+                          "{{UPDATED_TIME}}",
+                          old_content
+                      ).strip()
+                      clean_new = content.strip()
+
                       if clean_old == clean_new:
-                          print(f"跳过 {file_path}: 比赛数据无变化")
+                          print(f"跳过 {file_path}: 数据无变化")
                           should_write = False
-                  
-                  # 3. 只有数据变了才写入磁盘
+
                   if should_write:
+                      new_full_content = content.replace("{{UPDATED_TIME}}", now_cst)
+                      os.makedirs(os.path.dirname(file_path), exist_ok=True)
                       with open(file_path, "w", encoding="utf-8") as f:
                           f.write(new_full_content)
                       print(f"写入 {file_path}: 检测到数据更新")
-                      
+
           except Exception as e:
               print(f"错误: {e}")
               exit(1)
