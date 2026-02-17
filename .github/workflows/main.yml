@@ -3,7 +3,7 @@ name: Archive Stats
 on:
   schedule:
     - cron: '0 0 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   archive:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Fetch and Process Data
+      - name: Fetch and Smart Update
         env:
           WORKER_URL: "https://lol-stats.closur3.workers.dev/backup"
         run: |
@@ -24,50 +24,79 @@ jobs:
           import re
           from datetime import datetime, timedelta, timezone
 
+          # --- 配置 ---
+          # 1. 设置北京时间 (UTC+8)
           cst_tz = timezone(timedelta(hours=8))
-          now_cst = datetime.now(cst_tz).strftime("%Y-%m-%d %H:%M:%S")
+          now_cst = datetime.now(cst_tz).strftime("%Y-%m-%d %H:%M")
+          
+          url = os.environ.get("WORKER_URL")
+          if not url:
+              print("❌ 错误: WORKER_URL 环境变量未设置")
+              exit(1)
 
-          url = os.environ["WORKER_URL"]
-          print(f"正在抓取: {url}")
+          # 2. 正则：精准匹配 "Updated: ... (CST)" 整行
+          # 解释: ^ 行首, .* 任意字符, \(CST\)$ 行尾
+          TIME_PATTERN = re.compile(r"^Updated:.*\(CST\)$", re.MULTILINE)
+
+          print(f"🚀 开始抓取: {url}")
 
           try:
               resp = requests.get(url, timeout=30)
               resp.raise_for_status()
               data = resp.json()
+              
+              changes_count = 0
 
-              for file_path, content in data.items():
+              for file_path, raw_template in data.items():
+                  # 确保目录存在
+                  os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                  
+                  # === 核心比对逻辑 ===
+                  
+                  # A. 准备新数据的“指纹”（移除时间行后的纯净内容）
+                  # 原始数据里是 {{UPDATED_TIME}}，正则也会将其移除，只留数据本身
+                  clean_new = TIME_PATTERN.sub("", raw_template).strip()
+                  
                   should_write = True
-
+                  
+                  # B. 读取本地旧文件
                   if os.path.exists(file_path):
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
-
-                      clean_old = re.sub(
-                          r"\*\*Updated:\*\* \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \(CST\)",
-                          "{{UPDATED_TIME}}",
-                          old_content
-                      ).strip()
-                      clean_new = content.strip()
-
+                      
+                      # C. 准备旧数据的“指纹”（移除旧时间行）
+                      clean_old = TIME_PATTERN.sub("", old_content).strip()
+                      
+                      # D. 比对指纹
                       if clean_old == clean_new:
-                          print(f"跳过 {file_path}: 数据无变化")
+                          print(f"⏭️  [跳过] {file_path}: 数据无变化")
                           should_write = False
+                      else:
+                          print(f"⚡  [更新] {file_path}: 检测到数据变动")
+                  else:
+                      print(f"✨  [新建] {file_path}")
 
+                  # === 写入逻辑 ===
                   if should_write:
-                      new_full_content = content.replace("{{UPDATED_TIME}}", now_cst)
-                      os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                      # 只有确定要写的时候，才把当前时间填进去
+                      final_content = raw_template.replace("{{UPDATED_TIME}}", now_cst)
+                      
                       with open(file_path, "w", encoding="utf-8") as f:
-                          f.write(new_full_content)
-                      print(f"写入 {file_path}: 检测到数据更新")
+                          f.write(final_content)
+                      changes_count += 1
+              
+              print(f"\n处理完成。共更新 {changes_count} 个文件。")
 
           except Exception as e:
-              print(f"错误: {e}")
+              print(f"❌ 脚本执行发生错误: {e}")
               exit(1)
         shell: python
 
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🗃️ Archive stats (Auto)"
+          commit_message: "🗃️ Archive stats update"
           file_pattern: 'tournament/*.md'
-          commit_author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          skip_dirty_check: false    # 再次确保只有变动才提交
+          commit_user_name: "LoL Stats Bot"
+          commit_user_email: "actions@github.com"
