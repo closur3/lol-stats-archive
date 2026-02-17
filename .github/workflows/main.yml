@@ -3,7 +3,7 @@ name: Archive Stats
 on:
   schedule:
     - cron: '0 0 * * *'
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   archive:
@@ -24,18 +24,19 @@ jobs:
           import re
           from datetime import datetime, timedelta, timezone
 
-          # --- 配置 ---
-          # 1. 设置北京时间 (UTC+8)
+          # --- 1. 设置北京时间 (UTC+8) ---
+          # 修正：加回秒数 (%S)
           cst_tz = timezone(timedelta(hours=8))
-          now_cst = datetime.now(cst_tz).strftime("%Y-%m-%d %H:%M")
+          now_cst = datetime.now(cst_tz).strftime("%Y-%m-%d %H:%M:%S")
           
           url = os.environ.get("WORKER_URL")
           if not url:
               print("❌ 错误: WORKER_URL 环境变量未设置")
               exit(1)
 
-          # 2. 正则：精准匹配 "Updated: ... (CST)" 整行
-          # 解释: ^ 行首, .* 任意字符, \(CST\)$ 行尾
+          # --- 2. 正则配置 ---
+          # 作用：匹配 "Updated: 2026-xx-xx ... (CST)" 这一整行
+          # 无论时间怎么变，这行都会被剔除后再比对剩余内容
           TIME_PATTERN = re.compile(r"^Updated:.*\(CST\)$", re.MULTILINE)
 
           print(f"🚀 开始抓取: {url}")
@@ -53,8 +54,8 @@ jobs:
                   
                   # === 核心比对逻辑 ===
                   
-                  # A. 准备新数据的“指纹”（移除时间行后的纯净内容）
-                  # 原始数据里是 {{UPDATED_TIME}}，正则也会将其移除，只留数据本身
+                  # A. 准备新数据的“指纹”（移除模板中的占位符行）
+                  # raw_template 里是 {{UPDATED_TIME}}，正则也会将其移除
                   clean_new = TIME_PATTERN.sub("", raw_template).strip()
                   
                   should_write = True
@@ -64,12 +65,12 @@ jobs:
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
                       
-                      # C. 准备旧数据的“指纹”（移除旧时间行）
+                      # C. 准备旧数据的“指纹”（移除旧文件里的时间行）
                       clean_old = TIME_PATTERN.sub("", old_content).strip()
                       
-                      # D. 比对指纹
+                      # D. 比对指纹（不含时间的内容）
                       if clean_old == clean_new:
-                          print(f"⏭️  [跳过] {file_path}: 数据无变化")
+                          print(f"⏭️  [跳过] {file_path}: 比赛数据无变化")
                           should_write = False
                       else:
                           print(f"⚡  [更新] {file_path}: 检测到数据变动")
@@ -78,12 +79,12 @@ jobs:
 
                   # === 写入逻辑 ===
                   if should_write:
-                      # 只有确定要写的时候，才把当前时间填进去
+                      # 只有确定要写的时候，才把当前带秒的时间填进去
                       final_content = raw_template.replace("{{UPDATED_TIME}}", now_cst)
                       
                       with open(file_path, "w", encoding="utf-8") as f:
                           f.write(final_content)
-                      changes_count += 1
+                          changes_count += 1
               
               print(f"\n处理完成。共更新 {changes_count} 个文件。")
 
@@ -95,8 +96,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🗃️ Archive stats update"
+          commit_message: "🗃️ Auto: Archive stats"
           file_pattern: 'tournament/*.md'
-          skip_dirty_check: false    # 再次确保只有变动才提交
-          commit_user_name: "LoL Stats Bot"
-          commit_user_email: "actions@github.com"
