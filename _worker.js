@@ -225,6 +225,9 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
 
     let maxDateTs = 0;
     let grandTotal = 0;
+    // [新增 1] 全局计数器：今天所有赛事的比赛总数
+    let totalMatchesToday = 0;
+
     const todayStr = utils.getNow().date;
     const allFutureMatches = {}; 
 
@@ -367,6 +370,9 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         globalStats[tourn.slug] = stats;
         grandTotal += processed;
 
+        // [新增 2] 累加该联赛今天的比赛数量到全局计数
+        totalMatchesToday += t_matchesToday;
+
         const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
         let nextStreak = 0, nextMode = "fast";
 
@@ -391,6 +397,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         });
     });
 
+    // [修改 3] 状态栏逻辑更新：区分 FINISHED 和 OFF-DAY
     let statusText = "";
     const metaValues = Object.values(tournMeta);
     const boxStyle = "display:inline-flex; align-items:center; justify-content:center; gap:5px; font-weight:600; font-size:12px; padding: 4px 10px; border-radius: 20px; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;";
@@ -403,7 +410,12 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
     } else if (metaValues.some(m => m.streak === 1)) {
         statusText = `<div style="${boxStyle} color:#737373;"><span style="${iconStyle}">👀</span><span>VERIFYING</span></div>`;
     } else {
-        statusText = `<div style="${boxStyle} color:#94a3b8;"><span style="${iconStyle}">✔️</span><span>FINISHED</span></div>`;
+        // [逻辑变更] 如果今天没有任何比赛(totalMatchesToday == 0)，显示 OFF-DAY；否则说明今天的比赛都打完了，显示 FINISHED
+        if (totalMatchesToday === 0) {
+            statusText = `<div style="${boxStyle} color:#64748b;"><span style="${iconStyle}">💤</span><span>OFF-DAY</span></div>`;
+        } else {
+            statusText = `<div style="${boxStyle} color:#94a3b8;"><span style="${iconStyle}">✔️</span><span>FINISHED</span></div>`;
+        }
     }
 
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
