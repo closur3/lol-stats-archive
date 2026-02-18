@@ -1,12 +1,11 @@
 // ====================================================
-// 🥇 Worker V41.2.2: Smart Full Sync + Anon Support
-// 更新特性:
-// 1. 匿名支持: FANDOM_USER 设置为 "anonymous" 时直接跳过登录
-// 2. 策略优化: 慢速模式(Slow Mode)下强制全量抓取
-// 3. 混合更新: 仅在快速模式(Fast Mode)且非跨天时启用增量抓取
+// 🥇 Worker V41.2.3: Log Tweak
+// 更新日志:
+// 1. 优化检测日志: Cooldown 合并为单行且显示 Region
+// 2. 优化抓取日志: Fetching 显示耗时与模式
 // ====================================================
 
-const UI_VERSION = "2026-02-15-V41.2.2-Anon-Support";
+const UI_VERSION = "2026-02-18-V41.2.3-Log-Tweak";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -800,7 +799,7 @@ async function runUpdate(env, force=false) {
         if (teams && tourns) runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
     } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
 
-    if (!runtimeConfig) { l.error("🛑 CRITICAL: Config load failed."); return l; }
+    if (!runtimeConfig) { l.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set."); return l; }
     if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
@@ -835,12 +834,15 @@ async function runUpdate(env, force=false) {
             });
             needsNetworkUpdate = true;
         } else {
-            waitings.push(`${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
+            // [LOG CHANGE 1] 使用 t.region 并格式化字符串，暂存入数组，后续合并打印
+            waitings.push(`${t.region || t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
         }
     });
 
     l.info(`🔍 Detection: ${candidates.length} Candidates | ${waitings.length} Cooldown`);
-    if (waitings.length > 0) { if(waitings.length <= 3) waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`)); else l.info(`❄️ Cooldown: ${waitings.length} leagues waiting...`); }
+    
+    // [LOG CHANGE 2] 合并 Cooldown 日志为单行
+    if (waitings.length > 0) l.info(`❄️ Cooldown: ${waitings.join(" | ")}`);
 
     if (!needsNetworkUpdate || candidates.length === 0) {
         l.info("⏸️ Threshold not met. Update skipped");
@@ -876,8 +878,9 @@ async function runUpdate(env, force=false) {
             
             const dateQuery = isFullFetch ? null : todayUTC;
 
-            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.slug} Fetching today's matches`);
-            else l.info(`📡 FullSync: ${c.slug} Fetching entire matches`);
+            // [LOG CHANGE 3] 使用 c.label (包含耗时与模式) 替代 c.slug
+            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.label} Fetching today's matches`);
+            else l.info(`📡 FullSync: ${c.label} Fetching entire matches`);
 
             const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
             
