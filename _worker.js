@@ -1,11 +1,11 @@
 // ====================================================
-// 🥇 Worker V41.2.3: Log Tweak
+// 🥇 Worker V41.2.4: Log Clean
 // 更新日志:
-// 1. 优化检测日志: Cooldown 合并为单行且显示 Region
-// 2. 优化抓取日志: Fetching 显示耗时与模式
+// 1. 极致精简日志: 移除 Detection 汇总行与 Threshold 提示
+// 2. 仅保留 Cooldown 详情与实际抓取动作
 // ====================================================
 
-const UI_VERSION = "2026-02-18-V41.2.3-Log-Tweak";
+const UI_VERSION = "2026-02-18-V41.2.4-Log-Clean";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -839,13 +839,13 @@ async function runUpdate(env, force=false) {
         }
     });
 
-    l.info(`🔍 Detection: ${candidates.length} Candidates | ${waitings.length} Cooldown`);
+    // [LOG CLEANUP] 移除了 Detection 汇总行
     
     // [LOG CHANGE 2] 合并 Cooldown 日志为单行
     if (waitings.length > 0) l.info(`❄️ Cooldown: ${waitings.join(" | ")}`);
 
     if (!needsNetworkUpdate || candidates.length === 0) {
-        l.info("⏸️ Threshold not met. Update skipped");
+        // [LOG CLEANUP] 移除了 Threshold not met 提示
         return l;
     }
 
