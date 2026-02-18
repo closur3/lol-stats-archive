@@ -805,11 +805,10 @@ async function runUpdate(env, force=false) {
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    let needsNetworkUpdate = false, candidates = [], waitings = [];
-    
-    // [UTC 日期计算用于判定新的一天]
+    let candidates = [], waitings = [];
     const dayNow = utils.toCST(NOW).getUTCDate();
 
+    // === 调度循环 ===
     runtimeConfig.TOURNAMENTS.forEach(t => {
         const lastTs = cache.updateTimestamps[t.slug] || 0;
         const elapsed = NOW - lastTs;
@@ -821,36 +820,40 @@ async function runUpdate(env, force=false) {
         const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0 };
         const currentMode = tMeta.mode;
         const threshold = currentMode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
+        const shortName = t.region || t.slug; 
         
         if (force || elapsed >= threshold || isNewDay) {
-            if (isNewDay) l.info(`🌅 NewDay: ${t.slug} Force daily check triggered`);
-            // 将 isNewDay 标记传递给后续逻辑
             candidates.push({ 
                 slug: t.slug, 
                 overview_page: t.overview_page, 
                 elapsed: elapsed, 
-                label: `${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
                 isNewDay: isNewDay,
-                mode: currentMode // [MODIFIED] 记录当前模式用于后续判断
+                mode: currentMode,
+                displayName: shortName 
             });
-            needsNetworkUpdate = true;
         } else {
-            waitings.push(`${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
+            // [修改 1] 构建合并后的等待字符串
+            waitings.push(`${shortName} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
         }
     });
 
-    l.info(`🔍 Detection: ${candidates.length} Candidates | ${waitings.length} Cooldown`);
-    if (waitings.length > 0) { if(waitings.length <= 3) waitings.forEach(w => l.info(`❄️ Cooldown: ${w}`)); else l.info(`❄️ Cooldown: ${waitings.length} leagues waiting...`); }
-
-    if (!needsNetworkUpdate || candidates.length === 0) {
-        l.info("⏸️ Threshold not met. Update skipped");
-        return l;
+    // === [修改 2] 本地检测逻辑分支 ===
+    if (candidates.length === 0) {
+        // 场景 A: 无需更新 -> 输出一行极简日志并退出
+        const cooldownStr = waitings.join(" | ") || "None";
+        l.info(`❄️ Cooldown: ${cooldownStr}`);
+        return l; // 直接结束，不执行后续代码
     }
 
+    // 场景 B: 需要更新 -> 输出检测汇总，然后继续执行原有的联网流程
+    const actStr = candidates.map(c => c.displayName).join(", ");
+    const waitStr = waitings.join(" | ") || "None";
+    l.info(`🔍 Check: ${candidates.length} Active [${actStr}] | Wait [${waitStr}]`);
+
+    // --- 以下是原有的联网任务逻辑 (保持原样，只修改了 Fetching 日志格式) ---
+
     const authContext = await loginToFandom(env, l);
-    // [Modified] 日志优化
     if (authContext?.isAnonymous) {
-        // 显式匿名，已记录日志，此处跳过
     } else if (!authContext) {
         l.info("⚠️ Auth Failed. Proceeding anonymously"); 
     } else {
@@ -862,32 +865,31 @@ async function runUpdate(env, force=false) {
     const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
     const batch = candidates.slice(0, batchSize);
     
-    // [PREPARE] 获取 UTC 日期字符串用于增量查询
     const todayUTC = new Date().toISOString().slice(0, 10); 
 
     const results = [];
     for (const c of batch) {
         try {
-            // [MODIFIED] 智能判定：全量 vs 增量
             const oldData = cache.rawMatches[c.slug] || [];
-            // 触发全量的条件：强制刷新 OR 新的一天 OR 缓存为空 OR 慢速模式
-            // 逻辑：慢速模式意味着可能不在赛中，需要全量同步来捕捉赛程变动或延期
             const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
-            
             const dateQuery = isFullFetch ? null : todayUTC;
 
-            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.slug} Fetching today's matches`);
-            else l.info(`📡 FullSync: ${c.slug} Fetching entire matches`);
+            // [修改 3] Fetching 日志格式: 添加 (xm, MODE)
+            const mins = Math.floor(c.elapsed / 60000);
+            const logTag = `${c.slug}(${mins}m, ${c.mode.toUpperCase()})`;
+
+            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${logTag}`);
+            else l.info(`📡 FullSync: ${logTag}`);
 
             const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
-            
-            // 标记 isDelta 以便后续处理
             results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
         } catch (err) {
             results.push({ status: 'rejected', slug: c.slug, err: err });
         }
         if (c !== batch[batch.length - 1]) await new Promise(res => setTimeout(res, 2000));
     }
+
+    // ... (后续 Merging / Breaker / Analysis 逻辑完全未动) ...
 
     let successCount = 0, failureCount = 0; 
     
@@ -898,30 +900,20 @@ async function runUpdate(env, force=false) {
             const oldData = cache.rawMatches[slug] || [];
             
             if (res.isDelta) {
-                // === [FIXED V41.2.2] 智能增量合并 (ID优先 + TBD防碰撞) ===
                 if (newData.length > 0) {
                     const matchMap = new Map();
-
-                    // 1. 唯一键生成器 (核心修复：防止 TBD 覆盖)
                     const getUniqueKey = (m) => {
-                        // A. 优先使用官方 ID (最准确)
                         if (m.N_MatchInPage) return String(m.N_MatchInPage);
                         if (m["N MatchInPage"]) return String(m["N MatchInPage"]);
-                        
-                        // B. 兜底策略：使用 时间+主队+客队 (解决同一时间的 TBD vs TBD)
                         return `${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
                     };
 
-                    // 2. 载入旧数据作为基准 (建立索引)
                     oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
 
-                    // 3. 合并新数据 (检测变动)
                     let changesCount = 0;
                     newData.forEach(m => {
                         const key = getUniqueKey(m);
                         const oldM = matchMap.get(key);
-                        
-                        // 仅当是新比赛 OR 数据内容发生实质变化时才写入
                         if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
                             matchMap.set(key, m);
                             changesCount++;
@@ -929,7 +921,6 @@ async function runUpdate(env, force=false) {
                     });
 
                     if (changesCount > 0) {
-                        // 4. 转回数组并重新排序 (确保时间顺序)
                         const mergedList = Array.from(matchMap.values());
                         mergedList.sort((a, b) => {
                             const tA = a.DateTime_UTC || "9999-99-99";
@@ -938,7 +929,7 @@ async function runUpdate(env, force=false) {
                         });
 
                         cache.rawMatches[slug] = mergedList;
-                        l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches (Total: ${mergedList.length})`);
+                        l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches`);
                     } else {
                         l.info(`💤 Identical: ${slug} Data not changed`);
                     }
@@ -947,19 +938,16 @@ async function runUpdate(env, force=false) {
                 }
 
             } else {
-                // === 全量模式：熔断保护 ===
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
                     l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
                     failureCount++; 
-                    return; // 触发熔断，跳过更新
+                    return; 
                 } else {
                     cache.rawMatches[slug] = newData;
                     l.success(`💾 Overwrote: ${slug} Overwrote ${newData.length} matches`);
                 }
             }
 
-            // [UNIFIED] 只要未触发熔断且请求成功，统一更新时间戳和计数
-            // 确保 "No Change" 的情况也被计为成功
             cache.updateTimestamps[slug] = NOW;
             successCount++;
 
@@ -1005,8 +993,8 @@ async function runUpdate(env, force=false) {
 
     await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
     
-    if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Ignored: ${failureCount} · Total Parsed: ${analysis.grandTotal}`);
-    else l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
+    if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Ignored: ${failureCount} · Total: ${analysis.grandTotal}`);
+    else l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total: ${analysis.grandTotal}`);
     return l;
 }
 
