@@ -1,11 +1,13 @@
 // ====================================================
-// 🥇 Worker V41.2.4: Log Clean
+// 🥇 Worker V41.2.5: Anti-Ban & State Freeze
 // 更新日志:
 // 1. 极致精简日志: 移除 Detection 汇总行与 Threshold 提示
 // 2. 仅保留 Cooldown 详情与实际抓取动作
+// 3. UA 轮换防 Ban: 移除固定脚本特征 UA，引入真实浏览器 UA 随机池，防 429 拦截
+// 4. 状态冻结机制: API 报错或熔断时，阻断该联赛的 streak 增加，防止误入慢速模式
 // ====================================================
 
-const UI_VERSION = "2026-02-18-V41.2.4-Log-Clean";
+const UI_VERSION = "2026-02-19-V41.2.5-AntiBan";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -63,6 +65,18 @@ const utils = {
     extractCookies: (headerVal) => {
         if (!headerVal) return "";
         return headerVal.split(',').map(c => c.split(';')[0].trim()).filter(c => c.includes('=')).join('; ');
+    },
+
+    // [新增] 多重真实浏览器 UA 轮换池，防 429 拦截
+    randomUA: () => {
+        const USER_AGENTS = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15"
+        ];
+        return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
     }
 };
 
@@ -88,14 +102,12 @@ const gh = {
     }
 };
 
-// --- 3. 认证逻辑 (Updated for Anon Support) ---
+// --- 3. 认证逻辑 (Updated for Anon Support & Random UA) ---
 async function loginToFandom(env, logger) {
     const user = env.FANDOM_USER;
     
-    // [新增] 显式匿名模式支持
     if (user && user.trim().toLowerCase() === "anonymous") {
         logger.info("👻 Anonymous: Login Skipped by Config");
-        // 返回特殊标记对象，确保后续逻辑知道这是有意为之的匿名访问
         return { isAnonymous: true };
     }
 
@@ -105,7 +117,7 @@ async function loginToFandom(env, logger) {
         return null;
     }
     const API = "https://lol.fandom.com/api.php";
-    const UA = `LoL-Stats-Worker/1.0 (${user})`; 
+    const UA = utils.randomUA(); // [修改] 使用随机真实浏览器UA
 
     try {
         const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
@@ -139,9 +151,9 @@ async function loginToFandom(env, logger) {
     }
 }
 
-// --- 4. 抓取逻辑 (不变) ---
+// --- 4. 抓取逻辑 ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
-    const headers = { "User-Agent": authContext?.ua || "LoL-Stats-Worker/1.0 (HsuX)" };
+    const headers = { "User-Agent": authContext?.ua || utils.randomUA() }; // [修改] 使用随机真实浏览器UA
     if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
 
     let attempt = 1;
@@ -198,7 +210,7 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
                 all = all.concat(batch);
                 offset += batch.length;
                 
-                if (dateFilter) break; // 增量模式一次即止
+                if (dateFilter) break; 
                 if (batch.length < limit) break;
                 
                 await new Promise(res => setTimeout(res, 2000)); 
@@ -211,8 +223,8 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
     return all;
 }
 
-// --- 5. 统计核心 (⚡️ CPU Optimized) ---
-function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
+// --- 5. 统计核心 (⚡️ CPU Optimized & State Freeze) ---
+function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlugs = new Set()) {
     const globalStats = {};
     const debugInfo = {};
     const tournMeta = {}; 
@@ -224,7 +236,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
 
     let maxDateTs = 0;
     let grandTotal = 0;
-    // [新增 1] 全局计数器：今天所有赛事的比赛总数
     let totalMatchesToday = 0;
 
     const todayStr = utils.getNow().date;
@@ -368,15 +379,17 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
         globalStats[tourn.slug] = stats;
         grandTotal += processed;
-
-        // [新增 2] 累加该联赛今天的比赛数量到全局计数
         totalMatchesToday += t_matchesToday;
 
         const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
         let nextStreak = 0, nextMode = "fast";
 
-        // [智能调度]
-        if (t_matchesToday > 0 && t_pendingToday > 0) { 
+        // [智能调度] - 结合熔断/失败黑名单阻断机制
+        if (failedSlugs.has(tourn.slug)) {
+            // [新增] 抓取失败或被熔断，状态冻结，不自增 streak
+            nextStreak = prevT.streak || 0;
+            nextMode = prevT.mode || "fast";
+        } else if (t_matchesToday > 0 && t_pendingToday > 0) { 
             nextStreak = 0; 
             nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
         } else { 
@@ -396,7 +409,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
         });
     });
 
-    // [修改 3] 状态栏逻辑更新：区分 FINISHED 和 OFF-DAY
     let statusText = "";
     const metaValues = Object.values(tournMeta);
     const boxStyle = "display:inline-flex; align-items:center; justify-content:center; gap:5px; font-weight:600; font-size:12px; padding: 4px 10px; border-radius: 20px; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;";
@@ -409,7 +421,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
     } else if (metaValues.some(m => m.streak === 1)) {
         statusText = `<div style="${boxStyle} color:#737373;"><span style="${iconStyle}">👀</span><span>VERIFYING</span></div>`;
     } else {
-        // [逻辑变更] 如果今天没有任何比赛(totalMatchesToday == 0)，显示 OFF-DAY；否则说明今天的比赛都打完了，显示 FINISHED
         if (totalMatchesToday === 0) {
             statusText = `<div style="${boxStyle} color:#64748b;"><span style="${iconStyle}">💤</span><span>OFF-DAY</span></div>`;
         } else {
@@ -420,7 +431,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig) {
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
 }
 
-// --- 6. Markdown 生成器 (Backup) ---
+// --- 6. Markdown 生成器 ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\nUpdated: {{UPDATED_TIME}} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
     const sorted = Object.values(stats).filter(s => s.name !== "TBD").sort((a,b) => {
@@ -510,7 +521,6 @@ const PYTHON_STYLE = `
     .sch-group-header .spine-r { justify-content: flex-start; padding-left: 2px; opacity: 0.7; }
     .sch-group-header:first-child { border-top: none; }
     .sch-row { display: flex; align-items: stretch; padding: 0; border-bottom: 1px solid #f8fafc; font-size: 13px; color: #334155; min-height: 36px; flex: 0 0 auto; }
-    .sch-row:last-child { border-bottom: none; }
     .sch-time { width: 60px; color: #94a3b8; font-size: 12px; display:flex; align-items:center; justify-content:center; } 
     .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: center; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
@@ -773,7 +783,7 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
     return `${tablesHtml} ${scheduleHtml} ${injectedData}`;
 }
 
-// --- 8. 主控 (Rich Logging + Batch Scheduler + Dual Mode) ---
+// --- 8. 主控 ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -806,7 +816,6 @@ async function runUpdate(env, force=false) {
 
     let needsNetworkUpdate = false, candidates = [], waitings = [];
     
-    // [UTC 日期计算用于判定新的一天]
     const dayNow = utils.toCST(NOW).getUTCDate();
 
     runtimeConfig.TOURNAMENTS.forEach(t => {
@@ -823,34 +832,27 @@ async function runUpdate(env, force=false) {
         
         if (force || elapsed >= threshold || isNewDay) {
             if (isNewDay) l.info(`🌅 NewDay: ${t.slug} Force daily check triggered`);
-            // 将 isNewDay 标记传递给后续逻辑
             candidates.push({ 
                 slug: t.slug, 
                 overview_page: t.overview_page, 
                 elapsed: elapsed, 
                 label: `${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
                 isNewDay: isNewDay,
-                mode: currentMode // [MODIFIED] 记录当前模式用于后续判断
+                mode: currentMode 
             });
             needsNetworkUpdate = true;
         } else {
-            // [LOG CHANGE 1] 使用 t.region 并格式化字符串，暂存入数组，后续合并打印
             waitings.push(`${t.region || t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
         }
     });
 
-    // [LOG CLEANUP] 移除了 Detection 汇总行
-    
-    // [LOG CHANGE 2] 合并 Cooldown 日志为单行
     if (waitings.length > 0) l.info(`❄️ Cooldown: ${waitings.join(" | ")}`);
 
     if (!needsNetworkUpdate || candidates.length === 0) {
-        // [LOG CLEANUP] 移除了 Threshold not met 提示
         return l;
     }
 
     const authContext = await loginToFandom(env, l);
-    // [Modified] 日志优化
     if (authContext?.isAnonymous) {
         // 显式匿名，已记录日志，此处跳过
     } else if (!authContext) {
@@ -864,27 +866,20 @@ async function runUpdate(env, force=false) {
     const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
     const batch = candidates.slice(0, batchSize);
     
-    // [PREPARE] 获取 UTC 日期字符串用于增量查询
     const todayUTC = new Date().toISOString().slice(0, 10); 
 
     const results = [];
     for (const c of batch) {
         try {
-            // [MODIFIED] 智能判定：全量 vs 增量
             const oldData = cache.rawMatches[c.slug] || [];
-            // 触发全量的条件：强制刷新 OR 新的一天 OR 缓存为空 OR 慢速模式
-            // 逻辑：慢速模式意味着可能不在赛中，需要全量同步来捕捉赛程变动或延期
             const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
             
             const dateQuery = isFullFetch ? null : todayUTC;
 
-            // [LOG CHANGE 3] 使用 c.label (包含耗时与模式) 替代 c.slug
             if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.label} Fetching today's matches`);
             else l.info(`📡 FullSync: ${c.label} Fetching entire matches`);
 
             const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
-            
-            // 标记 isDelta 以便后续处理
             results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
         } catch (err) {
             results.push({ status: 'rejected', slug: c.slug, err: err });
@@ -893,6 +888,7 @@ async function runUpdate(env, force=false) {
     }
 
     let successCount = 0, failureCount = 0; 
+    const failedSlugs = new Set(); // [新增] 用于记录抓取失败或被熔断的联赛
     
     results.forEach(res => {
         if (res.status === 'fulfilled') {
@@ -901,30 +897,21 @@ async function runUpdate(env, force=false) {
             const oldData = cache.rawMatches[slug] || [];
             
             if (res.isDelta) {
-                // === [FIXED V41.2.2] 智能增量合并 (ID优先 + TBD防碰撞) ===
                 if (newData.length > 0) {
                     const matchMap = new Map();
 
-                    // 1. 唯一键生成器 (核心修复：防止 TBD 覆盖)
                     const getUniqueKey = (m) => {
-                        // A. 优先使用官方 ID (最准确)
                         if (m.N_MatchInPage) return String(m.N_MatchInPage);
                         if (m["N MatchInPage"]) return String(m["N MatchInPage"]);
-                        
-                        // B. 兜底策略：使用 时间+主队+客队 (解决同一时间的 TBD vs TBD)
                         return `${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
                     };
 
-                    // 2. 载入旧数据作为基准 (建立索引)
                     oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
 
-                    // 3. 合并新数据 (检测变动)
                     let changesCount = 0;
                     newData.forEach(m => {
                         const key = getUniqueKey(m);
                         const oldM = matchMap.get(key);
-                        
-                        // 仅当是新比赛 OR 数据内容发生实质变化时才写入
                         if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
                             matchMap.set(key, m);
                             changesCount++;
@@ -932,7 +919,6 @@ async function runUpdate(env, force=false) {
                     });
 
                     if (changesCount > 0) {
-                        // 4. 转回数组并重新排序 (确保时间顺序)
                         const mergedList = Array.from(matchMap.values());
                         mergedList.sort((a, b) => {
                             const tA = a.DateTime_UTC || "9999-99-99";
@@ -950,29 +936,28 @@ async function runUpdate(env, force=false) {
                 }
 
             } else {
-                // === 全量模式：熔断保护 ===
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
                     l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
                     failureCount++; 
-                    return; // 触发熔断，跳过更新
+                    failedSlugs.add(slug); // [新增] 熔断也算失败，不推进状态
+                    return; 
                 } else {
                     cache.rawMatches[slug] = newData;
                     l.success(`💾 Overwrote: ${slug} Overwrote ${newData.length} matches`);
                 }
             }
 
-            // [UNIFIED] 只要未触发熔断且请求成功，统一更新时间戳和计数
-            // 确保 "No Change" 的情况也被计为成功
             cache.updateTimestamps[slug] = NOW;
             successCount++;
 
         } else {
             failureCount++;
+            failedSlugs.add(res.slug); // [新增] 网络/API报错，记录为失败
         }
     });
 
     const oldTournMeta = meta.tournaments || {};
-    const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig);
+    const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); // [新增] 传入 failedSlugs 集合
 
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
@@ -1208,11 +1193,9 @@ export default {
             }
 
             case "/": {
-                // [CPU OPTIMIZATION 6] Direct Read from KV (Pre-rendered HTML)
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache) return new Response("Initializing... <a href='/force'>Click to Build</a>", { headers: { "content-type": "text/html" } });
 
-                // 如果缓存中有预渲染的 homeHtml，直接使用，否则 (兼容旧缓存) 回退到实时渲染
                 let homeFragment;
                 if (cache.homeHtml) {
                     homeFragment = cache.homeHtml;
