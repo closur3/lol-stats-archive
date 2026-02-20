@@ -1,19 +1,17 @@
 // ====================================================
-// 🥇 Worker V41.2.5: Anti-Ban & State Freeze
+// 🥇 Worker V41.2.6-Lite: Dynamic UA & Gzip Only
 // 更新日志:
-// 1. 极致精简日志: 移除 Detection 汇总行与 Threshold 提示
-// 2. 仅保留 Cooldown 详情与实际抓取动作
-// 3. UA 轮换防 Ban: 移除固定脚本特征 UA，引入真实浏览器 UA 随机池，防 429 拦截
-// 4. 状态冻结机制: API 报错或熔断时，阻断该联赛的 streak 增加，防止误入慢速模式
+// 1. 动态幽灵 UA: 每次请求随机生成版本与哈希，符合官方 Bot 规范
+// 2. 网络优化: 加入 Accept-Encoding (gzip, br) 降低 WAF 风险评分
+// 3. 状态保留: 维持原版 V41.2.5 的标准重试等待逻辑，不增加额外退避限制
 // ====================================================
 
-const UI_VERSION = "2026-02-19-V41.2.5-AntiBan";
+const UI_VERSION = "2026-02-20-V41.2.6-Lite";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
 
 const utils = {
-    // 快速获取当前北京时间对象
     toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
 
     getNow: () => {
@@ -29,7 +27,6 @@ const utils = {
         };
     },
     
-    // Format: YY-MM-DD HH:mm (Optimized)
     fmtDate: (ts) => {
         if (!ts) return "(Pending)";
         const d = new Date(ts + CST_OFFSET);
@@ -37,7 +34,6 @@ const utils = {
         return `${d.getUTCFullYear().toString().slice(2)}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
     },
 
-    // [CPU优化] 简单的比率计算
     rate: (n, d) => d > 0 ? n / d : null,
     pct: (r) => r !== null ? `${Math.round(r * 100)}%` : "-",
     
@@ -67,16 +63,11 @@ const utils = {
         return headerVal.split(',').map(c => c.split(';')[0].trim()).filter(c => c.includes('=')).join('; ');
     },
 
-    // [新增] 多重真实浏览器 UA 轮换池，防 429 拦截
+    // [改造] 动态生成符合规范的 Bot UA，打散特征防止 WAF 拉黑
     randomUA: () => {
-        const USER_AGENTS = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15"
-        ];
-        return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+        const minorVer = Math.floor(Math.random() * 50); 
+        const hex = Math.random().toString(16).slice(2, 8); 
+        return `LoLStatsBot/1.${minorVer} (Cloudflare-Worker; HsuX; +ID:${hex})`;
     }
 };
 
@@ -102,7 +93,7 @@ const gh = {
     }
 };
 
-// --- 3. 认证逻辑 (Updated for Anon Support & Random UA) ---
+// --- 3. 认证逻辑 ---
 async function loginToFandom(env, logger) {
     const user = env.FANDOM_USER;
     
@@ -117,7 +108,7 @@ async function loginToFandom(env, logger) {
         return null;
     }
     const API = "https://lol.fandom.com/api.php";
-    const UA = utils.randomUA(); // [修改] 使用随机真实浏览器UA
+    const UA = utils.randomUA(); // [修改] 登录时也使用动态规范UA
 
     try {
         const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
@@ -151,13 +142,19 @@ async function loginToFandom(env, logger) {
     }
 }
 
-// --- 4. 抓取逻辑 ---
+// --- 4. 抓取逻辑 (UA Dynamic + Gzip) ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
-    const headers = { "User-Agent": authContext?.ua || utils.randomUA() }; // [修改] 使用随机真实浏览器UA
-    if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
-
     let attempt = 1;
     while (attempt <= maxRetries) {
+        // [修改] 循环内部动态组装 Headers，确保匿名模式下每次重试都会刷新 UA
+        const currentUA = authContext?.ua || utils.randomUA();
+        const headers = { 
+            "User-Agent": currentUA,
+            "Accept": "application/json",
+            "Accept-Encoding": "gzip, deflate, br" // [修改] 显式支持压缩，降低目标服务器开销
+        };
+        if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
+
         try {
             const r = await fetch(url, { headers });
             if (r.status === 429) throw new Error(`HTTP 429 Rate Limit`);
@@ -169,6 +166,7 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             if (!data.cargoquery) throw new Error(`Structure Error`);
             return data.cargoquery; 
         } catch (e) {
+            // [保持 V41.2.5 原样] 不引入复杂的错误区分退避
             const waitTime = 30000 + Math.floor(Math.random() * 15000);
             if (attempt >= maxRetries) {
                 logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
@@ -223,7 +221,7 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
     return all;
 }
 
-// --- 5. 统计核心 (⚡️ CPU Optimized & State Freeze) ---
+// --- 5. 统计核心 ---
 function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlugs = new Set()) {
     const globalStats = {};
     const debugInfo = {};
@@ -384,9 +382,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
         let nextStreak = 0, nextMode = "fast";
 
-        // [智能调度] - 结合熔断/失败黑名单阻断机制
         if (failedSlugs.has(tourn.slug)) {
-            // [新增] 抓取失败或被熔断，状态冻结，不自增 streak
             nextStreak = prevT.streak || 0;
             nextMode = prevT.mode || "fast";
         } else if (t_matchesToday > 0 && t_pendingToday > 0) { 
@@ -880,6 +876,7 @@ async function runUpdate(env, force=false) {
             else l.info(`📡 FullSync: ${c.label} Fetching entire matches`);
 
             const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
+            
             results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
         } catch (err) {
             results.push({ status: 'rejected', slug: c.slug, err: err });
@@ -888,7 +885,7 @@ async function runUpdate(env, force=false) {
     }
 
     let successCount = 0, failureCount = 0; 
-    const failedSlugs = new Set(); // [新增] 用于记录抓取失败或被熔断的联赛
+    const failedSlugs = new Set(); // 熔断及失败记录
     
     results.forEach(res => {
         if (res.status === 'fulfilled') {
@@ -912,6 +909,7 @@ async function runUpdate(env, force=false) {
                     newData.forEach(m => {
                         const key = getUniqueKey(m);
                         const oldM = matchMap.get(key);
+                        
                         if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
                             matchMap.set(key, m);
                             changesCount++;
@@ -939,7 +937,7 @@ async function runUpdate(env, force=false) {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
                     l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
                     failureCount++; 
-                    failedSlugs.add(slug); // [新增] 熔断也算失败，不推进状态
+                    failedSlugs.add(slug); 
                     return; 
                 } else {
                     cache.rawMatches[slug] = newData;
@@ -952,12 +950,12 @@ async function runUpdate(env, force=false) {
 
         } else {
             failureCount++;
-            failedSlugs.add(res.slug); // [新增] 网络/API报错，记录为失败
+            failedSlugs.add(res.slug);
         }
     });
 
     const oldTournMeta = meta.tournaments || {};
-    const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); // [新增] 传入 failedSlugs 集合
+    const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
