@@ -5,7 +5,7 @@ compatibility_date = "2026-02-03"
 [vars]
 GITHUB_USER = "closur3"
 GITHUB_REPO = "lol-stats-archive"
-FANDOM_USER = "Anonymous"
+FANDOM_USER = "HsuX"
 
 [[kv_namespaces]]
 binding = "LOL_KV"
