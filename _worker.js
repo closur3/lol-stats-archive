@@ -67,7 +67,7 @@ const utils = {
     randomUA: () => {
         const minorVer = Math.floor(Math.random() * 50); 
         const hex = Math.random().toString(16).slice(2, 8); 
-        return `LoLStatsBot/1.${minorVer} (Cloudflare-Worker ; +ID:${hex})`;
+        return `LoLStatsBot/1.${minorVer} (compatible; HsuX; +ID:${hex})`;
     }
 };
 
