@@ -67,7 +67,7 @@ const utils = {
     randomUA: () => {
         const minorVer = Math.floor(Math.random() * 50); 
         const hex = Math.random().toString(16).slice(2, 8); 
-        return `LoLStatsBot/1.${minorVer} (Cloudflare-Worker; HsuX; +ID:${hex})`;
+        return `LoLStatsBot/1.${minorVer} (Cloudflare-Worker ; +ID:${hex})`;
     }
 };
 
@@ -791,7 +791,7 @@ class Logger {
 async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
-    const FAST_THRESHOLD = 3 * 60 * 1000;         
+    const FAST_THRESHOLD = 6 * 60 * 1000;         
     const SLOW_THRESHOLD = 56 * 60 * 1000;        
     const UPDATE_ROUNDS = 1;
 
