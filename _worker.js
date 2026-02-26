@@ -1071,7 +1071,7 @@ function renderLogPage(logs) {
 <body>
     <div class="container">
         <div class="header">
-            <h2>📜 System Logs</h2>
+            <h2>📜 Logs</h2>
             <div class="header-actions">
                 <button class="action-btn update-btn" onclick="triggerUpdate()"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button>
                 <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
