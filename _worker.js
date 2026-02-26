@@ -213,7 +213,7 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
         while(true) {
             let whereClause = `OverviewPage LIKE '${overviewPage}%'`;
             if (dateFilter) {
-                whereClause += ` AND DateTime_UTC >= '${dateFilter} 00:00:00' AND DateTime_UTC <= '${dateFilter} 23:59:59'`;
+                whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
             }
 
             const params = new URLSearchParams({
@@ -891,7 +891,10 @@ async function runUpdate(env, force=false) {
     const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
     const batch = candidates.slice(0, batchSize);
     
-    const todayUTC = new Date().toISOString().slice(0, 10); 
+    const pastDateObj = new Date(NOW - 48 * 60 * 60 * 1000); 
+    const futureDateObj = new Date(NOW + 48 * 60 * 60 * 1000); 
+    const deltaStartUTC = pastDateObj.toISOString().slice(0, 10); 
+    const deltaEndUTC = futureDateObj.toISOString().slice(0, 10); 
 
     const results = [];
     for (const c of batch) {
@@ -899,9 +902,9 @@ async function runUpdate(env, force=false) {
             const oldData = cache.rawMatches[c.slug] || [];
             const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
             
-            const dateQuery = isFullFetch ? null : todayUTC;
+            const dateQuery = isFullFetch ? null : { start: deltaStartUTC, end: deltaEndUTC };
 
-            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.label} Fetching today's matches`);
+            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.label} Fetching ${deltaStartUTC} to ${deltaEndUTC}`);
             else l.info(`📡 FullSync: ${c.label} Fetching entire matches`);
 
             const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
@@ -927,9 +930,11 @@ async function runUpdate(env, force=false) {
                     const matchMap = new Map();
 
                     const getUniqueKey = (m) => {
-                        if (m.N_MatchInPage) return String(m.N_MatchInPage);
-                        if (m["N MatchInPage"]) return String(m["N MatchInPage"]);
-                        return `${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
+                        const page = m.OverviewPage || "Unknown";
+                        const n = m.N_MatchInPage || m["N MatchInPage"];
+                        if (n) return `${page}_${n}`;
+
+                        return `${page}_${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
                     };
 
                     oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
