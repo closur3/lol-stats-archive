@@ -1045,16 +1045,23 @@ function renderLogPage(logs) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Logs</title>
+    <title>Logs</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; }
-        .header { padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
-        .header h2 { margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px; }
-        .header-actions { display: flex; gap: 10px; align-items: center; }
+        /* 统一下整体布局，去掉 body 内边距让 header 顶格 */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; }
+        
+        /* 移植主页的 Header 样式 */
+        .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-logo { font-size: 1.8rem; }
+        .header-title { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+        .header-right { display: flex; gap: 10px; align-items: center; }
         .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
         .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+        
+        /* 容器及日志列表样式保持不变 */
+        .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 40px; }
         .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
@@ -1069,22 +1076,26 @@ function renderLogPage(logs) {
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h2>📜 Logs</h2>
-            <div class="header-actions">
-                <button class="action-btn update-btn" onclick="triggerUpdate()"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button>
-                <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
-            </div>
+    <header class="main-header">
+        <div class="header-left">
+            <span class="header-logo">📜</span>
+            <h1 class="header-title">Logs</h1>
         </div>
+        <div class="header-right">
+            <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
+            <button class="action-btn update-btn" onclick="triggerUpdate()"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button>
+        </div>
+    </header>
+    
+    <div class="container">
         <ul class="log-list">${entries}</ul>
         ${logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : ''}
     </div>
     
-<script>
+    <script>
         async function triggerUpdate() {
             const pwd = prompt("🔒 Password:");
-            if (!pwd) return; // User canceled
+            if (!pwd) return; 
 
             const btn = document.querySelector('.update-btn');
             const originalText = btn.innerHTML;
@@ -1101,7 +1112,7 @@ function renderLogPage(logs) {
                 if (res.status === 401) {
                     alert("❌ Incorrect password");
                 } else if (res.ok) {
-                    window.location.reload(); // Refresh log page on success
+                    window.location.reload(); 
                 } else {
                     alert("⚠️ Server error: " + res.status);
                 }
