@@ -1,13 +1,13 @@
 // ====================================================
-// 🥇 Worker V41.2.8: Etiquette & CSS Modularization
+// 🥇 Worker V41.2.9: Etiquette & CSS Modularization
 // 更新日志:
-// 1. 认证修复: 移除 origin: "*" 防止降级，合并双重 Cookie 解决 Auth 丢失。
-// 2. 礼仪重构: 废弃幽灵 UA，引入 maxlag 与指数退避重试，优雅应对限流。
-// 3. 样式解耦: 提取 COMMON_STYLE，统一全站 Header 布局，强制 Emoji 按钮等宽对齐。
-// 4. 安全管控: Update 按钮移至 Logs 页，添加前端 prompt 与后端 Bearer Token 校验。
+// 1. 滑动窗口: 引入 48h 前至 48h 后的双向滑动时间窗，完美捕获跨天比分与赛程变更。
+// 2. 坐标覆写: 重构 getUniqueKey，剔除队伍依赖，彻底解决 TBD 确定后导致的数据分身 Bug。
+// 3. 架构解耦: 提取 COMMON_STYLE，统一多端 UI，Update 移至 Logs 并附加安全锁。
+// 4. API 礼仪: 合并双路 Cookie 防降级，遵守 maxlag 与 Retry-After 指数退避规范。
 // ====================================================
 
-const UI_VERSION = "2026-02-26-V41.2.8";
+const UI_VERSION = "2026-02-26-V41.2.9";
 const BOT_UA = `LoLStatsWorker/${UI_VERSION} (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
