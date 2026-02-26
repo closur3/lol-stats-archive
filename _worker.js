@@ -933,7 +933,6 @@ async function runUpdate(env, force=false) {
                         const page = m.OverviewPage || "Unknown";
                         const n = m.N_MatchInPage || m["N MatchInPage"];
                         if (n) return `${page}_${n}`;
-
                         return `${page}_${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
                     };
 
