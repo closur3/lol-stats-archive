@@ -1,12 +1,13 @@
 // ====================================================
-// 🥇 Worker V41.2.7: API Etiquette & Refactoring
+// 🥇 Worker V41.2.8: Etiquette & CSS Modularization
 // 更新日志:
 // 1. 认证修复: 移除 origin: "*" 防止降级，合并双重 Cookie 解决 Auth 丢失。
 // 2. 礼仪重构: 废弃幽灵 UA，引入 maxlag 与指数退避重试，优雅应对限流。
-// 3. 代码清理: 将 UA 提升为全局常量 BOT_UA，移除多余传递，彻底解决引用报错。
+// 3. 样式解耦: 提取 COMMON_STYLE，统一全站 Header 布局，强制 Emoji 按钮等宽对齐。
+// 4. 安全管控: Update 按钮移至 Logs 页，添加前端 prompt 与后端 Bearer Token 校验。
 // ====================================================
 
-const UI_VERSION = "2026-02-26-V41.2.7";
+const UI_VERSION = "2026-02-26-V41.2.8";
 const BOT_UA = `LoLStatsWorker/${UI_VERSION} (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
@@ -61,14 +62,12 @@ const utils = {
     
     extractCookies: (headers) => {
         if (!headers) return "";
-        // 优先使用 Workers 原生的 getSetCookie() 避免逗号分割日期
         if (typeof headers.getSetCookie === 'function') {
             const cookies = headers.getSetCookie();
             if (cookies && cookies.length > 0) {
                 return cookies.map(c => c.split(';')[0].trim()).join('; ');
             }
         }
-        // 兼容性回退方案：正则分割，仅在逗号后跟着 "字母数字=" 时才分割
         const headerVal = headers.get("set-cookie");
         if (!headerVal) return "";
         return headerVal.split(/,(?=\s*[A-Za-z0-9_]+=[^;]+)/)
@@ -117,7 +116,6 @@ async function loginToFandom(env, logger) {
     const API = "https://lol.fandom.com/api.php";
 
     try {
-        // [Step 1] 获取 Token 阶段
         const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
             headers: { "User-Agent": BOT_UA }
         });
@@ -127,10 +125,8 @@ async function loginToFandom(env, logger) {
         const loginToken = tokenData?.query?.tokens?.logintoken;
         if (!loginToken) throw new Error("Failed to get login token");
         
-        // 提取第一步的 Cookie (包含基础 Session) 
         const step1Cookie = utils.extractCookies(tokenResp.headers);
 
-        // [Step 2] 提交账号密码阶段
         const params = new URLSearchParams();
         params.append("action", "login"); params.append("format", "json");
         params.append("lgname", user); params.append("lgpassword", pass); params.append("lgtoken", loginToken);
@@ -142,12 +138,8 @@ async function loginToFandom(env, logger) {
         const loginData = await loginResp.json();
         
         if (loginData.login && loginData.login.result === "Success") {
-            // 提取第二步的 Cookie (包含用户 Auth Token)
             const step2Cookie = utils.extractCookies(loginResp.headers);
-            
-            // 暴力合并两步的 Cookie，确保拥有完整的 Fandom 认证上下文
             const finalCookie = `${step1Cookie}; ${step2Cookie}`;
-            
             return { cookie: finalCookie, username: loginData.login.lgusername };
         } else {
             throw new Error(`Login Failed: ${loginData.login ? loginData.login.reason : JSON.stringify(loginData)}`);
@@ -162,7 +154,6 @@ async function loginToFandom(env, logger) {
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     let attempt = 1;
     
-    // 永远使用全局 UA，结构更干净
     const headers = { 
         "User-Agent": BOT_UA,
         "Accept": "application/json",
@@ -225,7 +216,6 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
                 whereClause += ` AND DateTime_UTC >= '${dateFilter} 00:00:00' AND DateTime_UTC <= '${dateFilter} 23:59:59'`;
             }
 
-            // [修复] 移除了 origin: "*" 避免匿名降级，加入了 maxlag: "5" 遵守礼仪
             const params = new URLSearchParams({
                 action: "cargoquery", format: "json", tables: "MatchSchedule",
                 fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
@@ -274,10 +264,8 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
     const todayStr = utils.getNow().date;
     const allFutureMatches = {}; 
 
-    // [CPU OPTIMIZATION 1] 预处理 TeamMap
     const teamMapEntries = runtimeConfig.TEAM_MAP ? Object.entries(runtimeConfig.TEAM_MAP).map(([k,v]) => ({k: k.toUpperCase(), v})) : [];
     
-    // [CPU OPTIMIZATION 2] Memoization Cache for Name Resolution
     const nameCache = new Map();
     const resolveName = (raw) => {
         if (!raw) return "Unknown";
@@ -493,8 +481,9 @@ function generateMarkdown(tourn, stats, timeGrid) {
 
 // --- 7. HTML 渲染器 & 页面外壳 ---
 
-const PYTHON_STYLE = `
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; margin: 0; padding: 0; color: #0f172a; }
+// [重构] 抽离通用基础样式，消除重复代码
+const COMMON_STYLE = `
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .header-left { display: flex; align-items: center; gap: 12px; }
     .header-logo { font-size: 1.8rem; }
@@ -503,6 +492,11 @@ const PYTHON_STYLE = `
     .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
     .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
     .btn-icon { display: inline-flex; justify-content: center; width: 16px; text-align: center; }
+    @media (max-width: 600px) { .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
+`;
+
+const PYTHON_STYLE = `
+    ${COMMON_STYLE}
     .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
     .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; padding-bottom: 0; display: flex; flex-direction: column; }
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar { display: none; }
@@ -562,7 +556,6 @@ const PYTHON_STYLE = `
     .sch-fin-score { color: #334155; font-size: 13px; }
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; }
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
     .modal-content { background-color: #fefefe; margin: 12% auto; padding: 25px; border: 1px solid #888; width: 420px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: fadeIn 0.2s; }
     .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
@@ -675,7 +668,6 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
     if (navMode === "home") navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
     else if (navMode === "archive") navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
 
-    // 移除了 UPDATE 的 form 标签
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
 }
 
@@ -1049,20 +1041,7 @@ function renderLogPage(logs) {
     <title>Logs</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
     <style>
-        /* 统一下整体布局，去掉 body 内边距让 header 顶格 */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; }
-        
-        /* 移植主页的 Header 样式 */
-        .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .header-left { display: flex; align-items: center; gap: 12px; }
-        .header-logo { font-size: 1.8rem; }
-        .header-title { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
-        .header-right { display: flex; gap: 10px; align-items: center; }
-        .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
-        .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
-        .btn-icon { display: inline-flex; justify-content: center; width: 16px; text-align: center; }
-        
-        /* 容器及日志列表样式保持不变 */
+        ${COMMON_STYLE}
         .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 40px; }
         .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
@@ -1074,7 +1053,7 @@ function renderLogPage(logs) {
         .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
         .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
-        @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } .log-time { font-size: 12px; opacity: 0.7; text-align: left; } .log-level { display: inline-block; width: auto; padding: 3px 10px; } .btn-text { display: none; } }
+        @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } .log-time { font-size: 12px; opacity: 0.7; text-align: left; } .log-level { display: inline-block; width: auto; padding: 3px 10px; } }
     </style>
 </head>
 <body>
@@ -1097,7 +1076,7 @@ function renderLogPage(logs) {
     <script>
         async function triggerUpdate() {
             const pwd = prompt("🔒 Password:");
-            if (!pwd) return; 
+            if (!pwd) return;
 
             const btn = document.querySelector('.update-btn');
             const originalText = btn.innerHTML;
@@ -1145,11 +1124,9 @@ export default {
             }
 
             case "/force": {
-                // 读取环境变量中的密码配置
                 const expectedSecret = env.ADMIN_SECRET;
                 const authHeader = request.headers.get("Authorization");
                 
-                // 校验密码
                 if (expectedSecret) {
                     if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
                         return new Response("Unauthorized", { status: 401 });
@@ -1163,7 +1140,6 @@ export default {
                 if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
                 await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
                 
-                // 改为返回状态码 200，让前端 JS 刷新页面，而不是 303 重定向
                 return new Response("OK", { status: 200 });
             }
 
