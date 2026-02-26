@@ -116,7 +116,7 @@ async function loginToFandom(env, logger) {
         return null;
     }
     const API = "https://lol.fandom.com/api.php";
-    const UA = utils.randomUA();
+    const UA = utils.getUA();
 
     try {
         // [Step 1] 获取 Token 阶段
