@@ -1,12 +1,12 @@
 // ====================================================
-// 🥇 Worker V41.2.6-Lite: Dynamic UA & Gzip Only
+// Worker V41.2.7: Auth & Cookie Core Fix
 // 更新日志:
-// 1. 动态幽灵 UA: 每次请求随机生成版本与哈希，符合官方 Bot 规范
-// 2. 网络优化: 加入 Accept-Encoding (gzip, br) 降低 WAF 风险评分
-// 3. 状态保留: 维持原版 V41.2.5 的标准重试等待逻辑，不增加额外退避限制
+// 1. 认证修复: 移除 cargoquery 请求中的 origin: "*" 参数，防止 MediaWiki 触发 CSRF 保护导致请求被强制匿名降级。
+// 2. 会话保持: 完整合并 Fandom 登录两步流程 (基础 Session 与 User Token) 的 Cookie，确保 API 请求携带完整认证上下文。
+// 3. 兼容优化: 重构 extractCookies，优先使用 Cloudflare Workers 原生的 getSetCookie() 方法，彻底解决按逗号分割时将 Cookie 过期时间截断的 Bug。
 // ====================================================
 
-const UI_VERSION = "2026-02-20-V41.2.6-Lite";
+const UI_VERSION = "2026-02-26-V41.2.7";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -58,9 +58,19 @@ const utils = {
         try { return new Date(str.replace(" ", "T") + "Z"); } catch(e) { return null; }
     },
     
-    extractCookies: (headerVal) => {
+    extractCookies: (headers) => {
+        if (!headers) return "";
+        // 优先使用 Workers 原生的 getSetCookie() 避免逗号冲突
+        if (typeof headers.getSetCookie === 'function') {
+            const cookies = headers.getSetCookie();
+            if (cookies.length > 0) {
+                return cookies.map(c => c.split(';')[0].trim()).join('; ');
+            }
+        }
+    // 兼容性回退
+        const headerVal = headers.get("set-cookie");
         if (!headerVal) return "";
-        return headerVal.split(',').map(c => c.split(';')[0].trim()).filter(c => c.includes('=')).join('; ');
+        return headerVal.split(/,(?=\s*[A-Za-z0-9_]+=[^;]+)/).map(c => c.split(';')[0].trim()).filter(c => c.includes('=')).join('; ');
     },
 
     // [改造] 动态生成符合规范的 Bot UA，打散特征防止 WAF 拉黑
@@ -108,21 +118,30 @@ async function loginToFandom(env, logger) {
         return null;
     }
     const API = "https://lol.fandom.com/api.php";
-    const UA = utils.randomUA(); // [修改] 登录时也使用动态规范UA
+    const UA = utils.randomUA();
 
     try {
+        // [Step 1] 获取 Token 阶段
         const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
             headers: { "User-Agent": UA }
         });
         if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
+        
         const tokenData = await tokenResp.json();
         const loginToken = tokenData?.query?.tokens?.logintoken;
         if (!loginToken) throw new Error("Failed to get login token");
-        const step1Cookie = utils.extractCookies(tokenResp.headers.get("set-cookie"));
+        
+        // 提取第一步的 Cookie (包含基础 Session) 
+        // 注意：这里直接传入 headers 对象
+        const step1Cookie = utils.extractCookies(tokenResp.headers);
 
+        // [Step 2] 提交账号密码阶段
         const params = new URLSearchParams();
-        params.append("action", "login"); params.append("format", "json");
-        params.append("lgname", user); params.append("lgpassword", pass); params.append("lgtoken", loginToken);
+        params.append("action", "login"); 
+        params.append("format", "json");
+        params.append("lgname", user); 
+        params.append("lgpassword", pass); 
+        params.append("lgtoken", loginToken);
 
         const loginResp = await fetch(API, {
             method: "POST", body: params,
@@ -131,7 +150,12 @@ async function loginToFandom(env, logger) {
         const loginData = await loginResp.json();
         
         if (loginData.login && loginData.login.result === "Success") {
-            const finalCookie = utils.extractCookies(loginResp.headers.get("set-cookie"));
+            // 提取第二步的 Cookie (包含用户 Auth Token)
+            const step2Cookie = utils.extractCookies(loginResp.headers);
+            
+            // 暴力合并两步的 Cookie，确保拥有完整的 Fandom 认证上下文
+            const finalCookie = `${step1Cookie}; ${step2Cookie}`;
+            
             return { cookie: finalCookie, ua: UA, username: loginData.login.lgusername };
         } else {
             throw new Error(`Login Failed: ${loginData.login ? loginData.login.reason : JSON.stringify(loginData)}`);
@@ -195,7 +219,7 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
                 action: "cargoquery", format: "json", tables: "MatchSchedule",
                 fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
                 where: whereClause, 
-                limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", origin: "*"
+                limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC"
             });
 
             try {
