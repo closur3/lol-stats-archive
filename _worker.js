@@ -1,12 +1,13 @@
 // ====================================================
-// Worker V41.2.7: Auth & Cookie Core Fix
+// 🥇 Worker V41.2.7: API Etiquette & Refactoring
 // 更新日志:
-// 1. 认证修复: 移除 cargoquery 请求中的 origin: "*" 参数，防止 MediaWiki 触发 CSRF 保护导致请求被强制匿名降级。
-// 2. 会话保持: 完整合并 Fandom 登录两步流程 (基础 Session 与 User Token) 的 Cookie，确保 API 请求携带完整认证上下文。
-// 3. 兼容优化: 重构 extractCookies，优先使用 Cloudflare Workers 原生的 getSetCookie() 方法，彻底解决按逗号分割时将 Cookie 过期时间截断的 Bug。
+// 1. 认证修复: 移除 origin: "*" 防止降级，合并双重 Cookie 解决 Auth 丢失。
+// 2. 礼仪重构: 废弃幽灵 UA，引入 maxlag 与指数退避重试，优雅应对限流。
+// 3. 代码清理: 将 UA 提升为全局常量 BOT_UA，移除多余传递，彻底解决引用报错。
 // ====================================================
 
 const UI_VERSION = "2026-02-26-V41.2.7";
+const BOT_UA = `LoLStatsWorker/${UI_VERSION} (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -60,22 +61,20 @@ const utils = {
     
     extractCookies: (headers) => {
         if (!headers) return "";
-        // 优先使用 Workers 原生的 getSetCookie() 避免逗号冲突
+        // 优先使用 Workers 原生的 getSetCookie() 避免逗号分割日期
         if (typeof headers.getSetCookie === 'function') {
             const cookies = headers.getSetCookie();
-            if (cookies.length > 0) {
+            if (cookies && cookies.length > 0) {
                 return cookies.map(c => c.split(';')[0].trim()).join('; ');
             }
         }
-    // 兼容性回退
+        // 兼容性回退方案：正则分割，仅在逗号后跟着 "字母数字=" 时才分割
         const headerVal = headers.get("set-cookie");
         if (!headerVal) return "";
-        return headerVal.split(/,(?=\s*[A-Za-z0-9_]+=[^;]+)/).map(c => c.split(';')[0].trim()).filter(c => c.includes('=')).join('; ');
-    },
-
-    // [改造] 动态生成符合规范的 Bot UA，打散特征防止 WAF 拉黑
-    getUA: () => {
-        return `LoLStatsWorker/${UI_VERSION} (User:HsuX)`;
+        return headerVal.split(/,(?=\s*[A-Za-z0-9_]+=[^;]+)/)
+            .map(c => c.split(';')[0].trim())
+            .filter(c => c.includes('='))
+            .join('; ');
     }
 };
 
@@ -86,7 +85,7 @@ const gh = {
         try {
             const r = await fetch(url, {
                 headers: { 
-                    "User-Agent": "Cloudflare-Worker",
+                    "User-Agent": BOT_UA,
                     "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
                     "Accept": "application/vnd.github.v3+json"
                 }
@@ -116,12 +115,11 @@ async function loginToFandom(env, logger) {
         return null;
     }
     const API = "https://lol.fandom.com/api.php";
-    const UA = utils.getUA();
 
     try {
         // [Step 1] 获取 Token 阶段
         const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
-            headers: { "User-Agent": UA }
+            headers: { "User-Agent": BOT_UA }
         });
         if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
         
@@ -130,20 +128,16 @@ async function loginToFandom(env, logger) {
         if (!loginToken) throw new Error("Failed to get login token");
         
         // 提取第一步的 Cookie (包含基础 Session) 
-        // 注意：这里直接传入 headers 对象
         const step1Cookie = utils.extractCookies(tokenResp.headers);
 
         // [Step 2] 提交账号密码阶段
         const params = new URLSearchParams();
-        params.append("action", "login"); 
-        params.append("format", "json");
-        params.append("lgname", user); 
-        params.append("lgpassword", pass); 
-        params.append("lgtoken", loginToken);
+        params.append("action", "login"); params.append("format", "json");
+        params.append("lgname", user); params.append("lgpassword", pass); params.append("lgtoken", loginToken);
 
         const loginResp = await fetch(API, {
             method: "POST", body: params,
-            headers: { "User-Agent": UA, "Cookie": step1Cookie }
+            headers: { "User-Agent": BOT_UA, "Cookie": step1Cookie }
         });
         const loginData = await loginResp.json();
         
@@ -154,7 +148,7 @@ async function loginToFandom(env, logger) {
             // 暴力合并两步的 Cookie，确保拥有完整的 Fandom 认证上下文
             const finalCookie = `${step1Cookie}; ${step2Cookie}`;
             
-            return { cookie: finalCookie, ua: UA, username: loginData.login.lgusername };
+            return { cookie: finalCookie, username: loginData.login.lgusername };
         } else {
             throw new Error(`Login Failed: ${loginData.login ? loginData.login.reason : JSON.stringify(loginData)}`);
         }
@@ -164,15 +158,15 @@ async function loginToFandom(env, logger) {
     }
 }
 
-// --- 4. 抓取逻辑 (UA Dynamic + Gzip) ---
+// --- 4. 抓取逻辑 (API 礼仪重构版) ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     let attempt = 1;
-    // 提取到循环外部，始终保持一致的 UA
-    const currentUA = authContext?.ua || utils.getUA(); 
+    
+    // 永远使用全局 UA，结构更干净
     const headers = { 
-        "User-Agent": currentUA,
+        "User-Agent": BOT_UA,
         "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate, br" // 这一条保留，官方非常鼓励使用 gzip
+        "Accept-Encoding": "gzip, deflate, br" 
     };
     if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
 
@@ -180,38 +174,40 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
         try {
             const r = await fetch(url, { headers });
             
-            // 规范处理 429 错误
-            if (r.status === 429) {
-                // 读取服务器建议的等待时间（如果没有则默认 30 秒）
+            if (r.status === 429 || r.status === 503) {
                 const retryAfter = r.headers.get("Retry-After");
-                const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 30000;
-                throw new Error(`HTTP 429 Rate Limit. Server asked to wait ${waitTime/1000}s`);
+                const waitSecs = retryAfter ? parseInt(retryAfter) : 30;
+                throw new Error(`HTTP ${r.status}. Server asked to wait ${waitSecs}s`);
             }
             
             const rawBody = await r.text();
             if (!r.ok) throw new Error(`HTTP ${r.status}: ${rawBody.slice(0, 150)}...`);
+            
             let data;
             try { data = JSON.parse(rawBody); } catch (e) { throw new Error(`JSON Parse Fail`); }
-            if (data.error) throw new Error(`API Error [${data.error.code}]: ${data.error.info}`);
+            
+            if (data.error) {
+                if (data.error.code === "maxlag") {
+                    const retryAfter = r.headers.get("Retry-After") || 5; 
+                    throw new Error(`Maxlag Exceeded. Server asked to wait ${retryAfter}s`);
+                }
+                throw new Error(`API Error [${data.error.code}]: ${data.error.info}`);
+            }
+            
             if (!data.cargoquery) throw new Error(`Structure Error`);
             return data.cargoquery; 
+            
         } catch (e) {
-            // 解析具体的等待时间或使用标准退避
-            let waitTime = 30000; 
+            let waitTimeMs = 15000 * Math.pow(2, attempt - 1); 
             const match = e.message.match(/wait (\d+)s/);
-            if (match) {
-                waitTime = parseInt(match[1]) * 1000;
-            } else {
-                // 标准的指数退避 (15s, 30s, 60s...) 而不是随机数
-                waitTime = 15000 * Math.pow(2, attempt - 1); 
-            }
+            if (match) waitTimeMs = parseInt(match[1]) * 1000;
 
             if (attempt >= maxRetries) {
                 logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTime/1000}s...`);               
-                await new Promise(res => setTimeout(res, waitTime));
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`);               
+                await new Promise(res => setTimeout(res, waitTimeMs));
             }
             attempt++;
         }
@@ -229,12 +225,12 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
                 whereClause += ` AND DateTime_UTC >= '${dateFilter} 00:00:00' AND DateTime_UTC <= '${dateFilter} 23:59:59'`;
             }
 
+            // [修复] 移除了 origin: "*" 避免匿名降级，加入了 maxlag: "5" 遵守礼仪
             const params = new URLSearchParams({
                 action: "cargoquery", format: "json", tables: "MatchSchedule",
                 fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
                 where: whereClause, 
-                limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC",
-                maxlag: "5"
+                limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
             });
 
             try {
