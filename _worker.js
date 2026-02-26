@@ -74,10 +74,8 @@ const utils = {
     },
 
     // [改造] 动态生成符合规范的 Bot UA，打散特征防止 WAF 拉黑
-    randomUA: () => {
-        const minorVer = Math.floor(Math.random() * 50); 
-        const hex = Math.random().toString(16).slice(2, 8); 
-        return `LoLStatsBot/1.${minorVer} (compatible; HsuX; +ID:${hex})`;
+    getUA: () => {
+        return `LoLStatsWorker/${UI_VERSION} (User:HsuX)`;
     }
 };
 
@@ -169,19 +167,27 @@ async function loginToFandom(env, logger) {
 // --- 4. 抓取逻辑 (UA Dynamic + Gzip) ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     let attempt = 1;
-    while (attempt <= maxRetries) {
-        // [修改] 循环内部动态组装 Headers，确保匿名模式下每次重试都会刷新 UA
-        const currentUA = authContext?.ua || utils.randomUA();
-        const headers = { 
-            "User-Agent": currentUA,
-            "Accept": "application/json",
-            "Accept-Encoding": "gzip, deflate, br" // [修改] 显式支持压缩，降低目标服务器开销
-        };
-        if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
+    // 提取到循环外部，始终保持一致的 UA
+    const currentUA = authContext?.ua || utils.getUA(); 
+    const headers = { 
+        "User-Agent": currentUA,
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate, br" // 这一条保留，官方非常鼓励使用 gzip
+    };
+    if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
 
+    while (attempt <= maxRetries) {
         try {
             const r = await fetch(url, { headers });
-            if (r.status === 429) throw new Error(`HTTP 429 Rate Limit`);
+            
+            // 规范处理 429 错误
+            if (r.status === 429) {
+                // 读取服务器建议的等待时间（如果没有则默认 30 秒）
+                const retryAfter = r.headers.get("Retry-After");
+                const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 30000;
+                throw new Error(`HTTP 429 Rate Limit. Server asked to wait ${waitTime/1000}s`);
+            }
+            
             const rawBody = await r.text();
             if (!r.ok) throw new Error(`HTTP ${r.status}: ${rawBody.slice(0, 150)}...`);
             let data;
@@ -190,13 +196,21 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             if (!data.cargoquery) throw new Error(`Structure Error`);
             return data.cargoquery; 
         } catch (e) {
-            // [保持 V41.2.5 原样] 不引入复杂的错误区分退避
-            const waitTime = 30000 + Math.floor(Math.random() * 15000);
+            // 解析具体的等待时间或使用标准退避
+            let waitTime = 30000; 
+            const match = e.message.match(/wait (\d+)s/);
+            if (match) {
+                waitTime = parseInt(match[1]) * 1000;
+            } else {
+                // 标准的指数退避 (15s, 30s, 60s...) 而不是随机数
+                waitTime = 15000 * Math.pow(2, attempt - 1); 
+            }
+
             if (attempt >= maxRetries) {
                 logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${Math.floor(waitTime/1000)}s...`);               
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTime/1000}s...`);               
                 await new Promise(res => setTimeout(res, waitTime));
             }
             attempt++;
@@ -220,6 +234,7 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
                 fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
                 where: whereClause, 
                 limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC"
+                maxlag: "5"
             });
 
             try {
