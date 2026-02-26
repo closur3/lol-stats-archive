@@ -502,6 +502,7 @@ const PYTHON_STYLE = `
     .header-right { display: flex; gap: 10px; align-items: center; }
     .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
     .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+    .btn-icon { display: inline-flex; justify-content: center; width: 16px; text-align: center; }
     .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
     .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; padding-bottom: 0; display: flex; flex-direction: column; }
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar { display: none; }
@@ -1059,6 +1060,7 @@ function renderLogPage(logs) {
         .header-right { display: flex; gap: 10px; align-items: center; }
         .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
         .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+        .btn-icon { display: inline-flex; justify-content: center; width: 16px; text-align: center; }
         
         /* 容器及日志列表样式保持不变 */
         .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 40px; }
