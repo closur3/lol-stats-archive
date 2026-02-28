@@ -558,9 +558,10 @@ const PYTHON_STYLE = `
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(3px); }
-    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 330px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
+    .modal-content { width: 340px; padding: 20px; box-sizing: border-box; }
+    #modalTitle { margin: 0 0 15px 0; padding-left: 2px; font-size: 16px; font-weight: 800; color: #0f172a; text-align: left; }
     .close { display: none !important; }
-    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 2px; }
+    .match-list { margin-top: 0; max-height: 50vh; overflow-y: auto; padding: 0; }
     .match-list::-webkit-scrollbar { width: 6px; }
     .match-list::-webkit-scrollbar-track { background: transparent; }
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -568,16 +569,16 @@ const PYTHON_STYLE = `
     .match-item { display: grid; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 6px 8px; gap: 5px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
     /* 移除 FULL 冗余列，强化中轴对齐 */
-    .match-item.history-layout { grid-template-columns: 11.5ch 16px 1fr 48px 1fr; }
-    .match-item.dist-layout { grid-template-columns: 5.5ch 1fr 48px 1fr; }
-    .col-date { font-size: 13px; color: #64748b; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
-    .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
-    .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-    .col-t2 { text-align: left; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 0; min-height: 24px; transition: 0.2s; }
-    .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
+    .match-item.history-layout { display: grid; grid-template-columns: 68px 28px 1fr 48px 1fr; align-items: center; gap: 0; padding: 8px 10px; }
+    .match-item.dist-layout { display: grid; grid-template-columns: 55px 1fr 48px 1fr; align-items: center; gap: 0; padding: 8px 10px; }
+    .col-date { font-size: 13px; color: #64748b; text-align: left; font-family: inherit; }
+    .col-res { display: flex; justify-content: center; align-items: center; font-size: 14px; }
+    .col-t1 { text-align: right; padding-right: 8px; font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .col-t2 { text-align: left; padding-left: 8px; font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .score-box { width: 42px; min-height: 20px; padding: 0; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; transition: 0.2s; }
+    .score-box.is-full { background: #fff7ed; border-color: #fdba74; }
     .score-box.is-full .score-text { color: #c2410c; }    
-    .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+    .score-text { font-weight: 800; font-size: 13px; color: #334155; font-variant-numeric: tabular-nums; }
     .score-text.live { color: #10b981; }
     .score-text.vs { color: #94a3b8; font-size: 12px; letter-spacing: 0; }
     /* 重构后的迷你 FULL 标签，依附于比分框 */
@@ -612,11 +613,11 @@ const PYTHON_JS = `
         const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
     }
 
+    // 修改后的 JS 渲染函数：配合 CSS 实现精准对齐
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
         const resHtml = mode === 'history' ? '<span class="col-res">' + resTag + '</span>' : '';
-        
-        // 构建居中的比分模块
+    
         let scoreContent = '';
         let scoreClass = 'score-text';
         if (resStatus === 'LIV') scoreClass += ' live';
@@ -624,12 +625,14 @@ const PYTHON_JS = `
         if (resStatus === 'N') {
             scoreContent = '<span class="score-text vs">VS</span>';
         } else {
-            // 给比分中间的杠加一点透明度，拉开视觉层次
+        // 使用更紧凑的杠连接，不留空格
             const fmtScore = (score || "").toString().replace('-', '<span style="opacity:0.4;margin:0 1px">-</span>');
             scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>';
         }
-        
+    
         const boxClass = isFull ? 'score-box is-full' : 'score-box';
+    
+    // 关键：确保结构简单，让 CSS 的 Grid 控制间距
         return '<div class="match-item ' + layoutClass + '">' +
                '<span class="col-date">' + date + '</span>' +
                resHtml +
