@@ -561,7 +561,7 @@ const PYTHON_STYLE = `
     .modal-content { background-color: #fefefe; margin: 12% auto; padding: 25px; border: 1px solid #888; width: 420px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: fadeIn 0.2s; }
     .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
     .match-list { margin-top: 20px; max-height: 400px; overflow-y: auto; overscroll-behavior: contain; }
-    .match-item { display: grid; align-items: center; border-bottom: 1px solid #f1f5f9; padding: 10px 1px; font-size: 14px; gap: 0; }
+    .match-item { display: grid; align-items: center; border-bottom: 1px solid #f1f5f9; padding: 10px 1px; font-size: 15px; gap: 0; }
     .match-item.history-layout { grid-template-columns: 90px 25px 1fr 45px 1fr 45px; }
     .match-item.dist-layout { grid-template-columns: 48px 1fr 45px 1fr 45px; }
     .col-date { font-size: 13px; color: #94a3b8; text-align: left; }
@@ -608,9 +608,9 @@ const PYTHON_JS = `
         const fullTag = isFull ? '<div style="display:flex; justify-content:center; align-items:center;"><span class="hist-full" style="margin:0;">FULL</span></div>' : '<span></span>';
         
         // 动态计算比分颜色
-        let scoreStyle = 'color:#334155; font-weight:700; font-size:13px;';
-        if (resStatus === 'LIV') scoreStyle = 'color:#10b981; font-weight:700; font-size:13px;';
-        else if (isFull) scoreStyle = 'color:#ef4444; font-weight:700; font-size:13px;';
+        let scoreStyle = 'color:#334155; font-weight:700; font-size:14px;';
+        if (resStatus === 'LIV') scoreStyle = 'color:#10b981; font-weight:700; font-size:14px;';
+        else if (isFull) scoreStyle = 'color:#ef4444; font-weight:700; font-size:14px;';
 
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
         const resHtml = mode === 'history' ? '<span class="col-res">' + resTag + '</span>' : '';
