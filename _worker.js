@@ -565,8 +565,8 @@ const PYTHON_STYLE = `
     .match-list::-webkit-scrollbar-track { background: transparent; }
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     /* 核心改造：卡片化排列 */
-    .match-item { display: grid; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 6px 8px; gap: 5px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
-    .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
+    .match-item.history-layout { grid-template-columns: 9ch 16px 1fr 52px 1fr; }
+    .match-item.dist-layout    { grid-template-columns: 5ch 1fr 52px 1fr; }
     /* 移除 FULL 冗余列，强化中轴对齐 */
     .match-item.history-layout { grid-template-columns: 11.5ch 16px 1fr 48px 1fr; }
     .match-item.dist-layout { grid-template-columns: 5.5ch 1fr 48px 1fr; }
@@ -574,7 +574,7 @@ const PYTHON_STYLE = `
     .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
     .col-t2 { text-align: left; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 0; min-height: 24px; transition: 0.2s; }
+    .score-box { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 0; min-height: 24px; width: 52px; flex-shrink: 0; transition: 0.2s; }
     .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
     .score-box.is-full .score-text { color: #c2410c; }    
     .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
