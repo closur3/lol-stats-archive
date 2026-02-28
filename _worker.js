@@ -603,15 +603,19 @@ const PYTHON_JS = `
         const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
     }
 
-    function renderMatchItem(mode, date, resTag, team1, team2, isFull, score) {
+    function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
         const fullTag = isFull ? '<span class="hist-full">FULL</span>' : '';
+        
         let scoreStyle = '';
         if (resStatus === 'LIV') scoreStyle = 'color:#10b981';
         else if (isFull) scoreStyle = 'color:#ef4444';
+
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
-        const resHtml = mode === 'history' ? \`<span class="col-res">\${resTag}</span>\` : '';
+        const resHtml = mode === 'history' ? '<span class="col-res">' + resTag + '</span>' : '';
         const fmtScore = (score || "").toString().replace('-', '<span style="margin:0 1px">-</span>');
-        return \`<div class="match-item \${layoutClass}"><span class="col-date">\${date}</span>\${resHtml}<span class="col-t1">\${team1}</span><span class="col-vs">vs</span><span class="col-t2">\${team2}</span><div class="col-score">\${fullTag}<span class="hist-score" style="\${scoreStyle}">\${fmtScore}</span></div></div>\`;
+        
+        // 彻底抛弃反引号，使用纯字符串拼接，绝对安全！
+        return '<div class="match-item ' + layoutClass + '"><span class="col-date">' + date + '</span>' + resHtml + '<span class="col-t1">' + team1 + '</span><span class="col-vs">vs</span><span class="col-t2">' + team2 + '</span><div class="col-score">' + fullTag + '<span class="hist-score" style="' + scoreStyle + '">' + fmtScore + '</span></div></div>';
     }
 
     function renderListHTML(htmlArr) {
@@ -672,14 +676,13 @@ const PYTHON_JS = `
             else if(h.res === 'L') t2Wins++;
         });
         
-        // 使用 margin 替代空格
-        const summary = h2hHistory.length > 0 ? ` <span style="color:#94a3b8;font-size:14px">(${t1Wins}<span style="margin:0 1px">-</span>${t2Wins})</span>` : "";
+        // 同样抛弃反引号，使用单双引号和加号拼接
+        const summary = h2hHistory.length > 0 ? ' <span style="color:#94a3b8;font-size:14px">(' + t1Wins + '<span style="margin:0 1px">-</span>' + t2Wins + ')</span>' : "";
         document.getElementById('modalTitle').innerHTML = t1 + " vs " + t2 + summary;
         
         const listHtml = h2hHistory.map(h => {
             const map = RES_MAP[h.res] || RES_MAP['N'];
-            const resTag = `<span class="${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">${map.t}</span>`;
-            // 传入 h.res 激活绿色比分
+            const resTag = '<span class="' + ((h.res === 'W' || h.res === 'L') ? '' : 'hist-icon') + '">' + map.t + '</span>';
             return renderMatchItem('history', h.d, resTag, t1, h.vs, h.full, h.s, h.res);
         });
         renderListHTML(listHtml);
