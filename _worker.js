@@ -565,11 +565,31 @@ const PYTHON_STYLE = `
     .match-list::-webkit-scrollbar-track { background: transparent; }
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     /* 核心改造：卡片化排列 */
-    .match-item { display: grid; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 6px 8px; gap: 5px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
+    /* 核心改造：卡片化排列 */
+    .match-item { 
+        display: grid; 
+        align-items: center; 
+        justify-content: center; /* 关键：让整个 Grid 块在卡片内居中，彻底解决左右收边不一致 */
+        background: #fff; 
+        border: 1px solid #e2e8f0; 
+        border-radius: 10px; 
+        margin-bottom: 8px; 
+        padding: 6px 8px; 
+        gap: 8px; /* 间距从 5px 加大到 8px，给 emoji 和时间之间顺畅的呼吸感 */
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02); 
+        transition: all 0.2s; 
+    }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
-    /* 移除 FULL 冗余列，强化中轴对齐 */
-    .match-item.history-layout { grid-template-columns: 11.5ch 16px 1fr 48px 1fr; }
-    .match-item.dist-layout { grid-template-columns: 5.5ch 1fr 48px 1fr; }
+    
+    /* 移除 1fr 贪婪占位，按“3字母队名”极限压缩右侧，同时放宽左侧时间 */
+    .match-item.history-layout { 
+        /* 时间(96px) | Emoji(22px) | 队1(42px) | 比分(48px) | 队2(42px) */
+        grid-template-columns: 96px 22px 42px 48px 42px; 
+    }
+    .match-item.dist-layout { 
+        /* 短时间(45px) | 队1(42px) | 比分(48px) | 队2(42px) */
+        grid-template-columns: 45px 42px 48px 42px; 
+    }
     .col-date { font-size: 13px; color: #64748b; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
     .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
