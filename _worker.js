@@ -11,1243 +11,1242 @@ const UI_VERSION = "2026-02-26-V41.2.9";
 const BOT_UA = `LoLStatsWorker/${UI_VERSION} (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
-const CST_OFFSET = 8 * 60 * 60 * 1000; 
+const CST_OFFSET = 8 * 60 * 60 * 1000; 
 
 const utils = {
-    toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
+    toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
 
-    getNow: () => {
-        const d = new Date(Date.now() + CST_OFFSET);
-        const pad = n => n < 10 ? '0'+n : n;
-        const iso = `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-        return {
-            obj: d,
-            full: iso,
-            short: iso.slice(2),
-            date: iso.slice(0, 10),
-            time: iso.slice(11, 16)
-        };
-    },
-    
-    fmtDate: (ts) => {
-        if (!ts) return "(Pending)";
-        const d = new Date(ts + CST_OFFSET);
-        const pad = n => n < 10 ? '0'+n : n;
-        return `${d.getUTCFullYear().toString().slice(2)}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-    },
+    getNow: () => {
+        const d = new Date(Date.now() + CST_OFFSET);
+        const pad = n => n < 10 ? '0'+n : n;
+        const iso = `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+        return {
+            obj: d,
+            full: iso,
+            short: iso.slice(2),
+            date: iso.slice(0, 10),
+            time: iso.slice(11, 16)
+        };
+    },
+    
+    fmtDate: (ts) => {
+        if (!ts) return "(Pending)";
+        const d = new Date(ts + CST_OFFSET);
+        const pad = n => n < 10 ? '0'+n : n;
+        return `${d.getUTCFullYear().toString().slice(2)}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    },
 
-    rate: (n, d) => d > 0 ? n / d : null,
-    pct: (r) => r !== null ? `${Math.round(r * 100)}%` : "-",
-    
-    color: (r, rev = false) => {
-        if (r === null) return "#f1f5f9"; 
-        const val = Math.max(0, Math.min(1, r));
-        const hue = rev ? (1 - val) * 140 : val * 140;
-        return `hsl(${parseInt(hue)}, 55%, 50%)`;
-    },
-    
-    colorDate: (ts, minTs, maxTs) => {
-        if (!ts) return "#9ca3af"; 
-        if (maxTs === minTs) return "hsl(215, 80%, 50%)";
-        const factor = (ts - minTs) / (maxTs - minTs);
-        const sat = Math.round(factor * 60 + 20); 
-        const lig = Math.round(60 - factor * 10);
-        return `hsl(215, ${sat}%, ${lig}%)`;
-    },
-    
-    parseDate: (str) => {
-        if(!str) return null;
-        try { return new Date(str.replace(" ", "T") + "Z"); } catch(e) { return null; }
-    },
-    
-    extractCookies: (headers) => {
-        if (!headers) return "";
-        if (typeof headers.getSetCookie === 'function') {
-            const cookies = headers.getSetCookie();
-            if (cookies && cookies.length > 0) {
-                return cookies.map(c => c.split(';')[0].trim()).join('; ');
-            }
-        }
-        const headerVal = headers.get("set-cookie");
-        if (!headerVal) return "";
-        return headerVal.split(/,(?=\s*[A-Za-z0-9_]+=[^;]+)/)
-            .map(c => c.split(';')[0].trim())
-            .filter(c => c.includes('='))
-            .join('; ');
-    }
+    rate: (n, d) => d > 0 ? n / d : null,
+    pct: (r) => r !== null ? `${Math.round(r * 100)}%` : "-",
+    
+    color: (r, rev = false) => {
+        if (r === null) return "#f1f5f9"; 
+        const val = Math.max(0, Math.min(1, r));
+        const hue = rev ? (1 - val) * 140 : val * 140;
+        return `hsl(${parseInt(hue)}, 55%, 50%)`;
+    },
+    
+    colorDate: (ts, minTs, maxTs) => {
+        if (!ts) return "#9ca3af"; 
+        if (maxTs === minTs) return "hsl(215, 80%, 50%)";
+        const factor = (ts - minTs) / (maxTs - minTs);
+        const sat = Math.round(factor * 60 + 20); 
+        const lig = Math.round(60 - factor * 10);
+        return `hsl(215, ${sat}%, ${lig}%)`;
+    },
+    
+    parseDate: (str) => {
+        if(!str) return null;
+        try { return new Date(str.replace(" ", "T") + "Z"); } catch(e) { return null; }
+    },
+    
+    extractCookies: (headers) => {
+        if (!headers) return "";
+        if (typeof headers.getSetCookie === 'function') {
+            const cookies = headers.getSetCookie();
+            if (cookies && cookies.length > 0) {
+                return cookies.map(c => c.split(';')[0].trim()).join('; ');
+            }
+        }
+        const headerVal = headers.get("set-cookie");
+        if (!headerVal) return "";
+        return headerVal.split(/,(?=\s*[A-Za-z0-9_]+=[^;]+)/)
+            .map(c => c.split(';')[0].trim())
+            .filter(c => c.includes('='))
+            .join('; ');
+    }
 };
 
 // --- 2. GitHub 读取层 ---
 const gh = {
-    fetchJson: async (env, path) => {
-        const url = `https://api.github.com/repos/${env.GITHUB_USER}/${env.GITHUB_REPO}/contents/${path}`;
-        try {
-            const r = await fetch(url, {
-                headers: { 
-                    "User-Agent": BOT_UA,
-                    "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
-                    "Accept": "application/vnd.github.v3+json"
-                }
-            });
-            if (!r.ok) return null;
-            const data = await r.json();
-            const content = atob(data.content);
-            return JSON.parse(decodeURIComponent(escape(content)));
-        } catch (e) {
-            return null;
-        }
-    }
+    fetchJson: async (env, path) => {
+        const url = `https://api.github.com/repos/${env.GITHUB_USER}/${env.GITHUB_REPO}/contents/${path}`;
+        try {
+            const r = await fetch(url, {
+                headers: { 
+                    "User-Agent": BOT_UA,
+                    "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+                    "Accept": "application/vnd.github.v3+json"
+                }
+            });
+            if (!r.ok) return null;
+            const data = await r.json();
+            const content = atob(data.content);
+            return JSON.parse(decodeURIComponent(escape(content)));
+        } catch (e) {
+            return null;
+        }
+    }
 };
 
 // --- 3. 认证逻辑 ---
 async function loginToFandom(env, logger) {
-    const user = env.FANDOM_USER;
-    
-    if (user && user.trim().toLowerCase() === "anonymous") {
-        logger.info("👻 Anonymous: Login Skipped by Config");
-        return { isAnonymous: true };
-    }
+    const user = env.FANDOM_USER;
+    
+    if (user && user.trim().toLowerCase() === "anonymous") {
+        logger.info("👻 Anonymous: Login Skipped by Config");
+        return { isAnonymous: true };
+    }
 
-    const pass = env.FANDOM_PASS;
-    if (!user || !pass) {
-        logger.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set.");
-        return null;
-    }
-    const API = "https://lol.fandom.com/api.php";
+    const pass = env.FANDOM_PASS;
+    if (!user || !pass) {
+        logger.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set.");
+        return null;
+    }
+    const API = "https://lol.fandom.com/api.php";
 
-    try {
-        const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
-            headers: { "User-Agent": BOT_UA }
-        });
-        if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
-        
-        const tokenData = await tokenResp.json();
-        const loginToken = tokenData?.query?.tokens?.logintoken;
-        if (!loginToken) throw new Error("Failed to get login token");
-        
-        const step1Cookie = utils.extractCookies(tokenResp.headers);
+    try {
+        const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
+            headers: { "User-Agent": BOT_UA }
+        });
+        if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
+        
+        const tokenData = await tokenResp.json();
+        const loginToken = tokenData?.query?.tokens?.logintoken;
+        if (!loginToken) throw new Error("Failed to get login token");
+        
+        const step1Cookie = utils.extractCookies(tokenResp.headers);
 
-        const params = new URLSearchParams();
-        params.append("action", "login"); params.append("format", "json");
-        params.append("lgname", user); params.append("lgpassword", pass); params.append("lgtoken", loginToken);
+        const params = new URLSearchParams();
+        params.append("action", "login"); params.append("format", "json");
+        params.append("lgname", user); params.append("lgpassword", pass); params.append("lgtoken", loginToken);
 
-        const loginResp = await fetch(API, {
-            method: "POST", body: params,
-            headers: { "User-Agent": BOT_UA, "Cookie": step1Cookie }
-        });
-        const loginData = await loginResp.json();
-        
-        if (loginData.login && loginData.login.result === "Success") {
-            const step2Cookie = utils.extractCookies(loginResp.headers);
-            const finalCookie = `${step1Cookie}; ${step2Cookie}`;
-            return { cookie: finalCookie, username: loginData.login.lgusername };
-        } else {
-            throw new Error(`Login Failed: ${loginData.login ? loginData.login.reason : JSON.stringify(loginData)}`);
-        }
-    } catch (e) {
-        logger.error(`❌ Auth Error: ${e.message}`);
-        return null;
-    }
+        const loginResp = await fetch(API, {
+            method: "POST", body: params,
+            headers: { "User-Agent": BOT_UA, "Cookie": step1Cookie }
+        });
+        const loginData = await loginResp.json();
+        
+        if (loginData.login && loginData.login.result === "Success") {
+            const step2Cookie = utils.extractCookies(loginResp.headers);
+            const finalCookie = `${step1Cookie}; ${step2Cookie}`;
+            return { cookie: finalCookie, username: loginData.login.lgusername };
+        } else {
+            throw new Error(`Login Failed: ${loginData.login ? loginData.login.reason : JSON.stringify(loginData)}`);
+        }
+    } catch (e) {
+        logger.error(`❌ Auth Error: ${e.message}`);
+        return null;
+    }
 }
 
 // --- 4. 抓取逻辑 (API 礼仪重构版) ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
-    let attempt = 1;
-    
-    const headers = { 
-        "User-Agent": BOT_UA,
-        "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate, br" 
-    };
-    if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
+    let attempt = 1;
+    
+    const headers = { 
+        "User-Agent": BOT_UA,
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate, br" 
+    };
+    if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
 
-    while (attempt <= maxRetries) {
-        try {
-            const r = await fetch(url, { headers });
-            
-            if (r.status === 429 || r.status === 503) {
-                const retryAfter = r.headers.get("Retry-After");
-                const waitSecs = retryAfter ? parseInt(retryAfter) : 30;
-                throw new Error(`HTTP ${r.status}. Server asked to wait ${waitSecs}s`);
-            }
-            
-            const rawBody = await r.text();
-            if (!r.ok) throw new Error(`HTTP ${r.status}: ${rawBody.slice(0, 150)}...`);
-            
-            let data;
-            try { data = JSON.parse(rawBody); } catch (e) { throw new Error(`JSON Parse Fail`); }
-            
-            if (data.error) {
-                if (data.error.code === "maxlag") {
-                    const retryAfter = r.headers.get("Retry-After") || 5; 
-                    throw new Error(`Maxlag Exceeded. Server asked to wait ${retryAfter}s`);
-                }
-                throw new Error(`API Error [${data.error.code}]: ${data.error.info}`);
-            }
-            
-            if (!data.cargoquery) throw new Error(`Structure Error`);
-            return data.cargoquery; 
-            
-        } catch (e) {
-            let waitTimeMs = 15000 * Math.pow(2, attempt - 1); 
-            const match = e.message.match(/wait (\d+)s/);
-            if (match) waitTimeMs = parseInt(match[1]) * 1000;
+    while (attempt <= maxRetries) {
+        try {
+            const r = await fetch(url, { headers });
+            
+            if (r.status === 429 || r.status === 503) {
+                const retryAfter = r.headers.get("Retry-After");
+                const waitSecs = retryAfter ? parseInt(retryAfter) : 30;
+                throw new Error(`HTTP ${r.status}. Server asked to wait ${waitSecs}s`);
+            }
+            
+            const rawBody = await r.text();
+            if (!r.ok) throw new Error(`HTTP ${r.status}: ${rawBody.slice(0, 150)}...`);
+            
+            let data;
+            try { data = JSON.parse(rawBody); } catch (e) { throw new Error(`JSON Parse Fail`); }
+            
+            if (data.error) {
+                if (data.error.code === "maxlag") {
+                    const retryAfter = r.headers.get("Retry-After") || 5; 
+                    throw new Error(`Maxlag Exceeded. Server asked to wait ${retryAfter}s`);
+                }
+                throw new Error(`API Error [${data.error.code}]: ${data.error.info}`);
+            }
+            
+            if (!data.cargoquery) throw new Error(`Structure Error`);
+            return data.cargoquery; 
+            
+        } catch (e) {
+            let waitTimeMs = 15000 * Math.pow(2, attempt - 1); 
+            const match = e.message.match(/wait (\d+)s/);
+            if (match) waitTimeMs = parseInt(match[1]) * 1000;
 
-            if (attempt >= maxRetries) {
-                logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
-                throw e;
-            } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`);               
-                await new Promise(res => setTimeout(res, waitTimeMs));
-            }
-            attempt++;
-        }
-    }
+            if (attempt >= maxRetries) {
+                logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
+                throw e;
+            } else {
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`);               
+                await new Promise(res => setTimeout(res, waitTimeMs));
+            }
+            attempt++;
+        }
+    }
 }
 
 async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilter = null) {
-    const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
-    let all = [];
-    for (const overviewPage of pages) {
-        let offset = 0; const limit = 100;
-        while(true) {
-            let whereClause = `OverviewPage LIKE '${overviewPage}%'`;
-            if (dateFilter) {
-                whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
-            }
+    const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
+    let all = [];
+    for (const overviewPage of pages) {
+        let offset = 0; const limit = 100;
+        while(true) {
+            let whereClause = `OverviewPage LIKE '${overviewPage}%'`;
+            if (dateFilter) {
+                whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
+            }
 
-            const params = new URLSearchParams({
-                action: "cargoquery", format: "json", tables: "MatchSchedule",
-                fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
-                where: whereClause, 
-                limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
-            });
+            const params = new URLSearchParams({
+                action: "cargoquery", format: "json", tables: "MatchSchedule",
+                fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
+                where: whereClause, 
+                limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
+            });
 
-            try {
-                const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
-                const batch = batchRaw.map(i => i.title);
-                logger.success(`📦 Received: ${slug} Got ${batch.length} matches`);
-                
-                if (!batch.length) break;
-                
-                all = all.concat(batch);
-                offset += batch.length;
-                
-                if (dateFilter) break; 
-                if (batch.length < limit) break;
-                
-                await new Promise(res => setTimeout(res, 2000)); 
-            } catch(e) {
-                logger.error(`💥 Pagination: ${slug} (Offset: ${offset}) -> ${e.message}`);
-                throw new Error(`Batch Fail`);
-            }
-        }
-    }
-    return all;
+            try {
+                const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
+                const batch = batchRaw.map(i => i.title);
+                logger.success(`📦 Received: ${slug} Got ${batch.length} matches`);
+                
+                if (!batch.length) break;
+                
+                all = all.concat(batch);
+                offset += batch.length;
+                
+                if (dateFilter) break; 
+                if (batch.length < limit) break;
+                
+                await new Promise(res => setTimeout(res, 2000)); 
+            } catch(e) {
+                logger.error(`💥 Pagination: ${slug} (Offset: ${offset}) -> ${e.message}`);
+                throw new Error(`Batch Fail`);
+            }
+        }
+    }
+    return all;
 }
 
 // --- 5. 统计核心 ---
 function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlugs = new Set()) {
-    const globalStats = {};
-    const debugInfo = {};
-    const tournMeta = {}; 
-    
-    // [Init TimeGrid]
-    const timeGrid = { "ALL": {} };
-    const createSlot = () => { const t = {}; for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; return t; };
-    timeGrid.ALL = createSlot(); 
+    const globalStats = {};
+    const debugInfo = {};
+    const tournMeta = {}; 
+    
+    // [Init TimeGrid]
+    const timeGrid = { "ALL": {} };
+    const createSlot = () => { const t = {}; for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; return t; };
+    timeGrid.ALL = createSlot(); 
 
-    let maxDateTs = 0;
-    let grandTotal = 0;
-    let totalMatchesToday = 0;
+    let maxDateTs = 0;
+    let grandTotal = 0;
+    let totalMatchesToday = 0;
 
-    const todayStr = utils.getNow().date;
-    const allFutureMatches = {}; 
+    const todayStr = utils.getNow().date;
+    const allFutureMatches = {}; 
 
-    const teamMapEntries = runtimeConfig.TEAM_MAP ? Object.entries(runtimeConfig.TEAM_MAP).map(([k,v]) => ({k: k.toUpperCase(), v})) : [];
-    
-    const nameCache = new Map();
-    const resolveName = (raw) => {
-        if (!raw) return "Unknown";
-        if (nameCache.has(raw)) return nameCache.get(raw);
-        
-        let res = raw;
-        const upper = raw.toUpperCase();
-        if (upper.includes("TBD") || upper.includes("TBA") || upper.includes("TO BE DETERMINED")) {
-            res = "TBD";
-        } else {
-            const match = teamMapEntries.find(e => upper.includes(e.k));
-            if (match) res = match.v;
-            else res = raw.replace(/(Esports|Gaming|Academy|Team|Club)/gi, "").trim();
-        }
-        nameCache.set(raw, res);
-        return res;
-    };
+    const teamMapEntries = runtimeConfig.TEAM_MAP ? Object.entries(runtimeConfig.TEAM_MAP).map(([k,v]) => ({k: k.toUpperCase(), v})) : [];
+    
+    const nameCache = new Map();
+    const resolveName = (raw) => {
+        if (!raw) return "Unknown";
+        if (nameCache.has(raw)) return nameCache.get(raw);
+        
+        let res = raw;
+        const upper = raw.toUpperCase();
+        if (upper.includes("TBD") || upper.includes("TBA") || upper.includes("TO BE DETERMINED")) {
+            res = "TBD";
+        } else {
+            const match = teamMapEntries.find(e => upper.includes(e.k));
+            if (match) res = match.v;
+            else res = raw.replace(/(Esports|Gaming|Academy|Team|Club)/gi, "").trim();
+        }
+        nameCache.set(raw, res);
+        return res;
+    };
 
-    const pad2 = (n) => n < 10 ? '0'+n : n;
+    const pad2 = (n) => n < 10 ? '0'+n : n;
 
-    runtimeConfig.TOURNAMENTS.forEach((tourn, tournIdx) => {
-        const rawMatches = allRawMatches[tourn.slug] || [];
-        const stats = {};
-        let processed = 0, skipped = 0;
-        let t_matchesToday = 0;
-        let t_pendingToday = 0;
-        let earliestPendingTs = Infinity;
-        
-        const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
+    runtimeConfig.TOURNAMENTS.forEach((tourn, tournIdx) => {
+        const rawMatches = allRawMatches[tourn.slug] || [];
+        const stats = {};
+        let processed = 0, skipped = 0;
+        let t_matchesToday = 0;
+        let t_pendingToday = 0;
+        let earliestPendingTs = Infinity;
+        
+        const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
-        rawMatches.forEach(m => {
-            const t1 = resolveName(m.Team1 || m["Team 1"]);
-            const t2 = resolveName(m.Team2 || m["Team 2"]);
-            if(!t1 || !t2) { skipped++; return; } 
-            
-            ensureTeam(t1); ensureTeam(t2);
+        rawMatches.forEach(m => {
+            const t1 = resolveName(m.Team1 || m["Team 1"]);
+            const t2 = resolveName(m.Team2 || m["Team 2"]);
+            if(!t1 || !t2) { skipped++; return; } 
+            
+            ensureTeam(t1); ensureTeam(t2);
 
-            const s1 = parseInt(m.Team1Score)||0, s2 = parseInt(m.Team2Score)||0;
-            const bo = parseInt(m.BestOf)||3;
-            const isFinished = Math.max(s1, s2) >= Math.ceil(bo/2);
-            const isLive = !isFinished && (s1 > 0 || s2 > 0 || (m.Team1Score !== "" && m.Team1Score != null));
-            const isFull = (bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2);
-            
-            const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
-            let dateDisplay = "-";
-            let ts = 0;
+            const s1 = parseInt(m.Team1Score)||0, s2 = parseInt(m.Team2Score)||0;
+            const bo = parseInt(m.BestOf)||3;
+            const isFinished = Math.max(s1, s2) >= Math.ceil(bo/2);
+            const isLive = !isFinished && (s1 > 0 || s2 > 0 || (m.Team1Score !== "" && m.Team1Score != null));
+            const isFull = (bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2);
+            
+            const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
+            let dateDisplay = "-";
+            let ts = 0;
 
-            if (dt) {
-                ts = dt.getTime();
-                const localTs = ts + CST_OFFSET;
-                const localD = new Date(localTs); 
-                
-                const y = localD.getUTCFullYear();
-                const mo = localD.getUTCMonth() + 1;
-                const da = localD.getUTCDate();
-                const ho = localD.getUTCHours();
-                const mi = localD.getUTCMinutes();
-                
-                const matchDateStr = `${y}-${pad2(mo)}-${pad2(da)}`;
-                const matchTimeStr = `${pad2(ho)}:${pad2(mi)}`;
-                dateDisplay = `${pad2(mo)}-${pad2(da)} ${matchTimeStr}`;
+            if (dt) {
+                ts = dt.getTime();
+                const localTs = ts + CST_OFFSET;
+                const localD = new Date(localTs); 
+                
+                const y = localD.getUTCFullYear();
+                const mo = localD.getUTCMonth() + 1;
+                const da = localD.getUTCDate();
+                const ho = localD.getUTCHours();
+                const mi = localD.getUTCMinutes();
+                
+                const matchDateStr = `${y}-${pad2(mo)}-${pad2(da)}`;
+                const matchTimeStr = `${pad2(ho)}:${pad2(mi)}`;
+                dateDisplay = `${pad2(mo)}-${pad2(da)} ${matchTimeStr}`;
 
-                if (matchDateStr >= todayStr) {
-                    if (matchDateStr === todayStr) {
-                        t_matchesToday++;
-                        if (!isFinished) t_pendingToday++;
-                        if (ts < earliestPendingTs) earliestPendingTs = ts;
-                    }
-                    if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
-                    
-                    let blockName = m.Tab || "";
-                    if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") if (m.Round) blockName = m.Round;
+                if (matchDateStr >= todayStr) {
+                    if (matchDateStr === todayStr) {
+                        t_matchesToday++;
+                        if (!isFinished) t_pendingToday++;
+                        if (ts < earliestPendingTs) earliestPendingTs = ts;
+                    }
+                    if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
+                    
+                    let blockName = m.Tab || "";
+                    if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") if (m.Round) blockName = m.Round;
 
-                    allFutureMatches[matchDateStr].push({
-                        time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
-                        is_finished: isFinished, is_live: isLive, 
-                        tourn: tourn.region, tournSlug: tourn.slug,
-                        tournIndex: tournIdx, blockName: blockName || ""  
-                    });
-                }
+                    allFutureMatches[matchDateStr].push({
+                        time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
+                        is_finished: isFinished, is_live: isLive, 
+                        tourn: tourn.region, tournSlug: tourn.slug,
+                        tournIndex: tournIdx, blockName: blockName || ""  
+                    });
+                }
 
-                if (isFinished) {
-                    if(ts > stats[t1].last) stats[t1].last = ts;
-                    if(ts > stats[t2].last) stats[t2].last = ts;
-                    if(ts > maxDateTs) maxDateTs = ts;
+                if (isFinished) {
+                    if(ts > stats[t1].last) stats[t1].last = ts;
+                    if(ts > stats[t2].last) stats[t2].last = ts;
+                    if(ts > maxDateTs) maxDateTs = ts;
 
-                    const wd = localD.getUTCDay();
-                    const pyDay = wd === 0 ? 6 : wd - 1;
-                    const targetH = ho;
+                    const wd = localD.getUTCDay();
+                    const pyDay = wd === 0 ? 6 : wd - 1;
+                    const targetH = ho;
 
-                    const matchObj = { d: `${pad2(mo)}-${pad2(da)}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
-                    
-                    if (!timeGrid[tourn.region]) timeGrid[tourn.region] = { "Total": createSlot() };
-                    if (!timeGrid[tourn.region][targetH]) timeGrid[tourn.region][targetH] = createSlot();
-                    
-                    const add = (grid, h, d) => { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); };
-                    
-                    add(timeGrid[tourn.region], targetH, pyDay);      
-                    add(timeGrid[tourn.region], "Total", pyDay);      
-                    add(timeGrid[tourn.region], targetH, 7);            
-                    add(timeGrid[tourn.region], "Total", 7);            
-                    
-                    timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
-                    timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
-                }
-            }
-            
-            let resT1 = 'N', resT2 = 'N';
-            if (isLive) { resT1 = 'LIV'; resT2 = 'LIV'; }
-            else if (isFinished) {
-                resT1 = s1 > s2 ? 'W' : 'L';
-                resT2 = s2 > s1 ? 'W' : 'L';
-            }
+                    const matchObj = { d: `${pad2(mo)}-${pad2(da)}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
+                    
+                    if (!timeGrid[tourn.region]) timeGrid[tourn.region] = { "Total": createSlot() };
+                    if (!timeGrid[tourn.region][targetH]) timeGrid[tourn.region][targetH] = createSlot();
+                    
+                    const add = (grid, h, d) => { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); };
+                    
+                    add(timeGrid[tourn.region], targetH, pyDay);      
+                    add(timeGrid[tourn.region], "Total", pyDay);      
+                    add(timeGrid[tourn.region], targetH, 7);            
+                    add(timeGrid[tourn.region], "Total", 7);            
+                    
+                    timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
+                    timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
+                }
+            }
+            
+            let resT1 = 'N', resT2 = 'N';
+            if (isLive) { resT1 = 'LIV'; resT2 = 'LIV'; }
+            else if (isFinished) {
+                resT1 = s1 > s2 ? 'W' : 'L';
+                resT2 = s2 > s1 ? 'W' : 'L';
+            }
 
-            stats[t1].history.push({ d: dateDisplay, vs: t2, s: `${s1}-${s2}`, res: resT1, bo: bo, full: isFull, ts: ts });
-            stats[t2].history.push({ d: dateDisplay, vs: t1, s: `${s2}-${s1}`, res: resT2, bo: bo, full: isFull, ts: ts });
+            stats[t1].history.push({ d: dateDisplay, vs: t2, s: `${s1}-${s2}`, res: resT1, bo: bo, full: isFull, ts: ts });
+            stats[t2].history.push({ d: dateDisplay, vs: t1, s: `${s2}-${s1}`, res: resT2, bo: bo, full: isFull, ts: ts });
 
-            if(!isFinished) { skipped++; return; }
+            if(!isFinished) { skipped++; return; }
 
-            processed++;
-            const winner = s1 > s2 ? t1 : t2, loser = s1 > s2 ? t2 : t1;
-            [t1,t2].forEach(tm => { stats[tm].s_t++; stats[tm].g_t += (s1+s2); });
-            stats[winner].s_w++; stats[t1].g_w += s1; stats[t2].g_w += s2;
-            if(bo===3) { stats[t1].bo3_t++; stats[t2].bo3_t++; if(isFull){stats[t1].bo3_f++; stats[t2].bo3_f++;} }
-            else if(bo===5) { stats[t1].bo5_t++; stats[t2].bo5_t++; if(isFull){stats[t1].bo5_f++; stats[t2].bo5_f++;} }
+            processed++;
+            const winner = s1 > s2 ? t1 : t2, loser = s1 > s2 ? t2 : t1;
+            [t1,t2].forEach(tm => { stats[tm].s_t++; stats[tm].g_t += (s1+s2); });
+            stats[winner].s_w++; stats[t1].g_w += s1; stats[t2].g_w += s2;
+            if(bo===3) { stats[t1].bo3_t++; stats[t2].bo3_t++; if(isFull){stats[t1].bo3_f++; stats[t2].bo3_f++;} }
+            else if(bo===5) { stats[t1].bo5_t++; stats[t2].bo5_t++; if(isFull){stats[t1].bo5_f++; stats[t2].bo5_f++;} }
 
-            if(stats[winner].strk_l > 0) { stats[winner].strk_l=0; stats[winner].strk_w=1; } else stats[winner].strk_w++;
-            if(stats[loser].strk_w > 0) { stats[loser].strk_w=0; stats[loser].strk_l=1; } else stats[loser].strk_l++;
-        });
-        
-        Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
-        debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
-        globalStats[tourn.slug] = stats;
-        grandTotal += processed;
-        totalMatchesToday += t_matchesToday;
+            if(stats[winner].strk_l > 0) { stats[winner].strk_l=0; stats[winner].strk_w=1; } else stats[winner].strk_w++;
+            if(stats[loser].strk_w > 0) { stats[loser].strk_w=0; stats[loser].strk_l=1; } else stats[loser].strk_l++;
+        });
+        
+        Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
+        debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
+        globalStats[tourn.slug] = stats;
+        grandTotal += processed;
+        totalMatchesToday += t_matchesToday;
 
-        const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
-        let nextStreak = 0, nextMode = "fast";
+        const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
+        let nextStreak = 0, nextMode = "fast";
 
-        if (failedSlugs.has(tourn.slug)) {
-            nextStreak = prevT.streak || 0;
-            nextMode = prevT.mode || "fast";
-        } else if (t_matchesToday > 0 && t_pendingToday > 0) { 
-            nextStreak = 0; 
-            nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
-        } else { 
-            nextStreak = prevT.streak >= 1 ? 2 : 1; 
-            nextMode = nextStreak >= 2 ? "slow" : "fast"; 
-        }
-        
-        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode };
-    });
+        if (failedSlugs.has(tourn.slug)) {
+            nextStreak = prevT.streak || 0;
+            nextMode = prevT.mode || "fast";
+        } else if (t_matchesToday > 0 && t_pendingToday > 0) { 
+            nextStreak = 0; 
+            nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
+        } else { 
+            nextStreak = prevT.streak >= 1 ? 2 : 1; 
+            nextMode = nextStreak >= 2 ? "slow" : "fast"; 
+        }
+        
+        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode };
+    });
 
-    let scheduleMap = {};
-    const sortedFutureDates = Object.keys(allFutureMatches).sort();
-    sortedFutureDates.slice(0, 4).forEach(d => {
-        scheduleMap[d] = allFutureMatches[d].sort((a,b) => {
-            if (a.tournIndex !== b.tournIndex) return a.tournIndex - b.tournIndex;
-            return a.time.localeCompare(b.time);
-        });
-    });
+    let scheduleMap = {};
+    const sortedFutureDates = Object.keys(allFutureMatches).sort();
+    sortedFutureDates.slice(0, 4).forEach(d => {
+        scheduleMap[d] = allFutureMatches[d].sort((a,b) => {
+            if (a.tournIndex !== b.tournIndex) return a.tournIndex - b.tournIndex;
+            return a.time.localeCompare(b.time);
+        });
+    });
 
-    let statusText = "";
-    const metaValues = Object.values(tournMeta);
-    const boxStyle = "display:inline-flex; align-items:center; justify-content:center; gap:5px; font-weight:600; font-size:12px; padding: 4px 10px; border-radius: 20px; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;";
-    const iconStyle = "font-size: 14px; line-height: 1; display: block; transform: translateY(-1px);"; 
+    let statusText = "";
+    const metaValues = Object.values(tournMeta);
+    const boxStyle = "display:inline-flex; align-items:center; justify-content:center; gap:5px; font-weight:600; font-size:12px; padding: 4px 10px; border-radius: 20px; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;";
+    const iconStyle = "font-size: 14px; line-height: 1; display: block; transform: translateY(-1px);"; 
 
-    if (metaValues.some(m => m.streak === 0 && m.mode === "fast")) {
-        statusText = `<div style="${boxStyle} color:#10b981;"><span style="${iconStyle}">🎮</span><span>ONGOING</span></div>`;
-    } else if (metaValues.some(m => m.streak === 0 && m.mode === "slow")) {
-        statusText = `<div style="${boxStyle} color:#4961c4;"><span style="${iconStyle}">⏳</span><span>WAITING</span></div>`;
-    } else if (metaValues.some(m => m.streak === 1)) {
-        statusText = `<div style="${boxStyle} color:#737373;"><span style="${iconStyle}">👀</span><span>VERIFYING</span></div>`;
-    } else {
-        if (totalMatchesToday === 0) {
-            statusText = `<div style="${boxStyle} color:#64748b;"><span style="${iconStyle}">💤</span><span>OFF-DAY</span></div>`;
-        } else {
-            statusText = `<div style="${boxStyle} color:#94a3b8;"><span style="${iconStyle}">✔️</span><span>FINISHED</span></div>`;
-        }
-    }
+    if (metaValues.some(m => m.streak === 0 && m.mode === "fast")) {
+        statusText = `<div style="${boxStyle} color:#10b981;"><span style="${iconStyle}">🎮</span><span>ONGOING</span></div>`;
+    } else if (metaValues.some(m => m.streak === 0 && m.mode === "slow")) {
+        statusText = `<div style="${boxStyle} color:#4961c4;"><span style="${iconStyle}">⏳</span><span>WAITING</span></div>`;
+    } else if (metaValues.some(m => m.streak === 1)) {
+        statusText = `<div style="${boxStyle} color:#737373;"><span style="${iconStyle}">👀</span><span>VERIFYING</span></div>`;
+    } else {
+        if (totalMatchesToday === 0) {
+            statusText = `<div style="${boxStyle} color:#64748b;"><span style="${iconStyle}">💤</span><span>OFF-DAY</span></div>`;
+        } else {
+            statusText = `<div style="${boxStyle} color:#94a3b8;"><span style="${iconStyle}">✔️</span><span>FINISHED</span></div>`;
+        }
+    }
 
-    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
+    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
 }
 
 // --- 6. Markdown 生成器 ---
 function generateMarkdown(tourn, stats, timeGrid) {
-    let md = `# ${tourn.title}\n\nUpdated: {{UPDATED_TIME}} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
-    const sorted = Object.values(stats).filter(s => s.name !== "TBD").sort((a,b) => {
-        const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1; const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1;
-        if(rA !== rB) return rA - rB; 
-        return (utils.rate(b.s_w, b.s_t)||0) - (utils.rate(a.s_w, a.s_t)||0);
-    });
-    sorted.forEach(s => {
-        const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-"; const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
-        const serTxt = s.s_t ? `${s.s_w}-${s.s_t-s.s_w}` : "-"; const gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
-        const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
-        const last = s.last ? utils.fmtDate(s.last) : "-";
-        md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${utils.pct(utils.rate(s.s_w, s.s_t))} | ${gamTxt} | ${utils.pct(utils.rate(s.g_w, s.g_t))} | ${strk} | ${last} |\n`;
-    });
-    md += `\n## 📅 Time Slot Distribution\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
-    const rows = tourn.region === "LCK" ? [16, 18, "Total"] : [15, 17, 19, "Total"];
-    rows.forEach(h => {
-        const label = h === "Total" ? `**${tourn.region} Total**` : `${tourn.region} ${h}:00`;
-        let line = `| ${label} |`;
-        for(let w=0; w<8; w++) {
-            const cell = timeGrid[tourn.region][h][w];
-            line += cell.total === 0 ? " - |" : ` ${cell.full}/${cell.total} (${Math.round(cell.full/cell.total*100)}%) |`;
-        }
-        md += line + "\n";
-    });
-    return md + `\n---\n*Generated by LoL Stats Worker*\n`;
+    let md = `# ${tourn.title}\n\nUpdated: {{UPDATED_TIME}} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    const sorted = Object.values(stats).filter(s => s.name !== "TBD").sort((a,b) => {
+        const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1; const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1;
+        if(rA !== rB) return rA - rB; 
+        return (utils.rate(b.s_w, b.s_t)||0) - (utils.rate(a.s_w, a.s_t)||0);
+    });
+    sorted.forEach(s => {
+        const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-"; const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
+        const serTxt = s.s_t ? `${s.s_w}-${s.s_t-s.s_w}` : "-"; const gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
+        const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
+        const last = s.last ? utils.fmtDate(s.last) : "-";
+        md += `| ${s.name} | ${bo3Txt} | ${utils.pct(utils.rate(s.bo3_f, s.bo3_t))} | ${bo5Txt} | ${utils.pct(utils.rate(s.bo5_f, s.bo5_t))} | ${serTxt} | ${utils.pct(utils.rate(s.s_w, s.s_t))} | ${gamTxt} | ${utils.pct(utils.rate(s.g_w, s.g_t))} | ${strk} | ${last} |\n`;
+    });
+    md += `\n## 📅 Time Slot Distribution\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    const rows = tourn.region === "LCK" ? [16, 18, "Total"] : [15, 17, 19, "Total"];
+    rows.forEach(h => {
+        const label = h === "Total" ? `**${tourn.region} Total**` : `${tourn.region} ${h}:00`;
+        let line = `| ${label} |`;
+        for(let w=0; w<8; w++) {
+            const cell = timeGrid[tourn.region][h][w];
+            line += cell.total === 0 ? " - |" : ` ${cell.full}/${cell.total} (${Math.round(cell.full/cell.total*100)}%) |`;
+        }
+        md += line + "\n";
+    });
+    return md + `\n---\n*Generated by LoL Stats Worker*\n`;
 }
 
 // --- 7. HTML 渲染器 & 页面外壳 ---
 
 // [重构] 抽离通用基础样式，消除重复代码
 const COMMON_STYLE = `
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; }
-    .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .header-left { display: flex; align-items: center; gap: 12px; }
-    .header-logo { font-size: 1.8rem; }
-    .header-title { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
-    .header-right { display: flex; gap: 10px; align-items: center; }
-    .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
-    .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
-    .btn-icon { display: inline-flex; justify-content: center; width: 16px; text-align: center; }
-    @media (max-width: 600px) { .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; }
+    .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo { font-size: 1.8rem; }
+    .header-title { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+    .header-right { display: flex; gap: 10px; align-items: center; }
+    .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
+    .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+    .btn-icon { display: inline-flex; justify-content: center; width: 16px; text-align: center; }
+    @media (max-width: 600px) { .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
 `;
 
 const PYTHON_STYLE = `
-    ${COMMON_STYLE}
-    .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
-    .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; padding-bottom: 0; display: flex; flex-direction: column; }
-    .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar { display: none; }
-    .wrapper, .match-list { -ms-overflow-style: none; scrollbar-width: none; }
-    table { width: 100%; min-width: 1000px; border-collapse: separate; border-spacing: 0; font-size: 14px; table-layout: fixed; margin: 0; border: none; }
-    th { background: #f8fafc; padding: 14px 8px; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.05); border: none !important; }
-    th:hover { background: #eff6ff; color: #2563eb; }
-    td { padding: 12px 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.04); border: none !important; }
-    tr { border: none !important; }
-    .team-col { position: sticky; left: 0; background: white !important; z-index: 10; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.04), inset -1px -1px 2px rgba(0, 0, 0, 0.04) !important; border: none !important; outline: none !important; }
-    .team-clickable { cursor: pointer; } 
-    .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
-    .table-title { padding: 15px; font-weight: 700; border-bottom: 2px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #fff; }
-    .table-title a { color: #2563eb; text-decoration: none; }
-    details.arch-sec { background: #fff; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.3s ease; display: block; }
-    details.arch-sec:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    details.arch-sec[open] { box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12); border-color: #2563eb; }
-    summary.arch-sum { cursor: pointer; user-select: none; list-style: none; min-height: 48px; display: flex; padding: 12px 16px; background: linear-gradient(135deg, #f8fafc 0%, #fff 100%); border-bottom: none; align-items: center; transition: background 0.2s; }
-    summary.arch-sum:hover { background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); }
-    summary.arch-sum::-webkit-details-marker { display: none; }
-    details.arch-sec[open] summary.arch-sum { background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); }
-    .arch-title-wrapper { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
-    .arch-title-wrapper a { color: #0f172a; font-weight: 700; text-decoration: none; transition: color 0.2s; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .arch-title-wrapper a:hover { color: #2563eb; }
-    .arch-indicator { font-size: 18px; color: #2563eb; font-weight: 600; transition: transform 0.3s ease; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; margin-right: 8px; }
-    details.arch-sec[open] .arch-indicator { transform: rotate(90deg); }
-    .col-bo3 { width: 70px; } .col-bo3-pct { width: 70px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 70px; }
-    .col-series { width: 70px; } .col-series-wr { width: 70px; } .col-game { width: 70px; } .col-game-wr { width: 70px; }
-    .col-streak { width: 70px; } .col-last { width: 130px; }
-    .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr, .col-streak, .col-last, .sch-time, .hist-score, .col-date, .sch-fin-score, .sch-live-score { font-family: inherit; font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: 0; }
-    .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
-    .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
-    .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
-    .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.8; font-weight: 700; font-size: 10px; }
-    .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
-    .spine-l.clickable:hover, .spine-r.clickable:hover, .spine-sep.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
-    .t-cell { display: flex; align-items: center; width: 100%; height: 100%; }
-    .t-val { flex: 1; flex-basis: 0; text-align: right; font-weight: 700; padding-right: 4px; white-space: nowrap; } 
-    .t-pct { flex: 1; flex-basis: 0; text-align: left; opacity: 0.9; font-size: 11px; font-weight: 700; padding-left: 4px; white-space: nowrap; }
-    .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
-    .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
-    .sch-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; align-items: start; }
-    .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
-    .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
-    .sch-body { display: flex; flex-direction: column; flex: 1; padding-bottom: 0; }
-    .sch-group-header { border-bottom: 1px solid #e2e8f0; border-top: 1px solid #e2e8f0; padding: 4px 0; color: #475569; font-size: 11px; letter-spacing: 0.5px; }
-    .sch-group-header .spine-l { justify-content: flex-end; padding-right: 2px; }
-    .sch-group-header .spine-r { justify-content: flex-start; padding-left: 2px; opacity: 0.7; }
-    .sch-group-header:first-child { border-top: none; }
-    .sch-row { display: flex; align-items: stretch; padding: 0; border-bottom: 1px solid #f8fafc; font-size: 14px; color: #334155; min-height: 36px; flex: 0 0 auto; }
-    .sch-time { width: 60px; color: #94a3b8; font-size: 13px; display:flex; align-items:center; justify-content:center; } 
-    .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: center; }
-    .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
-    .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
-    .sch-pill.gold { background: #f2d49c; color: #9c5326; }
-    .sch-live-score { color: #10b981; font-size: 13px; }
-    .sch-fin-score { color: #334155; font-size: 13px; }
-    .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; }
-    @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
-    .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(3px); }
-    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 16px; border: 1px solid #cbd5e1; width: 280px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
-    .close { display: none !important; }
-    #modalTitle { margin: 0 0 12px 12px; font-size: 15px; color: #0f172a; }
-    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 0; }
-    .match-list::-webkit-scrollbar { width: 6px; }
-    .match-list::-webkit-scrollbar-track { background: transparent; }
-    .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    /* 核心改造：卡片化排列 */
-    .match-item { display: grid; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 6px 12px; gap: 5px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; min-height: 36px; }
-    .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
-    /* 移除 FULL 冗余列，强化中轴对齐 */
-    .match-item.history-layout { grid-template-columns: 11.5ch 18px 1fr 54px 1fr; }
-    .match-item.dist-layout { grid-template-columns: 5.5ch 1fr 54px 1fr; }
-    .col-date { font-size: 13px; color: #64748b; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
-    .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
-    .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-    .col-t2 { text-align: left; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; height: 20px; width: 100%; padding: 0; transition: 0.2s; }
-    .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
-    .score-box.is-full .score-text { color: #c2410c; }    
-    .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
-    .score-text.live { color: #10b981; }
-    .score-text.vs { color: #94a3b8; font-size: 12px; letter-spacing: 0; }
-    /* 重构后的迷你 FULL 标签，依附于比分框 */
-    .full-tag { font-size: 9px; color: #ea580c; background: #ffedd5; padding: 1px 4px; border-radius: 4px; font-weight: 800; margin-top: 2px; line-height: 1; border: 1px solid #fdba74; }
-    .hist-icon { font-size: 14px; }
+    ${COMMON_STYLE}
+    .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
+    .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; padding-bottom: 0; display: flex; flex-direction: column; }
+    .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar { display: none; }
+    .wrapper, .match-list { -ms-overflow-style: none; scrollbar-width: none; }
+    table { width: 100%; min-width: 1000px; border-collapse: separate; border-spacing: 0; font-size: 14px; table-layout: fixed; margin: 0; border: none; }
+    th { background: #f8fafc; padding: 14px 8px; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.05); border: none !important; }
+    th:hover { background: #eff6ff; color: #2563eb; }
+    td { padding: 12px 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.04); border: none !important; }
+    tr { border: none !important; }
+    .team-col { position: sticky; left: 0; background: white !important; z-index: 10; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.04), inset -1px -1px 2px rgba(0, 0, 0, 0.04) !important; border: none !important; outline: none !important; }
+    .team-clickable { cursor: pointer; } 
+    .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
+    .table-title { padding: 15px; font-weight: 700; border-bottom: 2px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+    .table-title a { color: #2563eb; text-decoration: none; }
+    details.arch-sec { background: #fff; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.3s ease; display: block; }
+    details.arch-sec:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    details.arch-sec[open] { box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12); border-color: #2563eb; }
+    summary.arch-sum { cursor: pointer; user-select: none; list-style: none; min-height: 48px; display: flex; padding: 12px 16px; background: linear-gradient(135deg, #f8fafc 0%, #fff 100%); border-bottom: none; align-items: center; transition: background 0.2s; }
+    summary.arch-sum:hover { background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); }
+    summary.arch-sum::-webkit-details-marker { display: none; }
+    details.arch-sec[open] summary.arch-sum { background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); }
+    .arch-title-wrapper { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+    .arch-title-wrapper a { color: #0f172a; font-weight: 700; text-decoration: none; transition: color 0.2s; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .arch-title-wrapper a:hover { color: #2563eb; }
+    .arch-indicator { font-size: 18px; color: #2563eb; font-weight: 600; transition: transform 0.3s ease; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; margin-right: 8px; }
+    details.arch-sec[open] .arch-indicator { transform: rotate(90deg); }
+    .col-bo3 { width: 70px; } .col-bo3-pct { width: 70px; } .col-bo5 { width: 70px; } .col-bo5-pct { width: 70px; }
+    .col-series { width: 70px; } .col-series-wr { width: 70px; } .col-game { width: 70px; } .col-game-wr { width: 70px; }
+    .col-streak { width: 70px; } .col-last { width: 130px; }
+    .col-bo3, .col-bo3-pct, .col-bo5, .col-bo5-pct, .col-series, .col-series-wr, .col-game, .col-game-wr, .col-streak, .col-last, .sch-time, .hist-score, .col-date, .sch-fin-score, .sch-live-score { font-family: inherit; font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: 0; }
+    .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
+    .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
+    .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
+    .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.8; font-weight: 700; font-size: 10px; }
+    .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
+    .spine-l.clickable:hover, .spine-r.clickable:hover, .spine-sep.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
+    .t-cell { display: flex; align-items: center; width: 100%; height: 100%; }
+    .t-val { flex: 1; flex-basis: 0; text-align: right; font-weight: 700; padding-right: 4px; white-space: nowrap; } 
+    .t-pct { flex: 1; flex-basis: 0; text-align: left; opacity: 0.9; font-size: 11px; font-weight: 700; padding-left: 4px; white-space: nowrap; }
+    .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
+    .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
+    .sch-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; align-items: start; }
+    .sch-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
+    .sch-header { padding: 12px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #334155; display:flex; justify-content:space-between; }
+    .sch-body { display: flex; flex-direction: column; flex: 1; padding-bottom: 0; }
+    .sch-group-header { border-bottom: 1px solid #e2e8f0; border-top: 1px solid #e2e8f0; padding: 4px 0; color: #475569; font-size: 11px; letter-spacing: 0.5px; }
+    .sch-group-header .spine-l { justify-content: flex-end; padding-right: 2px; }
+    .sch-group-header .spine-r { justify-content: flex-start; padding-left: 2px; opacity: 0.7; }
+    .sch-group-header:first-child { border-top: none; }
+    .sch-row { display: flex; align-items: stretch; padding: 0; border-bottom: 1px solid #f8fafc; font-size: 14px; color: #334155; min-height: 36px; flex: 0 0 auto; }
+    .sch-time { width: 60px; color: #94a3b8; font-size: 13px; display:flex; align-items:center; justify-content:center; } 
+    .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: center; }
+    .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
+    .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
+    .sch-pill.gold { background: #f2d49c; color: #9c5326; }
+    .sch-live-score { color: #10b981; font-size: 13px; }
+    .sch-fin-score { color: #334155; font-size: 13px; }
+    .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; }
+    @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
+    .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(3px); }
+    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 16px; border: 1px solid #cbd5e1; width: 330px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
+    .close { display: none !important; }
+    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 2px; }
+    .match-list::-webkit-scrollbar { width: 6px; }
+    .match-list::-webkit-scrollbar-track { background: transparent; }
+    .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    /* 核心改造：卡片化排列 */
+    .match-item { display: grid; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 6px 8px; gap: 5px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
+    .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
+    /* 移除 FULL 冗余列，强化中轴对齐 */
+    .match-item.history-layout { grid-template-columns: 11.5ch 16px 1fr 48px 1fr; }
+    .match-item.dist-layout { grid-template-columns: 5.5ch 1fr 48px 1fr; }
+    .col-date { font-size: 13px; color: #64748b; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
+    .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
+    .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+    .col-t2 { text-align: left; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1px 0; min-height: 20px; transition: 0.2s; }
+    .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
+    .score-box.is-full .score-text { color: #c2410c; }    
+    .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+    .score-text.live { color: #10b981; }
+    .score-text.vs { color: #94a3b8; font-size: 12px; letter-spacing: 0; }
+    /* 重构后的迷你 FULL 标签，依附于比分框 */
+    .full-tag { font-size: 9px; color: #ea580c; background: #ffedd5; padding: 1px 4px; border-radius: 4px; font-weight: 800; margin-top: 2px; line-height: 1; border: 1px solid #fdba74; }
+    .hist-icon { font-size: 14px; }
 `;
 
 const PYTHON_JS = `
-    <script>
-    const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
-    const RES_MAP = { 'W': { t: '✔', c: '' }, 'L': { t: '❌', c: '' }, 'LIV': { t: '🔵', c: '' }, 'N': { t: '🕒', c: '' } };
-    
-    function doSort(c,id) {
-        const t=document.getElementById(id),b=t.tBodies[0],r=Array.from(b.rows),k='data-sort-dir-'+c,cur=t.getAttribute(k),
-        next=(!cur)?((c===COL_TEAM)?'asc':'desc'):((cur==='desc')?'asc':'desc');
-        r.sort((ra,rb)=>{
-            let va=ra.cells[c].innerText,vb=rb.cells[c].innerText;
-            if(c===COL_LAST_DATE){va=va==="-"?0:new Date(va).getTime();vb=vb==="-"?0:new Date(vb).getTime();}
-            else{va=parseValue(va);vb=parseValue(vb);}
-            if(va!==vb) return next==='asc'?(va>vb?1:-1):(va<vb?1:-1);
-            if(c===COL_BO3_PCT||c===COL_BO5_PCT){ let sA=parseValue(ra.cells[COL_SERIES_WR].innerText), sB=parseValue(rb.cells[COL_SERIES_WR].innerText); if(sA!==sB) return sA > sB ? -1 : 1; }
-            if(c===COL_SERIES || c===COL_SERIES_WR){ let gA=parseValue(ra.cells[COL_GAME_WR].innerText), gB=parseValue(rb.cells[COL_GAME_WR].innerText); if(gA!==gB) return gA > gB ? -1 : 1; }
-            return 0;
-        });
-        t.setAttribute(k,next); r.forEach(x=>b.appendChild(x));
-    }
-    
-    function parseValue(v) {
-        if(v==="-")return -1; if(v.includes('%'))return parseFloat(v);
-        if(v.includes('/')){let p=v.split('/');return p[1]==='-'?-1:parseFloat(p[0])/parseFloat(p[1]);}
-        if(v.includes('-')&&v.split('-').length===2)return parseFloat(v.split('-')[0]);
-        const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
-    }
+    <script>
+    const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
+    const RES_MAP = { 'W': { t: '✔', c: '' }, 'L': { t: '❌', c: '' }, 'LIV': { t: '🔵', c: '' }, 'N': { t: '🕒', c: '' } };
+    
+    function doSort(c,id) {
+        const t=document.getElementById(id),b=t.tBodies[0],r=Array.from(b.rows),k='data-sort-dir-'+c,cur=t.getAttribute(k),
+        next=(!cur)?((c===COL_TEAM)?'asc':'desc'):((cur==='desc')?'asc':'desc');
+        r.sort((ra,rb)=>{
+            let va=ra.cells[c].innerText,vb=rb.cells[c].innerText;
+            if(c===COL_LAST_DATE){va=va==="-"?0:new Date(va).getTime();vb=vb==="-"?0:new Date(vb).getTime();}
+            else{va=parseValue(va);vb=parseValue(vb);}
+            if(va!==vb) return next==='asc'?(va>vb?1:-1):(va<vb?1:-1);
+            if(c===COL_BO3_PCT||c===COL_BO5_PCT){ let sA=parseValue(ra.cells[COL_SERIES_WR].innerText), sB=parseValue(rb.cells[COL_SERIES_WR].innerText); if(sA!==sB) return sA > sB ? -1 : 1; }
+            if(c===COL_SERIES || c===COL_SERIES_WR){ let gA=parseValue(ra.cells[COL_GAME_WR].innerText), gB=parseValue(rb.cells[COL_GAME_WR].innerText); if(gA!==gB) return gA > gB ? -1 : 1; }
+            return 0;
+        });
+        t.setAttribute(k,next); r.forEach(x=>b.appendChild(x));
+    }
+    
+    function parseValue(v) {
+        if(v==="-")return -1; if(v.includes('%'))return parseFloat(v);
+        if(v.includes('/')){let p=v.split('/');return p[1]==='-'?-1:parseFloat(p[0])/parseFloat(p[1]);}
+        if(v.includes('-')&&v.split('-').length===2)return parseFloat(v.split('-')[0]);
+        const n=parseFloat(v); return isNaN(n)?v.toLowerCase():n;
+    }
 
-    function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
-        const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
-        const resHtml = mode === 'history' ? '<span class="col-res">' + resTag + '</span>' : '';
-        
-        // 构建居中的比分模块
-        let scoreContent = '';
-        let scoreClass = 'score-text';
-        if (resStatus === 'LIV') scoreClass += ' live';
+    function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
+        const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
+        const resHtml = mode === 'history' ? '<span class="col-res">' + resTag + '</span>' : '';
+        
+        // 构建居中的比分模块
+        let scoreContent = '';
+        let scoreClass = 'score-text';
+        if (resStatus === 'LIV') scoreClass += ' live';
 
-        if (resStatus === 'N') {
-            scoreContent = '<span class="score-text vs">VS</span>';
-        } else {
-            // 给比分中间的杠加一点透明度，拉开视觉层次
-            const fmtScore = (score || "").toString().replace('-', '<span style="opacity:0.4;margin:0 1px">-</span>');
-            scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>';
-        }
-        
-        const boxClass = isFull ? 'score-box is-full' : 'score-box';
-        return '<div class="match-item ' + layoutClass + '">' +
-               '<span class="col-date">' + date + '</span>' +
-               resHtml +
-               '<span class="col-t1">' + team1 + '</span>' +
-               '<div class="' + boxClass + '">' + scoreContent + '</div>' +
-               '<span class="col-t2">' + team2 + '</span>' +
-               '</div>';
-    }
+        if (resStatus === 'N') {
+            scoreContent = '<span class="score-text vs">VS</span>';
+        } else {
+            // 给比分中间的杠加一点透明度，拉开视觉层次
+            const fmtScore = (score || "").toString().replace('-', '<span style="opacity:0.4;margin:0 1px">-</span>');
+            scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>';
+        }
+        
+        const boxClass = isFull ? 'score-box is-full' : 'score-box';
+        return '<div class="match-item ' + layoutClass + '">' +
+               '<span class="col-date">' + date + '</span>' +
+               resHtml +
+               '<span class="col-t1">' + team1 + '</span>' +
+               '<div class="' + boxClass + '">' + scoreContent + '</div>' +
+               '<span class="col-t2">' + team2 + '</span>' +
+               '</div>';
+    }
 
-    function renderListHTML(htmlArr) {
-        const l=document.getElementById('modalList');
-        if(!htmlArr || htmlArr.length===0) l.innerHTML="<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
-        else l.innerHTML = htmlArr.join("");
-    }
+    function renderListHTML(htmlArr) {
+        const l=document.getElementById('modalList');
+        if(!htmlArr || htmlArr.length===0) l.innerHTML="<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
+        else l.innerHTML = htmlArr.join("");
+    }
 
-    function showPopup(t,d,m){
-        const ds=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Total"];
-        document.getElementById('modalTitle').innerText=t+" - "+ds[d];
-        const sortedMatches = [...m].sort((a, b) => b.d.localeCompare(a.d));
-        const listHtml = sortedMatches.map(item => renderMatchItem('dist', item.d, '', item.t1, item.t2, item.f, item.s));
-        renderListHTML(listHtml);
-        document.getElementById('matchModal').style.display="block";
-    }
+    function showPopup(t,d,m){
+        const ds=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Total"];
+        document.getElementById('modalTitle').innerText=t+" - "+ds[d];
+        const sortedMatches = [...m].sort((a, b) => b.d.localeCompare(a.d));
+        const listHtml = sortedMatches.map(item => renderMatchItem('dist', item.d, '', item.t1, item.t2, item.f, item.s));
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
+    }
 
-    function openTeam(slug, teamName) {
-        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
-        const data = window.g_stats[slug][teamName];
-        document.getElementById('modalTitle').innerText = teamName + " - Schedule";
-        const listHtml = (data.history || []).map(h => {
-            const map = RES_MAP[h.res] || RES_MAP['N'];
-            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
-            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s, h.res);
-        });
-        renderListHTML(listHtml);
-        document.getElementById('matchModal').style.display="block";
-    }
+    function openTeam(slug, teamName) {
+        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
+        const data = window.g_stats[slug][teamName];
+        document.getElementById('modalTitle').innerText = teamName + " - Schedule";
+        const listHtml = (data.history || []).map(h => {
+            const map = RES_MAP[h.res] || RES_MAP['N'];
+            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
+            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s, h.res);
+        });
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
+    }
 
-    function openStats(slug, teamName, type) {
-        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
-        const data = window.g_stats[slug][teamName];
-        let history = data.history || [];
-        let titleSuffix = "";
-        if (type === 'bo3') { history = history.filter(h => h.bo === 3); titleSuffix = " - BO3"; } 
-        else if (type === 'bo5') { history = history.filter(h => h.bo === 5); titleSuffix = " - BO5"; } 
-        else { titleSuffix = " - Series"; }
-        document.getElementById('modalTitle').innerText = teamName + titleSuffix;
-        const listHtml = history.map(h => {
-            const map = RES_MAP[h.res] || RES_MAP['N'];
-            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
-            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s, h.res);
-        });
-        renderListHTML(listHtml);
-        document.getElementById('matchModal').style.display="block";
-    }
+    function openStats(slug, teamName, type) {
+        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][teamName]) return;
+        const data = window.g_stats[slug][teamName];
+        let history = data.history || [];
+        let titleSuffix = "";
+        if (type === 'bo3') { history = history.filter(h => h.bo === 3); titleSuffix = " - BO3"; } 
+        else if (type === 'bo5') { history = history.filter(h => h.bo === 5); titleSuffix = " - BO5"; } 
+        else { titleSuffix = " - Series"; }
+        document.getElementById('modalTitle').innerText = teamName + titleSuffix;
+        const listHtml = history.map(h => {
+            const map = RES_MAP[h.res] || RES_MAP['N'];
+            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
+            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s, h.res);
+        });
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
+    }
 
-    function openH2H(slug, t1, t2) {
-        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][t1]) return;
-        const data = window.g_stats[slug][t1];
-        
-        const h2hHistory = (data.history || []).filter(h => h.vs === t2);
-        
-        let t1Wins = 0, t2Wins = 0;
-        h2hHistory.forEach(h => {
-            if(h.res === 'W') t1Wins++;
-            else if(h.res === 'L') t2Wins++;
-        });
-        
-        // 同样抛弃反引号，使用单双引号和加号拼接
-        const summary = h2hHistory.length > 0 ? ' <span style="color:#94a3b8;font-size:14px">(' + t1Wins + '<span style="margin:0 1px">-</span>' + t2Wins + ')</span>' : "";
-        document.getElementById('modalTitle').innerHTML = t1 + " vs " + t2 + summary;
-        
-        const listHtml = h2hHistory.map(h => {
-            const map = RES_MAP[h.res] || RES_MAP['N'];
-            const resTag = '<span class="' + ((h.res === 'W' || h.res === 'L') ? '' : 'hist-icon') + '">' + map.t + '</span>';
-            return renderMatchItem('history', h.d, resTag, t1, h.vs, h.full, h.s, h.res);
-        });
-        renderListHTML(listHtml);
-        document.getElementById('matchModal').style.display="block";
-    }
+    function openH2H(slug, t1, t2) {
+        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][t1]) return;
+        const data = window.g_stats[slug][t1];
+        
+        const h2hHistory = (data.history || []).filter(h => h.vs === t2);
+        
+        let t1Wins = 0, t2Wins = 0;
+        h2hHistory.forEach(h => {
+            if(h.res === 'W') t1Wins++;
+            else if(h.res === 'L') t2Wins++;
+        });
+        
+        // 同样抛弃反引号，使用单双引号和加号拼接
+        const summary = h2hHistory.length > 0 ? ' <span style="color:#94a3b8;font-size:14px">(' + t1Wins + '<span style="margin:0 1px">-</span>' + t2Wins + ')</span>' : "";
+        document.getElementById('modalTitle').innerHTML = t1 + " vs " + t2 + summary;
+        
+        const listHtml = h2hHistory.map(h => {
+            const map = RES_MAP[h.res] || RES_MAP['N'];
+            const resTag = '<span class="' + ((h.res === 'W' || h.res === 'L') ? '' : 'hist-icon') + '">' + map.t + '</span>';
+            return renderMatchItem('history', h.d, resTag, t1, h.vs, h.full, h.s, h.res);
+        });
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
+    }
 
-    function closePopup(){document.getElementById('matchModal').style.display="none";}
-    window.onclick=function(e){if(e.target==document.getElementById('matchModal'))closePopup();}
-    </script>
+    function closePopup(){document.getElementById('matchModal').style.display="none";}
+    window.onclick=function(e){if(e.target==document.getElementById('matchModal'))closePopup();}
+    </script>
 `;
 
 function renderPageShell(title, bodyContent, statusText = "", navMode = "home") {
-    let navBtn = "";
-    const logoIcon = navMode === "archive" ? "📦" : "🥇";
-    if (navMode === "home") navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
-    else if (navMode === "archive") navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
+    let navBtn = "";
+    const logoIcon = navMode === "archive" ? "📦" : "🥇";
+    if (navMode === "home") navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
+    else if (navMode === "archive") navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
 }
 
 function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
-    if (!scheduleMap) scheduleMap = {};
-    if (!updateTimestamps) updateTimestamps = {};
-    const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
-    const mkSpine = (val, sep) => {
-        if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
-        const parts = val.split(sep);
-        if(parts.length !== 2) return val;
-        return `<div class="spine-row"><span class="spine-l" style="font-weight:700">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r" style="font-weight:700">${parts[1]}</span></div>`;
-    };
-    const getRateHtml = (teamName, slug, bo) => {
-        const stats = globalStats[slug];
-        if(!stats || !stats[teamName]) return "";
-        const s = stats[teamName];
-        let r = null;
-        if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
-        else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
-        if(r === null) return "";
-        return `<span style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px">(${Math.round(r*100)}%)</span>`;
-    };
+    if (!scheduleMap) scheduleMap = {};
+    if (!updateTimestamps) updateTimestamps = {};
+    const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
+    const mkSpine = (val, sep) => {
+        if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
+        const parts = val.split(sep);
+        if(parts.length !== 2) return val;
+        return `<div class="spine-row"><span class="spine-l" style="font-weight:700">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r" style="font-weight:700">${parts[1]}</span></div>`;
+    };
+    const getRateHtml = (teamName, slug, bo) => {
+        const stats = globalStats[slug];
+        if(!stats || !stats[teamName]) return "";
+        const s = stats[teamName];
+        let r = null;
+        if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
+        else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
+        if(r === null) return "";
+        return `<span style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px">(${Math.round(r*100)}%)</span>`;
+    };
 
-    let tablesHtml = isArchive ? `<div class="arch-content">` : "";
+    let tablesHtml = isArchive ? `<div class="arch-content">` : "";
 
-    runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
-        const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
-        const tableId = `t${idx}`;
-        const lastTs = updateTimestamps[t.slug];
-        const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
-        const debugLabel = `<span style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px">${timeStr}</span>`;
+    runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
+        const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
+        const tableId = `t${idx}`;
+        const lastTs = updateTimestamps[t.slug];
+        const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
+        const debugLabel = `<span style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px">${timeStr}</span>`;
 
-        let minTs = 9999999999999, maxTsLocal = 0;
-        stats.forEach(s => { if(s.last){ if(s.last<minTs)minTs=s.last; if(s.last>maxTsLocal)maxTsLocal=s.last; }});
-        if(minTs===9999999999999)minTs=maxTsLocal;
+        let minTs = 9999999999999, maxTsLocal = 0;
+        stats.forEach(s => { if(s.last){ if(s.last<minTs)minTs=s.last; if(s.last>maxTsLocal)maxTsLocal=s.last; }});
+        if(minTs===9999999999999)minTs=maxTsLocal;
 
-        stats.sort((a,b) => {
-            const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1.0; const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1.0;
-            if(rA !== rB) return rA - rB; 
-            const sWA = utils.rate(a.s_w, a.s_t) || 0; const sWB = utils.rate(b.s_w, b.s_t) || 0;
-            if(sWA !== sWB) return sWB - sWA;
-            return (utils.rate(b.g_w, b.g_t) || 0) - (utils.rate(a.g_w, a.g_t) || 0);
-        });
+        stats.sort((a,b) => {
+            const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1.0; const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1.0;
+            if(rA !== rB) return rA - rB; 
+            const sWA = utils.rate(a.s_w, a.s_t) || 0; const sWB = utils.rate(b.s_w, b.s_t) || 0;
+            if(sWA !== sWB) return sWB - sWA;
+            return (utils.rate(b.g_w, b.g_t) || 0) - (utils.rate(a.g_w, a.g_t) || 0);
+        });
 
-        const rows = stats.map(s => {
-            const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
-            const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
-            const bo3Txt = s.bo3_t ? mkSpine(`${s.bo3_f}/${s.bo3_t}`, '/') : "-";
-            const bo5Txt = s.bo5_t ? mkSpine(`${s.bo5_f}/${s.bo5_t}`, '/') : "-";
-            const serTxt = s.s_t ? mkSpine(`${s.s_w}-${s.s_t-s.s_w}`, '-') : "-";
-            const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
-            const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
-            const last = s.last ? utils.fmtDate(s.last).slice(0) : "-";
-            const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
-            const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
-            const cls = (base, count) => count > 0 ? `${base} team-clickable` : base;
-            const clk = (slug, name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${name}', '${type}')"` : "";
-            
-            return `<tr><td class="team-col team-clickable" onclick="openTeam('${t.slug}', '${s.name}')">${s.name}</td><td class="${cls('col-bo3', s.bo3_t)}" ${clk(t.slug, s.name, 'bo3', s.bo3_t)} style="background:${s.bo3_t===0?emptyBg:'transparent'};color:${s.bo3_t===0?emptyCol:'inherit'}">${bo3Txt}</td><td class="col-bo3-pct" style="background:${utils.color(bo3R,true)};color:${bo3R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo3R)}</td><td class="${cls('col-bo5', s.bo5_t)}" ${clk(t.slug, s.name, 'bo5', s.bo5_t)} style="background:${s.bo5_t===0?emptyBg:'transparent'};color:${s.bo5_t===0?emptyCol:'inherit'}">${bo5Txt}</td><td class="col-bo5-pct" style="background:${utils.color(bo5R,true)};color:${bo5R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo5R)}</td><td class="${cls('col-series', s.s_t)}" ${clk(t.slug, s.name, 'series', s.s_t)} style="background:${s.s_t===0?emptyBg:'transparent'};color:${s.s_t===0?emptyCol:'inherit'}">${serTxt}</td><td class="col-series-wr" style="background:${utils.color(winR)};color:${winR!==null?'white':emptyCol};font-weight:bold">${utils.pct(winR)}</td><td class="col-game" style="background:${s.g_t===0?emptyBg:'transparent'};color:${s.g_t===0?emptyCol:'inherit'}">${gamTxt}</td><td class="col-game-wr" style="background:${utils.color(gameR)};color:${gameR!==null?'white':emptyCol};font-weight:bold">${utils.pct(gameR)}</td><td class="col-streak" style="background:${s.strk_w===0&&s.strk_l===0?emptyBg:'transparent'};color:${s.strk_w===0&&s.strk_l===0?emptyCol:'inherit'}">${strk}</td><td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
-        }).join("");
+        const rows = stats.map(s => {
+            const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
+            const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
+            const bo3Txt = s.bo3_t ? mkSpine(`${s.bo3_f}/${s.bo3_t}`, '/') : "-";
+            const bo5Txt = s.bo5_t ? mkSpine(`${s.bo5_f}/${s.bo5_t}`, '/') : "-";
+            const serTxt = s.s_t ? mkSpine(`${s.s_w}-${s.s_t-s.s_w}`, '-') : "-";
+            const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
+            const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
+            const last = s.last ? utils.fmtDate(s.last).slice(0) : "-";
+            const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
+            const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
+            const cls = (base, count) => count > 0 ? `${base} team-clickable` : base;
+            const clk = (slug, name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${name}', '${type}')"` : "";
+            
+            return `<tr><td class="team-col team-clickable" onclick="openTeam('${t.slug}', '${s.name}')">${s.name}</td><td class="${cls('col-bo3', s.bo3_t)}" ${clk(t.slug, s.name, 'bo3', s.bo3_t)} style="background:${s.bo3_t===0?emptyBg:'transparent'};color:${s.bo3_t===0?emptyCol:'inherit'}">${bo3Txt}</td><td class="col-bo3-pct" style="background:${utils.color(bo3R,true)};color:${bo3R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo3R)}</td><td class="${cls('col-bo5', s.bo5_t)}" ${clk(t.slug, s.name, 'bo5', s.bo5_t)} style="background:${s.bo5_t===0?emptyBg:'transparent'};color:${s.bo5_t===0?emptyCol:'inherit'}">${bo5Txt}</td><td class="col-bo5-pct" style="background:${utils.color(bo5R,true)};color:${bo5R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo5R)}</td><td class="${cls('col-series', s.s_t)}" ${clk(t.slug, s.name, 'series', s.s_t)} style="background:${s.s_t===0?emptyBg:'transparent'};color:${s.s_t===0?emptyCol:'inherit'}">${serTxt}</td><td class="col-series-wr" style="background:${utils.color(winR)};color:${winR!==null?'white':emptyCol};font-weight:bold">${utils.pct(winR)}</td><td class="col-game" style="background:${s.g_t===0?emptyBg:'transparent'};color:${s.g_t===0?emptyCol:'inherit'}">${gamTxt}</td><td class="col-game-wr" style="background:${utils.color(gameR)};color:${gameR!==null?'white':emptyCol};font-weight:bold">${utils.pct(gameR)}</td><td class="col-streak" style="background:${s.strk_w===0&&s.strk_l===0?emptyBg:'transparent'};color:${s.strk_w===0&&s.strk_l===0?emptyCol:'inherit'}">${strk}</td><td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
+        }).join("");
 
-        const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
-        const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
-        
-        let timeRows = [];
-        if (timeData[t.region]) { timeRows = Object.keys(timeData[t.region]).filter(k => k !== "Total").map(Number).sort((a,b) => a - b); timeRows.push("Total"); }
-        let timeTableHtml = "";
-        if (timeRows.length > 0) {
-            timeTableHtml += `<div style="border-top: 1px solid #f1f5f9; width:100%;"></div><table style="font-variant-numeric:tabular-nums; border-top:none;"><thead><tr style="border-bottom:none;"><th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
-            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => { timeTableHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`; });
-            timeTableHtml += "</tr></thead><tbody>";
-            timeRows.forEach(h => {
-                const isTotal = h === "Total";
-                const label = isTotal ? "Total" : `${h}:00`;
-                timeTableHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
-                for(let w=0; w<8; w++) {
-                    const c = (timeData[t.region][h] && timeData[t.region][h][w]) ? timeData[t.region][h][w] : {total:0};
-                    if(c.total===0) timeTableHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
-                    else {
-                        const r = c.full/c.total;
-                        const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}/${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
-                    }
-                }
-                timeTableHtml += "</tr>";
-            });
-            timeTableHtml += "</tbody></table>";
-        }
+        const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
+        const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
+        
+        let timeRows = [];
+        if (timeData[t.region]) { timeRows = Object.keys(timeData[t.region]).filter(k => k !== "Total").map(Number).sort((a,b) => a - b); timeRows.push("Total"); }
+        let timeTableHtml = "";
+        if (timeRows.length > 0) {
+            timeTableHtml += `<div style="border-top: 1px solid #f1f5f9; width:100%;"></div><table style="font-variant-numeric:tabular-nums; border-top:none;"><thead><tr style="border-bottom:none;"><th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
+            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => { timeTableHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`; });
+            timeTableHtml += "</tr></thead><tbody>";
+            timeRows.forEach(h => {
+                const isTotal = h === "Total";
+                const label = isTotal ? "Total" : `${h}:00`;
+                timeTableHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
+                for(let w=0; w<8; w++) {
+                    const c = (timeData[t.region][h] && timeData[t.region][h][w]) ? timeData[t.region][h][w] : {total:0};
+                    if(c.total===0) timeTableHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
+                    else {
+                        const r = c.full/c.total;
+                        const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}/${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
+                    }
+                }
+                timeTableHtml += "</tr>";
+            });
+            timeTableHtml += "</tbody></table>";
+        }
 
-        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a>`;
-        if (isArchive) {
-            const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
-            tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">${tableBody}${timeTableHtml}</div></details>`;
-        } else {
-            tablesHtml += `<div class="wrapper"><div class="table-title"><div>${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
-        }
-    });
+        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a>`;
+        if (isArchive) {
+            const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
+            tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">${tableBody}${timeTableHtml}</div></details>`;
+        } else {
+            tablesHtml += `<div class="wrapper"><div class="table-title"><div>${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
+        }
+    });
 
-    if (isArchive) tablesHtml += `</div>`;
-    
-    let scheduleHtml = "";
-    if (!isArchive) {
-        const dates = Object.keys(scheduleMap).sort();
-        if (dates.length === 0) scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
-        else {
-            scheduleHtml = `<div class="sch-container">`;
-            dates.forEach(d => {
-                const matches = scheduleMap[d];
-                const dateObj = new Date(d + "T00:00:00Z");
-                const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dateObj.getUTCDay()];
-                let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:#f8fafc;color:#334155"><span>📅 ${d.slice(5)} ${dayName}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
-                let lastGroupKey = "";
-                matches.forEach(m => {
-                    const blockName = m.blockName || "";
-                    const groupKey = `${m.tourn}_${blockName}`;
-                    if (groupKey !== lastGroupKey) {
-                        cardHtml += `<div class="sch-group-header" style="background:#f8fafc"><div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box"><span class="spine-l" style="font-weight:800">${m.tourn}</span><span class="spine-sep">/</span><span class="spine-r" style="font-weight:800; opacity:0.7">${blockName || "REGULAR"}</span></div></div>`;
-                        lastGroupKey = groupKey;
-                    }
-                    const boLabel = m.bo ? `BO${m.bo}` : ''; const isBo5 = m.bo === 5; const boClass = isBo5 ? "sch-pill gold" : "sch-pill";
-                    const isTbd1 = m.t1 === "TBD", isTbd2 = m.t2 === "TBD";
-                    const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`, t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
-                    const r1 = getRateHtml(m.t1, m.tournSlug, m.bo), r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
-                    let midContent = `<span style="color:#94a3b8;font-size:13px;font-weight:700;margin:0 2px">vs</span>`;
-                    if (m.is_finished) {
-                        const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8", s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
-                        midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-                    } else if (m.is_live) midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
+    if (isArchive) tablesHtml += `</div>`;
+    
+    let scheduleHtml = "";
+    if (!isArchive) {
+        const dates = Object.keys(scheduleMap).sort();
+        if (dates.length === 0) scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
+        else {
+            scheduleHtml = `<div class="sch-container">`;
+            dates.forEach(d => {
+                const matches = scheduleMap[d];
+                const dateObj = new Date(d + "T00:00:00Z");
+                const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dateObj.getUTCDay()];
+                let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:#f8fafc;color:#334155"><span>📅 ${d.slice(5)} ${dayName}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
+                let lastGroupKey = "";
+                matches.forEach(m => {
+                    const blockName = m.blockName || "";
+                    const groupKey = `${m.tourn}_${blockName}`;
+                    if (groupKey !== lastGroupKey) {
+                        cardHtml += `<div class="sch-group-header" style="background:#f8fafc"><div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box"><span class="spine-l" style="font-weight:800">${m.tourn}</span><span class="spine-sep">/</span><span class="spine-r" style="font-weight:800; opacity:0.7">${blockName || "REGULAR"}</span></div></div>`;
+                        lastGroupKey = groupKey;
+                    }
+                    const boLabel = m.bo ? `BO${m.bo}` : ''; const isBo5 = m.bo === 5; const boClass = isBo5 ? "sch-pill gold" : "sch-pill";
+                    const isTbd1 = m.t1 === "TBD", isTbd2 = m.t2 === "TBD";
+                    const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`, t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
+                    const r1 = getRateHtml(m.t1, m.tournSlug, m.bo), r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+                    let midContent = `<span style="color:#94a3b8;font-size:13px;font-weight:700;margin:0 2px">vs</span>`;
+                    if (m.is_finished) {
+                        const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8", s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
+                        midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                    } else if (m.is_live) midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
 
-                    const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
-                    const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.tournSlug}', '${m.t1}', '${m.t2}')" title="View H2H"` : "";
-                    cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="${h2hClass}" ${h2hClick} style="display:flex;justify-content:center;align-items:center;width:40px;transition:background 0.2s;">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;                });
-                cardHtml += `</div></div>`;
-                scheduleHtml += cardHtml;
-            });
-            scheduleHtml += `</div>`;
-        }
-    }
-    return `${tablesHtml} ${scheduleHtml} ${injectedData}`;
+                    const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
+                    const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.tournSlug}', '${m.t1}', '${m.t2}')" title="View H2H"` : "";
+                    cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="${h2hClass}" ${h2hClick} style="display:flex;justify-content:center;align-items:center;width:40px;transition:background 0.2s;">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;                });
+                cardHtml += `</div></div>`;
+                scheduleHtml += cardHtml;
+            });
+            scheduleHtml += `</div>`;
+        }
+    }
+    return `${tablesHtml} ${scheduleHtml} ${injectedData}`;
 }
 
 // --- 8. 主控 ---
 class Logger {
-    constructor() { this.l=[]; }
-    info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
-    error(m) { this.l.push({t:utils.getNow().short, l:'ERROR', m}); }
-    success(m) { this.l.push({t:utils.getNow().short, l:'SUCCESS', m}); }
-    export() { return this.l; }
+    constructor() { this.l=[]; }
+    info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
+    error(m) { this.l.push({t:utils.getNow().short, l:'ERROR', m}); }
+    success(m) { this.l.push({t:utils.getNow().short, l:'SUCCESS', m}); }
+    export() { return this.l; }
 }
 
 async function runUpdate(env, force=false) {
-    const l = new Logger();
-    const NOW = Date.now();
-    const FAST_THRESHOLD = 6 * 60 * 1000;         
-    const SLOW_THRESHOLD = 56 * 60 * 1000;        
-    const UPDATE_ROUNDS = 1;
+    const l = new Logger();
+    const NOW = Date.now();
+    const FAST_THRESHOLD = 6 * 60 * 1000;         
+    const SLOW_THRESHOLD = 56 * 60 * 1000;        
+    const UPDATE_ROUNDS = 1;
 
-    let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
-    const meta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, tournaments: {} };
-    
-    let runtimeConfig = null;
-    try {
-        const teams = await gh.fetchJson(env, "teams.json");
-        const tourns = await gh.fetchJson(env, "tournaments.json");
-        if (teams && tourns) runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
-    } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
+    let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
+    const meta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, tournaments: {} };
+    
+    let runtimeConfig = null;
+    try {
+        const teams = await gh.fetchJson(env, "teams.json");
+        const tourns = await gh.fetchJson(env, "tournaments.json");
+        if (teams && tourns) runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
+    } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
 
-    if (!runtimeConfig) { l.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set."); return l; }
-    if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
-    if (!cache.rawMatches) cache.rawMatches = {}; 
-    if (!cache.updateTimestamps) cache.updateTimestamps = {};
+    if (!runtimeConfig) { l.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set."); return l; }
+    if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
+    if (!cache.rawMatches) cache.rawMatches = {}; 
+    if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    let needsNetworkUpdate = false, candidates = [], waitings = [];
-    
-    const dayNow = utils.toCST(NOW).getUTCDate();
+    let needsNetworkUpdate = false, candidates = [], waitings = [];
+    
+    const dayNow = utils.toCST(NOW).getUTCDate();
 
-    runtimeConfig.TOURNAMENTS.forEach(t => {
-        const lastTs = cache.updateTimestamps[t.slug] || 0;
-        const elapsed = NOW - lastTs;
-        const elapsedMins = Math.floor(elapsed / 60000);
-        
-        const dayLast = utils.toCST(lastTs).getUTCDate();
-        const isNewDay = dayNow !== dayLast;
-        
-        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0 };
-        const currentMode = tMeta.mode;
-        const threshold = currentMode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
-        
-        if (force || elapsed >= threshold || isNewDay) {
-            if (isNewDay) l.info(`🌅 NewDay: ${t.slug} Force daily check triggered`);
-            candidates.push({ 
-                slug: t.slug, 
-                overview_page: t.overview_page, 
-                elapsed: elapsed, 
-                label: `${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
-                isNewDay: isNewDay,
-                mode: currentMode 
-            });
-            needsNetworkUpdate = true;
-        } else {
-            waitings.push(`${t.region || t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
-        }
-    });
+    runtimeConfig.TOURNAMENTS.forEach(t => {
+        const lastTs = cache.updateTimestamps[t.slug] || 0;
+        const elapsed = NOW - lastTs;
+        const elapsedMins = Math.floor(elapsed / 60000);
+        
+        const dayLast = utils.toCST(lastTs).getUTCDate();
+        const isNewDay = dayNow !== dayLast;
+        
+        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0 };
+        const currentMode = tMeta.mode;
+        const threshold = currentMode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
+        
+        if (force || elapsed >= threshold || isNewDay) {
+            if (isNewDay) l.info(`🌅 NewDay: ${t.slug} Force daily check triggered`);
+            candidates.push({ 
+                slug: t.slug, 
+                overview_page: t.overview_page, 
+                elapsed: elapsed, 
+                label: `${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
+                isNewDay: isNewDay,
+                mode: currentMode 
+            });
+            needsNetworkUpdate = true;
+        } else {
+            waitings.push(`${t.region || t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
+        }
+    });
 
-    if (waitings.length > 0) l.info(`❄️ Cooldown: ${waitings.join(" | ")}`);
+    if (waitings.length > 0) l.info(`❄️ Cooldown: ${waitings.join(" | ")}`);
 
-    if (!needsNetworkUpdate || candidates.length === 0) {
-        return l;
-    }
+    if (!needsNetworkUpdate || candidates.length === 0) {
+        return l;
+    }
 
-    const authContext = await loginToFandom(env, l);
-    if (authContext?.isAnonymous) {
-        // 显式匿名，已记录日志，此处跳过
-    } else if (!authContext) {
-        l.info("⚠️ Auth Failed. Proceeding anonymously"); 
-    } else {
-        l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
-    }
+    const authContext = await loginToFandom(env, l);
+    if (authContext?.isAnonymous) {
+        // 显式匿名，已记录日志，此处跳过
+    } else if (!authContext) {
+        l.info("⚠️ Auth Failed. Proceeding anonymously"); 
+    } else {
+        l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
+    }
 
-    candidates.sort((a, b) => b.elapsed - a.elapsed);
-    const totalLeagues = runtimeConfig.TOURNAMENTS.length;
-    const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
-    const batch = candidates.slice(0, batchSize);
-    
-    const pastDateObj = new Date(NOW - 48 * 60 * 60 * 1000); 
-    const futureDateObj = new Date(NOW + 48 * 60 * 60 * 1000); 
-    const deltaStartUTC = pastDateObj.toISOString().slice(0, 10); 
-    const deltaEndUTC = futureDateObj.toISOString().slice(0, 10); 
+    candidates.sort((a, b) => b.elapsed - a.elapsed);
+    const totalLeagues = runtimeConfig.TOURNAMENTS.length;
+    const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
+    const batch = candidates.slice(0, batchSize);
+    
+    const pastDateObj = new Date(NOW - 48 * 60 * 60 * 1000); 
+    const futureDateObj = new Date(NOW + 48 * 60 * 60 * 1000); 
+    const deltaStartUTC = pastDateObj.toISOString().slice(0, 10); 
+    const deltaEndUTC = futureDateObj.toISOString().slice(0, 10); 
 
-    const results = [];
-    for (const c of batch) {
-        try {
-            const oldData = cache.rawMatches[c.slug] || [];
-            const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
-            
-            const dateQuery = isFullFetch ? null : { start: deltaStartUTC, end: deltaEndUTC };
+    const results = [];
+    for (const c of batch) {
+        try {
+            const oldData = cache.rawMatches[c.slug] || [];
+            const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
+            
+            const dateQuery = isFullFetch ? null : { start: deltaStartUTC, end: deltaEndUTC };
 
-            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.label} Fetching ${deltaStartUTC} to ${deltaEndUTC}`);
-            else l.info(`📡 FullSync: ${c.label} Fetching entire matches`);
+            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.label} Fetching ${deltaStartUTC} to ${deltaEndUTC}`);
+            else l.info(`📡 FullSync: ${c.label} Fetching entire matches`);
 
-            const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
-            
-            results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
-        } catch (err) {
-            results.push({ status: 'rejected', slug: c.slug, err: err });
-        }
-        if (c !== batch[batch.length - 1]) await new Promise(res => setTimeout(res, 2000));
-    }
+            const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
+            
+            results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
+        } catch (err) {
+            results.push({ status: 'rejected', slug: c.slug, err: err });
+        }
+        if (c !== batch[batch.length - 1]) await new Promise(res => setTimeout(res, 2000));
+    }
 
-    let successCount = 0, failureCount = 0; 
-    const failedSlugs = new Set(); // 熔断及失败记录
-    
-    results.forEach(res => {
-        if (res.status === 'fulfilled') {
-            const slug = res.slug;
-            const newData = res.data || [];
-            const oldData = cache.rawMatches[slug] || [];
-            
-            if (res.isDelta) {
-                if (newData.length > 0) {
-                    const matchMap = new Map();
+    let successCount = 0, failureCount = 0; 
+    const failedSlugs = new Set(); // 熔断及失败记录
+    
+    results.forEach(res => {
+        if (res.status === 'fulfilled') {
+            const slug = res.slug;
+            const newData = res.data || [];
+            const oldData = cache.rawMatches[slug] || [];
+            
+            if (res.isDelta) {
+                if (newData.length > 0) {
+                    const matchMap = new Map();
 
-                    const getUniqueKey = (m) => {
-                        const page = m.OverviewPage || "Unknown";
-                        const n = m.N_MatchInPage || m["N MatchInPage"];
-                        if (n) return `${page}_${n}`;
-                        return `${page}_${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
-                    };
+                    const getUniqueKey = (m) => {
+                        const page = m.OverviewPage || "Unknown";
+                        const n = m.N_MatchInPage || m["N MatchInPage"];
+                        if (n) return `${page}_${n}`;
+                        return `${page}_${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
+                    };
 
-                    oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
+                    oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
 
-                    let changesCount = 0;
-                    newData.forEach(m => {
-                        const key = getUniqueKey(m);
-                        const oldM = matchMap.get(key);
-                        
-                        if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
-                            matchMap.set(key, m);
-                            changesCount++;
-                        }
-                    });
+                    let changesCount = 0;
+                    newData.forEach(m => {
+                        const key = getUniqueKey(m);
+                        const oldM = matchMap.get(key);
+                        
+                        if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
+                            matchMap.set(key, m);
+                            changesCount++;
+                        }
+                    });
 
-                    if (changesCount > 0) {
-                        const mergedList = Array.from(matchMap.values());
-                        mergedList.sort((a, b) => {
-                            const tA = a.DateTime_UTC || "9999-99-99";
-                            const tB = b.DateTime_UTC || "9999-99-99";
-                            return tA.localeCompare(tB);
-                        });
+                    if (changesCount > 0) {
+                        const mergedList = Array.from(matchMap.values());
+                        mergedList.sort((a, b) => {
+                            const tA = a.DateTime_UTC || "9999-99-99";
+                            const tB = b.DateTime_UTC || "9999-99-99";
+                            return tA.localeCompare(tB);
+                        });
 
-                        cache.rawMatches[slug] = mergedList;
-                        l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches (Total: ${mergedList.length})`);
-                    } else {
-                        l.info(`💤 Identical: ${slug} Data not changed`);
-                    }
-                } else {
-                    l.info(`💤 OffDay: ${slug} No matches for today`);
-                }
+                        cache.rawMatches[slug] = mergedList;
+                        l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches (Total: ${mergedList.length})`);
+                    } else {
+                        l.info(`💤 Identical: ${slug} Data not changed`);
+                    }
+                } else {
+                    l.info(`💤 OffDay: ${slug} No matches for today`);
+                }
 
-            } else {
-                if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
-                    l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
-                    failureCount++; 
-                    failedSlugs.add(slug); 
-                    return; 
-                } else {
-                    cache.rawMatches[slug] = newData;
-                    l.success(`💾 Overwrote: ${slug} Overwrote ${newData.length} matches`);
-                }
-            }
+            } else {
+                if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
+                    l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
+                    failureCount++; 
+                    failedSlugs.add(slug); 
+                    return; 
+                } else {
+                    cache.rawMatches[slug] = newData;
+                    l.success(`💾 Overwrote: ${slug} Overwrote ${newData.length} matches`);
+                }
+            }
 
-            cache.updateTimestamps[slug] = NOW;
-            successCount++;
+            cache.updateTimestamps[slug] = NOW;
+            successCount++;
 
-        } else {
-            failureCount++;
-            failedSlugs.add(res.slug);
-        }
-    });
+        } else {
+            failureCount++;
+            failedSlugs.add(res.slug);
+        }
+    });
 
-    const oldTournMeta = meta.tournaments || {};
-    const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
+    const oldTournMeta = meta.tournaments || {};
+    const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
-    Object.keys(analysis.tournMeta).forEach(slug => {
-        const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
-        const newMode = analysis.tournMeta[slug].mode;
-        if (oldMode === "fast" && newMode === "slow") l.success(`💤 SlowMode: ${slug} Entering SLOW mode`);
-        else if (oldMode === "slow" && newMode === "fast") l.info(`⚡ FastMode: ${slug} Activating FAST mode`);
-    });
+    Object.keys(analysis.tournMeta).forEach(slug => {
+        const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
+        const newMode = analysis.tournMeta[slug].mode;
+        if (oldMode === "fast" && newMode === "slow") l.success(`💤 SlowMode: ${slug} Entering SLOW mode`);
+        else if (oldMode === "slow" && newMode === "fast") l.info(`⚡ FastMode: ${slug} Activating FAST mode`);
+    });
 
-    const homeFragment = renderContentOnly(
-        analysis.globalStats, analysis.timeGrid, analysis.debugInfo, analysis.maxDateTs,
-        analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, false
-    );
-    
-    await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
-        globalStats: analysis.globalStats,
-        timeGrid: analysis.timeGrid,
-        debugInfo: analysis.debugInfo,
-        maxDateTs: analysis.maxDateTs,
-        statusText: analysis.statusText,
-        scheduleMap: analysis.scheduleMap,
-        updateTime: utils.getNow(),
-        runtimeConfig,
-        rawMatches: cache.rawMatches,
-        updateTimestamps: cache.updateTimestamps,
-        homeHtml: homeFragment 
-    }));
+    const homeFragment = renderContentOnly(
+        analysis.globalStats, analysis.timeGrid, analysis.debugInfo, analysis.maxDateTs,
+        analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, false
+    );
+    
+    await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
+        globalStats: analysis.globalStats,
+        timeGrid: analysis.timeGrid,
+        debugInfo: analysis.debugInfo,
+        maxDateTs: analysis.maxDateTs,
+        statusText: analysis.statusText,
+        scheduleMap: analysis.scheduleMap,
+        updateTime: utils.getNow(),
+        runtimeConfig,
+        rawMatches: cache.rawMatches,
+        updateTimestamps: cache.updateTimestamps,
+        homeHtml: homeFragment 
+    }));
 
-    const archiveFragment = renderContentOnly(
-        analysis.globalStats, analysis.timeGrid, analysis.debugInfo, analysis.maxDateTs,
-        analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, true 
-    );
-    await env.LOL_KV.put("ARCHIVE_FRAGMENT", archiveFragment);
+    const archiveFragment = renderContentOnly(
+        analysis.globalStats, analysis.timeGrid, analysis.debugInfo, analysis.maxDateTs,
+        analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, true 
+    );
+    await env.LOL_KV.put("ARCHIVE_FRAGMENT", archiveFragment);
 
-    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
-    
-    if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Ignored: ${failureCount} · Total Parsed: ${analysis.grandTotal}`);
-    else l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
-    return l;
+    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
+    
+    if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Ignored: ${failureCount} · Total Parsed: ${analysis.grandTotal}`);
+    else l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
+    return l;
 }
 
 function renderLogPage(logs) {
-    if (!Array.isArray(logs)) logs = [];
-    const entries = logs.map(l => {
-        let lvlClass = "lvl-inf";
-        if(l.l==="ERROR") lvlClass = "lvl-err";
-        if(l.l==="SUCCESS") lvlClass = "lvl-ok";
-        return `<li class="log-entry"><span class="log-time">${l.t}</span><span class="log-level ${lvlClass}">${l.l}</span><span class="log-msg">${l.m}</span></li>`;
-    }).join("");
-    return `<!DOCTYPE html>
+    if (!Array.isArray(logs)) logs = [];
+    const entries = logs.map(l => {
+        let lvlClass = "lvl-inf";
+        if(l.l==="ERROR") lvlClass = "lvl-err";
+        if(l.l==="SUCCESS") lvlClass = "lvl-ok";
+        return `<li class="log-entry"><span class="log-time">${l.t}</span><span class="log-level ${lvlClass}">${l.l}</span><span class="log-msg">${l.m}</span></li>`;
+    }).join("");
+    return `<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Logs</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
-    <style>
-        ${COMMON_STYLE}
-        .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 40px; }
-        .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
-        .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
-        .log-entry:nth-child(even) { background-color: #f8fafc; }
-        .log-time { color: #64748b; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: right; font-variant-numeric: tabular-nums; }
-        .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 6px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; }
-        .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
-        .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
-        .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
-        .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
-        .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
-        @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } .log-time { font-size: 12px; opacity: 0.7; text-align: left; } .log-level { display: inline-block; width: auto; padding: 3px 10px; } }
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
+    <style>
+        ${COMMON_STYLE}
+        .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 40px; }
+        .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
+        .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
+        .log-entry:nth-child(even) { background-color: #f8fafc; }
+        .log-time { color: #64748b; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: right; font-variant-numeric: tabular-nums; }
+        .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 6px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; }
+        .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
+        .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+        .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+        .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
+        .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
+        @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } .log-time { font-size: 12px; opacity: 0.7; text-align: left; } .log-level { display: inline-block; width: auto; padding: 3px 10px; } }
+    </style>
 </head>
 <body>
-    <header class="main-header">
-        <div class="header-left">
-            <span class="header-logo">📜</span>
-            <h1 class="header-title">Logs</h1>
-        </div>
-        <div class="header-right">
-            <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
-            <button class="action-btn update-btn" onclick="triggerUpdate()"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button>
-        </div>
-    </header>
-    
-    <div class="container">
-        <ul class="log-list">${entries}</ul>
-        ${logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : ''}
-    </div>
-    
-    <script>
-        async function triggerUpdate() {
-            const pwd = prompt("🔒 Password:");
-            if (!pwd) return;
+    <header class="main-header">
+        <div class="header-left">
+            <span class="header-logo">📜</span>
+            <h1 class="header-title">Logs</h1>
+        </div>
+        <div class="header-right">
+            <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
+            <button class="action-btn update-btn" onclick="triggerUpdate()"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button>
+        </div>
+    </header>
+    
+    <div class="container">
+        <ul class="log-list">${entries}</ul>
+        ${logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : ''}
+    </div>
+    
+    <script>
+        async function triggerUpdate() {
+            const pwd = prompt("🔒 Password:");
+            if (!pwd) return;
 
-            const btn = document.querySelector('.update-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<span class="btn-icon">⏳</span> <span class="btn-text">Updating...</span>';
-            btn.style.pointerEvents = 'none';
-            btn.style.opacity = '0.7';
+            const btn = document.querySelector('.update-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="btn-icon">⏳</span> <span class="btn-text">Updating...</span>';
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.7';
 
-            try {
-                const res = await fetch('/force', {
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + pwd }
-                });
-                
-                if (res.status === 401) {
-                    alert("❌ Incorrect password");
-                } else if (res.ok) {
-                    window.location.reload(); 
-                } else {
-                    alert("⚠️ Server error: " + res.status);
-                }
-            } catch (e) {
-                alert("❌ Network connection failed");
-            } finally {
-                btn.innerHTML = originalText;
-                btn.style.pointerEvents = 'auto';
-                btn.style.opacity = '1';
-            }
-        }
-    </script>
+            try {
+                const res = await fetch('/force', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + pwd }
+                });
+                
+                if (res.status === 401) {
+                    alert("❌ Incorrect password");
+                } else if (res.ok) {
+                    window.location.reload(); 
+                } else {
+                    alert("⚠️ Server error: " + res.status);
+                }
+            } catch (e) {
+                alert("❌ Network connection failed");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.style.pointerEvents = 'auto';
+                btn.style.opacity = '1';
+            }
+        }
+    </script>
 </body>
 </html>`;
 }
 
 export default {
-    async fetch(request, env, ctx) {
-        const url = new URL(request.url);
+    async fetch(request, env, ctx) {
+        const url = new URL(request.url);
 
-        switch (url.pathname) {
-            case "/backup": {
-                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                if (!cache || !cache.globalStats) return new Response(JSON.stringify({ error: "No data" }), { status: 503 });
-                const payload = {};
-                for (const t of cache.runtimeConfig.TOURNAMENTS) if (cache.globalStats[t.slug]) payload[`tournament/${t.slug}.md`] = generateMarkdown(t, cache.globalStats[t.slug], cache.timeGrid);
-                return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
-            }
+        switch (url.pathname) {
+            case "/backup": {
+                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                if (!cache || !cache.globalStats) return new Response(JSON.stringify({ error: "No data" }), { status: 503 });
+                const payload = {};
+                for (const t of cache.runtimeConfig.TOURNAMENTS) if (cache.globalStats[t.slug]) payload[`tournament/${t.slug}.md`] = generateMarkdown(t, cache.globalStats[t.slug], cache.timeGrid);
+                return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
+            }
 
-            case "/force": {
-                const expectedSecret = env.ADMIN_SECRET;
-                const authHeader = request.headers.get("Authorization");
-                
-                if (expectedSecret) {
-                    if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
-                        return new Response("Unauthorized", { status: 401 });
-                    }
-                }
+            case "/force": {
+                const expectedSecret = env.ADMIN_SECRET;
+                const authHeader = request.headers.get("Authorization");
+                
+                if (expectedSecret) {
+                    if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
+                        return new Response("Unauthorized", { status: 401 });
+                    }
+                }
 
-                const l = await runUpdate(env, true);
-                const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-                const newLogs = l.export();
-                let combinedLogs = [...newLogs, ...oldLogs];
-                if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-                await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
-                
-                return new Response("OK", { status: 200 });
-            }
+                const l = await runUpdate(env, true);
+                const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+                const newLogs = l.export();
+                let combinedLogs = [...newLogs, ...oldLogs];
+                if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+                await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+                
+                return new Response("OK", { status: 200 });
+            }
 
-            case "/logs": {
-                const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-                return new Response(renderLogPage(logs), { headers: { "content-type": "text/html;charset=utf-8" } });
-            }
-            
-            case "/archive": {
-                const fragment = await env.LOL_KV.get("ARCHIVE_FRAGMENT");
-                if (!fragment) return new Response("No archive data available. Please wait for the next update.", { headers: { "content-type": "text/html" } });
-                const fullPage = renderPageShell("LoL Archive", fragment, "", "archive");
-                return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
-            }
+            case "/logs": {
+                const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+                return new Response(renderLogPage(logs), { headers: { "content-type": "text/html;charset=utf-8" } });
+            }
+            
+            case "/archive": {
+                const fragment = await env.LOL_KV.get("ARCHIVE_FRAGMENT");
+                if (!fragment) return new Response("No archive data available. Please wait for the next update.", { headers: { "content-type": "text/html" } });
+                const fullPage = renderPageShell("LoL Archive", fragment, "", "archive");
+                return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
+            }
 
-            case "/": {
-                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                if (!cache) return new Response("Initializing... <a href='/force'>Click to Build</a>", { headers: { "content-type": "text/html" } });
+            case "/": {
+                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                if (!cache) return new Response("Initializing... <a href='/force'>Click to Build</a>", { headers: { "content-type": "text/html" } });
 
-                let homeFragment;
-                if (cache.homeHtml) {
-                    homeFragment = cache.homeHtml;
-                } else {
-                    homeFragment = renderContentOnly(
-                        cache.globalStats, cache.timeGrid, cache.debugInfo, cache.maxDateTs,
-                        cache.scheduleMap, cache.runtimeConfig || { TOURNAMENTS: [] }, cache.updateTimestamps, false
-                    );
-                }
+                let homeFragment;
+                if (cache.homeHtml) {
+                    homeFragment = cache.homeHtml;
+                } else {
+                    homeFragment = renderContentOnly(
+                        cache.globalStats, cache.timeGrid, cache.debugInfo, cache.maxDateTs,
+                        cache.scheduleMap, cache.runtimeConfig || { TOURNAMENTS: [] }, cache.updateTimestamps, false
+                    );
+                }
 
-                const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
-                return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
-            }
+                const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
+                return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
+            }
 
-            case "/favicon.ico":
-                return new Response(null, { status: 204 });
+            case "/favicon.ico":
+                return new Response(null, { status: 204 });
 
-            default: return new Response("404 Not Found", { status: 404 });
-        }
-    },
+            default: return new Response("404 Not Found", { status: 404 });
+        }
+    },
 
-    async scheduled(event, env, ctx) {
-        const l = await runUpdate(env, false);
-        const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-        const newLogs = l.export();
-        if (newLogs.length > 0) {
-            let combinedLogs = [...newLogs, ...oldLogs];
-            if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-            await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
-        }
-    }
+    async scheduled(event, env, ctx) {
+        const l = await runUpdate(env, false);
+        const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+        const newLogs = l.export();
+        if (newLogs.length > 0) {
+            let combinedLogs = [...newLogs, ...oldLogs];
+            if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+            await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+        }
+    }
 };
