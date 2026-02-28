@@ -575,8 +575,9 @@ const PYTHON_STYLE = `
     .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
     .col-t2 { text-align: left; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-    /* 独立比分框容器 */
-    .score-box { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 0; min-height: 32px; }
+    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 0; min-height: 28px; transition: 0.2s; }
+    .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
+    .score-box.is-full .score-text { color: #c2410c; }    
     .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
     .score-text.live { color: #10b981; }
     .score-text.vs { color: #94a3b8; font-size: 12px; letter-spacing: 0; }
@@ -629,15 +630,12 @@ const PYTHON_JS = `
             scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>';
         }
         
-        // 将 FULL 标签做成微型 Badge 放在比分下方
-        const fullHtml = isFull ? '<span class="full-tag">FULL</span>' : '';
-
+        const boxClass = isFull ? 'score-box is-full' : 'score-box';
         return '<div class="match-item ' + layoutClass + '">' +
                '<span class="col-date">' + date + '</span>' +
                resHtml +
                '<span class="col-t1">' + team1 + '</span>' +
-               // 中间区域包裹进独立的 score-box
-               '<div class="score-box">' + scoreContent + fullHtml + '</div>' +
+               '<div class="' + boxClass + '">' + scoreContent + '</div>' +
                '<span class="col-t2">' + team2 + '</span>' +
                '</div>';
     }
