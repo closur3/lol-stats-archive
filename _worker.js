@@ -558,15 +558,14 @@ const PYTHON_STYLE = `
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(3px); }
-    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 25px; border: 1px solid #cbd5e1; width: 440px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
-    .close { color: #94a3b8; float: right; font-size: 24px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 25px; border: 1px solid #cbd5e1; width: 380px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }    .close { color: #94a3b8; float: right; font-size: 24px; font-weight: bold; cursor: pointer; transition: 0.2s; }
     .close:hover { color: #0f172a; }
-    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 2px; }
     .match-list::-webkit-scrollbar { width: 6px; }
     .match-list::-webkit-scrollbar-track { background: transparent; }
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     /* 核心改造：卡片化排列 */
-    .match-item { display: grid; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 10px 12px; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
+    .match-item { display: grid; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 6px 10px; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
     /* 移除 FULL 冗余列，强化中轴对齐 */
     .match-item.history-layout { grid-template-columns: 85px 20px 1fr 54px 1fr; }
@@ -575,7 +574,7 @@ const PYTHON_STYLE = `
     .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
     .col-t2 { text-align: left; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 0; min-height: 28px; transition: 0.2s; }
+    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 0; min-height: 24px; transition: 0.2s; }
     .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
     .score-box.is-full .score-text { color: #c2410c; }    
     .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
