@@ -532,7 +532,7 @@ const PYTHON_STYLE = `
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; opacity: 0.8; font-weight: 700; font-size: 10px; }
     .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
-    .spine-l.clickable:hover, .spine-r.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
+    .spine-l.clickable:hover, .spine-r.clickable:hover, .spine-sep.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
     .t-cell { display: flex; align-items: center; width: 100%; height: 100%; }
     .t-val { flex: 1; flex-basis: 0; text-align: right; font-weight: 700; padding-right: 4px; white-space: nowrap; } 
     .t-pct { flex: 1; flex-basis: 0; text-align: left; opacity: 0.9; font-size: 11px; font-weight: 700; padding-left: 4px; white-space: nowrap; }
@@ -653,6 +653,33 @@ const PYTHON_JS = `
             const map = RES_MAP[h.res] || RES_MAP['N'];
             const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
             return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
+        });
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
+    }
+
+    function openH2H(slug, t1, t2) {
+        if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][t1]) return;
+        const data = window.g_stats[slug][t1];
+        
+        // 过滤出对手是 t2 的历史交锋记录
+        const h2hHistory = (data.history || []).filter(h => h.vs === t2);
+        
+        // 顺便算一下交手胜负关系
+        let t1Wins = 0, t2Wins = 0;
+        h2hHistory.forEach(h => {
+            if(h.res === 'W') t1Wins++;
+            else if(h.res === 'L') t2Wins++;
+        });
+        
+        // 设置弹窗标题，如果有交锋则带上总比分
+        const summary = h2hHistory.length > 0 ? \` <span style="color:#94a3b8;font-size:14px">(\${t1Wins} - \${t2Wins})</span>\` : "";
+        document.getElementById('modalTitle').innerHTML = t1 + " vs " + t2 + summary;
+        
+        const listHtml = h2hHistory.map(h => {
+            const map = RES_MAP[h.res] || RES_MAP['N'];
+            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
+            return renderMatchItem('history', h.d, resTag, t1, h.vs, h.full, h.s);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
@@ -798,8 +825,10 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
                         const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8", s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
                         midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
                     } else if (m.is_live) midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
-                    cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="spine-sep" style="display:flex;justify-content:center;align-items:center;width:40px">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
-                });
+
+                    const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
+                    const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.tournSlug}', '${m.t1}', '${m.t2}')" title="View H2H"` : "";
+                    cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="${h2hClass}" ${h2hClick} style="display:flex;justify-content:center;align-items:center;width:40px;border-radius:4px;transition:background 0.2s;">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;                });
                 cardHtml += `</div></div>`;
                 scheduleHtml += cardHtml;
             });
