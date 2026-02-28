@@ -793,7 +793,7 @@ function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, schedule
                     const isTbd1 = m.t1 === "TBD", isTbd2 = m.t2 === "TBD";
                     const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`, t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
                     const r1 = getRateHtml(m.t1, m.tournSlug, m.bo), r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
-                    let midContent = `<span style="color:#cbd5e1;font-size:10px;margin:0 2px">vs</span>`;
+                    let midContent = `<span style="color:#cbd5e1;font-size:13px;margin:0 2px">vs</span>`;
                     if (m.is_finished) {
                         const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8", s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
                         midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
