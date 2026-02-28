@@ -605,7 +605,9 @@ const PYTHON_JS = `
 
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score) {
         const fullTag = isFull ? '<span class="hist-full">FULL</span>' : '';
-        const scoreStyle = isFull ? 'color:#ef4444' : '';
+        let scoreStyle = '';
+        if (resStatus === 'LIV') scoreStyle = 'color:#10b981';
+        else if (isFull) scoreStyle = 'color:#ef4444';
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
         const resHtml = mode === 'history' ? \`<span class="col-res">\${resTag}</span>\` : '';
         const fmtScore = (score || "").toString().replace('-', '<span style="margin:0 1px">-</span>');
@@ -634,7 +636,7 @@ const PYTHON_JS = `
         const listHtml = (data.history || []).map(h => {
             const map = RES_MAP[h.res] || RES_MAP['N'];
             const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
-            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
+            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s, h.res);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
@@ -652,7 +654,7 @@ const PYTHON_JS = `
         const listHtml = history.map(h => {
             const map = RES_MAP[h.res] || RES_MAP['N'];
             const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
-            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s);
+            return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s, h.res);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
@@ -662,24 +664,23 @@ const PYTHON_JS = `
         if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][t1]) return;
         const data = window.g_stats[slug][t1];
         
-        // 过滤出对手是 t2 的历史交锋记录
         const h2hHistory = (data.history || []).filter(h => h.vs === t2);
         
-        // 顺便算一下交手胜负关系
         let t1Wins = 0, t2Wins = 0;
         h2hHistory.forEach(h => {
             if(h.res === 'W') t1Wins++;
             else if(h.res === 'L') t2Wins++;
         });
         
-        // 设置弹窗标题，如果有交锋则带上总比分
-        const summary = h2hHistory.length > 0 ? \` <span style="color:#94a3b8;font-size:14px">(\${t1Wins} - \${t2Wins})</span>\` : "";
+        // 使用 margin 替代空格
+        const summary = h2hHistory.length > 0 ? ` <span style="color:#94a3b8;font-size:14px">(${t1Wins}<span style="margin:0 1px">-</span>${t2Wins})</span>` : "";
         document.getElementById('modalTitle').innerHTML = t1 + " vs " + t2 + summary;
         
         const listHtml = h2hHistory.map(h => {
             const map = RES_MAP[h.res] || RES_MAP['N'];
-            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
-            return renderMatchItem('history', h.d, resTag, t1, h.vs, h.full, h.s);
+            const resTag = `<span class="${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">${map.t}</span>`;
+            // 传入 h.res 激活绿色比分
+            return renderMatchItem('history', h.d, resTag, t1, h.vs, h.full, h.s, h.res);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
