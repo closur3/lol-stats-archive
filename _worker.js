@@ -546,8 +546,8 @@ const PYTHON_STYLE = `
     .sch-group-header .spine-l { justify-content: flex-end; padding-right: 2px; }
     .sch-group-header .spine-r { justify-content: flex-start; padding-left: 2px; opacity: 0.7; }
     .sch-group-header:first-child { border-top: none; }
-    .sch-row { display: flex; align-items: stretch; padding: 0; border-bottom: 1px solid #f8fafc; font-size: 13px; color: #334155; min-height: 36px; flex: 0 0 auto; }
-    .sch-time { width: 60px; color: #94a3b8; font-size: 12px; display:flex; align-items:center; justify-content:center; } 
+    .sch-row { display: flex; align-items: stretch; padding: 0; border-bottom: 1px solid #f8fafc; font-size: 14px; color: #334155; min-height: 36px; flex: 0 0 auto; }
+    .sch-time { width: 60px; color: #94a3b8; font-size: 13px; display:flex; align-items:center; justify-content:center; } 
     .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: center; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
@@ -608,9 +608,9 @@ const PYTHON_JS = `
         const fullTag = isFull ? '<div style="display:flex; justify-content:center; align-items:center;"><span class="hist-full" style="margin:0;">FULL</span></div>' : '<span></span>';
         
         // 动态计算比分颜色
-        let scoreStyle = 'color:#334155; font-weight:800; font-size:15px;';
-        if (resStatus === 'LIV') scoreStyle = 'color:#10b981; font-weight:800; font-size:15px;';
-        else if (isFull) scoreStyle = 'color:#ef4444; font-weight:800; font-size:15px;';
+        let scoreStyle = 'color:#334155; font-weight:700; font-size:13px;';
+        if (resStatus === 'LIV') scoreStyle = 'color:#10b981; font-weight:700; font-size:13px;';
+        else if (isFull) scoreStyle = 'color:#ef4444; font-weight:700; font-size:13px;';
 
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
         const resHtml = mode === 'history' ? '<span class="col-res">' + resTag + '</span>' : '';
