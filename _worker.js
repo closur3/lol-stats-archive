@@ -594,7 +594,7 @@ const PYTHON_STYLE = `
     .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
     .col-t2 { text-align: left; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 0; min-height: 24px; transition: 0.2s; }
+    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 0; min-height: 22px; transition: 0.2s; }
     .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
     .score-box.is-full .score-text { color: #c2410c; }    
     .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
