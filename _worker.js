@@ -568,8 +568,8 @@ const PYTHON_STYLE = `
     .match-item { display: grid; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 6px 8px; gap: 5px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
     /* 移除 FULL 冗余列，强化中轴对齐 */
-    .match-item.history-layout { grid-template-columns: 11.5ch 16px 1fr 48px 1fr; }
-    .match-item.dist-layout { grid-template-columns: 5.5ch 1fr 48px 1fr; }
+    .match-item.history-layout { grid-template-columns: max-content 26px 1fr 48px 45px; }
+    .match-item.dist-layout { grid-template-columns: max-content 1fr 48px 45px; }
     .col-date { font-size: 13px; color: #64748b; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
     .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
