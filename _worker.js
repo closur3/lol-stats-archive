@@ -557,23 +557,32 @@ const PYTHON_STYLE = `
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; }
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
-    .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
-    .modal-content { background-color: #fefefe; margin: 12% auto; padding: 25px; border: 1px solid #888; width: 420px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: fadeIn 0.2s; }
-    .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-    .match-list { margin-top: 20px; max-height: 400px; overflow-y: auto; overscroll-behavior: contain; }
-    .match-item { display: grid; align-items: center; border-bottom: 1px solid #f1f5f9; padding: 10px 1px; font-size: 15px; gap: 0; }
-    .match-item.history-layout { grid-template-columns: 90px 25px 1fr 45px 1fr 45px; }
-    .match-item.dist-layout { grid-template-columns: 48px 1fr 45px 1fr 45px; }
-    .col-date { font-size: 13px; color: #94a3b8; text-align: left; }
-    .col-res { font-weight: 900; font-size: 16px; text-align: center; line-height: 1; }
-    .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; min-width: 0; }
-    .col-vs { text-align: center; color: #94a3b8; font-size: 10px; }
-    .col-t2 { text-align: left; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 5px; min-width: 0; }
-    .col-score { text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; align-items: center; }
-    .hist-win { color: #10b981; } .hist-loss { color: #f43f5e; }
-    .hist-score { font-size: 16px; color: #0f172a; }
-    .hist-full { color: #f59e0b; font-size: 10px; border: 1px solid #f59e0b; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-right: 8px; }
-    .hist-icon { font-size: 16px; }
+    .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(3px); }
+    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 25px; border: 1px solid #cbd5e1; width: 440px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
+    .close { color: #94a3b8; float: right; font-size: 24px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .close:hover { color: #0f172a; }
+    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+    .match-list::-webkit-scrollbar { width: 6px; }
+    .match-list::-webkit-scrollbar-track { background: transparent; }
+    .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    /* 核心改造：卡片化排列 */
+    .match-item { display: grid; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 10px 12px; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
+    .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
+    /* 移除 FULL 冗余列，强化中轴对齐 */
+    .match-item.history-layout { grid-template-columns: 85px 20px 1fr 54px 1fr; }
+    .match-item.dist-layout { grid-template-columns: 45px 1fr 54px 1fr; }
+    .col-date { font-size: 12px; color: #64748b; font-family: monospace; }
+    .col-res { font-weight: 900; font-size: 15px; text-align: center; line-height: 1; }
+    .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+    .col-t2 { text-align: left; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+    /* 独立比分框容器 */
+    .score-box { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 0; min-height: 32px; }
+    .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+    .score-text.live { color: #10b981; }
+    .score-text.vs { color: #94a3b8; font-size: 12px; letter-spacing: 0; }
+    /* 重构后的迷你 FULL 标签，依附于比分框 */
+    .full-tag { font-size: 9px; color: #ea580c; background: #ffedd5; padding: 1px 4px; border-radius: 4px; font-weight: 800; margin-top: 2px; line-height: 1; border: 1px solid #fdba74; }
+    .hist-icon { font-size: 14px; }
 `;
 
 const PYTHON_JS = `
@@ -604,34 +613,32 @@ const PYTHON_JS = `
     }
 
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
-        // FULL 标签外层包裹 flex 居中容器，如果是未打满/未开始，用空的 span 占位保持 Grid 网格不乱
-        const fullTag = isFull ? '<div style="display:flex; justify-content:center; align-items:center;"><span class="hist-full" style="margin:0;">FULL</span></div>' : '<span></span>';
-        
-        // 动态计算比分颜色
-        let scoreStyle = 'color:#334155; font-weight:700; font-size:14px;';
-        if (resStatus === 'LIV') scoreStyle = 'color:#10b981; font-weight:700; font-size:14px;';
-        else if (isFull) scoreStyle = 'color:#ef4444; font-weight:700; font-size:14px;';
-
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
         const resHtml = mode === 'history' ? '<span class="col-res">' + resTag + '</span>' : '';
         
-        // 👇 核心修复：如果是未开始的比赛（N），中间显示灰色的 vs；否则显示真正的比分
-        let middleContent = '';
+        // 构建居中的比分模块
+        let scoreContent = '';
+        let scoreClass = 'score-text';
+        if (resStatus === 'LIV') scoreClass += ' live';
+
         if (resStatus === 'N') {
-            middleContent = '<span style="color:#94a3b8; font-size:13px; font-weight:700;">vs</span>';
+            scoreContent = '<span class="score-text vs">VS</span>';
         } else {
-            const fmtScore = (score || "").toString().replace('-', '<span style="margin:0 2px">-</span>');
-            middleContent = '<span class="hist-score" style="' + scoreStyle + '">' + fmtScore + '</span>';
+            // 给比分中间的杠加一点透明度，拉开视觉层次
+            const fmtScore = (score || "").toString().replace('-', '<span style="opacity:0.4;margin:0 1px">-</span>');
+            scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>';
         }
         
-        // 继续使用绝对安全的加号字符串拼接
+        // 将 FULL 标签做成微型 Badge 放在比分下方
+        const fullHtml = isFull ? '<span class="full-tag">FULL</span>' : '';
+
         return '<div class="match-item ' + layoutClass + '">' +
                '<span class="col-date">' + date + '</span>' +
                resHtml +
                '<span class="col-t1">' + team1 + '</span>' +
-               '<div style="display:flex; justify-content:center; align-items:center;">' + middleContent + '</div>' +
+               // 中间区域包裹进独立的 score-box
+               '<div class="score-box">' + scoreContent + fullHtml + '</div>' +
                '<span class="col-t2">' + team2 + '</span>' +
-               fullTag +
                '</div>';
     }
 
