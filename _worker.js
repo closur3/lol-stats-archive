@@ -562,8 +562,8 @@ const PYTHON_STYLE = `
     .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
     .match-list { margin-top: 20px; max-height: 400px; overflow-y: auto; overscroll-behavior: contain; }
     .match-item { display: grid; align-items: center; border-bottom: 1px solid #f1f5f9; padding: 10px 1px; font-size: 14px; gap: 0; }
-    .match-item.history-layout { grid-template-columns: 95px auto 1fr 20px 1fr 60px; }
-    .match-item.dist-layout { grid-template-columns: 48px 1fr 24px 1fr 70px; }
+    .match-item.history-layout { grid-template-columns: 90px 25px 1fr 45px 1fr 45px; }
+    .match-item.dist-layout { grid-template-columns: 48px 1fr 45px 1fr 45px; }
     .col-date { font-size: 13px; color: #94a3b8; text-align: left; }
     .col-res { font-weight: 900; font-size: 16px; text-align: center; line-height: 1; }
     .col-t1 { text-align: right; font-weight: 800; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; min-width: 0; }
@@ -604,18 +604,26 @@ const PYTHON_JS = `
     }
 
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
-        const fullTag = isFull ? '<span class="hist-full">FULL</span>' : '';
+        // FULL 标签移到最后，增加外层容器确保在网格中居中，如果没有则用空 <span> 占位保证网格不乱
+        const fullTag = isFull ? '<div style="display:flex; justify-content:center; align-items:center;"><span class="hist-full" style="margin:0;">FULL</span></div>' : '<span></span>';
         
-        let scoreStyle = '';
-        if (resStatus === 'LIV') scoreStyle = 'color:#10b981';
-        else if (isFull) scoreStyle = 'color:#ef4444';
+        let scoreStyle = 'color:#334155; font-weight:800; font-size:15px;';
+        if (resStatus === 'LIV') scoreStyle = 'color:#10b981; font-weight:800; font-size:15px;';
+        else if (isFull) scoreStyle = 'color:#ef4444; font-weight:800; font-size:15px;';
 
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
         const resHtml = mode === 'history' ? '<span class="col-res">' + resTag + '</span>' : '';
         const fmtScore = (score || "").toString().replace('-', '<span style="margin:0 1px">-</span>');
         
-        // 彻底抛弃反引号，使用纯字符串拼接，绝对安全！
-        return '<div class="match-item ' + layoutClass + '"><span class="col-date">' + date + '</span>' + resHtml + '<span class="col-t1">' + team1 + '</span><span class="col-vs">vs</span><span class="col-t2">' + team2 + '</span><div class="col-score">' + fullTag + '<span class="hist-score" style="' + scoreStyle + '">' + fmtScore + '</span></div></div>';
+        // 彻底重排顺序：日期 -> 胜负标识 -> 队伍1 -> 居中比分(脊柱) -> 队伍2 -> FULL标签
+        return '<div class="match-item ' + layoutClass + '">' +
+               '<span class="col-date">' + date + '</span>' +
+               resHtml +
+               '<span class="col-t1">' + team1 + '</span>' +
+               '<div class="hist-score" style="display:flex; justify-content:center; align-items:center; ' + scoreStyle + '">' + fmtScore + '</div>' +
+               '<span class="col-t2">' + team2 + '</span>' +
+               fullTag +
+               '</div>';
     }
 
     function renderListHTML(htmlArr) {
