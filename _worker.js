@@ -604,23 +604,32 @@ const PYTHON_JS = `
     }
 
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
-        // FULL 标签移到最后，增加外层容器确保在网格中居中，如果没有则用空 <span> 占位保证网格不乱
+        // FULL 标签外层包裹 flex 居中容器，如果是未打满/未开始，用空的 span 占位保持 Grid 网格不乱
         const fullTag = isFull ? '<div style="display:flex; justify-content:center; align-items:center;"><span class="hist-full" style="margin:0;">FULL</span></div>' : '<span></span>';
         
+        // 动态计算比分颜色
         let scoreStyle = 'color:#334155; font-weight:800; font-size:15px;';
         if (resStatus === 'LIV') scoreStyle = 'color:#10b981; font-weight:800; font-size:15px;';
         else if (isFull) scoreStyle = 'color:#ef4444; font-weight:800; font-size:15px;';
 
         const layoutClass = mode === 'history' ? 'history-layout' : 'dist-layout';
         const resHtml = mode === 'history' ? '<span class="col-res">' + resTag + '</span>' : '';
-        const fmtScore = (score || "").toString().replace('-', '<span style="margin:0 1px">-</span>');
         
-        // 彻底重排顺序：日期 -> 胜负标识 -> 队伍1 -> 居中比分(脊柱) -> 队伍2 -> FULL标签
+        // 👇 核心修复：如果是未开始的比赛（N），中间显示灰色的 vs；否则显示真正的比分
+        let middleContent = '';
+        if (resStatus === 'N') {
+            middleContent = '<span style="color:#94a3b8; font-size:12px; font-weight:600;">vs</span>';
+        } else {
+            const fmtScore = (score || "").toString().replace('-', '<span style="margin:0 2px">-</span>');
+            middleContent = '<span class="hist-score" style="' + scoreStyle + '">' + fmtScore + '</span>';
+        }
+        
+        // 继续使用绝对安全的加号字符串拼接
         return '<div class="match-item ' + layoutClass + '">' +
                '<span class="col-date">' + date + '</span>' +
                resHtml +
                '<span class="col-t1">' + team1 + '</span>' +
-               '<div class="hist-score" style="display:flex; justify-content:center; align-items:center; ' + scoreStyle + '">' + fmtScore + '</div>' +
+               '<div style="display:flex; justify-content:center; align-items:center;">' + middleContent + '</div>' +
                '<span class="col-t2">' + team2 + '</span>' +
                fullTag +
                '</div>';
