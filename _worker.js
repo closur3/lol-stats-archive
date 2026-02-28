@@ -566,7 +566,7 @@ const PYTHON_STYLE = `
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     /* 核心改造：卡片化排列 */
     .match-item.history-layout { grid-template-columns: 9ch 16px 1fr 52px 1fr; }
-    .match-item.dist-layout    { grid-template-columns: 5ch 1fr 52px 1fr; }
+    .match-item.dist-layout { grid-template-columns: 1fr 52px 1fr; }
     /* 移除 FULL 冗余列，强化中轴对齐 */
     .match-item.history-layout { grid-template-columns: 11.5ch 16px 1fr 48px 1fr; }
     .match-item.dist-layout { grid-template-columns: 5.5ch 1fr 48px 1fr; }
