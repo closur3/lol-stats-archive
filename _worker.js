@@ -559,7 +559,7 @@ const PYTHON_STYLE = `
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(3px); }
     .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 330px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
-    .close:hover { color: #0f172a; }
+    .close { display: none !important; }
     .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 2px; }
     .match-list::-webkit-scrollbar { width: 6px; }
     .match-list::-webkit-scrollbar-track { background: transparent; }
