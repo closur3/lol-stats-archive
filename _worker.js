@@ -562,12 +562,12 @@ const PYTHON_STYLE = `
     .match-list::-webkit-scrollbar { width: 6px; }
     .match-list::-webkit-scrollbar-track { background: transparent; }
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 280px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
+    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 290px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
     #modalTitle { margin: 0 0 12px 0; font-size: 15px; font-weight: 800; color: #1e293b; white-space: nowrap; text-align: left; }
-    .match-item { display: grid; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 6px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
+    .match-item { display: grid; align-items: center; justify-content: center; gap: 6px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 6px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
-    .match-item.history-layout { grid-template-columns: 42px 20px 38px 46px 38px; }
-    .match-item.dist-layout { grid-template-columns: 42px 38px 46px 38px; justify-content: center; gap: 12px; }
+    .match-item.history-layout { grid-template-columns: 82px 24px 36px 46px 36px; }
+    .match-item.dist-layout { grid-template-columns: 45px 36px 46px 36px; }
     .col-date { font-size: 13px; color: #64748b; font-variant-numeric: tabular-nums; letter-spacing: 0; white-space: nowrap; text-align: left; }
     .col-res { font-weight: 900; font-size: 14px; text-align: center; line-height: 1; white-space: nowrap; }
     .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0; min-height: 20px; transition: 0.2s; }
