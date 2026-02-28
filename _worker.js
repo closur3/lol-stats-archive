@@ -563,7 +563,7 @@ const PYTHON_STYLE = `
     .match-list::-webkit-scrollbar-track { background: transparent; }
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 320px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
-    #modalTitle { margin: 0 0 15px 0; font-size: 18px; font-weight: 800; color: #1e293b; white-space: nowrap; text-align: left; }
+    #modalTitle { text-align: left; margin: 0 0 12px 2px; font-size: 15px; font-weight: 800; color: #1e293b; white-space: nowrap; }
     .match-item { display: grid; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 8px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .match-item.history-layout { grid-template-columns: 92px 26px 45px 50px 45px; }
