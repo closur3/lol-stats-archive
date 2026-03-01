@@ -80,7 +80,7 @@ jobs:
               session = get_robust_session()
               data = []
               
-              MAX_ATTEMPTS = 4
+              MAX_ATTEMPTS = 5
               for attempt in range(1, MAX_ATTEMPTS + 1):
                   try:
                       resp = session.get(url, params=params, headers=headers, timeout=30)
@@ -91,7 +91,7 @@ jobs:
                           err_info = resp_json["error"]
                           print(f"[WARN]  API 应用层异常 (重试 {attempt}/{MAX_ATTEMPTS}) | 详情：{err_info}", flush=True)
                           if "ratelimit" in err_info.get("code", "").lower() or "limit" in err_info.get("code", "").lower():
-                              sleep_time = 5 * attempt
+                              sleep_time = 15 * attempt
                               print(f"[WARN]  触发速率限制 (Rate Limit) | 策略：系统挂起等待 {sleep_time} 秒...", flush=True)
                               time.sleep(sleep_time)
                               continue
