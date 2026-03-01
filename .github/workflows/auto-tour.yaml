@@ -1,4 +1,33 @@
-import requests
+name: Auto Discover Tournaments (Enterprise Logging)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  update-tournaments-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Extract, Validate and Aggregate Data
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          import requests
           import json
           import re
           import time
@@ -10,21 +39,21 @@ import requests
           today_dt = now.date()
           TEST_FILE = "tournaments-test.json"
 
-          PREHEAT_DAYS = 7 
-          EXPIRE_DAYS = 1   
-          WHITELIST = ["LPL", "LCK"]
-          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary", "Qualifier", "Academy", "Division"]
+          PREHEAT_DAYS = 7
+          EXPIRE_DAYS  = 1
+          WHITELIST    = ["LPL", "LCK"]
+          BLACKLIST    = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary", "Qualifier", "Academy", "Division"]
 
-          # ── ANSI 颜色与日志对齐 ──────────────────────────────────────────────
+          # ── ANSI 颜色 & 对齐日志 ────────────────────────────────────────────
           RESET  = "\033[0m"
           BLACK  = "\033[30m"   # INFO  → 纯黑
-          YELLOW = "\033[93m"   # WARN
-          RED    = "\033[91m"   # ERROR
-          CYAN   = "\033[96m"   # DEBUG
+          YELLOW = "\033[93m"   # WARN  → 亮黄
+          RED    = "\033[91m"   # ERROR → 亮红
+          CYAN   = "\033[96m"   # DEBUG → 亮青
 
           def log(level, msg):
               colors = {"INFO": BLACK, "WARN": YELLOW, "ERROR": RED, "DEBUG": CYAN}
-              tag    = f"[{level:<5}]"   # 左对齐补空格，统一 7 字符宽：[INFO ], [WARN ], [ERROR], [DEBUG]
+              tag    = f"[{level:<5}]"   # 统一 7 字符：[INFO ] [WARN ] [ERROR] [DEBUG]
               color  = colors.get(level, RESET)
               print(f"{color}{tag}{RESET}  {msg}", flush=True)
           # ────────────────────────────────────────────────────────────────────
@@ -32,7 +61,8 @@ import requests
           def get_robust_session():
               session = requests.Session()
               retry_strategy = Retry(
-                  total=5, backoff_factor=2,
+                  total=5,
+                  backoff_factor=2,
                   status_forcelist=[429, 500, 502, 503, 504],
                   allowed_methods=["GET"]
               )
@@ -41,9 +71,9 @@ import requests
               return session
 
           def run_sniff():
-              url = "https://lol.fandom.com/api.php"
+              url       = "https://lol.fandom.com/api.php"
               where_sql = f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'"
-              
+
               params = {
                   "action": "cargoquery", "format": "json", "tables": "Tournaments",
                   "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
@@ -60,15 +90,15 @@ import requests
               log("INFO", "=" * 74)
 
               session = get_robust_session()
-              data = []
-              
+              data    = []
+
               MAX_ATTEMPTS = 5
               for attempt in range(1, MAX_ATTEMPTS + 1):
                   try:
                       resp = session.get(url, params=params, headers=headers, timeout=30)
                       resp.raise_for_status()
                       resp_json = resp.json()
-                      
+
                       if "error" in resp_json:
                           err_info = resp_json["error"]
                           log("WARN", f"API 应用层异常 (重试 {attempt}/{MAX_ATTEMPTS}) | 详情：{err_info}")
@@ -79,7 +109,7 @@ import requests
                               continue
                           else:
                               break
-                              
+
                       data = resp_json.get("cargoquery", [])
                       if data:
                           log("INFO", f"API 请求成功 | 获取 Primary 级原始数据共 {len(data)} 条。")
@@ -99,32 +129,32 @@ import requests
 
               raw_groups = {}
               log("INFO", "启动数据校验与规范化聚合模块...")
-              
+
               for item in data:
-                  t = item["title"]
-                  name = t.get("Name", "")
-                  ov = t.get("OverviewPage", "")
-                  region = t.get("Region", "")
-                  y = t.get("Year", "")
-                  is_playoffs = t.get("IsPlayoffs")
+                  t            = item["title"]
+                  name         = t.get("Name", "")
+                  ov           = t.get("OverviewPage", "")
+                  region       = t.get("Region", "")
+                  y            = t.get("Year", "")
+                  is_playoffs  = t.get("IsPlayoffs")
                   is_qualifier = t.get("IsQualifier")
-                  
+
                   if is_qualifier == "1":
                       log("DEBUG", f"数据拦截 [底层属性] | 拦截依据：标记为预选赛 (IsQualifier=1) | 赛事：{name}")
-                      continue 
+                      continue
 
                   hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
                   if hit_black:
                       log("DEBUG", f"数据拦截 [命中黑名] | 拦截依据：赛事名称包含 '{hit_black}' | 赛事：{name}")
                       continue
 
-                  is_intl = (region == 'International')
+                  is_intl   = (region == 'International')
                   hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
 
                   if not (is_intl or hit_white):
                       log("DEBUG", f"数据拦截 [非目标项] | 拦截依据：非国际赛 (Region={region}) 且未命中白名单 | 赛事：{name}")
                       continue
-                  
+
                   category = '国际级赛事 (Region=International)' if is_intl else f'区域白名单赛事 (匹配规则={hit_white})'
                   log("INFO", f"校验通过 [准入放行] | 准入依据：{category} | 赛事：{name}")
 
@@ -143,7 +173,8 @@ import requests
                   try:
                       s_dt = datetime.strptime(t["DateStart"], '%Y-%m-%d').date()
                       e_dt = datetime.strptime(t["Date"], '%Y-%m-%d').date() if t.get("Date") else s_dt
-                  except: continue
+                  except:
+                      continue
 
                   if group_key not in raw_groups:
                       raw_groups[group_key] = {
@@ -153,44 +184,62 @@ import requests
                   else:
                       old_end = raw_groups[group_key]["end"]
                       raw_groups[group_key]["start"] = min(raw_groups[group_key]["start"], s_dt)
-                      raw_groups[group_key]["end"] = max(raw_groups[group_key]["end"], e_dt)
+                      raw_groups[group_key]["end"]   = max(raw_groups[group_key]["end"],   e_dt)
                       if e_dt > old_end:
                           log("INFO", f"赛程聚合 [时间延展] | 关联主赛段：{clean_ov} | 结束日期由 {old_end} 更新为 {e_dt}")
 
               print("\n" + "-" * 80, flush=True)
               log("INFO", "启动生命周期管理与 JSON 构建模块...")
-              
+
               final_output = []
               for gk, v in raw_groups.items():
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
                       days_diff = (v["start"] - today_dt).days
                       log("DEBUG", f"周期拦截 [尚未预热] | 拦截依据：距开赛还有 {days_diff} 天，超出 {PREHEAT_DAYS} 天预热阈值 | 赛事：{v['name']}")
                       continue
-                      
+
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       days_diff = (today_dt - v["end"]).days
                       log("DEBUG", f"周期拦截 [赛事过期] | 拦截依据：已结束 {days_diff} 天，超出 {EXPIRE_DAYS} 天缓冲阈值 | 赛事：{v['name']}")
                       continue
 
                   if v["is_intl"]:
-                      slug_name = v["name"].lower().replace(str(v["year"]), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
+                      slug_name = (
+                          v["name"].lower()
+                          .replace(str(v["year"]), "")
+                          .replace("mid-season invitational", "msi")
+                          .replace("world championship", "worlds")
+                          .replace("esports world cup", "ewc")
+                          .strip()
+                      )
                       slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', slug_name).strip('-')}"
                   else:
                       parts = v["ov"].split('/')
-                      slug = f"{v['year']}-{parts[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', parts[-1].lower()).strip('-')}"
-                  
+                      slug  = f"{v['year']}-{parts[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', parts[-1].lower()).strip('-')}"
+
                   log("INFO", f"配置生成 [写入就绪] | Slug: {slug:<25} | 周期：{v['start']} 至 {v['end']}")
                   final_output.append({
                       "slug": slug, "overview_page": v["ov"],
-                      "start_date": v["start"].strftime('%Y-%m-%d'), "end_date": v["end"].strftime('%Y-%m-%d')
+                      "start_date": v["start"].strftime('%Y-%m-%d'),
+                      "end_date":   v["end"].strftime('%Y-%m-%d')
                   })
 
-              unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
+              unique_res = sorted(
+                  [dict(t) for t in {tuple(d.items()) for d in final_output}],
+                  key=lambda x: x['slug']
+              )
               with open(TEST_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
-              
+
               print("=" * 80, flush=True)
               log("INFO", f"流水线执行完毕。共计 {len(unique_res)} 条有效配置已成功写入 {TEST_FILE}。")
 
           if __name__ == "__main__":
               run_sniff()
+        shell: python
+
+      - name: Commit and Push
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "📝 Refactor: Enterprise-grade structured logging with 7-day preheat constraints"
+          file_pattern: 'tournaments-test.json'
