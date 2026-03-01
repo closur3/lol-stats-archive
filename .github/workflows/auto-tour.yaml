@@ -1,4 +1,4 @@
-name: Auto Discover Tournaments (Logic Final & Slug Align)
+name: Auto Discover Tournaments (Date Aggregation)
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Sniff and Align Test
+      - name: Aggregated Sniff
         run: |
           import requests
           import json
@@ -31,154 +31,110 @@ jobs:
           import time
           import random
           import sys
-          from datetime import datetime
+          from datetime import datetime, timedelta
 
-          # --- ⚙️ 配置中心 ---
-          YEAR = 2026
+          now = datetime.now()
+          THIS_YEAR, NEXT_YEAR = now.year, now.year + 1
+          today_dt = now.date()
           TEST_FILE = "tournaments-test.json"
-          today = datetime.now().strftime("%Y-%m-%d")
 
-          # 【黑名单】：优先级最高。LPLOL 必须写在这里，防止它触发 LPL 白名单
+          # 预热与缓冲设置
+          PREHEAT_DAYS = 14 
+          EXPIRE_DAYS = 1   
+
           BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary"]
-
-          # 【白名单】：你关注的核心赛区（非 S 级但必须强制保留的）
           WHITELIST = ["LPL", "LCK"]
 
-          def run_test_align():
+          def run_aggregated_sniff():
               url = "https://lol.fandom.com/api.php"
-              # SQL 层面保持宽口径，只过滤年份和基本有效性
-              where_sql = f"Year = '{YEAR}' AND DateStart IS NOT NULL"
-              
+              where_sql = f"(Year = '{THIS_YEAR}' OR Year = '{NEXT_YEAR}') AND DateStart IS NOT NULL"
               params = {
-                  "action": "cargoquery",
-                  "format": "json",
-                  "tables": "Tournaments",
-                  "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel",
-                  "where": where_sql,
-                  "order_by": "DateStart DESC",
-                  "limit": "150"
+                  "action": "cargoquery", "format": "json", "tables": "Tournaments",
+                  "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel, Year",
+                  "where": where_sql, "order_by": "DateStart ASC", "limit": "250"
               }
-              headers = {"User-Agent": f"LoLStatsAlignTest/6.0 (Chrome/{random.randint(110,125)})"}
+              headers = {"User-Agent": f"LoLStatsAggregator/9.0 (Chrome/{random.randint(110,125)})"}
 
-              print(f"🚀 [TEST START] 目标: {YEAR} | 输出: {TEST_FILE}")
+              try:
+                  resp = requests.get(url, params=params, headers=headers, timeout=25)
+                  data = resp.json().get("cargoquery", [])
+                  if not data: return
 
-              for attempt in range(5):
-                  if attempt > 0:
-                      wait_time = (2 ** attempt) * 10 + random.uniform(5, 15)
-                      print(f"⏳ [RETRY] 触发限频 (Attempt {attempt+1})，休眠 {wait_time:.1f}s...")
-                      time.sleep(wait_time)
-
-                  try:
-                      resp = requests.get(url, params=params, headers=headers, timeout=25)
-                      raw_json = resp.json()
+                  # --- 第一阶段：按“根路径”归一化并聚合时间 ---
+                  raw_groups = {}
+                  for item in data:
+                      t = item["title"]
+                      name, ov, level, item_year = t["Name"], t["OverviewPage"], t["TournamentLevel"] or "N/A", t["Year"]
                       
-                      # 软 429 检查
-                      if "error" in raw_json:
-                          if raw_json["error"].get("code") == "ratelimited":
-                              continue
-                          else:
-                              print(f"❌ [API ERROR] {json.dumps(raw_json['error'])}")
-                              sys.exit(1)
+                      if any(k.lower() in name.lower() or k.lower() in ov.lower() for k in BLACKLIST): continue
+                      if not (level in ['Primary', 'International'] or any(k.lower() in name.lower() for k in WHITELIST)): continue
 
-                      data = raw_json.get("cargoquery", [])
-                      if not data:
-                          print("📭 数据库暂无数据。")
-                          return
-
-                      picked = {}
-                      for item in data:
-                          t = item["title"]
-                          name, ov, level = t["Name"], t["OverviewPage"], t["TournamentLevel"] or "N/A"
-                          name_low, ov_low = name.lower(), ov.lower()
-
-                          # 1. 【黑名单拦截】
-                          if any(k.lower() in name_low or k.lower() in ov_low for k in BLACKLIST):
-                              continue
-                          
-                          # 2. 【准入判定】（不使用 INTL_KEYS，完全信任标签）
-                          # 逻辑：(是 S 级/国际赛) OR (白名单赛区)
-                          is_s_level = level in ['Primary', 'International']
-                          is_white = any(k.lower() in name_low or k.lower() in ov_low for k in WHITELIST)
-                          
-                          if not (is_s_level or is_white):
-                              continue
-
-                          # --- 3. OverviewPage 归一化 (核心逻辑) ---
-                          # 自动剥离 Playoffs, Group Stage 等后缀，确保指向分季赛根页面
-                          clean_ov = re.sub(r'/(Playoffs|Group Stage|Knockout Stage|Regional Finals|Main Event)$', '', ov)
-                          
-                          # --- 4. 分组逻辑 (同一根页面只占一个坑) ---
-                          # 国际赛按名独立；区域赛按归一化后的根路径聚合
-                          is_intl = (level == 'International')
-                          group = f"INTL_{name}" if is_intl else clean_ov.upper()
-                          
-                          is_active = t["DateStart"] <= today <= (t.get("Date") or "2099-12-31")
-                          if group not in picked or is_active:
-                              picked[group] = {
-                                  "raw_name": name, 
-                                  "OverviewPage": clean_ov, 
-                                  "is_intl": is_intl
-                              }
-
-                      # --- 5. Slug 生成逻辑 (格式: 年份-联赛-分季赛) ---
-                      final_output = []
-                      for k in sorted(picked.keys()):
-                          item = picked[k]
-                          raw_name = item["raw_name"]
-                          
-                          # 获取基础联赛名 (例如 LPL, LCK)
-                          league_prefix = item["OverviewPage"].split('/')[0].lower()
-                          
-                          # 清洗名字部分
-                          s_part = raw_name.lower().replace(str(YEAR), "").strip()
-                          # 移除干扰后缀
-                          s_part = re.sub(r'(playoffs|group stage|regional finals|knockout stage)', '', s_part).strip()
-                          
-                          if item["is_intl"]:
-                              # 国际赛处理: 2026-msi, 2026-first-stand
-                              s_part = s_part.replace("mid-season invitational", "msi").replace("world championship", "worlds")
-                              slug_body = re.sub(r'[^a-z0-9]+', '-', s_part).strip('-')
-                              slug = f"{YEAR}-{slug_body}"
-                          else:
-                              # 区域赛处理: 2026-lpl-split-1
-                              slug_body = re.sub(r'[^a-z0-9]+', '-', s_part).strip('-')
-                              # 补全前缀
-                              if not slug_body.startswith(league_prefix):
-                                  slug = f"{YEAR}-{league_prefix}-{slug_body}"
-                              else:
-                                  slug = f"{YEAR}-{slug_body}"
-
-                          final_output.append({
-                              "slug": slug,
-                              "overview_page": item["OverviewPage"],
-                              "_debug_name": raw_name # 仅测试保留
-                          })
-
-                      # 按 Slug 排序去重
-                      unique_output = []
-                      seen_slugs = set()
-                      for entry in sorted(final_output, key=lambda x: x['slug']):
-                          if entry['slug'] not in seen_slugs:
-                              unique_output.append(entry)
-                              seen_slugs.add(entry['slug'])
-                              print(f"✅ [LOCKED] Slug: {entry['slug'].ljust(25)} | Page: {entry['overview_page']}")
-
-                      with open(TEST_FILE, "w", encoding="utf-8") as f:
-                          json.dump(unique_output, f, indent=4, ensure_ascii=False)
+                      # 核心：剥离后缀，获取根路径
+                      clean_ov = re.sub(r'/(Playoffs|Group Stage|Knockout Stage|Regional Finals|Main Event|Regular Season)$', '', ov)
                       
-                      print(f"\n🎉 [SUCCESS] 测试文件已更新，共计 {len(unique_output)} 个对齐赛事。")
-                      return
+                      # 国际赛按名独立，区域赛按根路径分组
+                      is_intl = (level == 'International')
+                      group_key = f"INTL_{name}" if is_intl else f"{clean_ov}_{item_year}"
 
-                  except Exception as e:
-                      print(f"💥 [CRASH] {e}")
-                      time.sleep(10)
+                      # 时间解析
+                      try:
+                          s_dt = datetime.strptime(t["DateStart"], '%Y-%m-%d').date()
+                          e_dt = datetime.strptime(t["Date"], '%Y-%m-%d').date() if t.get("Date") else s_dt
+                      except: continue
+
+                      if group_key not in raw_groups:
+                          raw_groups[group_key] = {
+                              "ov": clean_ov, "year": item_year, "name": name, "is_intl": is_intl,
+                              "min_start": s_dt, "max_end": e_dt
+                          }
+                      else:
+                          # 聚合：取最早开始和最晚结束
+                          raw_groups[group_key]["min_start"] = min(raw_groups[group_key]["min_start"], s_dt)
+                          raw_groups[group_key]["max_end"] = max(raw_groups[group_key]["max_end"], e_dt)
+
+                  # --- 第二阶段：基于聚合后的时间轴进行生命周期判定 ---
+                  final_output = []
+                  for gk, val in raw_groups.items():
+                      # 预热判定
+                      if val["min_start"] > (today_dt + timedelta(days=PREHEAT_DAYS)): continue
+                      # 剔除判定：只有当最晚的结束时间（如季后赛结束）也过期了，才删除
+                      if today_dt > (val["max_end"] + timedelta(days=EXPIRE_DAYS)): continue
+
+                      # 生成 Slug (同前逻辑)
+                      league_prefix = val["ov"].split('/')[0].lower()
+                      s_part = val["name"].lower().replace(str(val["year"]), "").strip()
+                      s_part = re.sub(r'(playoffs|group stage|regional finals|regular season)', '', s_part).strip()
+                      slug_body = re.sub(r'[^a-z0-9]+', '-', s_part).strip('-')
+                      
+                      if val["is_intl"]:
+                          s_part = s_part.replace("mid-season invitational", "msi").replace("world championship", "worlds")
+                          slug = f"{val['year']}-{re.sub(r'[^a-z0-9]+', '-', s_part).strip('-')}"
+                      else:
+                          slug = f"{val['year']}-{slug_body}" if slug_body.startswith(league_prefix) else f"{val['year']}-{league_prefix}-{slug_body}"
+
+                      final_output.append({
+                          "slug": slug,
+                          "overview_page": val["ov"],
+                          "start_date": val["min_start"].strftime('%Y-%m-%d'),
+                          "end_date": val["max_end"].strftime('%Y-%m-%d')
+                      })
+
+                  # 排序去重
+                  unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
+                  with open(TEST_FILE, "w", encoding="utf-8") as f:
+                      json.dump(unique_res, f, indent=4, ensure_ascii=False)
+                  
+                  print(f"🎉 聚合同步完成。已将常规赛与季后赛合并至主路径。")
+
+              except Exception as e:
+                  print(f"💥 异常: {e}")
 
           if __name__ == "__main__":
-              run_test_align()
+              run_aggregated_sniff()
         shell: python
 
-      - name: Commit and Push TEST
+      - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🧪 Test: Normalized Paths & Standard Slugs"
+          commit_message: "🔄 Aggregation: Combined split lifecycle"
           file_pattern: 'tournaments-test.json'
