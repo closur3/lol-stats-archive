@@ -454,10 +454,28 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 // --- 6. Markdown 生成器 ---
 function generateMarkdown(tourn, stats, timeGrid) {
     let md = `# ${tourn.title}\n\nUpdated: {{UPDATED_TIME}} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    // MD 存档：与网页端保持一致，使用加权打满率升序
     const sorted = Object.values(stats).filter(s => s.name !== "TBD").sort((a,b) => {
-        const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1; const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1;
-        if(rA !== rB) return rA - rB; 
-        return (utils.rate(b.s_w, b.s_t)||0) - (utils.rate(a.s_w, a.s_t)||0);
+        const BO5_WEIGHT = 1.5; 
+        
+        const aFulls_W = a.bo3_f + (a.bo5_f * BO5_WEIGHT);
+        const aTotal_W = a.bo3_t + (a.bo5_t * BO5_WEIGHT);
+        const bFulls_W = b.bo3_f + (b.bo5_f * BO5_WEIGHT);
+        const bTotal_W = b.bo3_t + (b.bo5_t * BO5_WEIGHT);
+        
+        const aFullRate = aTotal_W > 0 ? aFulls_W / aTotal_W : 2.0;
+        const bFullRate = bTotal_W > 0 ? bFulls_W / bTotal_W : 2.0;
+        if (aFullRate !== bFullRate) return aFullRate - bFullRate;
+        
+        const aRealTotal = a.bo3_t + a.bo5_t;
+        const bRealTotal = b.bo3_t + b.bo5_t;
+        if (aRealTotal !== bRealTotal) return bRealTotal - aRealTotal;
+        
+        const aWR = utils.rate(a.s_w, a.s_t) || 0;
+        const bWR = utils.rate(b.s_w, b.s_t) || 0;
+        if (aWR !== bWR) return bWR - aWR;
+        
+        return (utils.rate(b.g_w, b.g_t) || 0) - (utils.rate(a.g_w, a.g_t) || 0);
     });
     sorted.forEach(s => {
         const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-"; const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
@@ -795,19 +813,24 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         if(minTs===9999999999999)minTs=maxTsLocal;
 
         stats.sort((a,b) => {
-            // 算出每支队伍的总打满数和总场数（BO3 和 BO5 合并）
-            const aFulls = a.bo3_f + a.bo5_f;
-            const aTotal = a.bo3_t + a.bo5_t;
-            const bFulls = b.bo3_f + b.bo5_f;
-            const bTotal = b.bo3_t + b.bo5_t;
+            // 定义 BO5 的权重！如果是 1 就是等价；如果是 1.5，说明 BO5 比重更大
+            const BO5_WEIGHT = 1.5; 
             
-            // 1. 总体打满率 升序（没打过比赛的给 2.0 强制沉底）
-            const aFullRate = aTotal > 0 ? aFulls / aTotal : 2.0;
-            const bFullRate = bTotal > 0 ? bFulls / bTotal : 2.0;
+            // 计算加权后的打满数和总场数
+            const aFulls_W = a.bo3_f + (a.bo5_f * BO5_WEIGHT);
+            const aTotal_W = a.bo3_t + (a.bo5_t * BO5_WEIGHT);
+            const bFulls_W = b.bo3_f + (b.bo5_f * BO5_WEIGHT);
+            const bTotal_W = b.bo3_t + (b.bo5_t * BO5_WEIGHT);
+            
+            // 1. 加权打满率 升序（没打过比赛的给 2.0 强制沉底）
+            const aFullRate = aTotal_W > 0 ? aFulls_W / aTotal_W : 2.0;
+            const bFullRate = bTotal_W > 0 ? bFulls_W / bTotal_W : 2.0;
             if (aFullRate !== bFullRate) return aFullRate - bFullRate;
             
-            // 2. 比赛样本量 降序（打满率一样时，打得多的样本更可靠，排在前面）
-            if (aTotal !== bTotal) return bTotal - aTotal;
+            // 2. 真实比赛样本量 降序（打满率一样时，真正打的比赛场次越多，排越前面）
+            const aRealTotal = a.bo3_t + a.bo5_t;
+            const bRealTotal = b.bo3_t + b.bo5_t;
+            if (aRealTotal !== bRealTotal) return bRealTotal - aRealTotal;
             
             // 3. 胜率兜底 降序（同样是不加班，一直赢的排在一直输的前面）
             const aWR = utils.rate(a.s_w, a.s_t) || 0;
