@@ -1,10 +1,8 @@
-name: Auto Discover Tournaments (Final Logic & Anti-Limit)
+name: Auto Discover Tournaments (Logic Final & Slug Align)
 
 on:
   push:
     branches: [main]
-  schedule:
-    - cron: '0 23 * * *' # 北京时间每天 07:00
   workflow_dispatch:
 
 jobs:
@@ -25,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Sniff with Backoff Retry
+      - name: Sniff and Align Test
         run: |
           import requests
           import json
@@ -35,7 +33,7 @@ jobs:
           import sys
           from datetime import datetime
 
-          # --- ⚙️ 核心配置 ---
+          # --- ⚙️ 配置中心 ---
           YEAR = 2026
           TEST_FILE = "tournaments-test.json"
           today = datetime.now().strftime("%Y-%m-%d")
@@ -43,43 +41,40 @@ jobs:
           # 【黑名单】：优先级最高。LPLOL 必须写在这里，防止它触发 LPL 白名单
           BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary"]
 
-          # 【白名单】：你关注的核心赛区
+          # 【白名单】：你关注的核心赛区（非 S 级但必须强制保留的）
           WHITELIST = ["LPL", "LCK"]
 
-          def run_final_sniff():
+          def run_test_align():
               url = "https://lol.fandom.com/api.php"
+              # SQL 层面保持宽口径，只过滤年份和基本有效性
+              where_sql = f"Year = '{YEAR}' AND DateStart IS NOT NULL"
+              
               params = {
                   "action": "cargoquery",
                   "format": "json",
                   "tables": "Tournaments",
                   "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel",
-                  "where": f"Year = '{YEAR}' AND DateStart IS NOT NULL",
+                  "where": where_sql,
                   "order_by": "DateStart DESC",
                   "limit": "150"
               }
-              
-              headers = {
-                  "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/{random.randint(110,123)}.0.0.0 Safari/537.36",
-                  "Accept": "application/json"
-              }
+              headers = {"User-Agent": f"LoLStatsAlignTest/6.0 (Chrome/{random.randint(110,125)})"}
 
-              print(f"🚀 [START] 目标年份: {YEAR} | 逻辑：黑名单 > 白名单 = 国际赛默认")
+              print(f"🚀 [TEST START] 目标: {YEAR} | 输出: {TEST_FILE}")
 
-              # --- 抗限频重试逻辑 (5次) ---
               for attempt in range(5):
                   if attempt > 0:
                       wait_time = (2 ** attempt) * 10 + random.uniform(5, 15)
-                      print(f"⏳ [WAIT] 触发限频，休眠 {wait_time:.1f}s 后重试...")
+                      print(f"⏳ [RETRY] 触发限频 (Attempt {attempt+1})，休眠 {wait_time:.1f}s...")
                       time.sleep(wait_time)
 
                   try:
                       resp = requests.get(url, params=params, headers=headers, timeout=25)
-                      print(f"📡 [ATTEMPT {attempt+1}] HTTP Status: {resp.status_code}")
-                      
                       raw_json = resp.json()
+                      
+                      # 软 429 检查
                       if "error" in raw_json:
                           if raw_json["error"].get("code") == "ratelimited":
-                              print("⚠️ [RATE] 仍处于限频中...")
                               continue
                           else:
                               print(f"❌ [API ERROR] {json.dumps(raw_json['error'])}")
@@ -87,73 +82,103 @@ jobs:
 
                       data = raw_json.get("cargoquery", [])
                       if not data:
-                          print("📭 [EMPTY] 状态码正常但库里没数据。")
+                          print("📭 数据库暂无数据。")
                           return
 
-                      # --- 精准精筛逻辑 ---
-                      print(f"📊 [PROCESS] 原始记录: {len(data)} 条 | 开始过滤...")
                       picked = {}
                       for item in data:
                           t = item["title"]
                           name, ov, level = t["Name"], t["OverviewPage"], t["TournamentLevel"] or "N/A"
                           name_low, ov_low = name.lower(), ov.lower()
 
-                          # 1. 【黑名单拦截】命中即死 (拦截 LPLOL, LCK CL 等)
+                          # 1. 【黑名单拦截】
                           if any(k.lower() in name_low or k.lower() in ov_low for k in BLACKLIST):
                               continue
                           
-                          # 2. 【准入判定】
-                          # 逻辑：是国际赛 (S级或关键字) OR 是白名单赛区 (LPL/LCK)
-                          is_intl = (level == 'International') or any(k.lower() in name_low for k in ["msi", "worlds", "first stand", "ewc"])
+                          # 2. 【准入判定】（不使用 INTL_KEYS，完全信任标签）
+                          # 逻辑：(是 S 级/国际赛) OR (白名单赛区)
+                          is_s_level = level in ['Primary', 'International']
                           is_white = any(k.lower() in name_low or k.lower() in ov_low for k in WHITELIST)
                           
-                          if not (is_intl or is_white):
+                          if not (is_s_level or is_white):
                               continue
 
-                          # 3. 【分组逻辑】
-                          group = f"INTL_{name}" if is_intl else ov.split('/')[0].upper()
-
-                          # 4. 【动态覆盖】Active 优先，确保季后赛顶替常规赛
+                          # --- 3. OverviewPage 归一化 (核心逻辑) ---
+                          # 自动剥离 Playoffs, Group Stage 等后缀，确保指向分季赛根页面
+                          clean_ov = re.sub(r'/(Playoffs|Group Stage|Knockout Stage|Regional Finals|Main Event)$', '', ov)
+                          
+                          # --- 4. 分组逻辑 (同一根页面只占一个坑) ---
+                          # 国际赛按名独立；区域赛按归一化后的根路径聚合
+                          is_intl = (level == 'International')
+                          group = f"INTL_{name}" if is_intl else clean_ov.upper()
+                          
                           is_active = t["DateStart"] <= today <= (t.get("Date") or "2099-12-31")
                           if group not in picked or is_active:
-                              picked[group] = t
-                              status = "🟢 ACTIVE" if is_active else "⚪ STANDBY"
-                              print(f"  ✅ 锁定 {group.ljust(12)}: {name} [{status}]")
+                              picked[group] = {
+                                  "raw_name": name, 
+                                  "OverviewPage": clean_ov, 
+                                  "is_intl": is_intl
+                              }
 
-                      # --- 生成输出 ---
+                      # --- 5. Slug 生成逻辑 (格式: 年份-联赛-分季赛) ---
                       final_output = []
-                      # 国际赛排在前面
-                      sorted_keys = sorted(picked.keys(), key=lambda x: (0 if "INTL" in x else 1, x))
-                      for k in sorted_keys:
-                          target = picked[k]
-                          # Slug 清理
-                          s_name = target["Name"].lower().replace(str(YEAR), "").replace("season", "").strip()
-                          s_name = s_name.replace("mid-season invitational", "msi").replace("world championship", "worlds").strip()
-                          slug = re.sub(r'[^a-z0-9]+', '-', s_name).strip('-')
+                      for k in sorted(picked.keys()):
+                          item = picked[k]
+                          raw_name = item["raw_name"]
                           
+                          # 获取基础联赛名 (例如 LPL, LCK)
+                          league_prefix = item["OverviewPage"].split('/')[0].lower()
+                          
+                          # 清洗名字部分
+                          s_part = raw_name.lower().replace(str(YEAR), "").strip()
+                          # 移除干扰后缀
+                          s_part = re.sub(r'(playoffs|group stage|regional finals|knockout stage)', '', s_part).strip()
+                          
+                          if item["is_intl"]:
+                              # 国际赛处理: 2026-msi, 2026-first-stand
+                              s_part = s_part.replace("mid-season invitational", "msi").replace("world championship", "worlds")
+                              slug_body = re.sub(r'[^a-z0-9]+', '-', s_part).strip('-')
+                              slug = f"{YEAR}-{slug_body}"
+                          else:
+                              # 区域赛处理: 2026-lpl-split-1
+                              slug_body = re.sub(r'[^a-z0-9]+', '-', s_part).strip('-')
+                              # 补全前缀
+                              if not slug_body.startswith(league_prefix):
+                                  slug = f"{YEAR}-{league_prefix}-{slug_body}"
+                              else:
+                                  slug = f"{YEAR}-{slug_body}"
+
                           final_output.append({
                               "slug": slug,
-                              "overview_page": target["OverviewPage"],
-                              "_debug_name": target["Name"],
-                              "_debug_status": "ACTIVE" if target["DateStart"] <= today <= (target.get("Date") or "2099-12-31") else "UPCOMING"
+                              "overview_page": item["OverviewPage"],
+                              "_debug_name": raw_name # 仅测试保留
                           })
 
+                      # 按 Slug 排序去重
+                      unique_output = []
+                      seen_slugs = set()
+                      for entry in sorted(final_output, key=lambda x: x['slug']):
+                          if entry['slug'] not in seen_slugs:
+                              unique_output.append(entry)
+                              seen_slugs.add(entry['slug'])
+                              print(f"✅ [LOCKED] Slug: {entry['slug'].ljust(25)} | Page: {entry['overview_page']}")
+
                       with open(TEST_FILE, "w", encoding="utf-8") as f:
-                          json.dump(final_output, f, indent=4, ensure_ascii=False)
+                          json.dump(unique_output, f, indent=4, ensure_ascii=False)
                       
-                      print(f"\n🎉 [SUCCESS] 生成 {len(final_output)} 个核心项目。")
+                      print(f"\n🎉 [SUCCESS] 测试文件已更新，共计 {len(unique_output)} 个对齐赛事。")
                       return
 
                   except Exception as e:
-                      print(f"💥 [ERROR] 运行异常: {e}")
+                      print(f"💥 [CRASH] {e}")
                       time.sleep(10)
 
           if __name__ == "__main__":
-              run_final_sniff()
+              run_test_align()
         shell: python
 
       - name: Commit and Push TEST
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🔄 Final Logic: Blacklist > Whitelist/Intl"
+          commit_message: "🧪 Test: Normalized Paths & Standard Slugs"
           file_pattern: 'tournaments-test.json'
