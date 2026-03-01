@@ -567,12 +567,7 @@ const PYTHON_STYLE = `
     .match-item { display: flex; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 7px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; min-height: 40px; gap: 0; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .col-date { width: 50px; flex-shrink: 0; font-size: 11px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
-    .col-res-badge { width: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-    .res-badge { font-size: 10px; font-weight: 700; padding: 2px 0; border-radius: 4px; letter-spacing: 0.3px; width: 38px; text-align: center; display: inline-block; }
-    .res-w    { background: #f0fdf4; color: #15803d; }
-    .res-l    { background: #fdf2f8; color: #9d174d; }
-    .res-live { background: #eff6ff; color: #1d4ed8; }
-    .res-n    { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
+    .col-res { width: 50px; flex-shrink: 0; font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center; }
     .col-vs-area { flex: 1; min-width: 0; }
     .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0; min-height: 22px; transition: 0.2s; }
     .close { display: none !important; }
@@ -619,15 +614,8 @@ const PYTHON_JS = `
     // 日期两行拆分：MM-DD 和 HH:mm
     const dateParts = (date || '').split(' ');
     const dateHtml = dateParts.length === 2
-        ? dateParts[0] + '<br><span style="font-size:11px;font-weight:700;color:#475569">' + dateParts[1] + '</span>'
+        ? '<span>' + dateParts[0] + '</span><br><span style="font-size:11px;font-weight:700;color:#475569">' + dateParts[1] + '</span>'
         : (date || '');
-
-    // 赛果 badge（固定宽度 38px）
-    let badgeClass = 'res-n', badgeText = 'NEXT';
-    if (resStatus === 'W')   { badgeClass = 'res-w';    badgeText = 'WIN';  }
-    if (resStatus === 'L')   { badgeClass = 'res-l';    badgeText = 'LOSE'; }
-    if (resStatus === 'LIV') { badgeClass = 'res-live'; badgeText = 'LIVE'; }
-    const badgeHtml = '<div class="col-res-badge"><span class="res-badge ' + badgeClass + '">' + badgeText + '</span></div>';
 
     // 比分中间区
     let scoreContent = '';
@@ -655,7 +643,7 @@ const PYTHON_JS = `
              '</div>' +
            '</div>' +
            div +
-           badgeHtml +
+           '<div class="col-res">' + resTag + '</div>' +
            '</div>';
 }
 
