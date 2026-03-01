@@ -104,5 +104,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🗃️ Auto: Archive stats (forced: ${{ github.event.inputs.force_update }})"
+          commit_message: "🗃️ Auto: Archive stats"
           file_pattern: 'tournament/*.md'
