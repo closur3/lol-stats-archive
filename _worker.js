@@ -631,9 +631,12 @@ const PYTHON_JS = `
         const t1Color = team1 === 'TBD' ? 'color:#9ca3af;' : '';
         const t2Color = team2 === 'TBD' ? 'color:#9ca3af;' : '';
 
+        // 终极强制内联分隔线（加深颜色 + 防止屏幕缩放导致线消失）
+        const dividerHtml = '<div style="width:1px; min-width:1px; height:20px; background-color:#cbd5e1; flex-shrink:0; margin:0 6px;"></div>';
+
         return '<div class="match-item">' +
                '<div class="col-date">' + dateHtml + '</div>' +
-               '<div class="modal-divider"></div>' +
+               dividerHtml +
                '<div class="col-vs-area">' +
                    '<div class="spine-row">' +
                        '<span class="spine-l" style="padding-right:5px;' + t1Color + '">' + team1 + '</span>' +
@@ -643,7 +646,7 @@ const PYTHON_JS = `
                        '<span class="spine-r" style="padding-left:5px;' + t2Color + '">' + team2 + '</span>' +
                    '</div>' +
                '</div>' +
-               '<div class="modal-divider"></div>' +
+               dividerHtml +
                '<div class="col-res">' + resTag + '</div>' +
                '</div>';
     }
