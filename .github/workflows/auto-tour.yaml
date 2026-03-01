@@ -40,11 +40,11 @@ jobs:
 
           # 【白名单】：只要路径包含这些词，就视为核心赛事（不区分大小写）
           # 包含四大赛区 + 确定的国际大赛关键字
-          WHITELIST = ["LPL", "LCK", "LEC", "LCS", "MSI", "Worlds", "First Stand", "EWC"]
+          WHITELIST = ["LPL", "LCK"]
 
           # 【黑名单】：只要名字或路径包含这些词，坚决剔除
           # 用于过滤开幕赛、升降级赛、次级联赛等杂质
-          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LTA North", "LTA South"]
+          BLACKLIST = ["Opening", "LPLOL", "LCK CL"]
 
           def run_stable_sniff():
               url = "https://lol.fandom.com/api.php"
