@@ -654,7 +654,24 @@ const PYTHON_JS = `
         const ds=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Total"];
         document.getElementById('modalTitle').innerText=t+" - "+ds[d];
         const sortedMatches = [...m].sort((a, b) => b.d.localeCompare(a.d));
-        const listHtml = sortedMatches.map(item => renderMatchItem('dist', item.d, '', item.t1, item.t2, item.f, item.s));
+        
+        const listHtml = sortedMatches.map(item => {
+            // 通过完赛比分巧妙反推赛制，填补右侧视觉空缺
+            let boTag = '<span style="color:#cbd5e1">-</span>';
+            if (item.s && item.s.includes('-')) {
+                const scores = item.s.split('-');
+                const maxWin = Math.max(parseInt(scores[0]), parseInt(scores[1]));
+                if (maxWin === 3) {
+                    boTag = '<span class="sch-pill gold" style="font-size:9px; padding:2px 4px;">BO5</span>';
+                } else if (maxWin === 2) {
+                    boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO3</span>';
+                } else if (maxWin === 1) {
+                    boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO1</span>';
+                }
+            }
+            return renderMatchItem('dist', item.d, boTag, item.t1, item.t2, item.f, item.s);
+        });
+        
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
     }
