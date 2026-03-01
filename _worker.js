@@ -1036,7 +1036,7 @@ async function runUpdate(env, force=false) {
         if (teams && tourns) runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
     } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
 
-    if (!runtimeConfig) { l.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set."); return l; }
+    if (!runtimeConfig) { l.error("🛑 CONFIG ERROR: Failed to load or parse teams.json / tournaments.json."); return l; }
     if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
