@@ -565,8 +565,8 @@ const PYTHON_STYLE = `
     
     .match-item { display: flex; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 7px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; min-height: 40px; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
-    .col-date { width: 50px; flex-shrink: 0; font-size: 12px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
-    .col-res { width: 50px; flex-shrink: 0; font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .col-date { width: 50px; flex-shrink: 0; font-size: 13px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
+    .col-res { width: 50px; flex-shrink: 0; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; }
     .col-vs-area { flex: 1; min-width: 0; }
     .modal-divider { width: 1px; height: 20px; background: #e2e8f0; flex-shrink: 0; margin: 0 6px; }
     .score-box { display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 0; min-height: 22px; min-width: 42px; transition: 0.2s; }
