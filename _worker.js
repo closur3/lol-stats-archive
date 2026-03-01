@@ -40,6 +40,26 @@ const utils = {
 
     rate: (n, d) => d > 0 ? n / d : null,
     pct: (r) => r !== null ? `${Math.round(r * 100)}%` : "-",
+
+    // 标题解析：第一个非数字全大写，其余首字母大写
+    formatTitle: (slug) => {
+        if (!slug) return "";
+        let foundFirstString = false;
+        return slug.split('-').map(w => {
+            if (!isNaN(w)) return w; // 数字保持原样 (如 2026)
+            if (!foundFirstString) {
+                foundFirstString = true;
+                return w.toUpperCase(); // 第一个非数字全大写 (如 LCK)
+            }
+            return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); // 其余首字母大写 (如 Cup)
+        }).join(' ');
+    },
+    
+    // 简称解析：直接抓取第一个非数字词并全大写，给赛程标签用
+    getShortName: (slug) => {
+        if (!slug) return "";
+        return (slug.split('-').find(w => isNaN(w)) || slug).toUpperCase();
+    },
     
     color: (r, rev = false) => {
         if (r === null) return "#f1f5f9"; 
@@ -375,7 +395,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     allFutureMatches[matchDateStr].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
-                        tourn: tourn.slug.toUpperCase(), tournSlug: tourn.slug,
+                        tourn: utils.getShortName(tourn.slug), tournSlug: tourn.slug,
                         tournIndex: tournIdx, blockName: blockName || ""  
                     });
                 }
@@ -486,7 +506,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 // --- 6. Markdown 生成器 (静态 1:1 复制版) ---
 function generateMarkdown(tourn, stats, timeGrid) {
     const UPDATED_TIME = utils.getNow().full;
-    let md = `# ${tourn.title}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    let md = `# ${utils.formatTitle(tourn.slug)}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     // 调用公用排序函数
     const sorted = utils.sortTeams(stats);
@@ -936,7 +956,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             timeTableHtml += "</tbody></table>";
         }
 
-        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.title}</a>`;
+        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${utils.formatTitle(t.slug)}</a>`;
         if (isArchive) {
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">${tableBody}${timeTableHtml}</div></details>`;
