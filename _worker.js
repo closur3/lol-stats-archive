@@ -529,7 +529,7 @@ const PYTHON_STYLE = `
     .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
-    .spine-sep { width: 7px; display: flex; align-items: center; justify-content: center; opacity: 0.4; font-weight: 700; font-size: 14px; }
+    .spine-sep { width: 7px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
     .sch-row .spine-l, .sch-row .spine-r { padding: 4px 5px; }
     .spine-l.clickable:hover, .spine-r.clickable:hover, .spine-sep.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
     .t-cell { display: flex; align-items: center; width: 100%; height: 100%; }
@@ -753,7 +753,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
         const parts = val.split(sep);
         if(parts.length !== 2) return val;
-        return `<div class="spine-row"><span class="spine-l" style="font-weight:700">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r" style="font-weight:700">${parts[1]}</span></div>`;
+        return `<div class="spine-row"><span class="spine-l" style="font-weight:700">${parts[0]}</span><span class="spine-sep" style="opacity:0.4;">${sep}</span><span class="spine-r" style="font-weight:700">${parts[1]}</span></div>`;
     };
     const getRateHtml = (teamName, slug, bo) => {
         const stats = globalStats[slug];
@@ -866,11 +866,13 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                     const isTbd1 = m.t1 === "TBD", isTbd2 = m.t2 === "TBD";
                     const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`, t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
                     const r1 = getRateHtml(m.t1, m.tournSlug, m.bo), r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
-                    let midContent = `<span style="color:#94a3b8;font-size:13px;font-weight:700;margin:0 2px">vs</span>`;
+                    let midContent = `<span style="color:#94a3b8;font-size:13px;font-weight:700;margin:0 2px;opacity:0.8;">vs</span>`;
                     if (m.is_finished) {
                         const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8", s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
-                        midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="margin: 0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
-                    } else if (m.is_live) midContent = `<span class="sch-live-score">${m.s1}<span style="margin: 0 1px;">-</span>${m.s2}</span>`;
+                        midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="opacity:0.4; margin:0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                    } else if (m.is_live) {
+                        midContent = `<span class="sch-live-score">${m.s1}<span style="opacity:0.4; margin:0 1px;">-</span>${m.s2}</span>`;
+                    }
 
                     const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
                     const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.tournSlug}', '${m.t1}', '${m.t2}')" title="View H2H"` : "";
