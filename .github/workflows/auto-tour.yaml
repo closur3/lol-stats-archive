@@ -1,7 +1,13 @@
-name: Auto Discover Tournaments (TEST)
+name: Auto Discover Tournaments (S-Level TEST)
 
 on:
-  workflow_dispatch: # 调试阶段建议仅手动触发
+  schedule:
+    - cron: '0 23 * * *' # 北京时间每天早上 07:00 自动检查
+  push:
+    paths:
+      - '.github/workflows/auto-tour-test.yaml' # 修改此脚本后立即触发
+      - 'teams.json' # 修改战队映射后触发
+  workflow_dispatch: # 保持手动触发按钮
 
 jobs:
   update-tournaments-test:
@@ -21,48 +27,43 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Sniff 2026 Tournaments (TEST MODE)
+      - name: Sniff S-Level Tournaments
         run: |
           import requests
           import json
           import re
           from datetime import datetime
 
-          # 配置：锁定 2026 年测试
-          TARGET_REGIONS = ["LPL", "LCK", "LEC", "LCS"]
+          # 配置
           YEAR = 2026
-          today = datetime.now().strftime("%Y-%m-%d")
-          
-          # 测试文件名
           TEST_FILE = "tournaments-test.json"
+          today = datetime.now().strftime("%Y-%m-%d")
 
-          def run_test_sniff():
+          def run_s_level_sniff():
               url = "https://lol.fandom.com/api.php"
               
-              # 构建查询条件：LIKE 匹配赛区层级 + 自动识别国际赛
-              region_filter = " OR ".join([f"OverviewPage LIKE '{r}/{YEAR}%'" for r in TARGET_REGIONS])
-              intl_filter = f"(TournamentLevel = 'International' AND Year = '{YEAR}')"
-              where_sql = f"({region_filter} OR {intl_filter}) AND DateStart IS NOT NULL"
+              # 【S级过滤逻辑】：Primary(顶级联赛) 或 International(国际大赛)
+              where_sql = f"Year = '{YEAR}' AND (TournamentLevel = 'Primary' OR TournamentLevel = 'International') AND DateStart IS NOT NULL"
 
               params = {
                   "action": "cargoquery",
                   "format": "json",
                   "tables": "Tournaments",
-                  "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel",
+                  "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel, League",
                   "where": where_sql,
                   "order_by": "DateStart DESC",
-                  "limit": "100"
+                  "limit": "150"
               }
-              headers = {"User-Agent": "Mozilla/5.0 LoLStatsTest/1.0"}
+              headers = {"User-Agent": "Mozilla/5.0 LoLStatsSLevelTest/1.0"}
 
               try:
-                  print(f"📡 正在拉取 Fandom {YEAR} 原始数据...")
+                  print(f"📡 正在探测 {YEAR} 全球顶级赛事...")
                   resp = requests.get(url, params=params, headers=headers, timeout=20)
                   resp.raise_for_status()
                   data = resp.json().get("cargoquery", [])
                   
                   if not data:
-                      print("⚠️ 未抓取到数据，请检查 YEAR 是否在 Fandom 中已有记录。")
+                      print("⚠️ 没抓到数据，Fandom 数据库可能还没录入 2026 的 S 级标签。")
                       return
 
                   picked = {}
@@ -71,52 +72,53 @@ jobs:
                       ov = t["OverviewPage"]
                       level = t["TournamentLevel"]
                       
-                      # 分组逻辑：国际赛独立，区域赛按大区聚合
-                      group = f"INTL_{t['Name']}" if level == 'International' else ov.split('/')[0]
-                      
-                      # 只要是 2026 的，DESC 排序会让我们先拿到最新的（比如 Playoffs）
-                      # 如果当前日期在比赛周期内，标记为 Active
+                      # 分组：国际赛独立，区域赛按赛区前缀聚合
+                      if level == 'International':
+                          group = f"INTL_{t['Name']}"
+                      else:
+                          group = ov.split('/')[0]
+
                       is_active = t["DateStart"] <= today <= t["Date"]
                       
-                      if group not in picked:
-                          picked[group] = t
-                      elif is_active:
-                          # 正在进行的优先级最高，覆盖掉非进行的
+                      # 逻辑：每个组只留一个最新的。如果是 Active(正在打)，则强制覆盖旧的
+                      if group not in picked or is_active:
                           picked[group] = t
 
                   final_output = []
-                  # 排序：国际赛在前，四大赛区在后
+                  # 排序：国际赛排在最前
                   sorted_keys = sorted(picked.keys(), key=lambda x: (0 if "INTL" in x else 1, x))
                   
                   for k in sorted_keys:
                       target = picked[k]
-                      # Slug 精简化：去掉年份和 Season 字样
-                      # LPL 2026 Season Split 1 Playoffs -> lpl-split-1-playoffs
                       raw_name = target["Name"]
-                      clean_name = raw_name.lower().replace(str(YEAR), "").replace("season", "").strip()
-                      slug = re.sub(r'[^a-z0-9]+', '-', clean_name).strip('-')
+                      
+                      # Slug 清洗：去掉 2026, Season, 缩写 MSI/Worlds
+                      name_clean = raw_name.lower().replace(str(YEAR), "").replace("season", "")
+                      name_clean = name_clean.replace("mid-season invitational", "msi").replace("world championship", "worlds").strip()
+                      slug = re.sub(r'[^a-z0-9]+', '-', name_clean).strip('-')
                       
                       final_output.append({
                           "slug": slug,
                           "overview_page": target["OverviewPage"],
-                          "_debug_name": raw_name # 测试期保留原名方便对比
+                          "_debug_name": raw_name # 方便测试校验
                       })
                   
-                  # 写入测试文件
                   with open(TEST_FILE, "w", encoding="utf-8") as f:
                       json.dump(final_output, f, indent=4, ensure_ascii=False)
-                  print(f"✅ 测试文件 {TEST_FILE} 已生成，包含 {len(final_output)} 个项目。")
                   
+                  print(f"✅ [SUCCESS] 测试文件 {TEST_FILE} 已更新。")
+                  print(f"📊 结果：共锁定 {len(final_output)} 个 S 级赛事。")
+
               except Exception as e:
-                  print(f"❌ 运行失败: {e}")
+                  print(f"❌ 运行崩溃: {e}")
                   exit(1)
 
           if __name__ == "__main__":
-              run_test_sniff()
+              run_s_level_sniff()
         shell: python
 
       - name: Commit and Push TEST
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🧪 Test: Auto Rotate Tournaments (Isolation Mode)"
+          commit_message: "🧪 Test: Auto Discover S-Level (Push Triggered)"
           file_pattern: 'tournaments-test.json'
