@@ -1,38 +1,14 @@
 [
     {
-        "slug": "2026-cblol-cup",
-        "overview_page": "CBLOL/2026 Season/Cup",
-        "start_date": "2026-01-17",
-        "end_date": "2026-03-01"
-    },
-    {
         "slug": "2026-lck-cup",
         "overview_page": "LCK/2026 Season/Cup",
         "start_date": "2026-01-14",
         "end_date": "2026-03-01"
     },
     {
-        "slug": "2026-lcp-split-1",
-        "overview_page": "LCP/2026 Season/Split 1 Playoffs",
-        "start_date": "2026-02-12",
-        "end_date": "2026-03-01"
-    },
-    {
-        "slug": "2026-lcs-lock-in",
-        "overview_page": "LCS/2026 Season/Lock-In",
-        "start_date": "2026-01-24",
-        "end_date": "2026-03-01"
-    },
-    {
-        "slug": "2026-lec-versus",
-        "overview_page": "LEC/2026 Season/Versus Playoffs",
-        "start_date": "2026-02-16",
-        "end_date": "2026-03-01"
-    },
-    {
         "slug": "2026-lpl-split-1",
-        "overview_page": "LPL/2026 Season/Split 1 Playoffs",
-        "start_date": "2026-02-09",
+        "overview_page": "LPL/2026 Season/Split 1",
+        "start_date": "2026-01-14",
         "end_date": "2026-03-08"
     }
 ]
