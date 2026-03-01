@@ -590,9 +590,24 @@ const PYTHON_JS = `
         next=(!cur)?((c===COL_TEAM)?'asc':'desc'):((cur==='desc')?'asc':'desc');
         r.sort((ra,rb)=>{
             let va=ra.cells[c].innerText,vb=rb.cells[c].innerText;
-            if(c===COL_LAST_DATE){va=va==="-"?0:new Date(va).getTime();vb=vb==="-"?0:new Date(vb).getTime();}
-            else{va=parseValue(va);vb=parseValue(vb);}
+            
+            // 针对不同列采用特定解析策略
+            if (c === COL_LAST_DATE) {
+                // 日期格式 YY-MM-DD 天然支持字符串大小比较，"-"设为空字符串垫底
+                va = va === "-" ? "" : va;
+                vb = vb === "-" ? "" : vb;
+            } else if (c === COL_STREAK) {
+                // 连胜为正，连败为负，"-"为0
+                const ps = x => x === "-" ? 0 : (x.includes('W') ? parseInt(x) : -parseInt(x));
+                va = ps(va); vb = ps(vb);
+            } else {
+                // 其他数值列正常解析
+                va = parseValue(va); vb = parseValue(vb);
+            }
+            
             if(va!==vb) return next==='asc'?(va>vb?1:-1):(va<vb?1:-1);
+            
+            // 胜率相同时的二级排序逻辑
             if(c===COL_BO3_PCT||c===COL_BO5_PCT){ let sA=parseValue(ra.cells[COL_SERIES_WR].innerText), sB=parseValue(rb.cells[COL_SERIES_WR].innerText); if(sA!==sB) return sA > sB ? -1 : 1; }
             if(c===COL_SERIES || c===COL_SERIES_WR){ let gA=parseValue(ra.cells[COL_GAME_WR].innerText), gB=parseValue(rb.cells[COL_GAME_WR].innerText); if(gA!==gB) return gA > gB ? -1 : 1; }
             return 0;
