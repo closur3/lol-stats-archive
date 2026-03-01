@@ -562,28 +562,21 @@ const PYTHON_STYLE = `
     .match-list::-webkit-scrollbar { width: 6px; }
     .match-list::-webkit-scrollbar-track { background: transparent; }
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 320px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
+    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 360px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
     #modalTitle { text-align: left; margin: 0 0 12px 2px; font-size: 18px; font-weight: 800; color: #1e293b; white-space: nowrap; }
-    .match-item { display: flex; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 7px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; min-height: 40px; gap: 0; }
+    .match-item { display: flex; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 7px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; min-height: 40px; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
-    .col-date { width: 50px; flex-shrink: 0; font-size: 11px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
-    .col-res-badge { width: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-    .res-badge { font-size: 10px; font-weight: 700; padding: 2px 0; border-radius: 4px; letter-spacing: 0.3px; width: 38px; text-align: center; display: inline-block; }
-    .res-w    { background: #f0fdf4; color: #15803d; }
-    .res-l    { background: #fdf2f8; color: #9d174d; }
-    .res-live { background: #eff6ff; color: #1d4ed8; }
-    .res-n    { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
+    .col-date { width: 50px; flex-shrink: 0; font-size: 12px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
+    .col-res { width: 50px; flex-shrink: 0; font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center; }
     .col-vs-area { flex: 1; min-width: 0; }
-    .score-box { position: relative; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0; min-height: 22px; transition: 0.2s; }
+    .modal-divider { width: 1px; height: 20px; background: #e2e8f0; flex-shrink: 0; margin: 0 6px; }
+    .score-box { display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 0; min-height: 22px; min-width: 42px; transition: 0.2s; }
     .close { display: none !important; }
-    .col-t1 { text-align: right; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-    .col-t2 { text-align: left; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
     .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
-    .score-box.is-full .score-text { color: #c2410c; }    
-    .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+    .score-box.is-full .score-text { color: #c2410c; }
+    .score-text { font-weight: 800; font-size: 13px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
     .score-text.live { color: #10b981; }
     .score-text.vs { color: #94a3b8; font-size: 9px; letter-spacing: 0; }
-    /* 重构后的迷你 FULL 标签，依附于比分框 */
     .full-tag { font-size: 9px; color: #ea580c; background: #ffedd5; padding: 1px 4px; border-radius: 4px; font-weight: 800; margin-top: 2px; line-height: 1; border: 1px solid #fdba74; }
     .hist-icon { font-size: 14px; }
 `;
@@ -616,48 +609,40 @@ const PYTHON_JS = `
     }
 
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
-    // 日期两行拆分：MM-DD 和 HH:mm
-    const dateParts = (date || '').split(' ');
-    const dateHtml = dateParts.length === 2
-        ? dateParts[0] + '<br><span style="font-size:11px;font-weight:700;color:#475569">' + dateParts[1] + '</span>'
-        : (date || '');
+        // 日期两行拆分：MM-DD 换行 HH:mm
+        const dateParts = (date || '').split(' ');
+        const dateHtml = dateParts.length === 2
+            ? dateParts[0] + '<br><span style="font-weight:700;color:#475569">' + dateParts[1] + '</span>'
+            : (date || '');
 
-    // 赛果 badge（固定宽度 38px）
-    let badgeClass = 'res-n', badgeText = 'NEXT';
-    if (resStatus === 'W')   { badgeClass = 'res-w';    badgeText = 'WIN';  }
-    if (resStatus === 'L')   { badgeClass = 'res-l';    badgeText = 'LOSE'; }
-    if (resStatus === 'LIV') { badgeClass = 'res-live'; badgeText = 'LIVE'; }
-    const badgeHtml = '<div class="col-res-badge"><span class="res-badge ' + badgeClass + '">' + badgeText + '</span></div>';
+        // 比分内容
+        let scoreContent = '';
+        let scoreClass = 'score-text';
+        if (resStatus === 'LIV') scoreClass += ' live';
+        if (resStatus === 'N') {
+            scoreContent = '<span class="score-text vs">VS</span>';
+        } else {
+            const fmtScore = (score || '').toString().replace('-', '<span style="opacity:0.4;margin:0 1px">-</span>');
+            scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>';
+        }
+        const boxClass = isFull ? 'score-box is-full' : 'score-box';
 
-    // 比分中间区
-    let scoreContent = '';
-    let scoreClass = 'score-text';
-    if (resStatus === 'LIV') scoreClass += ' live';
-    if (resStatus === 'N') {
-        scoreContent = '<span class="score-text vs">VS</span>';
-    } else {
-        const fmtScore = (score || '').toString().replace('-', '<span style="opacity:0.4;margin:0 1px">-</span>');
-        scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>';
+        return '<div class="match-item">' +
+               '<div class="col-date">' + dateHtml + '</div>' +
+               '<div class="modal-divider"></div>' +
+               '<div class="col-vs-area">' +
+                   '<div class="spine-row">' +
+                       '<span class="spine-l" style="padding-right:5px">' + team1 + '</span>' +
+                       '<div style="width:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center">' +
+                           '<div class="' + boxClass + '">' + scoreContent + '</div>' +
+                       '</div>' +
+                       '<span class="spine-r" style="padding-left:5px">' + team2 + '</span>' +
+                   '</div>' +
+               '</div>' +
+               '<div class="modal-divider"></div>' +
+               '<div class="col-res">' + resTag + '</div>' +
+               '</div>';
     }
-    const boxClass = isFull ? 'score-box is-full' : 'score-box';
-
-    // 脊柱分割线
-    const div = '<div style="width:1px;height:20px;background:#e2e8f0;flex-shrink:0;margin:0 6px"></div>';
-
-    return '<div class="match-item">' +
-           '<div class="col-date">' + dateHtml + '</div>' +
-           div +
-           '<div class="col-vs-area">' +
-             '<div class="spine-row">' +
-               '<span class="spine-l">' + team1 + '</span>' +
-               '<div class="spine-mid" style="width:52px"><div class="' + boxClass + '">' + scoreContent + '</div></div>' +
-               '<span class="spine-r">' + team2 + '</span>' +
-             '</div>' +
-           '</div>' +
-           div +
-           badgeHtml +
-           '</div>';
-}
 
     function renderListHTML(htmlArr) {
         const l=document.getElementById('modalList');
