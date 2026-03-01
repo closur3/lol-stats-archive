@@ -627,16 +627,20 @@ const PYTHON_JS = `
         }
         const boxClass = isFull ? 'score-box is-full' : 'score-box';
 
+        // TBD 队伍变灰逻辑
+        const t1Color = team1 === 'TBD' ? 'color:#9ca3af;' : '';
+        const t2Color = team2 === 'TBD' ? 'color:#9ca3af;' : '';
+
         return '<div class="match-item">' +
                '<div class="col-date">' + dateHtml + '</div>' +
                '<div class="modal-divider"></div>' +
                '<div class="col-vs-area">' +
                    '<div class="spine-row">' +
-                       '<span class="spine-l" style="padding-right:5px">' + team1 + '</span>' +
+                       '<span class="spine-l" style="padding-right:5px;' + t1Color + '">' + team1 + '</span>' +
                        '<div style="width:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center">' +
                            '<div class="' + boxClass + '">' + scoreContent + '</div>' +
                        '</div>' +
-                       '<span class="spine-r" style="padding-left:5px">' + team2 + '</span>' +
+                       '<span class="spine-r" style="padding-left:5px;' + t2Color + '">' + team2 + '</span>' +
                    '</div>' +
                '</div>' +
                '<div class="modal-divider"></div>' +
