@@ -6,6 +6,7 @@
 // 3. 架构解耦: 提取 COMMON_STYLE，统一多端 UI，Update 移至 Logs 并附加安全锁。
 // 4. API 礼仪: 合并双路 Cookie 防降级，遵守 maxlag 与 Retry-After 指数退避规范。
 // 5. 代码精简: 清理无用 CSS、未使用的 DOM 节点及废弃渲染参数。
+// 6. 统一标识: 移除 region 字段，全面使用 slug 作为唯一标识符。
 // ====================================================
 
 const UI_VERSION = "2026-02-26-V41.2.9-Clean";
@@ -374,7 +375,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     allFutureMatches[matchDateStr].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
-                        tourn: tourn.region, tournSlug: tourn.slug,
+                        tourn: tourn.slug.toUpperCase(), tournSlug: tourn.slug,
                         tournIndex: tournIdx, blockName: blockName || ""  
                     });
                 }
@@ -390,15 +391,15 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 
                     const matchObj = { d: `${pad2(mo)}-${pad2(da)}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
                     
-                    if (!timeGrid[tourn.region]) timeGrid[tourn.region] = { "Total": createSlot() };
-                    if (!timeGrid[tourn.region][targetH]) timeGrid[tourn.region][targetH] = createSlot();
+                    if (!timeGrid[tourn.slug]) timeGrid[tourn.slug] = { "Total": createSlot() };
+                    if (!timeGrid[tourn.slug][targetH]) timeGrid[tourn.slug][targetH] = createSlot();
                     
                     const add = (grid, h, d) => { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); };
                     
-                    add(timeGrid[tourn.region], targetH, pyDay);      
-                    add(timeGrid[tourn.region], "Total", pyDay);      
-                    add(timeGrid[tourn.region], targetH, 7);            
-                    add(timeGrid[tourn.region], "Total", 7);            
+                    add(timeGrid[tourn.slug], targetH, pyDay);      
+                    add(timeGrid[tourn.slug], "Total", pyDay);      
+                    add(timeGrid[tourn.slug], targetH, 7);            
+                    add(timeGrid[tourn.slug], "Total", 7);            
                     
                     timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
                     timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
@@ -512,7 +513,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
     // --- 📅 动态时间分布 (与网页完全一致) ---
     md += `\n## 📅 Time Slot Distribution\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
     
-    const regionGrid = timeGrid[tourn.region] || {};
+    const regionGrid = timeGrid[tourn.slug] || {};
     // 获取所有小时 key 并排序
     const hours = Object.keys(regionGrid)
         .filter(k => k !== "Total" && !isNaN(k))
@@ -908,7 +909,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         
         // 4. 生成时间分布表 (动态获取 Key，移除赛区硬编码判断)
         let timeTableHtml = "";
-        const regionGrid = timeData[t.region] || {};
+        const regionGrid = timeData[t.slug] || {};
         const hours = Object.keys(regionGrid).filter(k => k !== "Total" && !isNaN(k)).map(Number).sort((a,b) => a - b);
         
         if (hours.length > 0 || regionGrid["Total"]) {
@@ -1048,7 +1049,7 @@ async function runUpdate(env, force=false) {
             });
             needsNetworkUpdate = true;
         } else {
-            waitings.push(`${t.region || t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
+            waitings.push(`${t.slug.toUpperCase()} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
         }
     });
 
