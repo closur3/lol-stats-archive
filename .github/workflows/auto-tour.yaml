@@ -1,10 +1,8 @@
-name: Auto Discover Tournaments (Logic Final)
+name: Auto Discover Tournaments (Logic Restore)
 
 on:
   push:
     branches: [main]
-  schedule:
-    - cron: '0 23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -32,22 +30,21 @@ jobs:
           import re
           from datetime import datetime
 
-          # --- ⚙️ 配置中心 ---
           YEAR = 2026
-          TEST_FILE = "tournaments-test.json"
           today = datetime.now().strftime("%Y-%m-%d")
+          TEST_FILE = "tournaments-test.json"
 
-          # 【黑名单】：优先级最高，命中即死。
-          # 建议包含次级联赛关键字，防止 LCK CL 或 LPLOL 混入。
-          BLACKLIST = ["Opening", "Promotion", "CL", "LPLOL"]
+          # 【黑名单】：精准拦截。
+          # 建议不要写太短的词（如 CL），改写全称或带空格的词
+          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL"]
 
-          # 【白名单】：即使没被 Fandom 标记为 S 级，也要强行保留的关键字。
-          WHITELIST = ["LPL", "LCK"]
+          # 【白名单】：保底赛区
+          WHITELIST = ["LPL", "LCK", "LEC", "LCS"]
 
-          def run_final_logic():
+          def run_restore_logic():
               url = "https://lol.fandom.com/api.php"
               
-              # SQL 提取：抓取 2026 年所有 S 级（顶级/国际）赛事
+              # 保持最稳的 SQL 语句
               where_sql = f"Year = '{YEAR}' AND (TournamentLevel = 'Primary' OR TournamentLevel = 'International') AND DateStart IS NOT NULL"
 
               params = {
@@ -58,15 +55,15 @@ jobs:
                   "order_by": "DateStart DESC",
                   "limit": "200"
               }
-              headers = {"User-Agent": "Mozilla/5.0 LoLStatsLogicFinal/1.0"}
+              headers = {"User-Agent": "Mozilla/5.0 LoLStatsLogicRestore/1.0"}
 
               try:
+                  print(f"📡 正在拉取 {YEAR} 数据...")
                   resp = requests.get(url, params=params, headers=headers, timeout=20)
-                  resp.raise_for_status()
                   data = resp.json().get("cargoquery", [])
                   
                   if not data:
-                      print("⚠️ Fandom 数据库 2026 表单暂时为空。")
+                      print("❌ API 层面未返回数据，请检查 SQL 语句。")
                       return
 
                   picked = {}
@@ -75,36 +72,38 @@ jobs:
                       name = t["Name"]
                       ov = t["OverviewPage"]
                       level = t["TournamentLevel"]
-                      
-                      # 预处理：去掉空格下划线转小写，防止匹配失败
-                      name_norm = name.lower().replace(" ", "").replace("_", "")
-                      ov_norm = ov.lower().replace(" ", "").replace("_", "")
-                      
-                      # 1. 【黑名单判定】：只要中了黑名单，管你是谁，直接踢掉
-                      if any(k.lower().replace(" ", "") in name_norm for k in BLACKLIST):
-                          continue
-                      
-                      # 2. 【准入判定】：你的逻辑核心
-                      # 只要是 S 级 (Primary/International) 就默认要；
-                      # 或者命中了你的白名单 (LPL/LCK) 也要。
+
+                      # --- 调试日志：看看原始抓到了什么 ---
+                      # print(f"DEBUG: 原始抓取 -> {name}")
+
+                      # 1. 【黑名单判定】
+                      is_black = False
+                      for b_word in BLACKLIST:
+                          if b_word.lower() in name.lower():
+                              print(f"🚫 [BLACK] {name} 被关键字 '{b_word}' 拦截")
+                              is_black = True
+                              break
+                      if is_black: continue
+
+                      # 2. 【白名单/S级准入】
                       is_s_level = level in ['Primary', 'International']
-                      is_white = any(k.lower() in name_norm or k.lower() in ov_norm for k in WHITELIST)
+                      is_white = any(w.lower() in name.lower() or w.lower() in ov.lower() for w in WHITELIST)
                       
                       if not (is_s_level or is_white):
+                          # print(f"⚪ [IGNORE] {name} 级别不够且不在白名单")
                           continue
 
                       # 3. 【分组逻辑】
-                      # 国际赛按名独立；区域赛按前缀聚合（如 LEC, LCS, LPL, LCK）
-                      if level == 'International' or any(k in name for k in ["MSI", "Worlds", "First Stand", "EWC"]):
+                      if level == 'International' or any(k in name for k in ["MSI", "Worlds", "First Stand"]):
                           group = f"INTL_{name}"
                       else:
                           group = ov.split('/')[0].upper()
 
-                      # 4. 【动态切换】：Active 优先覆盖
+                      # 4. 【Active 覆盖】
                       is_active = t["DateStart"] <= today <= (t.get("Date") or "2099-12-31")
-                      
                       if group not in picked or is_active:
                           picked[group] = t
+                          print(f"✅ [LOCK] 成功锁定: {name}")
 
                   # --- 生成 JSON ---
                   final_output = []
@@ -112,7 +111,6 @@ jobs:
                   
                   for k in sorted_keys:
                       target = picked[k]
-                      # Slug 清理
                       s_name = target["Name"].lower().replace(str(YEAR), "").replace("season", "")
                       s_name = s_name.replace("mid-season invitational", "msi").replace("world championship", "worlds").strip()
                       slug = re.sub(r'[^a-z0-9]+', '-', s_name).strip('-')
@@ -120,25 +118,23 @@ jobs:
                       final_output.append({
                           "slug": slug,
                           "overview_page": target["OverviewPage"],
-                          "_debug_name": target["Name"],
-                          "_debug_status": "ACTIVE" if target["DateStart"] <= today <= (target.get("Date") or "2099-12-31") else "UPCOMING"
+                          "_debug_name": target["Name"]
                       })
                   
                   with open(TEST_FILE, "w", encoding="utf-8") as f:
                       json.dump(final_output, f, indent=4, ensure_ascii=False)
                   
-                  print(f"✅ 逻辑校验成功。共锁定 {len(final_output)} 个联赛（包含默认 S 级 + 白名单）。")
+                  print(f"\n🎉 锁定完成，共 {len(final_output)} 个赛事。")
 
               except Exception as e:
-                  print(f"💥 运行异常: {e}")
-                  exit(1)
+                  print(f"💥 运行崩溃: {e}")
 
           if __name__ == "__main__":
-              run_final_logic()
+              run_restore_logic()
         shell: python
 
-      - name: Commit and Push TEST
+      - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🔄 Auto: Rotate Tournaments (Blacklist Priority Logic)"
+          commit_message: "🔄 Logic Restored: Blacklist/Whitelist Fixed"
           file_pattern: 'tournaments-test.json'
