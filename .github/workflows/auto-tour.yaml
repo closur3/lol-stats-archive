@@ -36,7 +36,7 @@ jobs:
 
           # 【黑名单】：精准拦截。
           # 建议不要写太短的词（如 CL），改写全称或带空格的词
-          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL"]
+          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "CL", "LPLOL"]
 
           # 【白名单】：保底赛区
           WHITELIST = ["LPL", "LCK", "LEC", "LCS"]
