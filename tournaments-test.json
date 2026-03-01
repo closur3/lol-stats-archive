@@ -1,0 +1,22 @@
+[
+    {
+        "slug": "lck-cup",
+        "overview_page": "LCK/2026 Season/Cup",
+        "_debug_name": "LCK Cup 2026"
+    },
+    {
+        "slug": "lcs-lock-in",
+        "overview_page": "LCS/2026 Season/Lock-In",
+        "_debug_name": "LCS 2026 Lock-In"
+    },
+    {
+        "slug": "lec-versus-playoffs",
+        "overview_page": "LEC/2026 Season/Versus Playoffs",
+        "_debug_name": "LEC 2026 Versus Playoffs"
+    },
+    {
+        "slug": "lpl-split-1-playoffs",
+        "overview_page": "LPL/2026 Season/Split 1 Playoffs",
+        "_debug_name": "LPL 2026 Split 1 Playoffs"
+    }
+]
