@@ -1,4 +1,4 @@
-name: Auto Discover Tournaments (Strict Filter)
+name: Auto Discover Tournaments (With Debug Logs)
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Sniff and Filter
+      - name: Sniff, Filter and Debug
         run: |
           import requests
           import json
@@ -40,22 +40,20 @@ jobs:
           PREHEAT_DAYS = 14 
           EXPIRE_DAYS = 1   
 
-          # === 🎯 核心过滤配置 ===
-          BLACKLIST = ["Opening", "LCK CL", "LPLOL"]
+          # 绝对名单配置
+          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary"]
           WHITELIST = ["LPL", "LCK"]
 
           def get_clean_root(ov, level):
               if level == 'International': return ov
               
-              # === 🎯 核心断尾逻辑 ===
-              # 只要匹配到 Split_1 / Cup / Season_Play-In，直接砍掉后面的所有后缀 (如 _Playoffs)
+              # 断尾锚点
               anchors = [r'Split[\s_]\d+', r'Cup', r'Season_Play-In', r'Season_Playoffs']
               for pattern in anchors:
                   match = re.search(f'^(.+?{pattern})', ov, re.IGNORECASE)
                   if match:
-                      return match.group(1) # 直接返回 LPL/2026_Season/Split_1
-              
-              return ov # 没匹配到锚点，原封不动返回
+                      return match.group(1) 
+              return ov
 
           def run_sniff():
               url = "https://lol.fandom.com/api.php"
@@ -65,32 +63,45 @@ jobs:
                   "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel, Year",
                   "where": where_sql, "order_by": "DateStart ASC", "limit": "400"
               }
-              headers = {"User-Agent": f"LoLStatsFilter/19.0 (Chrome/{random.randint(110,125)})"}
+              headers = {"User-Agent": f"LoLStatsDebug/21.0 (Chrome/{random.randint(110,125)})"}
+
+              print(f"🚀 [INIT] 启动抓取 | 目标年份: {THIS_YEAR}, {NEXT_YEAR} | 今天日期: {today_dt}\n" + "="*50)
 
               try:
                   resp = requests.get(url, params=params, headers=headers, timeout=25)
                   data = resp.json().get("cargoquery", [])
-                  if not data: return
+                  if not data:
+                      print("⚠️ [API] 未抓取到任何数据！")
+                      return
+
+                  print(f"📥 [API] 成功获取 {len(data)} 条原始数据记录。\n" + "="*50)
 
                   raw_groups = {}
                   for item in data:
                       t = item["title"]
                       name, ov, level, y = t["Name"], t["OverviewPage"], t["TournamentLevel"] or "N/A", t["Year"]
                       
-                      # --- 1. 黑名单过滤 ---
-                      if any(k.lower() in name.lower() or k.lower() in ov.lower() for k in BLACKLIST): 
-                          continue
-                      
-                      # --- 2. 国际赛 + 白名单过滤 ---
-                      # 强制要求：要么是国际赛，要么在白名单赛区里
-                      is_intl = (level == 'International')
+                      # === 💡 Debug: 打印准入判定过程 ===
+                      is_intl = (level == 'International') or any(k in name for k in ["MSI", "Worlds", "First Stand"])
                       is_white = any(k.upper() in ov.upper() for k in WHITELIST)
+                      is_black = any(k.lower() in name.lower() for k in BLACKLIST)
+
+                      # 拦截过滤日志 (为防止刷屏，只打印非白名单赛区的简要拦截信息)
+                      if is_black:
+                          continue # 纯黑名单赛段，静默过滤
                       
-                      if not (is_intl or is_white): 
+                      if not (is_intl or is_white):
+                          # 这里你可以清楚地看到 CBLOL, LCP 等是怎么被拦截的
+                          print(f"🚫 [拦截] 非白名单/国际赛 | 联赛: {level} | Name: {name}")
                           continue
 
-                      # --- 3. 路径归一化与时间聚合 ---
+                      # 通过初筛的，详细打印路径截断过程
                       clean_ov = get_clean_root(ov, level)
+                      if clean_ov != ov:
+                          print(f"✂️  [切尾] {ov}  ====>  {clean_ov}")
+                      else:
+                          print(f"🔹  [保留] {ov}")
+
                       group_key = f"INTL_{name}" if is_intl else f"{clean_ov}_{y}"
 
                       try:
@@ -104,28 +115,37 @@ jobs:
                               "start": s_dt, "end": e_dt
                           }
                       else:
-                          # 聚合：把 Playoffs 的结束时间也拉长到主路径里
-                          raw_groups[group_key]["start"] = min(raw_groups[group_key]["start"], s_dt)
-                          raw_groups[group_key]["end"] = max(raw_groups[group_key]["end"], e_dt)
+                          # 时间合并
+                          old_start, old_end = raw_groups[group_key]["start"], raw_groups[group_key]["end"]
+                          raw_groups[group_key]["start"] = min(old_start, s_dt)
+                          raw_groups[group_key]["end"] = max(old_end, e_dt)
+                          print(f"🔗  [聚合] {clean_ov} | 时间延展: 结束日期 {old_end} -> {raw_groups[group_key]['end']}")
 
-                  # --- 4. 生命周期过滤与输出 ---
+                  print("\n" + "="*50 + "\n🎯 [生命周期判定阶段]")
+                  
                   final_output = []
                   for gk, v in raw_groups.items():
-                      if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)): continue
-                      if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)): continue
+                      # === 💡 Debug: 打印时间剔除原因 ===
+                      if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
+                          print(f"⏳ [未开始] 忽略 {v['ov']} | 开赛时间 {v['start']} 太远 (预热期: {PREHEAT_DAYS}天)")
+                          continue
+                      if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
+                          print(f"🗑️ [已过期] 删除 {v['ov']} | 结束时间 {v['end']} 已过 (缓冲期: {EXPIRE_DAYS}天)")
+                          continue
 
                       y = v["year"]
                       if v["is_intl"]:
                           s_name = v["name"].lower().replace(str(y), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").strip()
                           slug = f"{y}-{re.sub(r'[^a-z0-9]+', '-', s_name).strip('-')}"
                       else:
-                          # 直接用最后一段生成 Slug，例如 2026-lpl-split-1
                           parts = v["ov"].split('/')
                           league = parts[0].lower()
                           stage = parts[-1].lower()
                           stage_slug = re.sub(r'[^a-z0-9]+', '-', stage).strip('-')
                           slug = f"{y}-{league}-{stage_slug}"
 
+                      print(f"✅ [通过] 成功生成配置项 -> Slug: {slug} | Date: {v['start']} ~ {v['end']}")
+                      
                       final_output.append({
                           "slug": slug,
                           "overview_page": v["ov"],
@@ -137,10 +157,10 @@ jobs:
                   with open(TEST_FILE, "w", encoding="utf-8") as f:
                       json.dump(unique_res, f, indent=4, ensure_ascii=False)
                   
-                  print(f"🎉 严格过滤同步完成。当前有效配置数: {len(unique_res)}")
+                  print("\n" + "="*50 + f"\n🎉 同步彻底完成。最终写入 {len(unique_res)} 条有效配置。")
 
               except Exception as e:
-                  print(f"💥 异常: {e}")
+                  print(f"💥 异常崩溃: {e}")
 
           if __name__ == "__main__":
               run_sniff()
@@ -149,5 +169,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🔄 Strict Filter: Blacklist + Whitelist + Intl only"
+          commit_message: "🔄 Debug: Added strict logs for filter, truncation and lifecycle"
           file_pattern: 'tournaments-test.json'
