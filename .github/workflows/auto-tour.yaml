@@ -1,4 +1,4 @@
-name: Auto Discover Tournaments (Semantic Final)
+name: Auto Discover Tournaments (Strict Filter)
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Aggregated Sniff
+      - name: Sniff and Filter
         run: |
           import requests
           import json
@@ -40,32 +40,32 @@ jobs:
           PREHEAT_DAYS = 14 
           EXPIRE_DAYS = 1   
 
-          # 1. 严格过滤配置
-          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary"]
+          # === 🎯 核心过滤配置 ===
+          BLACKLIST = ["Opening", "LCK CL", "LPLOL"]
           WHITELIST = ["LPL", "LCK"]
 
           def get_clean_root(ov, level):
               if level == 'International': return ov
-              # 2. 语义锚点：只要路径包含这些词，就在该词处截断
-              # 解决 LPL/Split 1/Playoffs -> LPL/Split 1
-              anchors = [r'Split \d+', r'Cup', r'Versus', r'Lock-In']
+              
+              # === 🎯 核心断尾逻辑 ===
+              # 只要匹配到 Split_1 / Cup / Season_Play-In，直接砍掉后面的所有后缀 (如 _Playoffs)
+              anchors = [r'Split[\s_]\d+', r'Cup', r'Season_Play-In', r'Season_Playoffs']
               for pattern in anchors:
-                  match = re.search(f'(.+/{pattern})', ov)
-                  if match: return match.group(1)
-              # 3. 兜底：如果路径太深且没锚点，保留前三段
-              parts = ov.split('/')
-              return "/".join(parts[:3]) if len(parts) > 3 else ov
+                  match = re.search(f'^(.+?{pattern})', ov, re.IGNORECASE)
+                  if match:
+                      return match.group(1) # 直接返回 LPL/2026_Season/Split_1
+              
+              return ov # 没匹配到锚点，原封不动返回
 
           def run_sniff():
               url = "https://lol.fandom.com/api.php"
-              # 扩大 SQL 搜索范围，确保国际赛不漏
               where_sql = f"(Year = '{THIS_YEAR}' OR Year = '{NEXT_YEAR}') AND DateStart IS NOT NULL"
               params = {
                   "action": "cargoquery", "format": "json", "tables": "Tournaments",
                   "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel, Year",
-                  "where": where_sql, "order_by": "DateStart ASC", "limit": "350"
+                  "where": where_sql, "order_by": "DateStart ASC", "limit": "400"
               }
-              headers = {"User-Agent": f"LoLStatsFinal/14.0 (Chrome/{random.randint(110,125)})"}
+              headers = {"User-Agent": f"LoLStatsFilter/19.0 (Chrome/{random.randint(110,125)})"}
 
               try:
                   resp = requests.get(url, params=params, headers=headers, timeout=25)
@@ -77,16 +77,19 @@ jobs:
                       t = item["title"]
                       name, ov, level, y = t["Name"], t["OverviewPage"], t["TournamentLevel"] or "N/A", t["Year"]
                       
-                      # --- 严格准入检查 ---
-                      if any(k.lower() in name.lower() or k.lower() in ov.lower() for k in BLACKLIST): continue
+                      # --- 1. 黑名单过滤 ---
+                      if any(k.lower() in name.lower() or k.lower() in ov.lower() for k in BLACKLIST): 
+                          continue
                       
-                      # 准入逻辑：必须是 (国际赛) OR (白名单赛区)
+                      # --- 2. 国际赛 + 白名单过滤 ---
+                      # 强制要求：要么是国际赛，要么在白名单赛区里
                       is_intl = (level == 'International')
-                      is_white = any(k.lower() in name.lower() or k.lower() in ov.lower() for k in WHITELIST)
+                      is_white = any(k.upper() in ov.upper() for k in WHITELIST)
                       
-                      if not (is_intl or is_white): continue
+                      if not (is_intl or is_white): 
+                          continue
 
-                      # --- 路径归一化 ---
+                      # --- 3. 路径归一化与时间聚合 ---
                       clean_ov = get_clean_root(ov, level)
                       group_key = f"INTL_{name}" if is_intl else f"{clean_ov}_{y}"
 
@@ -101,31 +104,27 @@ jobs:
                               "start": s_dt, "end": e_dt
                           }
                       else:
-                          # 时间聚合：确保主路径生命周期覆盖所有子赛段
+                          # 聚合：把 Playoffs 的结束时间也拉长到主路径里
                           raw_groups[group_key]["start"] = min(raw_groups[group_key]["start"], s_dt)
                           raw_groups[group_key]["end"] = max(raw_groups[group_key]["end"], e_dt)
 
-                  # --- 生命周期判定与 Slug 生成 ---
+                  # --- 4. 生命周期过滤与输出 ---
                   final_output = []
                   for gk, v in raw_groups.items():
                       if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)): continue
                       if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)): continue
 
-                      y, league = v["year"], v["ov"].split('/')[0].lower()
-                      
+                      y = v["year"]
                       if v["is_intl"]:
-                          # 国际赛 Slug: 2026-msi
                           s_name = v["name"].lower().replace(str(y), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").strip()
                           slug = f"{y}-{re.sub(r'[^a-z0-9]+', '-', s_name).strip('-')}"
                       else:
-                          # 区域赛 Slug: 2026-lpl-split-1
-                          # 从路径尝试提取后缀 (split-1/cup/versus)
-                          suffix = ""
-                          for key in ["split 1", "split 2", "split 3", "cup", "versus", "lock-in"]:
-                              if key in v["ov"].lower():
-                                  suffix = f"-{key.replace(' ', '-')}"
-                                  break
-                          slug = f"{y}-{league}{suffix}"
+                          # 直接用最后一段生成 Slug，例如 2026-lpl-split-1
+                          parts = v["ov"].split('/')
+                          league = parts[0].lower()
+                          stage = parts[-1].lower()
+                          stage_slug = re.sub(r'[^a-z0-9]+', '-', stage).strip('-')
+                          slug = f"{y}-{league}-{stage_slug}"
 
                       final_output.append({
                           "slug": slug,
@@ -134,12 +133,11 @@ jobs:
                           "end_date": v["end"].strftime('%Y-%m-%d')
                       })
 
-                  # 排序去重
                   unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
                   with open(TEST_FILE, "w", encoding="utf-8") as f:
                       json.dump(unique_res, f, indent=4, ensure_ascii=False)
                   
-                  print(f"🎉 修正同步完成。当前包含 {len(unique_res)} 条核心配置。")
+                  print(f"🎉 严格过滤同步完成。当前有效配置数: {len(unique_res)}")
 
               except Exception as e:
                   print(f"💥 异常: {e}")
@@ -151,5 +149,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🔄 Fix: Strict Whitelist & Anchor Truncation"
+          commit_message: "🔄 Strict Filter: Blacklist + Whitelist + Intl only"
           file_pattern: 'tournaments-test.json'
