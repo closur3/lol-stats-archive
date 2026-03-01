@@ -76,29 +76,35 @@ const utils = {
             .filter(c => c.includes('='))
             .join('; ');
     },
-    sortTeams: (statsArray) => {
+    sortTeams: (statsObj) => {
+        if (!statsObj) return [];
         const BO5_WEIGHT = 1.5;
-        return statsArray.filter(s => s.name !== "TBD").sort((a, b) => {
-            // 计算加权数据
-            const aFulls_W = a.bo3_f + (a.bo5_f * BO5_WEIGHT);
-            const aTotal_W = a.bo3_t + (a.bo5_t * BO5_WEIGHT);
-            const bFulls_W = b.bo3_f + (b.bo5_f * BO5_WEIGHT);
-            const bTotal_W = b.bo3_t + (b.bo5_t * BO5_WEIGHT);
+        // 转换对象为数组，并过滤掉 TBD
+        const statsArray = Object.values(statsObj).filter(s => s && s.name && s.name !== "TBD");
 
-            // 1. 加权打满率 升序 (不加班的排前面)
+        return statsArray.sort((a, b) => {
+            const aFulls_W = (a.bo3_f || 0) + ((a.bo5_f || 0) * BO5_WEIGHT);
+            const aTotal_W = (a.bo3_t || 0) + ((a.bo5_t || 0) * BO5_WEIGHT);
+            const bFulls_W = (b.bo3_f || 0) + ((b.bo5_f || 0) * BO5_WEIGHT);
+            const bTotal_W = (b.bo3_t || 0) + ((b.bo5_t || 0) * BO5_WEIGHT);
+
+            // 1. 加权打满率 升序
             const aFullRate = aTotal_W > 0 ? aFulls_W / aTotal_W : 2.0;
             const bFullRate = bTotal_W > 0 ? bFulls_W / bTotal_W : 2.0;
             if (aFullRate !== bFullRate) return aFullRate - bFullRate;
 
-            // 2. 样本量 降序 (打得越多参考价值越高)
-            const aRealTotal = a.bo3_t + a.bo5_t;
-            const bRealTotal = b.bo3_t + b.bo5_t;
+            // 2. 真实比赛样本量 降序
+            const aRealTotal = (a.bo3_t || 0) + (a.bo5_t || 0);
+            const bRealTotal = (b.bo3_t || 0) + (b.bo5_t || 0);
             if (aRealTotal !== bRealTotal) return bRealTotal - aRealTotal;
 
-            // 3. 胜率/小场 降序 (终极保底)
-            const aWR = (a.s_w / a.s_t) || 0;
-            const bWR = (b.s_w / b.s_t) || 0;
-            return bWR - aWR;
+            // 3. 系列赛胜率 降序
+            const aWR = utils.rate(a.s_w, a.s_t) || 0;
+            const bWR = utils.rate(b.s_w, b.s_t) || 0;
+            if (aWR !== bWR) return bWR - aWR;
+
+            // 4. 小场胜率/净胜局 降序
+            return (utils.rate(b.g_w, b.g_t) || 0) - (utils.rate(a.g_w, a.g_t) || 0);
         });
     }
 };
@@ -476,34 +482,57 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
 }
 
-// --- 6. Markdown 生成器 ---
+// --- 6. Markdown 生成器 (静态 1:1 复制版) ---
 function generateMarkdown(tourn, stats, timeGrid) {
     const UPDATED_TIME = utils.getNow().full;
     let md = `# ${tourn.title}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
-    // 调用公用函数，确保 1:1 排序一致
-    const sorted = utils.sortTeams(Object.values(stats));
+    // 调用公用排序函数
+    const sorted = utils.sortTeams(stats);
 
-    sorted.forEach(s => {
-        // ... 生成表格行的逻辑 (与之前一致) ...
-    });
+    if (sorted.length === 0) {
+        md += "| - | - | - | - | - | - | - | - | - | - | - |\n";
+    } else {
+        sorted.forEach(s => {
+            const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-";
+            const bo3Pct = utils.pct(utils.rate(s.bo3_f, s.bo3_t));
+            const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
+            const bo5Pct = utils.pct(utils.rate(s.bo5_f, s.bo5_t));
+            const serTxt = s.s_t ? `${s.s_w}-${s.s_t - s.s_w}` : "-";
+            const serWR = utils.pct(utils.rate(s.s_w, s.s_t));
+            const gamTxt = s.g_t ? `${s.g_w}-${s.g_t - s.g_w}` : "-";
+            const gamWR = utils.pct(utils.rate(s.g_w, s.g_t));
+            const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
+            const last = s.last ? utils.fmtDate(s.last) : "-";
 
-    // --- 📅 动态时间分布 (完全移除 LCK/LPL 硬编码) ---
+            md += `| ${s.name} | ${bo3Txt} | ${bo3Pct} | ${bo5Txt} | ${bo5Pct} | ${serTxt} | ${serWR} | ${gamTxt} | ${gamWR} | ${strk} | ${last} |\n`;
+        });
+    }
+
+    // --- 📅 动态时间分布 (与网页完全一致) ---
     md += `\n## 📅 Time Slot Distribution\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
     
     const regionGrid = timeGrid[tourn.region] || {};
-    // 动态提取小时 key，排序后生成行
+    // 获取所有小时 key 并排序
     const hours = Object.keys(regionGrid)
         .filter(k => k !== "Total" && !isNaN(k))
         .map(Number)
         .sort((a, b) => a - b);
     
-    [...hours, "Total"].forEach(h => {
+    // 依次生成 小时行 和 Total 总计行
+    const displayRows = [...hours, "Total"];
+    displayRows.forEach(h => {
+        if (!regionGrid[h]) return;
         const label = h === "Total" ? `**Total**` : `**${h}:00**`;
         let line = `| ${label} |`;
-        for(let w = 0; w < 8; w++) {
-            const cell = regionGrid[h] ? regionGrid[h][w] : {total:0};
-            line += cell.total === 0 ? " - |" : ` ${cell.full}/${cell.total} (${Math.round(cell.full/cell.total*100)}%) |`;
+        for (let w = 0; w < 8; w++) {
+            const cell = regionGrid[h][w];
+            if (!cell || cell.total === 0) {
+                line += " - |";
+            } else {
+                const rate = Math.round((cell.full / cell.total) * 100);
+                line += ` ${cell.full}/${cell.total} (${rate}%) |`;
+            }
         }
         md += line + "\n";
     });
@@ -815,46 +844,25 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     let tablesHtml = isArchive ? `<div class="arch-content">` : "";
 
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
-        const rawStats = globalStats[t.slug] ? Object.values(globalStats[t.slug]) : [];
-        const stats = globalStats[t.slug] ? Object.values(globalStats[t.slug]).filter(s => s.name !== "TBD") : [];
+        // 1. 【核心】直接调用公用排序函数，确保 1:1 静态复制
+        const stats = utils.sortTeams(globalStats[t.slug]);
+        
         const tableId = `t${idx}`;
         const lastTs = updateTimestamps[t.slug];
         const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
         const debugLabel = `<span style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px">${timeStr}</span>`;
 
+        // 2. 计算日期颜色范围
         let minTs = 9999999999999, maxTsLocal = 0;
-        stats.forEach(s => { if(s.last){ if(s.last<minTs)minTs=s.last; if(s.last>maxTsLocal)maxTsLocal=s.last; }});
-        if(minTs===9999999999999)minTs=maxTsLocal;
-
-        stats.sort((a,b) => {
-            // 定义 BO5 的权重！如果是 1 就是等价；如果是 1.5，说明 BO5 比重更大
-            const BO5_WEIGHT = 1.5; 
-            
-            // 计算加权后的打满数和总场数
-            const aFulls_W = a.bo3_f + (a.bo5_f * BO5_WEIGHT);
-            const aTotal_W = a.bo3_t + (a.bo5_t * BO5_WEIGHT);
-            const bFulls_W = b.bo3_f + (b.bo5_f * BO5_WEIGHT);
-            const bTotal_W = b.bo3_t + (b.bo5_t * BO5_WEIGHT);
-            
-            // 1. 加权打满率 升序（没打过比赛的给 2.0 强制沉底）
-            const aFullRate = aTotal_W > 0 ? aFulls_W / aTotal_W : 2.0;
-            const bFullRate = bTotal_W > 0 ? bFulls_W / bTotal_W : 2.0;
-            if (aFullRate !== bFullRate) return aFullRate - bFullRate;
-            
-            // 2. 真实比赛样本量 降序（打满率一样时，真正打的比赛场次越多，排越前面）
-            const aRealTotal = a.bo3_t + a.bo5_t;
-            const bRealTotal = b.bo3_t + b.bo5_t;
-            if (aRealTotal !== bRealTotal) return bRealTotal - aRealTotal;
-            
-            // 3. 胜率兜底 降序（同样是不加班，一直赢的排在一直输的前面）
-            const aWR = utils.rate(a.s_w, a.s_t) || 0;
-            const bWR = utils.rate(b.s_w, b.s_t) || 0;
-            if (aWR !== bWR) return bWR - aWR;
-            
-            // 4. 小场净胜局降序（终极平局决胜点）
-            return (utils.rate(b.g_w, b.g_t) || 0) - (utils.rate(a.g_w, a.g_t) || 0);
+        stats.forEach(s => { 
+            if(s.last){ 
+                if(s.last < minTs) minTs = s.last; 
+                if(s.last > maxTsLocal) maxTsLocal = s.last; 
+            }
         });
+        if(minTs === 9999999999999) minTs = maxTsLocal;
 
+        // 3. 生成 Statistics 统计行
         const rows = stats.map(s => {
             const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
             const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
@@ -875,19 +883,23 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
         const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
         
-        let timeRows = [];
-        if (timeData[t.region]) { timeRows = Object.keys(timeData[t.region]).filter(k => k !== "Total").map(Number).sort((a,b) => a - b); timeRows.push("Total"); }
+        // 4. 生成时间分布表 (动态获取 Key，移除赛区硬编码判断)
         let timeTableHtml = "";
-        if (timeRows.length > 0) {
+        const regionGrid = timeData[t.region] || {};
+        const hours = Object.keys(regionGrid).filter(k => k !== "Total" && !isNaN(k)).map(Number).sort((a,b) => a - b);
+        
+        if (hours.length > 0 || regionGrid["Total"]) {
             timeTableHtml += `<div style="border-top: 1px solid #f1f5f9; width:100%;"></div><table style="font-variant-numeric:tabular-nums; border-top:none;"><thead><tr style="border-bottom:none;"><th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
             ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => { timeTableHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`; });
             timeTableHtml += "</tr></thead><tbody>";
-            timeRows.forEach(h => {
+            
+            [...hours, "Total"].forEach(h => {
+                if (!regionGrid[h]) return;
                 const isTotal = h === "Total";
                 const label = isTotal ? "Total" : `${h}:00`;
                 timeTableHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
                 for(let w=0; w<8; w++) {
-                    const c = (timeData[t.region][h] && timeData[t.region][h][w]) ? timeData[t.region][h][w] : {total:0};
+                    const c = regionGrid[h][w] || {total:0};
                     if(c.total===0) timeTableHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
                     else {
                         const r = c.full/c.total;
