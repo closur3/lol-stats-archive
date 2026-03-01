@@ -1,13 +1,10 @@
-name: Auto Discover Tournaments
+name: Auto Discover Tournaments (TEST)
 
 on:
-  schedule:
-    # 每天北京时间早上 7:00 执行嗅探 (刚好在比赛更新前)
-    - cron: '0 23 * * *'
-  workflow_dispatch: # 允许手动点按钮触发
+  workflow_dispatch: # 调试阶段建议仅手动触发
 
 jobs:
-  update-tournaments:
+  update-tournaments-test:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -16,111 +13,110 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Sniff Latest Tournaments
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Sniff 2026 Tournaments (TEST MODE)
         run: |
           import requests
           import json
           import re
           from datetime import datetime
 
-          # === 🎯 极简配置：你想追踪哪些比赛？ ===
-          # 按你希望在网页上显示的顺序排列
-          TARGET_LEAGUES = ["LPL", "LCK", "LEC", "LCS", "MSI", "WCS"]
-          
-          # 获取当前时间和年份
+          # 配置：锁定 2026 年测试
+          TARGET_REGIONS = ["LPL", "LCK", "LEC", "LCS"]
+          YEAR = 2026
           today = datetime.now().strftime("%Y-%m-%d")
-          current_year = datetime.now().year
+          
+          # 测试文件名
+          TEST_FILE = "tournaments-test.json"
 
-          print(f"🕵️ 开始嗅探 {current_year} 年最新赛程...")
-
-          # 格式化给 SQL 用的 IN 语句
-          league_str = ", ".join([f"'{l}'" for l in TARGET_LEAGUES])
-
-          # 请求 Fandom Cargo API
-          url = "https://lol.fandom.com/api.php"
-          params = {
-              "action": "cargoquery",
-              "format": "json",
-              "tables": "Tournaments",
-              # Date 在 Fandom 中代表 End Date
-              "fields": "Name, OverviewPage, League, DateStart, Date", 
-              "where": f"League IN ({league_str}) AND Year = '{current_year}'",
-              "limit": "100",
-              "order_by": "DateStart DESC" # 从最新开始排
-          }
-
-          try:
-              resp = requests.get(url, params=params, timeout=20)
-              resp.raise_for_status()
-              data = resp.json().get("cargoquery", [])
+          def run_test_sniff():
+              url = "https://lol.fandom.com/api.php"
               
-              if not data:
-                  print("⚠️ 未抓取到任何赛事数据")
-                  exit(0)
+              # 构建查询条件：LIKE 匹配赛区层级 + 自动识别国际赛
+              region_filter = " OR ".join([f"OverviewPage LIKE '{r}/{YEAR}%'" for r in TARGET_REGIONS])
+              intl_filter = f"(TournamentLevel = 'International' AND Year = '{YEAR}')"
+              where_sql = f"({region_filter} OR {intl_filter}) AND DateStart IS NOT NULL"
 
-              selected_tournaments = {}
+              params = {
+                  "action": "cargoquery",
+                  "format": "json",
+                  "tables": "Tournaments",
+                  "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel",
+                  "where": where_sql,
+                  "order_by": "DateStart DESC",
+                  "limit": "100"
+              }
+              headers = {"User-Agent": "Mozilla/5.0 LoLStatsTest/1.0"}
 
-              # === 🧠 核心碰撞逻辑 ===
-              for item in data:
-                  t = item["title"]
-                  league = t.get("League")
+              try:
+                  print(f"📡 正在拉取 Fandom {YEAR} 原始数据...")
+                  resp = requests.get(url, params=params, headers=headers, timeout=20)
+                  resp.raise_for_status()
+                  data = resp.json().get("cargoquery", [])
                   
-                  if league not in TARGET_LEAGUES:
-                      continue
-                      
-                  # 如果这个赛区已经找到了正在进行的比赛，直接跳过
-                  if league in selected_tournaments and selected_tournaments[league].get("is_active"):
-                      continue
-                  
-                  start_date = t.get("DateStart", "2099-01-01")
-                  end_date = t.get("Date", "1970-01-01")
-                  
-                  # 判断是否在时间窗口内
-                  is_active = start_date <= today <= end_date
-                  
-                  # 选取策略：
-                  # 1. 如果正在打 (is_active)，无条件选中它！
-                  # 2. 如果休赛期，由于是 DESC 排序，我们保留遍历到的第一个（即刚结束的，或马上要开始的）
-                  if is_active or league not in selected_tournaments:
-                      # 自动生成你需要的 slug，例如 "LPL 2026 Split 1" -> "lpl-2026-split-1"
-                      raw_name = t.get("Name", "")
-                      slug = re.sub(r'[^a-z0-9]+', '-', raw_name.lower()).strip('-')
-                      
-                      selected_tournaments[league] = {
-                          "slug": slug,
-                          "overview_page": t.get("OverviewPage"),
-                          "is_active": is_active,
-                          "name": raw_name # 仅做日志打印用
-                      }
+                  if not data:
+                      print("⚠️ 未抓取到数据，请检查 YEAR 是否在 Fandom 中已有记录。")
+                      return
 
-              # === 🗂️ 组装输出 JSON ===
-              final_output = []
-              # 严格按照 TARGET_LEAGUES 配置的顺序输出，治愈强迫症
-              for l in TARGET_LEAGUES:
-                  if l in selected_tournaments:
-                      st = selected_tournaments[l]
-                      status = "🟢 进行中" if st["is_active"] else "⏸️ 休赛期/待办"
-                      print(f"✅ {l.ljust(4)} -> {st['slug'].ljust(25)} [{status}]")
+                  picked = {}
+                  for item in data:
+                      t = item["title"]
+                      ov = t["OverviewPage"]
+                      level = t["TournamentLevel"]
                       
-                      # 你的 Worker 只需要这两个字段！
+                      # 分组逻辑：国际赛独立，区域赛按大区聚合
+                      group = f"INTL_{t['Name']}" if level == 'International' else ov.split('/')[0]
+                      
+                      # 只要是 2026 的，DESC 排序会让我们先拿到最新的（比如 Playoffs）
+                      # 如果当前日期在比赛周期内，标记为 Active
+                      is_active = t["DateStart"] <= today <= t["Date"]
+                      
+                      if group not in picked:
+                          picked[group] = t
+                      elif is_active:
+                          # 正在进行的优先级最高，覆盖掉非进行的
+                          picked[group] = t
+
+                  final_output = []
+                  # 排序：国际赛在前，四大赛区在后
+                  sorted_keys = sorted(picked.keys(), key=lambda x: (0 if "INTL" in x else 1, x))
+                  
+                  for k in sorted_keys:
+                      target = picked[k]
+                      # Slug 精简化：去掉年份和 Season 字样
+                      # LPL 2026 Season Split 1 Playoffs -> lpl-split-1-playoffs
+                      raw_name = target["Name"]
+                      clean_name = raw_name.lower().replace(str(YEAR), "").replace("season", "").strip()
+                      slug = re.sub(r'[^a-z0-9]+', '-', clean_name).strip('-')
+                      
                       final_output.append({
-                          "slug": st["slug"],
-                          "overview_page": st["overview_page"]
+                          "slug": slug,
+                          "overview_page": target["OverviewPage"],
+                          "_debug_name": raw_name # 测试期保留原名方便对比
                       })
-
-              # 写入 tournaments.json
-              with open("tournaments.json", "w", encoding="utf-8") as f:
-                  json.dump(final_output, f, indent=4, ensure_ascii=False)
                   
-              print("\n🎉 tournaments.json 已成功生成！")
+                  # 写入测试文件
+                  with open(TEST_FILE, "w", encoding="utf-8") as f:
+                      json.dump(final_output, f, indent=4, ensure_ascii=False)
+                  print(f"✅ 测试文件 {TEST_FILE} 已生成，包含 {len(final_output)} 个项目。")
+                  
+              except Exception as e:
+                  print(f"❌ 运行失败: {e}")
+                  exit(1)
 
-          except Exception as e:
-              print(f"❌ 发生错误: {e}")
-              exit(1)
+          if __name__ == "__main__":
+              run_test_sniff()
         shell: python
 
-      - name: Commit and Push
+      - name: Commit and Push TEST
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🔄 Auto: Rotate Tournaments (Smart Sniff)"
-          file_pattern: 'tournaments_test.json'
+          commit_message: "🧪 Test: Auto Rotate Tournaments (Isolation Mode)"
+          file_pattern: 'tournaments-test.json'
