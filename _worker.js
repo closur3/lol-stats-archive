@@ -451,32 +451,31 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
 }
 
-// --- 6. Markdown 生成器 ---
-function generateMarkdown(tourn, stats, timeGrid) {
-    let md = `# ${tourn.title}\n\nUpdated: {{UPDATED_TIME}} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
-    // MD 存档：与网页端保持一致，使用加权打满率升序
-    const sorted = Object.values(stats).filter(s => s.name !== "TBD").sort((a,b) => {
-        const BO5_WEIGHT = 1.5; 
-        
+// --- 5.5 共享排序函数 ---
+function sortTeamStats(statsArray) {
+    const BO5_WEIGHT = 1.5;
+    return statsArray.filter(s => s.name !== "TBD").sort((a, b) => {
         const aFulls_W = a.bo3_f + (a.bo5_f * BO5_WEIGHT);
         const aTotal_W = a.bo3_t + (a.bo5_t * BO5_WEIGHT);
         const bFulls_W = b.bo3_f + (b.bo5_f * BO5_WEIGHT);
         const bTotal_W = b.bo3_t + (b.bo5_t * BO5_WEIGHT);
-        
         const aFullRate = aTotal_W > 0 ? aFulls_W / aTotal_W : 2.0;
         const bFullRate = bTotal_W > 0 ? bFulls_W / bTotal_W : 2.0;
         if (aFullRate !== bFullRate) return aFullRate - bFullRate;
-        
         const aRealTotal = a.bo3_t + a.bo5_t;
         const bRealTotal = b.bo3_t + b.bo5_t;
         if (aRealTotal !== bRealTotal) return bRealTotal - aRealTotal;
-        
         const aWR = utils.rate(a.s_w, a.s_t) || 0;
         const bWR = utils.rate(b.s_w, b.s_t) || 0;
         if (aWR !== bWR) return bWR - aWR;
-        
         return (utils.rate(b.g_w, b.g_t) || 0) - (utils.rate(a.g_w, a.g_t) || 0);
     });
+}
+
+// --- 6. Markdown 生成器 ---
+function generateMarkdown(tourn, stats, timeGrid) {
+    let md = `# ${tourn.title}\n\nUpdated: {{UPDATED_TIME}} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    const sorted = sortTeamStats(Object.values(stats));
     sorted.forEach(s => {
         const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-"; const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
         const serTxt = s.s_t ? `${s.s_w}-${s.s_t-s.s_w}` : "-"; const gamTxt = s.g_t ? `${s.g_w}-${s.g_t-s.g_w}` : "-";
@@ -812,36 +811,9 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         stats.forEach(s => { if(s.last){ if(s.last<minTs)minTs=s.last; if(s.last>maxTsLocal)maxTsLocal=s.last; }});
         if(minTs===9999999999999)minTs=maxTsLocal;
 
-        stats.sort((a,b) => {
-            // 定义 BO5 的权重！如果是 1 就是等价；如果是 1.5，说明 BO5 比重更大
-            const BO5_WEIGHT = 1.5; 
-            
-            // 计算加权后的打满数和总场数
-            const aFulls_W = a.bo3_f + (a.bo5_f * BO5_WEIGHT);
-            const aTotal_W = a.bo3_t + (a.bo5_t * BO5_WEIGHT);
-            const bFulls_W = b.bo3_f + (b.bo5_f * BO5_WEIGHT);
-            const bTotal_W = b.bo3_t + (b.bo5_t * BO5_WEIGHT);
-            
-            // 1. 加权打满率 升序（没打过比赛的给 2.0 强制沉底）
-            const aFullRate = aTotal_W > 0 ? aFulls_W / aTotal_W : 2.0;
-            const bFullRate = bTotal_W > 0 ? bFulls_W / bTotal_W : 2.0;
-            if (aFullRate !== bFullRate) return aFullRate - bFullRate;
-            
-            // 2. 真实比赛样本量 降序（打满率一样时，真正打的比赛场次越多，排越前面）
-            const aRealTotal = a.bo3_t + a.bo5_t;
-            const bRealTotal = b.bo3_t + b.bo5_t;
-            if (aRealTotal !== bRealTotal) return bRealTotal - aRealTotal;
-            
-            // 3. 胜率兜底 降序（同样是不加班，一直赢的排在一直输的前面）
-            const aWR = utils.rate(a.s_w, a.s_t) || 0;
-            const bWR = utils.rate(b.s_w, b.s_t) || 0;
-            if (aWR !== bWR) return bWR - aWR;
-            
-            // 4. 小场净胜局降序（终极平局决胜点）
-            return (utils.rate(b.g_w, b.g_t) || 0) - (utils.rate(a.g_w, a.g_t) || 0);
-        });
+        const sorted = sortTeamStats(stats);
 
-        const rows = stats.map(s => {
+        const rows = sorted.map(s => {
             const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
             const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
             const bo3Txt = s.bo3_t ? mkSpine(`${s.bo3_f}/${s.bo3_t}`, '/') : "-";
