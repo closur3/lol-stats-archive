@@ -1,4 +1,4 @@
-name: Auto Discover Tournaments (With Debug Logs)
+name: Auto Discover Tournaments (Ultimate Defender)
 
 on:
   push:
@@ -28,79 +28,84 @@ jobs:
           import requests
           import json
           import re
-          import time
-          import random
           from datetime import datetime, timedelta
 
           now = datetime.now()
-          THIS_YEAR, NEXT_YEAR = now.year, now.year + 1
           today_dt = now.date()
           TEST_FILE = "tournaments-test.json"
 
+          # 统一预热期与过期缓冲
           PREHEAT_DAYS = 14 
           EXPIRE_DAYS = 1   
 
-          # 绝对名单配置
-          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary"]
+          # 核心防线：白名单放行赛区，黑名单兜底杀虫
           WHITELIST = ["LPL", "LCK"]
-
-          def get_clean_root(ov, level):
-              if level == 'International': return ov
-              
-              # 断尾锚点
-              anchors = [r'Split[\s_]\d+', r'Cup', r'Season_Play-In', r'Season_Playoffs']
-              for pattern in anchors:
-                  match = re.search(f'^(.+?{pattern})', ov, re.IGNORECASE)
-                  if match:
-                      return match.group(1) 
-              return ov
+          BLACKLIST = ["Opening"]
 
           def run_sniff():
               url = "https://lol.fandom.com/api.php"
-              where_sql = f"(Year = '{THIS_YEAR}' OR Year = '{NEXT_YEAR}') AND DateStart IS NOT NULL"
+              
+              # SQL层：彻底删除了 TournamentLevel，只限定年份和有时间的比赛。放宽 limit 以防被杂质冲刷。
+              where_sql = f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL"
+              
               params = {
                   "action": "cargoquery", "format": "json", "tables": "Tournaments",
-                  "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel, Year",
+                  # 核心索要字段：放弃 Level，直接拿 Region, IsQualifier, IsPlayoffs
+                  "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
                   "where": where_sql, "order_by": "DateStart ASC", "limit": "400"
               }
-              headers = {"User-Agent": f"LoLStatsDebug/21.0 (Chrome/{random.randint(110,125)})"}
+              headers = {"User-Agent": "LoLStatsUltimate/29.0"}
 
-              print(f"🚀 [INIT] 启动抓取 | 目标年份: {THIS_YEAR}, {NEXT_YEAR} | 今天日期: {today_dt}\n" + "="*50)
+              print(f"🚀 [INIT] 启动全量抓取 | 统一预热: {PREHEAT_DAYS}天\n" + "="*50)
 
               try:
                   resp = requests.get(url, params=params, headers=headers, timeout=25)
                   data = resp.json().get("cargoquery", [])
                   if not data:
-                      print("⚠️ [API] 未抓取到任何数据！")
+                      print("⚠️ [API] 未抓取到任何数据")
                       return
-
-                  print(f"📥 [API] 成功获取 {len(data)} 条原始数据记录。\n" + "="*50)
+                  
+                  print(f"📥 [API] 成功获取 {len(data)} 条原始数据，开始安检...\n" + "-"*50)
 
                   raw_groups = {}
                   for item in data:
                       t = item["title"]
-                      name, ov, level, y = t["Name"], t["OverviewPage"], t["TournamentLevel"] or "N/A", t["Year"]
+                      name = t.get("Name", "")
+                      ov = t.get("OverviewPage", "")
+                      region = t.get("Region", "")
+                      y = t.get("Year", "")
+                      is_playoffs = t.get("IsPlayoffs")
+                      is_qualifier = t.get("IsQualifier")
                       
-                      # === 💡 Debug: 打印准入判定过程 ===
-                      is_intl = (level == 'International') or any(k in name for k in ["MSI", "Worlds", "First Stand"])
-                      is_white = any(k.upper() in ov.upper() for k in WHITELIST)
-                      is_black = any(k.lower() in name.lower() for k in BLACKLIST)
-
-                      # 拦截过滤日志 (为防止刷屏，只打印非白名单赛区的简要拦截信息)
-                      if is_black:
-                          continue # 纯黑名单赛段，静默过滤
-                      
-                      if not (is_intl or is_white):
-                          # 这里你可以清楚地看到 CBLOL, LCP 等是怎么被拦截的
-                          print(f"🚫 [拦截] 非白名单/国际赛 | 联赛: {level} | Name: {name}")
+                      # --- 🛡️ 第一道防线：底层字段与黑名单兜底 ---
+                      if is_qualifier == "1":
+                          # 太吵了，不打印所有的 Qualifier，默默干掉就行
+                          continue 
+                      if any(k.lower() in name.lower() for k in BLACKLIST):
+                          print(f"🚫 [拦截-黑名单] 命中兜底词库 | Name: {name}")
                           continue
 
-                      # 通过初筛的，详细打印路径截断过程
-                      clean_ov = get_clean_root(ov, level)
-                      if clean_ov != ov:
-                          print(f"✂️  [切尾] {ov}  ====>  {clean_ov}")
-                      else:
-                          print(f"🔹  [保留] {ov}")
+                      # --- 🛡️ 第二道防线：国际赛(靠Region)与白名单(靠LPL/LCK) ---
+                      is_intl = (region == 'International')
+                      is_white = any(k.upper() in ov.upper() for k in WHITELIST)
+
+                      if not (is_intl or is_white):
+                          # 打印被挡在门外的主流比赛，防误杀
+                          print(f"🚫 [拦截-非目标] 既非国际赛也不在白名单 | Name: {name} | Region: {region}")
+                          continue
+                      
+                      print(f"✅ [准入] 放行 | 身份: {'国际赛' if is_intl else '白名单'} | Name: {name}")
+
+                      # --- ✂️ 第三道防线：靠 IsPlayoffs 精准切尾巴 ---
+                      clean_ov = ov
+                      if is_playoffs == "1" and not is_intl:
+                          anchors = [r'Split[\s_]\d+', r'Cup', r'Season_Play-In', r'Season_Playoffs', r'Versus']
+                          for pattern in anchors:
+                              match = re.search(f'^(.+?{pattern})', ov, re.IGNORECASE)
+                              if match:
+                                  clean_ov = match.group(1)
+                                  print(f"   ✂️ [切尾] 识别到季后赛，执行溯源: {ov} -> {clean_ov}")
+                                  break
 
                       group_key = f"INTL_{name}" if is_intl else f"{clean_ov}_{y}"
 
@@ -109,55 +114,49 @@ jobs:
                           e_dt = datetime.strptime(t["Date"], '%Y-%m-%d').date() if t.get("Date") else s_dt
                       except: continue
 
+                      # --- 🔗 终极合并：把时间交给亲爹 ---
                       if group_key not in raw_groups:
                           raw_groups[group_key] = {
                               "ov": clean_ov, "year": y, "name": name, "is_intl": is_intl,
                               "start": s_dt, "end": e_dt
                           }
                       else:
-                          # 时间合并
-                          old_start, old_end = raw_groups[group_key]["start"], raw_groups[group_key]["end"]
-                          raw_groups[group_key]["start"] = min(old_start, s_dt)
-                          raw_groups[group_key]["end"] = max(old_end, e_dt)
-                          print(f"🔗  [聚合] {clean_ov} | 时间延展: 结束日期 {old_end} -> {raw_groups[group_key]['end']}")
+                          old_end = raw_groups[group_key]["end"]
+                          raw_groups[group_key]["start"] = min(raw_groups[group_key]["start"], s_dt)
+                          raw_groups[group_key]["end"] = max(raw_groups[group_key]["end"], e_dt)
+                          if e_dt > old_end:
+                              print(f"   🔗 [延寿] 成功吸收季后赛时间，结束日期延至 {e_dt}")
 
-                  print("\n" + "="*50 + "\n🎯 [生命周期判定阶段]")
+                  print("\n" + "="*50 + "\n🎯 [生命周期判定 (预热14天)]")
                   
                   final_output = []
                   for gk, v in raw_groups.items():
-                      # === 💡 Debug: 打印时间剔除原因 ===
                       if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
-                          print(f"⏳ [未开始] 忽略 {v['ov']} | 开赛时间 {v['start']} 太远 (预热期: {PREHEAT_DAYS}天)")
+                          print(f"⏳ [潜伏] {v['name']} | 开赛: {v['start']} (未满14天预热)")
                           continue
                       if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                          print(f"🗑️ [已过期] 删除 {v['ov']} | 结束时间 {v['end']} 已过 (缓冲期: {EXPIRE_DAYS}天)")
+                          print(f"🗑️ [过期] {v['name']} | 结束: {v['end']} (已过保质期)")
                           continue
 
-                      y = v["year"]
+                      # Slug 极简生成
                       if v["is_intl"]:
-                          s_name = v["name"].lower().replace(str(y), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").strip()
-                          slug = f"{y}-{re.sub(r'[^a-z0-9]+', '-', s_name).strip('-')}"
+                          slug_name = v["name"].lower().replace(str(v["year"]), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
+                          slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', slug_name).strip('-')}"
                       else:
                           parts = v["ov"].split('/')
-                          league = parts[0].lower()
-                          stage = parts[-1].lower()
-                          stage_slug = re.sub(r'[^a-z0-9]+', '-', stage).strip('-')
-                          slug = f"{y}-{league}-{stage_slug}"
-
-                      print(f"✅ [通过] 成功生成配置项 -> Slug: {slug} | Date: {v['start']} ~ {v['end']}")
+                          slug = f"{v['year']}-{parts[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', parts[-1].lower()).strip('-')}"
                       
+                      print(f"✨ [生成] Slug: {slug} | Date: {v['start']} ~ {v['end']}")
                       final_output.append({
-                          "slug": slug,
-                          "overview_page": v["ov"],
-                          "start_date": v["start"].strftime('%Y-%m-%d'),
-                          "end_date": v["end"].strftime('%Y-%m-%d')
+                          "slug": slug, "overview_page": v["ov"],
+                          "start_date": v["start"].strftime('%Y-%m-%d'), "end_date": v["end"].strftime('%Y-%m-%d')
                       })
 
                   unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
                   with open(TEST_FILE, "w", encoding="utf-8") as f:
                       json.dump(unique_res, f, indent=4, ensure_ascii=False)
                   
-                  print("\n" + "="*50 + f"\n🎉 同步彻底完成。最终写入 {len(unique_res)} 条有效配置。")
+                  print("\n" + "="*50 + f"\n🎉 同步彻底完成。最终生成 {len(unique_res)} 条有效 JSON。")
 
               except Exception as e:
                   print(f"💥 异常崩溃: {e}")
@@ -169,5 +168,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🔄 Debug: Added strict logs for filter, truncation and lifecycle"
+          commit_message: "🛡️ Ultimate: Rely on Region, IsPlayoffs, and Blacklist with 14d preheat"
           file_pattern: 'tournaments-test.json'
