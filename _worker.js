@@ -558,13 +558,12 @@ const PYTHON_STYLE = `
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(3px); }
-    .modal-header-line { height: 1px; width: 100%; background: #e2e8f0; margin: 0 0 15px 0; }
-    .match-list { padding: 0 15px; max-height: 60vh; overflow-y: auto; }
+    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 2px; }
     .match-list::-webkit-scrollbar { width: 6px; }
     .match-list::-webkit-scrollbar-track { background: transparent; }
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    .modal-content { background-color: #f8fafc; margin: 10px auto; padding: 20px 0 18px 0; width: 380px; border-radius: 16px; position: relative; }
-    #modalTitle { padding: 0 20px; margin: 0 0 12px 0; font-size: 18px; font-weight: 800; color: #1e293b; }
+    .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 360px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
+    #modalTitle { text-align: left; margin: 0 0 12px 2px; font-size: 18px; font-weight: 800; color: #1e293b; white-space: nowrap; }
     .match-item { display: flex; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 7px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; min-height: 40px; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .col-date { width: 50px; flex-shrink: 0; font-size: 12px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
@@ -646,14 +645,9 @@ const PYTHON_JS = `
     }
 
     function renderListHTML(htmlArr) {
-        const l = document.getElementById('modalList');
-        const divider = '<div class="modal-header-line"></div>';
-    
-        if (!htmlArr || htmlArr.length === 0) {
-            l.innerHTML = divider + "<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
-        } else {
-            l.innerHTML = divider + htmlArr.join("");
-        }
+        const l=document.getElementById('modalList');
+        if(!htmlArr || htmlArr.length===0) l.innerHTML="<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
+        else l.innerHTML = htmlArr.join("");
     }
 
     function showPopup(t,d,m){
