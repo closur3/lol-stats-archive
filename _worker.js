@@ -645,37 +645,57 @@ const PYTHON_JS = `
     const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
     const RES_MAP = { 'W': '✔', 'L': '❌', 'LIV': '🔵', 'N': '🕒' };
     
-    function doSort(c,id) {
-        const t=document.getElementById(id),b=t.tBodies[0],r=Array.from(b.rows),k='data-sort-dir-'+c,cur=t.getAttribute(k),
+    function doSort(c, id) {
+        const t = document.getElementById(id), 
+              b = t.tBodies[0], 
+              r = Array.from(b.rows), 
+              k = 'data-sort-dir-' + c, 
+              cur = t.getAttribute(k);
+
+        // 定义哪些列第一次点击时默认“升序” (从小到大)
         const defaultAscCols = [COL_TEAM, COL_BO3_PCT, COL_BO5_PCT];
+        
+        // 确定本次排序的方向
         const next = (!cur) 
             ? (defaultAscCols.includes(c) ? 'asc' : 'desc') 
             : (cur === 'desc' ? 'asc' : 'desc');
-        r.sort((ra,rb)=>{
-            let va=ra.cells[c].innerText,vb=rb.cells[c].innerText;
+
+        r.sort((ra, rb) => {
+            let va = ra.cells[c].innerText, vb = rb.cells[c].innerText;
             
-            // 针对不同列采用特定解析策略
+            // 1. 针对不同列采用特定解析策略
             if (c === COL_LAST_DATE) {
-                // 日期格式 YY-MM-DD 天然支持字符串大小比较，"-"设为空字符串垫底
                 va = va === "-" ? "" : va;
                 vb = vb === "-" ? "" : vb;
             } else if (c === COL_STREAK) {
-                // 连胜为正，连败为负，"-"为0
                 const ps = x => x === "-" ? 0 : (x.includes('W') ? parseInt(x) : -parseInt(x));
                 va = ps(va); vb = ps(vb);
             } else {
-                // 其他数值列正常解析
                 va = parseValue(va); vb = parseValue(vb);
             }
             
-            if(va!==vb) return next==='asc'?(va>vb?1:-1):(va<vb?1:-1);
+            // 2. 执行排序比较
+            if (va !== vb) {
+                return next === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+            }
             
-            // 胜率相同时的二级排序逻辑
-            if(c===COL_BO3_PCT||c===COL_BO5_PCT){ let sA=parseValue(ra.cells[COL_SERIES_WR].innerText), sB=parseValue(rb.cells[COL_SERIES_WR].innerText); if(sA!==sB) return sA > sB ? -1 : 1; }
-            if(c===COL_SERIES || c===COL_SERIES_WR){ let gA=parseValue(ra.cells[COL_GAME_WR].innerText), gB=parseValue(rb.cells[COL_GAME_WR].innerText); if(gA!==gB) return gA > gB ? -1 : 1; }
+            // 3. 胜率相同时的二级排序逻辑 (始终保持强队在前，所以二级排序通常用降序)
+            if (c === COL_BO3_PCT || c === COL_BO5_PCT) { 
+                let sA = parseValue(ra.cells[COL_SERIES_WR].innerText), 
+                    sB = parseValue(rb.cells[COL_SERIES_WR].innerText); 
+                if (sA !== sB) return sB - sA; 
+            }
+            if (c === COL_SERIES || c === COL_SERIES_WR) { 
+                let gA = parseValue(ra.cells[COL_GAME_WR].innerText), 
+                    gB = parseValue(rb.cells[COL_GAME_WR].innerText); 
+                if (gA !== gB) return gB - gA; 
+            }
             return 0;
         });
-        t.setAttribute(k,next); r.forEach(x=>b.appendChild(x));
+
+        // 更新 DOM 属性并重新挂载行
+        t.setAttribute(k, next); 
+        r.forEach(x => b.appendChild(x));
     }
     
     function parseValue(v) {
