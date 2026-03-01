@@ -78,7 +78,7 @@ const utils = {
     },
     sortTeams: (statsObj) => {
         if (!statsObj) return [];
-        const BO5_WEIGHT = 1.5;
+        const BO5_WEIGHT = 1.33;
         // 转换对象为数组，并过滤掉 TBD
         const statsArray = Object.values(statsObj).filter(s => s && s.name && s.name !== "TBD");
 
