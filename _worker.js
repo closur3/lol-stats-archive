@@ -574,7 +574,7 @@ const PYTHON_STYLE = `
     .close { display: none !important; }
     .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
     .score-box.is-full .score-text { color: #c2410c; }
-    .score-text { font-weight: 800; font-size: 13px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+    .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
     .score-text.live { color: #10b981; }
     .score-text.vs { color: #94a3b8; font-size: 9px; letter-spacing: 0; }
     .full-tag { font-size: 9px; color: #ea580c; background: #ffedd5; padding: 1px 4px; border-radius: 4px; font-weight: 800; margin-top: 2px; line-height: 1; border: 1px solid #fdba74; }
