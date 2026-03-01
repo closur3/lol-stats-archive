@@ -1,13 +1,14 @@
 // ====================================================
-// 🥇 Worker V41.2.9: Etiquette & CSS Modularization
+// 🥇 Worker V41.2.9: Etiquette & CSS Modularization (Cleaned)
 // 更新日志:
 // 1. 滑动窗口: 引入 48h 前至 48h 后的双向滑动时间窗，完美捕获跨天比分与赛程变更。
 // 2. 坐标覆写: 重构 getUniqueKey，剔除队伍依赖，彻底解决 TBD 确定后导致的数据分身 Bug。
 // 3. 架构解耦: 提取 COMMON_STYLE，统一多端 UI，Update 移至 Logs 并附加安全锁。
 // 4. API 礼仪: 合并双路 Cookie 防降级，遵守 maxlag 与 Retry-After 指数退避规范。
+// 5. 代码精简: 清理无用 CSS、未使用的 DOM 节点及废弃渲染参数。
 // ====================================================
 
-const UI_VERSION = "2026-02-26-V41.2.9";
+const UI_VERSION = "2026-02-26-V41.2.9-Clean";
 const BOT_UA = `LoLStatsWorker/${UI_VERSION} (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
@@ -197,7 +198,7 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
                 logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`);               
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`);                
                 await new Promise(res => setTimeout(res, waitTimeMs));
             }
             attempt++;
@@ -480,8 +481,6 @@ function generateMarkdown(tourn, stats, timeGrid) {
 }
 
 // --- 7. HTML 渲染器 & 页面外壳 ---
-
-// [重构] 抽离通用基础样式，消除重复代码
 const COMMON_STYLE = `
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -557,13 +556,13 @@ const PYTHON_STYLE = `
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; }
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
+    
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(3px); }
-    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
-    .match-list::-webkit-scrollbar { width: 6px; }
-    .match-list::-webkit-scrollbar-track { background: transparent; }
-    .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 360px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
     #modalTitle { text-align: left; margin: 0 -20px 12px -20px; padding: 0 20px 12px 22px; border-bottom: 1.5px solid #cbd5e1; font-size: 18px; font-weight: 800; color: #1e293b; white-space: nowrap; }
+    
+    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+    
     .match-item { display: flex; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 7px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; min-height: 40px; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .col-date { width: 50px; flex-shrink: 0; font-size: 12px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
@@ -571,7 +570,7 @@ const PYTHON_STYLE = `
     .col-vs-area { flex: 1; min-width: 0; }
     .modal-divider { width: 1px; height: 20px; background: #e2e8f0; flex-shrink: 0; margin: 0 6px; }
     .score-box { display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 0; min-height: 22px; min-width: 42px; transition: 0.2s; }
-    .close { display: none !important; }
+    
     .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
     .score-box.is-full .score-text { color: #c2410c; }
     .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
@@ -584,7 +583,7 @@ const PYTHON_STYLE = `
 const PYTHON_JS = `
     <script>
     const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
-    const RES_MAP = { 'W': { t: '✔', c: '' }, 'L': { t: '❌', c: '' }, 'LIV': { t: '🔵', c: '' }, 'N': { t: '🕒', c: '' } };
+    const RES_MAP = { 'W': '✔', 'L': '❌', 'LIV': '🔵', 'N': '🕒' };
     
     function doSort(c,id) {
         const t=document.getElementById(id),b=t.tBodies[0],r=Array.from(b.rows),k='data-sort-dir-'+c,cur=t.getAttribute(k),
@@ -609,13 +608,11 @@ const PYTHON_JS = `
     }
 
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
-        // 日期两行拆分：MM-DD 换行 HH:mm
         const dateParts = (date || '').split(' ');
         const dateHtml = dateParts.length === 2
             ? dateParts[0] + '<br><span style="font-weight:700;color:#475569">' + dateParts[1] + '</span>'
             : (date || '');
 
-        // 比分内容
         let scoreContent = '';
         let scoreClass = 'score-text';
         if (resStatus === 'LIV') scoreClass += ' live';
@@ -627,7 +624,6 @@ const PYTHON_JS = `
         }
         const boxClass = isFull ? 'score-box is-full' : 'score-box';
 
-        // TBD 队伍变灰逻辑
         const t1Color = team1 === 'TBD' ? 'color:#9ca3af;' : '';
         const t2Color = team2 === 'TBD' ? 'color:#9ca3af;' : '';
 
@@ -668,8 +664,8 @@ const PYTHON_JS = `
         const data = window.g_stats[slug][teamName];
         document.getElementById('modalTitle').innerText = teamName + " - Schedule";
         const listHtml = (data.history || []).map(h => {
-            const map = RES_MAP[h.res] || RES_MAP['N'];
-            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
+            const icon = RES_MAP[h.res] || RES_MAP['N'];
+            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
             return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s, h.res);
         });
         renderListHTML(listHtml);
@@ -686,8 +682,8 @@ const PYTHON_JS = `
         else { titleSuffix = " - Series"; }
         document.getElementById('modalTitle').innerText = teamName + titleSuffix;
         const listHtml = history.map(h => {
-            const map = RES_MAP[h.res] || RES_MAP['N'];
-            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${map.t}</span>\`;
+            const icon = RES_MAP[h.res] || RES_MAP['N'];
+            const resTag = \`<span class="\${(h.res === 'W' || h.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
             return renderMatchItem('history', h.d, resTag, teamName, h.vs, h.full, h.s, h.res);
         });
         renderListHTML(listHtml);
@@ -706,13 +702,12 @@ const PYTHON_JS = `
             else if(h.res === 'L') t2Wins++;
         });
         
-        // 同样抛弃反引号，使用单双引号和加号拼接
         const summary = h2hHistory.length > 0 ? ' <span style="color:#94a3b8;font-size:14px">(' + t1Wins + '<span style="margin:0 1px">-</span>' + t2Wins + ')</span>' : "";
         document.getElementById('modalTitle').innerHTML = t1 + " vs " + t2 + summary;
         
         const listHtml = h2hHistory.map(h => {
-            const map = RES_MAP[h.res] || RES_MAP['N'];
-            const resTag = '<span class="' + ((h.res === 'W' || h.res === 'L') ? '' : 'hist-icon') + '">' + map.t + '</span>';
+            const icon = RES_MAP[h.res] || RES_MAP['N'];
+            const resTag = '<span class="' + ((h.res === 'W' || h.res === 'L') ? '' : 'hist-icon') + '">' + icon + '</span>';
             return renderMatchItem('history', h.d, resTag, t1, h.vs, h.full, h.s, h.res);
         });
         renderListHTML(listHtml);
@@ -730,10 +725,10 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
     if (navMode === "home") navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
     else if (navMode === "archive") navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><span class="close" onclick="closePopup()">&times;</span><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
 }
 
-function renderContentOnly(globalStats, timeData, debugInfo, maxDateTs, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
+function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
     if (!scheduleMap) scheduleMap = {};
     if (!updateTimestamps) updateTimestamps = {};
     const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
@@ -1062,8 +1057,7 @@ async function runUpdate(env, force=false) {
     });
 
     const homeFragment = renderContentOnly(
-        analysis.globalStats, analysis.timeGrid, analysis.debugInfo, analysis.maxDateTs,
-        analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, false
+        analysis.globalStats, analysis.timeGrid, analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, false
     );
     
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
@@ -1081,8 +1075,7 @@ async function runUpdate(env, force=false) {
     }));
 
     const archiveFragment = renderContentOnly(
-        analysis.globalStats, analysis.timeGrid, analysis.debugInfo, analysis.maxDateTs,
-        analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, true 
+        analysis.globalStats, analysis.timeGrid, analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, true 
     );
     await env.LOL_KV.put("ARCHIVE_FRAGMENT", archiveFragment);
 
@@ -1232,8 +1225,7 @@ export default {
                     homeFragment = cache.homeHtml;
                 } else {
                     homeFragment = renderContentOnly(
-                        cache.globalStats, cache.timeGrid, cache.debugInfo, cache.maxDateTs,
-                        cache.scheduleMap, cache.runtimeConfig || { TOURNAMENTS: [] }, cache.updateTimestamps, false
+                        cache.globalStats, cache.timeGrid, cache.scheduleMap, cache.runtimeConfig || { TOURNAMENTS: [] }, cache.updateTimestamps, false
                     );
                 }
 
