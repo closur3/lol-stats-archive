@@ -1,4 +1,4 @@
-name: Auto Discover Tournaments (Absolute Truth)
+name: Auto Discover Tournaments (Standardized Logs)
 
 on:
   push:
@@ -23,7 +23,9 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Sniff, Filter and Debug
+      - name: Extract, Validate and Aggregate Data
+        env:
+          PYTHONUNBUFFERED: "1" # 强制 Python 禁用标准输出缓冲，实现绝对实时日志
         run: |
           import requests
           import json
@@ -37,7 +39,6 @@ jobs:
           today_dt = now.date()
           TEST_FILE = "tournaments-test.json"
 
-          # 统一 14 天预热
           PREHEAT_DAYS = 14 
           EXPIRE_DAYS = 1   
 
@@ -59,7 +60,6 @@ jobs:
           def run_sniff():
               url = "https://lol.fandom.com/api.php"
               
-              # 🎯 SQL 终极净化：只取有日期的 Primary 级别赛事！
               where_sql = f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'"
               
               params = {
@@ -67,9 +67,9 @@ jobs:
                   "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
                   "where": where_sql, "order_by": "DateStart ASC", "limit": "400"
               }
-              headers = {"User-Agent": "LoLStatsAbsoluteTruth/33.0"}
+              headers = {"User-Agent": "LoLStatsCI/34.0"}
 
-              print(f"🚀 [INIT] 启动抓取 | 锁定 Primary 级别 | 预热: {PREHEAT_DAYS}天\n" + "="*50)
+              print(f"[INFO] Initialization complete. Target: Primary Level. Preheat window: {PREHEAT_DAYS} days.", flush=True)
 
               session = get_robust_session()
               data = []
@@ -83,10 +83,10 @@ jobs:
                       
                       if "error" in resp_json:
                           err_info = resp_json["error"]
-                          print(f"⚠️ [API报错] 尝试 {attempt}/{MAX_ATTEMPTS} | 错误信息: {err_info}")
+                          print(f"[WARN] Application-level error during attempt {attempt}/{MAX_ATTEMPTS}. Details: {err_info}", flush=True)
                           if "ratelimit" in err_info.get("code", "").lower() or "limit" in err_info.get("code", "").lower():
-                              sleep_time = 5 * attempt
-                              print(f"   💤 触发限流，等待 {sleep_time} 秒...")
+                              sleep_time = 15 * attempt
+                              print(f"[WARN] Rate limit exceeded. Backing off for {sleep_time} seconds.", flush=True)
                               time.sleep(sleep_time)
                               continue
                           else:
@@ -94,22 +94,23 @@ jobs:
                               
                       data = resp_json.get("cargoquery", [])
                       if data:
-                          print(f"📥 [API] 成功获取 {len(data)} 条 Primary 数据。\n" + "-"*50)
+                          print(f"[INFO] Successfully retrieved {len(data)} Primary records from API.", flush=True)
                           break
                       else:
-                          print(f"⚠️ [API] 返回数据为空。响应: {resp_json}")
+                          print(f"[WARN] API returned empty dataset. Raw response: {resp_json}", flush=True)
                           break
 
                   except requests.exceptions.RequestException as e:
-                      print(f"💥 [网络异常] 尝试 {attempt}/{MAX_ATTEMPTS} 失败: {e}")
+                      print(f"[ERROR] Network exception during attempt {attempt}/{MAX_ATTEMPTS}: {e}", flush=True)
                       time.sleep(5 * attempt)
 
               if not data:
-                  print("❌ [致命] 获取数据失败，程序终止。")
+                  print("[ERROR] Fatal: Data extraction failed after all attempts. Terminating process.", flush=True)
                   return
 
               raw_groups = {}
-              print("🔍 [逐条安检开始]")
+              print("[INFO] Commencing data validation and processing pipeline.", flush=True)
+              
               for item in data:
                   t = item["title"]
                   name = t.get("Name", "")
@@ -119,26 +120,23 @@ jobs:
                   is_playoffs = t.get("IsPlayoffs")
                   is_qualifier = t.get("IsQualifier")
                   
-                  # 1. 拦截预选赛 (底层字段)
                   if is_qualifier == "1":
                       continue 
 
-                  # 2. 拦截黑名单
                   if any(k.lower() in name.lower() for k in BLACKLIST):
-                      print(f"🚫 [拦截-黑名单] 命中词库 | Name: {name}")
+                      print(f"[DEBUG] Validation failed [Blacklist]: {name}", flush=True)
                       continue
 
-                  # 🎯 3. 终极身份判定：唯二放行条件
                   is_intl = (region == 'International')
                   is_white = any(k.upper() in ov.upper() for k in WHITELIST)
 
                   if not (is_intl or is_white):
-                      print(f"🚫 [拦截-非目标] 非国际赛且非白名单 | Name: {name} | Region: {region}")
+                      print(f"[DEBUG] Validation failed [Out of Scope]: {name} | Region: {region}", flush=True)
                       continue
                   
-                  print(f"✅ [准入] 放行 | 身份: {'国际赛(Region=Intl)' if is_intl else '白名单赛区'} | Name: {name}")
+                  category = 'Global Event (Region=Intl)' if is_intl else 'Regional Whitelist'
+                  print(f"[INFO] Validation passed: {name} | Context: {category}", flush=True)
 
-                  # 4. 季后赛断尾
                   clean_ov = ov
                   if is_playoffs == "1" and not is_intl:
                       anchors = [r'Split[\s_]\d+', r'Cup', r'Season_Play-In', r'Season_Playoffs', r'Versus']
@@ -146,7 +144,7 @@ jobs:
                           match = re.search(f'^(.+?{pattern})', ov, re.IGNORECASE)
                           if match:
                               clean_ov = match.group(1)
-                              print(f"   ✂️ [切尾] 季后赛溯源: {ov} -> {clean_ov}")
+                              print(f"[DEBUG] Path normalization applied (Playoffs): {ov} -> {clean_ov}", flush=True)
                               break
 
                   group_key = f"INTL_{name}" if is_intl else f"{clean_ov}_{y}"
@@ -156,7 +154,6 @@ jobs:
                       e_dt = datetime.strptime(t["Date"], '%Y-%m-%d').date() if t.get("Date") else s_dt
                   except: continue
 
-                  # 5. 聚合时间
                   if group_key not in raw_groups:
                       raw_groups[group_key] = {
                           "ov": clean_ov, "year": y, "name": name, "is_intl": is_intl,
@@ -167,18 +164,17 @@ jobs:
                       raw_groups[group_key]["start"] = min(raw_groups[group_key]["start"], s_dt)
                       raw_groups[group_key]["end"] = max(raw_groups[group_key]["end"], e_dt)
                       if e_dt > old_end:
-                          print(f"   🔗 [延寿] {clean_ov} 吸收季后赛，结束日延至 {e_dt}")
+                          print(f"[INFO] Schedule aggregated: {clean_ov} end date extended to {e_dt}", flush=True)
 
-              print("\n" + "="*50 + f"\n🎯 [排版与生命周期 (统一预热{PREHEAT_DAYS}天)]")
+              print(f"[INFO] Commencing lifecycle filtering and format generation.", flush=True)
               
               final_output = []
               for gk, v in raw_groups.items():
-                  # 统一 14 天预热
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
-                      print(f"⏳ [潜伏] {v['name']} | 开赛: {v['start']} (未满14天预热)")
+                      print(f"[DEBUG] Lifecycle filter [Pending]: {v['name']} | Start Date: {v['start']} (Exceeds {PREHEAT_DAYS}-day preheat)", flush=True)
                       continue
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                      print(f"🗑️ [过期] {v['name']} | 结束: {v['end']} (已过保质期)")
+                      print(f"[DEBUG] Lifecycle filter [Expired]: {v['name']} | End Date: {v['end']}", flush=True)
                       continue
 
                   if v["is_intl"]:
@@ -188,7 +184,7 @@ jobs:
                       parts = v["ov"].split('/')
                       slug = f"{v['year']}-{parts[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', parts[-1].lower()).strip('-')}"
                   
-                  print(f"✨ [生成] Slug: {slug} | Date: {v['start']} ~ {v['end']}")
+                  print(f"[INFO] Output generated: Slug [{slug}] | Date Range: {v['start']} to {v['end']}", flush=True)
                   final_output.append({
                       "slug": slug, "overview_page": v["ov"],
                       "start_date": v["start"].strftime('%Y-%m-%d'), "end_date": v["end"].strftime('%Y-%m-%d')
@@ -198,7 +194,7 @@ jobs:
               with open(TEST_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
               
-              print("\n" + "="*50 + f"\n🎉 同步完成。最终写入 {len(unique_res)} 条有效 JSON。")
+              print(f"[INFO] Execution complete. {len(unique_res)} valid configurations written to {TEST_FILE}.", flush=True)
 
           if __name__ == "__main__":
               run_sniff()
@@ -207,5 +203,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🛡️ Final: Level=Primary only, Region=Intl for global events, 14d preheat"
+          commit_message: "📝 Refactor: Implement unbuffered standard logging and formalize output tone"
           file_pattern: 'tournaments-test.json'
