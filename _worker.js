@@ -609,13 +609,13 @@ const PYTHON_JS = `
     }
 
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
-        // 1. 日期处理：对齐方案 B，补齐了时间的 11px 字号
+        // 日期两行拆分：MM-DD 换行 HH:mm
         const dateParts = (date || '').split(' ');
         const dateHtml = dateParts.length === 2
-            ? dateParts[0] + '<br><span style="font-size:12px;font-weight:700;color:#475569">' + dateParts[1] + '</span>'
+            ? dateParts[0] + '<br><span style="font-weight:700;color:#475569">' + dateParts[1] + '</span>'
             : (date || '');
 
-        // 2. 比分内容处理
+        // 比分内容
         let scoreContent = '';
         let scoreClass = 'score-text';
         if (resStatus === 'LIV') scoreClass += ' live';
@@ -627,27 +627,19 @@ const PYTHON_JS = `
         }
         const boxClass = isFull ? 'score-box is-full' : 'score-box';
 
-        // 3. TBD 置灰逻辑
-        const t1Style = team1 === 'TBD' ? 'padding-right:5px; color:#9ca3af;' : 'padding-right:5px;';
-        const t2Style = team2 === 'TBD' ? 'padding-left:5px; color:#9ca3af;' : 'padding-left:5px;';
-
-        // 4. 暴力写死分隔线样式，绝对强制显示
-        const dividerHtml = '<div style="width:1px; height:20px; background:#e2e8f0; flex-shrink:0; margin:0 6px;"></div>';
-
-        // 5. 拼接返回
         return '<div class="match-item">' +
                '<div class="col-date">' + dateHtml + '</div>' +
-               dividerHtml + 
+               '<div class="modal-divider"></div>' +
                '<div class="col-vs-area">' +
                    '<div class="spine-row">' +
-                       '<span class="spine-l" style="' + t1Style + '">' + team1 + '</span>' +
+                       '<span class="spine-l" style="padding-right:5px">' + team1 + '</span>' +
                        '<div style="width:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center">' +
                            '<div class="' + boxClass + '">' + scoreContent + '</div>' +
                        '</div>' +
-                       '<span class="spine-r" style="' + t2Style + '">' + team2 + '</span>' +
+                       '<span class="spine-r" style="padding-left:5px">' + team2 + '</span>' +
                    '</div>' +
                '</div>' +
-               dividerHtml +
+               '<div class="modal-divider"></div>' +
                '<div class="col-res">' + resTag + '</div>' +
                '</div>';
     }
