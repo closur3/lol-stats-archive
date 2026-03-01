@@ -890,7 +890,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                     }
 
                     const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
-                    const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.tournSlug}', '${m.t1}', '${m.t2}')" title="View H2H"` : "";
+                    const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.tournSlug}', '${m.t1}', '${m.t2}')"` : "";
                     cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="${h2hClass}" ${h2hClick} style="display:flex;justify-content:center;align-items:center;width:40px;transition:background 0.2s;">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;                });
                 cardHtml += `</div></div>`;
                 scheduleHtml += cardHtml;
