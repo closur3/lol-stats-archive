@@ -1,1 +1,44 @@
-[]
+[
+    {
+        "slug": "first-stand",
+        "overview_page": "2026 First Stand",
+        "_debug_name": "First Stand 2026",
+        "_debug_status": "UPCOMING"
+    },
+    {
+        "slug": "lck-cup",
+        "overview_page": "LCK/2026 Season/Cup",
+        "_debug_name": "LCK Cup 2026",
+        "_debug_status": "ACTIVE"
+    },
+    {
+        "slug": "lck-cl-kickoff",
+        "overview_page": "LCK CL/2026 Season/Kickoff",
+        "_debug_name": "LCK CL 2026 Kickoff",
+        "_debug_status": "ACTIVE"
+    },
+    {
+        "slug": "lcs-lock-in",
+        "overview_page": "LCS/2026 Season/Lock-In",
+        "_debug_name": "LCS 2026 Lock-In",
+        "_debug_status": "ACTIVE"
+    },
+    {
+        "slug": "lec-versus-playoffs",
+        "overview_page": "LEC/2026 Season/Versus Playoffs",
+        "_debug_name": "LEC 2026 Versus Playoffs",
+        "_debug_status": "ACTIVE"
+    },
+    {
+        "slug": "lpl-split-1-playoffs",
+        "overview_page": "LPL/2026 Season/Split 1 Playoffs",
+        "_debug_name": "LPL 2026 Split 1 Playoffs",
+        "_debug_status": "ACTIVE"
+    },
+    {
+        "slug": "lplol-winter",
+        "overview_page": "LPLOL/2026 Season/Winter Split",
+        "_debug_name": "LPLOL 2026 Winter",
+        "_debug_status": "ACTIVE"
+    }
+]
