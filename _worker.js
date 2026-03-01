@@ -824,7 +824,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                     else {
                         const r = c.full/c.total;
                         const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}<span style="opacity:0.5; margin:0 1px;">/</span>${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
+                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}<span style="opacity:0.7; margin:0 1px;">/</span>${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
                     }
                 }
                 timeTableHtml += "</tr>";
