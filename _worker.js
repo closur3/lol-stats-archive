@@ -647,7 +647,10 @@ const PYTHON_JS = `
     
     function doSort(c,id) {
         const t=document.getElementById(id),b=t.tBodies[0],r=Array.from(b.rows),k='data-sort-dir-'+c,cur=t.getAttribute(k),
-        next=(!cur)?((c===COL_TEAM)?'asc':'desc'):((cur==='desc')?'asc':'desc');
+        const defaultAscCols = [COL_TEAM, COL_BO3_PCT, COL_BO5_PCT];
+        const next = (!cur) 
+            ? (defaultAscCols.includes(c) ? 'asc' : 'desc') 
+            : (cur === 'desc' ? 'asc' : 'desc');
         r.sort((ra,rb)=>{
             let va=ra.cells[c].innerText,vb=rb.cells[c].innerText;
             
