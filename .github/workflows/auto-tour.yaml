@@ -1,10 +1,10 @@
-name: Auto Discover Tournaments (Deep Debug & Anti-Limit)
+name: Auto Discover Tournaments (Final Logic & Anti-Limit)
 
 on:
   push:
     branches: [main]
   schedule:
-    - cron: '0 23 * * *'
+    - cron: '0 23 * * *' # 北京时间每天 07:00
   workflow_dispatch:
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Sniff and Filter Tournaments
+      - name: Sniff with Backoff Retry
         run: |
           import requests
           import json
@@ -40,104 +40,94 @@ jobs:
           TEST_FILE = "tournaments-test.json"
           today = datetime.now().strftime("%Y-%m-%d")
 
+          # 【黑名单】：优先级最高。LPLOL 必须写在这里，防止它触发 LPL 白名单
+          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary"]
+
+          # 【白名单】：你关注的核心赛区
           WHITELIST = ["LPL", "LCK"]
-          BLACKLIST = ["Opening", "Promotion", "LCK CL"]
 
-          def run_extreme_sniff():
+          def run_final_sniff():
               url = "https://lol.fandom.com/api.php"
-              
-              # 构建 SQL
-              path_filters = " OR ".join([f"OverviewPage LIKE '%{k}%'" for k in WHITELIST])
-              where_sql = f"Year = '{YEAR}' AND ({path_filters}) AND DateStart IS NOT NULL"
-
               params = {
                   "action": "cargoquery",
                   "format": "json",
                   "tables": "Tournaments",
                   "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel",
-                  "where": where_sql,
+                  "where": f"Year = '{YEAR}' AND DateStart IS NOT NULL",
                   "order_by": "DateStart DESC",
-                  "limit": "200"
+                  "limit": "150"
               }
               
-              # 动态 User-Agent 伪装
               headers = {
-                  "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/{random.randint(110,122)}.0.0.0 Safari/537.36",
+                  "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/{random.randint(110,123)}.0.0.0 Safari/537.36",
                   "Accept": "application/json"
               }
 
-              print(f"🚀 [INIT] 开始任务 | 目标年份: {YEAR} | 当前日期: {today}")
-              
-              # --- 指数退避重试逻辑 (最多5次) ---
+              print(f"🚀 [START] 目标年份: {YEAR} | 逻辑：黑名单 > 白名单 = 国际赛默认")
+
+              # --- 抗限频重试逻辑 (5次) ---
               for attempt in range(5):
                   if attempt > 0:
-                      wait_time = (2 ** attempt) * 5 + random.uniform(5, 15)
-                      print(f"\n⏳ [RETRY] 第 {attempt} 次失败，触发限频保护，休眠 {wait_time:.1f}s 后重试...")
+                      wait_time = (2 ** attempt) * 10 + random.uniform(5, 15)
+                      print(f"⏳ [WAIT] 触发限频，休眠 {wait_time:.1f}s 后重试...")
                       time.sleep(wait_time)
 
                   try:
-                      print(f"📡 [SEND] 正在请求 Fandom API... (Attempt {attempt + 1})")
                       resp = requests.get(url, params=params, headers=headers, timeout=25)
+                      print(f"📡 [ATTEMPT {attempt+1}] HTTP Status: {resp.status_code}")
                       
-                      # 打印基础调试号码
-                      print(f"🔢 [HTTP Status] {resp.status_code}")
-                      
-                      # 即使是 200，也要检查内部的 "ratelimited"
-                      try:
-                          raw_json = resp.json()
-                      except Exception as je:
-                          print(f"💥 [JSON ERROR] 无法解析响应内容: {resp.text[:200]}")
-                          continue
-
+                      raw_json = resp.json()
                       if "error" in raw_json:
-                          err = raw_json["error"]
-                          print(f"❌ [API ERROR] Code: {err.get('code')} | Info: {err.get('info')}")
-                          if err.get('code') == 'ratelimited':
-                              continue # 触发重试
+                          if raw_json["error"].get("code") == "ratelimited":
+                              print("⚠️ [RATE] 仍处于限频中...")
+                              continue
                           else:
-                              print("🚫 [FATAL] 遇到非限频类 API 错误，停止。")
+                              print(f"❌ [API ERROR] {json.dumps(raw_json['error'])}")
                               sys.exit(1)
 
                       data = raw_json.get("cargoquery", [])
                       if not data:
-                          print("📭 [DEBUG] 响应成功但结果集为空。")
-                          print(f"DEBUG DATA: {json.dumps(raw_json, indent=2)}")
+                          print("📭 [EMPTY] 状态码正常但库里没数据。")
                           return
 
-                      # --- 逻辑过滤开始 ---
-                      print(f"📊 [PROCESS] 原始记录: {len(data)} 条 | 开始精筛...")
+                      # --- 精准精筛逻辑 ---
+                      print(f"📊 [PROCESS] 原始记录: {len(data)} 条 | 开始过滤...")
                       picked = {}
                       for item in data:
                           t = item["title"]
                           name, ov, level = t["Name"], t["OverviewPage"], t["TournamentLevel"] or "N/A"
-                          
                           name_low, ov_low = name.lower(), ov.lower()
-                          
-                          # 1. 黑名单
+
+                          # 1. 【黑名单拦截】命中即死 (拦截 LPLOL, LCK CL 等)
                           if any(k.lower() in name_low or k.lower() in ov_low for k in BLACKLIST):
                               continue
                           
-                          # 2. 准入
-                          if not any(k.lower() in name_low or k.lower() in ov_low for k in WHITELIST):
+                          # 2. 【准入判定】
+                          # 逻辑：是国际赛 (S级或关键字) OR 是白名单赛区 (LPL/LCK)
+                          is_intl = (level == 'International') or any(k.lower() in name_low for k in ["msi", "worlds", "first stand", "ewc"])
+                          is_white = any(k.lower() in name_low or k.lower() in ov_low for k in WHITELIST)
+                          
+                          if not (is_intl or is_white):
                               continue
 
-                          # 3. 分组
-                          is_intl = (level == 'International') or any(k.lower() in name_low for k in ["msi", "worlds", "first stand", "ewc"])
+                          # 3. 【分组逻辑】
                           group = f"INTL_{name}" if is_intl else ov.split('/')[0].upper()
 
-                          # 4. 覆盖
+                          # 4. 【动态覆盖】Active 优先，确保季后赛顶替常规赛
                           is_active = t["DateStart"] <= today <= (t.get("Date") or "2099-12-31")
                           if group not in picked or is_active:
                               picked[group] = t
                               status = "🟢 ACTIVE" if is_active else "⚪ STANDBY"
-                              print(f"✅ [LOCK] {group.ljust(12)}: {name} [{status}]")
+                              print(f"  ✅ 锁定 {group.ljust(12)}: {name} [{status}]")
 
-                      # --- 输出结果 ---
+                      # --- 生成输出 ---
                       final_output = []
+                      # 国际赛排在前面
                       sorted_keys = sorted(picked.keys(), key=lambda x: (0 if "INTL" in x else 1, x))
                       for k in sorted_keys:
                           target = picked[k]
-                          s_name = target["Name"].lower().replace(str(YEAR), "").replace("season", "")
+                          # Slug 清理
+                          s_name = target["Name"].lower().replace(str(YEAR), "").replace("season", "").strip()
                           s_name = s_name.replace("mid-season invitational", "msi").replace("world championship", "worlds").strip()
                           slug = re.sub(r'[^a-z0-9]+', '-', s_name).strip('-')
                           
@@ -147,26 +137,23 @@ jobs:
                               "_debug_name": target["Name"],
                               "_debug_status": "ACTIVE" if target["DateStart"] <= today <= (target.get("Date") or "2099-12-31") else "UPCOMING"
                           })
-                      
+
                       with open(TEST_FILE, "w", encoding="utf-8") as f:
                           json.dump(final_output, f, indent=4, ensure_ascii=False)
                       
-                      print(f"\n🎉 [SUCCESS] 任务圆满完成！生成 {len(final_output)} 个核心赛事。")
-                      return # 成功后退出
+                      print(f"\n🎉 [SUCCESS] 生成 {len(final_output)} 个核心项目。")
+                      return
 
                   except Exception as e:
-                      print(f"💥 [CRASH] 异常: {e}")
-                      time.sleep(5)
-
-              print("\n💀 [FAIL] 经过多次重试，API 依然封锁或返回异常。")
-              sys.exit(0) # 保持流程不标红，方便查看日志
+                      print(f"💥 [ERROR] 运行异常: {e}")
+                      time.sleep(10)
 
           if __name__ == "__main__":
-              run_extreme_sniff()
+              run_final_sniff()
         shell: python
 
       - name: Commit and Push TEST
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🧪 Debug: Extreme Sniffing with Anti-RateLimit"
+          commit_message: "🔄 Final Logic: Blacklist > Whitelist/Intl"
           file_pattern: 'tournaments-test.json'
