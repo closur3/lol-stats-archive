@@ -1,11 +1,9 @@
-name: Auto Discover Tournaments (S-Level TEST)
+name: Auto Discover Tournaments (Final Sniff)
 
 on:
   push:
-    branches:
-      - main
-    # 移除具体的 paths 限制，确保任何 push 都能触发测试，直到你调试满意为止
-  workflow_dispatch: 
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   update-tournaments-test:
@@ -25,24 +23,25 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Sniff S-Level Tournaments
+      - name: Sniff S-Level Tournaments (Filtered)
         run: |
           import requests
           import json
           import re
           from datetime import datetime
 
-          # --- 核心配置 ---
+          # --- ⚙️ 核心名单配置 ---
           YEAR = 2026
           TEST_FILE = "tournaments-test.json"
           today = datetime.now().strftime("%Y-%m-%d")
 
-          def run_s_level_sniff():
+          # 【黑名单】：包含这些关键字的 Name 或 Region 直接踢掉
+          BLACKLIST = ["Promotion", "Opening", ]
+          # 【白名单】：即使级别没达到 Primary，只要包含这些关键字也强制保留
+          WHITELIST = ["LPL", "LCK"]
+
+          def run_filtered_sniff():
               url = "https://lol.fandom.com/api.php"
-              
-              # 【S级过滤逻辑】：
-              # 1. 必须是 2026 年
-              # 2. 级别必须是 Primary (四大赛区) 或 International (国际赛)
               where_sql = f"Year = '{YEAR}' AND (TournamentLevel = 'Primary' OR TournamentLevel = 'International') AND DateStart IS NOT NULL"
 
               params = {
@@ -50,51 +49,47 @@ jobs:
                   "format": "json",
                   "tables": "Tournaments",
                   "fields": "Name, OverviewPage, DateStart, Date, TournamentLevel",
-                  "where": where_sql,
                   "order_by": "DateStart DESC",
                   "limit": "200"
               }
-              headers = {"User-Agent": "Mozilla/5.0 LoLStatsSLevelTest/1.0"}
+              headers = {"User-Agent": "Mozilla/5.0 LoLStatsFinal/1.0"}
 
               try:
-                  print(f"📡 正在探测 {YEAR} 全球顶级赛事 (S-Level)...")
                   resp = requests.get(url, params=params, headers=headers, timeout=20)
                   resp.raise_for_status()
                   data = resp.json().get("cargoquery", [])
                   
-                  if not data:
-                      print("⚠️ 没抓到数据。可能原因：Fandom 2026 标签尚未同步。")
-                      return
-
                   picked = {}
                   for item in data:
                       t = item["title"]
+                      name = t["Name"]
                       ov = t["OverviewPage"]
                       level = t["TournamentLevel"]
                       
-                      # 分组策略：
-                      # 国际赛（MSI, Worlds, EWC, First Stand）每一项都是独立的 Key
-                      # 区域赛（LPL, LCK 等）按赛区前缀聚合，只取该赛区最新的阶段
-                      if level == 'International':
-                          group = f"INTL_{t['Name']}"
-                      else:
-                          group = ov.split('/')[0]
+                      # 1. 黑名单硬过滤
+                      if any(k in name for k in BLACKLIST) or any(k in ov for k in BLACKLIST):
+                          continue
+                      
+                      # 2. 白名单校验 (确保至少匹配一个核心关键字)
+                      if not any(k in name or k in ov for k in WHITELIST):
+                          continue
 
+                      # 3. 分组聚合逻辑
+                      group = f"INTL_{name}" if level == 'International' else ov.split('/')[0]
                       is_active = t["DateStart"] <= today <= t["Date"]
                       
-                      # 优先级存储：如果该组没存过，或者是当前正在进行的 (Active)，则保留
                       if group not in picked or is_active:
                           picked[group] = t
 
+                  # --- 生成最终列表 ---
                   final_output = []
-                  # 排序：国际赛在前，区域赛在后
                   sorted_keys = sorted(picked.keys(), key=lambda x: (0 if "INTL" in x else 1, x))
                   
                   for k in sorted_keys:
                       target = picked[k]
                       raw_name = target["Name"]
                       
-                      # Slug 极简清洗：去掉 2026, Season, 缩写 MSI/Worlds
+                      # Slug 清洗
                       name_clean = raw_name.lower().replace(str(YEAR), "").replace("season", "")
                       name_clean = name_clean.replace("mid-season invitational", "msi").replace("world championship", "worlds").strip()
                       slug = re.sub(r'[^a-z0-9]+', '-', name_clean).strip('-')
@@ -102,26 +97,24 @@ jobs:
                       final_output.append({
                           "slug": slug,
                           "overview_page": target["OverviewPage"],
-                          "_debug_name": raw_name,
-                          "_debug_start": target["DateStart"]
+                          "_debug_name": raw_name
                       })
                   
                   with open(TEST_FILE, "w", encoding="utf-8") as f:
                       json.dump(final_output, f, indent=4, ensure_ascii=False)
                   
-                  print(f"✅ [SUCCESS] 测试文件 {TEST_FILE} 已生成。")
-                  print(f"📊 探测结果：共锁定 {len(final_output)} 个 S 级/国际赛事。")
+                  print(f"✅ 过滤完成。共锁定 {len(final_output)} 个核心 S 级赛事。")
 
               except Exception as e:
-                  print(f"❌ 运行崩溃: {e}")
+                  print(f"❌ 运行失败: {e}")
                   exit(1)
 
           if __name__ == "__main__":
-              run_s_level_sniff()
+              run_filtered_sniff()
         shell: python
 
       - name: Commit and Push TEST
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🧪 Test: S-Level Tournament Discovery (Manual/Push)"
+          commit_message: "🔄 Auto: Rotate Tournaments (Black/White List Applied)"
           file_pattern: 'tournaments-test.json'
