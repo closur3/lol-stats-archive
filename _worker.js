@@ -558,6 +558,7 @@ const PYTHON_STYLE = `
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     .modal { display: none; position: fixed; z-index: 99; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(3px); }
+    .modal-header-line { height: 1px; background: linear-gradient(to right, #e2e8f0 0%, #cbd5e1 50%, #e2e8f0 100%); margin: 10px 2px 15px 2px; opacity: 0.8; }
     .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 2px; }
     .match-list::-webkit-scrollbar { width: 6px; }
     .match-list::-webkit-scrollbar-track { background: transparent; }
@@ -645,9 +646,12 @@ const PYTHON_JS = `
     }
 
     function renderListHTML(htmlArr) {
-        const l=document.getElementById('modalList');
-        if(!htmlArr || htmlArr.length===0) l.innerHTML="<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
-        else l.innerHTML = htmlArr.join("");
+        const l = document.getElementById('modalList');
+        if (!htmlArr || htmlArr.length === 0) {
+            l.innerHTML = "<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
+        } else {
+            l.innerHTML = '<div class="modal-header-line"></div>' + htmlArr.join("");
+        }
     }
 
     function showPopup(t,d,m){
