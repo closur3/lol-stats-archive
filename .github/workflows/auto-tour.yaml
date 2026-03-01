@@ -1,4 +1,4 @@
-name: Auto Discover Tournaments (Standardized Chinese Logs)
+name: Auto Discover Tournaments (Enterprise Logging)
 
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
 
       - name: Extract, Validate and Aggregate Data
         env:
-          PYTHONUNBUFFERED: "1" # 强制禁用缓冲，实现绝对实时日志
+          PYTHONUNBUFFERED: "1" # 强制禁用输出缓冲，实现绝对实时日志流
         run: |
           import requests
           import json
@@ -39,11 +39,11 @@ jobs:
           today_dt = now.date()
           TEST_FILE = "tournaments-test.json"
 
-          PREHEAT_DAYS = 14 
+          # 核心参数配置
+          PREHEAT_DAYS = 7 
           EXPIRE_DAYS = 1   
-
           WHITELIST = ["LPL", "LCK"]
-          BLACKLIST = ["Opening"]
+          BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary", "Qualifier", "Academy", "Division"]
 
           def get_robust_session():
               session = requests.Session()
@@ -59,7 +59,6 @@ jobs:
 
           def run_sniff():
               url = "https://lol.fandom.com/api.php"
-              
               where_sql = f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'"
               
               params = {
@@ -67,9 +66,16 @@ jobs:
                   "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
                   "where": where_sql, "order_by": "DateStart ASC", "limit": "400"
               }
-              headers = {"User-Agent": "LoLStatsCI/35.0"}
+              headers = {"User-Agent": "LoLStatsEnterprise/36.0"}
 
-              print(f"[INFO] 初始化完成。抓取目标：Primary 级别赛事。预热窗口：{PREHEAT_DAYS} 天。", flush=True)
+              # --- 初始化系统日志 ---
+              print(f"="*80, flush=True)
+              print(f"[INFO]  系统初始化完成，开始执行赛事抓取流水线。", flush=True)
+              print(f"[INFO]  - 目标层级：仅限 Primary (一级联赛) 且已确定开赛日期的赛事", flush=True)
+              print(f"[INFO]  - 准入规则：Region == 'International' 或 命中白名单 {WHITELIST}", flush=True)
+              print(f"[INFO]  - 兜底拦截：命中黑名单 {BLACKLIST} 或 IsQualifier == 1", flush=True)
+              print(f"[INFO]  - 周期控制：预热窗口 {PREHEAT_DAYS} 天，过期缓冲 {EXPIRE_DAYS} 天", flush=True)
+              print(f"="*80, flush=True)
 
               session = get_robust_session()
               data = []
@@ -83,10 +89,10 @@ jobs:
                       
                       if "error" in resp_json:
                           err_info = resp_json["error"]
-                          print(f"[WARN] 应用层异常（尝试 {attempt}/{MAX_ATTEMPTS}）。详细信息：{err_info}", flush=True)
+                          print(f"[WARN]  API 应用层异常 (重试 {attempt}/{MAX_ATTEMPTS}) | 详情：{err_info}", flush=True)
                           if "ratelimit" in err_info.get("code", "").lower() or "limit" in err_info.get("code", "").lower():
                               sleep_time = 5 * attempt
-                              print(f"[WARN] 触发 API 限流。系统退避等待 {sleep_time} 秒。", flush=True)
+                              print(f"[WARN]  触发速率限制 (Rate Limit) | 策略：系统挂起等待 {sleep_time} 秒...", flush=True)
                               time.sleep(sleep_time)
                               continue
                           else:
@@ -94,22 +100,22 @@ jobs:
                               
                       data = resp_json.get("cargoquery", [])
                       if data:
-                          print(f"[INFO] 成功从 API 获取 {len(data)} 条 Primary 级数据记录。", flush=True)
+                          print(f"[INFO]  API 请求成功 | 获取 Primary 级原始数据共 {len(data)} 条。\n" + "-"*80, flush=True)
                           break
                       else:
-                          print(f"[WARN] API 返回数据集为空。原始响应：{resp_json}", flush=True)
+                          print(f"[WARN]  API 响应数据集为空 | 原始响应体：{resp_json}", flush=True)
                           break
 
                   except requests.exceptions.RequestException as e:
-                      print(f"[ERROR] 网络通信异常（尝试 {attempt}/{MAX_ATTEMPTS}）：{e}", flush=True)
+                      print(f"[ERROR] 网络通信故障 (重试 {attempt}/{MAX_ATTEMPTS}) | 详情：{e}", flush=True)
                       time.sleep(5 * attempt)
 
               if not data:
-                  print("[ERROR] 致命错误：数据抓取失败，已达到最大重试次数。程序终止。", flush=True)
+                  print("[ERROR] 致命错误：数据抓取流产，已耗尽重试次数。程序终止。", flush=True)
                   return
 
               raw_groups = {}
-              print("[INFO] 开始执行数据校验与聚合流水线。", flush=True)
+              print("[INFO]  启动数据校验与规范化聚合模块...", flush=True)
               
               for item in data:
                   t = item["title"]
@@ -120,23 +126,31 @@ jobs:
                   is_playoffs = t.get("IsPlayoffs")
                   is_qualifier = t.get("IsQualifier")
                   
+                  # ---------------------------------------------------------
+                  # 校验环节：逐一输出拦截原因
+                  # ---------------------------------------------------------
                   if is_qualifier == "1":
+                      print(f"[DEBUG] 数据拦截 [底层属性] | 拦截依据：标记为预选赛 (IsQualifier=1) | 赛事：{name}", flush=True)
                       continue 
 
-                  if any(k.lower() in name.lower() for k in BLACKLIST):
-                      print(f"[DEBUG] 校验未通过 [命中黑名单]：{name}", flush=True)
+                  hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
+                  if hit_black:
+                      print(f"[DEBUG] 数据拦截 [命中黑名] | 拦截依据：赛事名称包含 '{hit_black}' | 赛事：{name}", flush=True)
                       continue
 
                   is_intl = (region == 'International')
-                  is_white = any(k.upper() in ov.upper() for k in WHITELIST)
+                  hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
 
-                  if not (is_intl or is_white):
-                      print(f"[DEBUG] 校验未通过 [非目标赛事]：{name} | 所在赛区：{region}", flush=True)
+                  if not (is_intl or hit_white):
+                      print(f"[DEBUG] 数据拦截 [非目标项] | 拦截依据：非国际赛 (Region={region}) 且未命中白名单 | 赛事：{name}", flush=True)
                       continue
                   
-                  category = '国际级赛事 (Region=Intl)' if is_intl else '区域白名单赛事'
-                  print(f"[INFO] 校验通过：{name} | 归属：{category}", flush=True)
+                  category = '国际级赛事 (Region=International)' if is_intl else f'区域白名单赛事 (匹配规则={hit_white})'
+                  print(f"[INFO]  校验通过 [准入放行] | 准入依据：{category} | 赛事：{name}", flush=True)
 
+                  # ---------------------------------------------------------
+                  # 路径处理：季后赛合并逻辑
+                  # ---------------------------------------------------------
                   clean_ov = ov
                   if is_playoffs == "1" and not is_intl:
                       anchors = [r'Split[\s_]\d+', r'Cup', r'Season_Play-In', r'Season_Playoffs', r'Versus']
@@ -144,7 +158,7 @@ jobs:
                           match = re.search(f'^(.+?{pattern})', ov, re.IGNORECASE)
                           if match:
                               clean_ov = match.group(1)
-                              print(f"[DEBUG] 执行路径规范化 (季后赛切尾)：{ov} -> {clean_ov}", flush=True)
+                              print(f"[DEBUG] 路径处理 [季后切尾] | 触发依据：IsPlayoffs=1 且匹配规则正则 | {ov} -> {clean_ov}", flush=True)
                               break
 
                   group_key = f"INTL_{name}" if is_intl else f"{clean_ov}_{y}"
@@ -154,6 +168,9 @@ jobs:
                       e_dt = datetime.strptime(t["Date"], '%Y-%m-%d').date() if t.get("Date") else s_dt
                   except: continue
 
+                  # ---------------------------------------------------------
+                  # 时间聚合：记录生命周期的延长
+                  # ---------------------------------------------------------
                   if group_key not in raw_groups:
                       raw_groups[group_key] = {
                           "ov": clean_ov, "year": y, "name": name, "is_intl": is_intl,
@@ -164,17 +181,24 @@ jobs:
                       raw_groups[group_key]["start"] = min(raw_groups[group_key]["start"], s_dt)
                       raw_groups[group_key]["end"] = max(raw_groups[group_key]["end"], e_dt)
                       if e_dt > old_end:
-                          print(f"[INFO] 赛程时间线聚合：{clean_ov} 结束日期延展至 {e_dt}", flush=True)
+                          print(f"[INFO]  赛程聚合 [时间延展] | 关联主赛段：{clean_ov} | 结束日期由 {old_end} 更新为 {e_dt}", flush=True)
 
-              print(f"[INFO] 开始执行生命周期管理与格式化输出。", flush=True)
+              print(f"\n" + "-"*80, flush=True)
+              print(f"[INFO]  启动生命周期管理与 JSON 构建模块...", flush=True)
               
               final_output = []
               for gk, v in raw_groups.items():
+                  # ---------------------------------------------------------
+                  # 周期管理：明确显示超出预热天数与过期天数
+                  # ---------------------------------------------------------
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
-                      print(f"[DEBUG] 生命周期拦截 [排队潜伏]：{v['name']} | 开赛：{v['start']} (尚未进入 {PREHEAT_DAYS} 天预热期)", flush=True)
+                      days_diff = (v["start"] - today_dt).days
+                      print(f"[DEBUG] 周期拦截 [尚未预热] | 拦截依据：距开赛还有 {days_diff} 天，超出 {PREHEAT_DAYS} 天预热阈值 | 赛事：{v['name']}", flush=True)
                       continue
+                      
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                      print(f"[DEBUG] 生命周期拦截 [已过期]：{v['name']} | 结束：{v['end']}", flush=True)
+                      days_diff = (today_dt - v["end"]).days
+                      print(f"[DEBUG] 周期拦截 [赛事过期] | 拦截依据：已结束 {days_diff} 天，超出 {EXPIRE_DAYS} 天缓冲阈值 | 赛事：{v['name']}", flush=True)
                       continue
 
                   if v["is_intl"]:
@@ -184,7 +208,8 @@ jobs:
                       parts = v["ov"].split('/')
                       slug = f"{v['year']}-{parts[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', parts[-1].lower()).strip('-')}"
                   
-                  print(f"[INFO] 配置项生成完毕：Slug [{slug}] | 周期：{v['start']} 至 {v['end']}", flush=True)
+                  # 使用 <25 格式化占位符，使输出表格化对齐
+                  print(f"[INFO]  配置生成 [写入就绪] | Slug: {slug:<25} | 周期：{v['start']} 至 {v['end']}", flush=True)
                   final_output.append({
                       "slug": slug, "overview_page": v["ov"],
                       "start_date": v["start"].strftime('%Y-%m-%d'), "end_date": v["end"].strftime('%Y-%m-%d')
@@ -194,7 +219,8 @@ jobs:
               with open(TEST_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
               
-              print(f"[INFO] 流水线执行完毕。共 {len(unique_res)} 条有效配置已写入 {TEST_FILE}。", flush=True)
+              print(f"="*80, flush=True)
+              print(f"[INFO]  流水线执行完毕。共计 {len(unique_res)} 条有效配置已成功写入 {TEST_FILE}。", flush=True)
 
           if __name__ == "__main__":
               run_sniff()
@@ -203,5 +229,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "📝 Refactor: Translate formalized logs to Chinese and enable unbuffered output"
+          commit_message: "📝 Refactor: Enterprise-grade structured logging with 7-day preheat constraints"
           file_pattern: 'tournaments-test.json'
