@@ -1,0 +1,126 @@
+name: Auto Discover Tournaments
+
+on:
+  schedule:
+    # 每天北京时间早上 7:00 执行嗅探 (刚好在比赛更新前)
+    - cron: '0 23 * * *'
+  workflow_dispatch: # 允许手动点按钮触发
+
+jobs:
+  update-tournaments:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Sniff Latest Tournaments
+        run: |
+          import requests
+          import json
+          import re
+          from datetime import datetime
+
+          # === 🎯 极简配置：你想追踪哪些比赛？ ===
+          # 按你希望在网页上显示的顺序排列
+          TARGET_LEAGUES = ["LPL", "LCK", "LEC", "LCS", "MSI", "WCS"]
+          
+          # 获取当前时间和年份
+          today = datetime.now().strftime("%Y-%m-%d")
+          current_year = datetime.now().year
+
+          print(f"🕵️ 开始嗅探 {current_year} 年最新赛程...")
+
+          # 格式化给 SQL 用的 IN 语句
+          league_str = ", ".join([f"'{l}'" for l in TARGET_LEAGUES])
+
+          # 请求 Fandom Cargo API
+          url = "https://lol.fandom.com/api.php"
+          params = {
+              "action": "cargoquery",
+              "format": "json",
+              "tables": "Tournaments",
+              # Date 在 Fandom 中代表 End Date
+              "fields": "Name, OverviewPage, League, DateStart, Date", 
+              "where": f"League IN ({league_str}) AND Year = '{current_year}'",
+              "limit": "100",
+              "order_by": "DateStart DESC" # 从最新开始排
+          }
+
+          try:
+              resp = requests.get(url, params=params, timeout=20)
+              resp.raise_for_status()
+              data = resp.json().get("cargoquery", [])
+              
+              if not data:
+                  print("⚠️ 未抓取到任何赛事数据")
+                  exit(0)
+
+              selected_tournaments = {}
+
+              # === 🧠 核心碰撞逻辑 ===
+              for item in data:
+                  t = item["title"]
+                  league = t.get("League")
+                  
+                  if league not in TARGET_LEAGUES:
+                      continue
+                      
+                  # 如果这个赛区已经找到了正在进行的比赛，直接跳过
+                  if league in selected_tournaments and selected_tournaments[league].get("is_active"):
+                      continue
+                  
+                  start_date = t.get("DateStart", "2099-01-01")
+                  end_date = t.get("Date", "1970-01-01")
+                  
+                  # 判断是否在时间窗口内
+                  is_active = start_date <= today <= end_date
+                  
+                  # 选取策略：
+                  # 1. 如果正在打 (is_active)，无条件选中它！
+                  # 2. 如果休赛期，由于是 DESC 排序，我们保留遍历到的第一个（即刚结束的，或马上要开始的）
+                  if is_active or league not in selected_tournaments:
+                      # 自动生成你需要的 slug，例如 "LPL 2026 Split 1" -> "lpl-2026-split-1"
+                      raw_name = t.get("Name", "")
+                      slug = re.sub(r'[^a-z0-9]+', '-', raw_name.lower()).strip('-')
+                      
+                      selected_tournaments[league] = {
+                          "slug": slug,
+                          "overview_page": t.get("OverviewPage"),
+                          "is_active": is_active,
+                          "name": raw_name # 仅做日志打印用
+                      }
+
+              # === 🗂️ 组装输出 JSON ===
+              final_output = []
+              # 严格按照 TARGET_LEAGUES 配置的顺序输出，治愈强迫症
+              for l in TARGET_LEAGUES:
+                  if l in selected_tournaments:
+                      st = selected_tournaments[l]
+                      status = "🟢 进行中" if st["is_active"] else "⏸️ 休赛期/待办"
+                      print(f"✅ {l.ljust(4)} -> {st['slug'].ljust(25)} [{status}]")
+                      
+                      # 你的 Worker 只需要这两个字段！
+                      final_output.append({
+                          "slug": st["slug"],
+                          "overview_page": st["overview_page"]
+                      })
+
+              # 写入 tournaments.json
+              with open("tournaments.json", "w", encoding="utf-8") as f:
+                  json.dump(final_output, f, indent=4, ensure_ascii=False)
+                  
+              print("\n🎉 tournaments.json 已成功生成！")
+
+          except Exception as e:
+              print(f"❌ 发生错误: {e}")
+              exit(1)
+        shell: python
+
+      - name: Commit and Push
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🔄 Auto: Rotate Tournaments (Smart Sniff)"
+          file_pattern: 'tournaments_test.json'
