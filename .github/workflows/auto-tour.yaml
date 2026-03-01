@@ -36,7 +36,7 @@ jobs:
           today = datetime.now().strftime("%Y-%m-%d")
 
           # 【黑名单】：包含这些关键字的 Name 或 Region 直接踢掉
-          BLACKLIST = ["Promotion", "Opening", ]
+          BLACKLIST = ["Promotion", "Opening"]
           # 【白名单】：即使级别没达到 Primary，只要包含这些关键字也强制保留
           WHITELIST = ["LPL", "LCK"]
 
