@@ -1,5 +1,17 @@
 [
     {
+        "slug": "first-stand",
+        "overview_page": "2026 First Stand",
+        "_debug_name": "First Stand 2026",
+        "_debug_status": "UPCOMING"
+    },
+    {
+        "slug": "msi",
+        "overview_page": "2026 Mid-Season Invitational",
+        "_debug_name": "MSI 2026",
+        "_debug_status": "UPCOMING"
+    },
+    {
         "slug": "lck-cup",
         "overview_page": "LCK/2026 Season/Cup",
         "_debug_name": "LCK Cup 2026",
@@ -9,12 +21,6 @@
         "slug": "lpl-split-1-playoffs",
         "overview_page": "LPL/2026 Season/Split 1 Playoffs",
         "_debug_name": "LPL 2026 Split 1 Playoffs",
-        "_debug_status": "ACTIVE"
-    },
-    {
-        "slug": "lplol-winter",
-        "overview_page": "LPLOL/2026 Season/Winter Split",
-        "_debug_name": "LPLOL 2026 Winter",
         "_debug_status": "ACTIVE"
     }
 ]
