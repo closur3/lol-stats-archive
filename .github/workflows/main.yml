@@ -2,9 +2,9 @@ name: Archive Stats
 
 on:
   schedule:
+    # 每天北京时间上午 8:00 运行一次 (UTC 0:00)
     - cron: '0 0 * * *'
   workflow_dispatch:
-    # --- 新增：强制更新选项框 ---
     inputs:
       force_update:
         description: '是否强制更新所有文件 (忽略内容对比)'
@@ -25,20 +25,16 @@ jobs:
       - name: Fetch and Smart Update
         env:
           WORKER_URL: "https://lol-stats.closur3.workers.dev/backup"
-          # --- 新增：将输入参数传递给 Python ---
           FORCE_UPDATE: ${{ github.event.inputs.force_update }}
         run: |
           import requests
           import os
           import re
-          from datetime import datetime, timedelta, timezone
+          from datetime import datetime
 
           # --- 1. 获取配置 ---
-          cst_tz = timezone(timedelta(hours=8))
-          now_cst = datetime.now(cst_tz).strftime("%Y-%m-%d %H:%M:%S")
-          
           url = os.environ.get("WORKER_URL")
-          # 获取强制更新布尔值 (GitHub 传递过来的是字符串 "true" 或 "false")
+          # GitHub Action 传递的布尔值在环境变量中是字符串 "true"/"false"
           force_update = os.environ.get("FORCE_UPDATE") == "true"
           
           if not url:
@@ -48,7 +44,9 @@ jobs:
           if force_update:
               print("⚠️  检测到【强制更新】模式：将跳过对比，直接覆盖所有文件")
 
-          # --- 2. 正则配置 ---
+          # --- 2. 指纹识别配置 (用于对比数据是否真的变动) ---
+          # 匹配模式：Updated: 2026-xx-xx xx:xx:xx (CST)
+          # 我们在对比新旧文件时会暂时剔除这一行，从而只关注比分和排名数据
           TIME_PATTERN = re.compile(r"^Updated:.*\(CST\)$", re.MULTILINE)
 
           print(f"🚀 开始抓取: {url}")
@@ -58,43 +56,49 @@ jobs:
               resp.raise_for_status()
               data = resp.json()
               
+              if not isinstance(data, dict):
+                  print("❌ 错误: Worker 返回的数据格式不是预期的 JSON 对象")
+                  exit(1)
+
               changes_count = 0
 
               for file_path, raw_template in data.items():
+                  # 确保目录存在 (tournament/)
                   os.makedirs(os.path.dirname(file_path), exist_ok=True)
                   
-                  # A. 准备新数据的“指纹”
+                  # A. 提取新数据的“指纹” (切掉时间戳行)
                   clean_new = TIME_PATTERN.sub("", raw_template).strip()
                   
                   should_write = False
                   
                   # B. 判断逻辑
                   if not os.path.exists(file_path):
-                      print(f"✨  [新建] {file_path}")
+                      print(f"✨ [新建] {file_path}")
                       should_write = True
                   elif force_update:
-                      print(f"🔄  [强制] {file_path}")
+                      print(f"🔄 [强制] {file_path}")
                       should_write = True
                   else:
-                      # 读取本地旧文件进行指纹比对
+                      # 读取本地旧文件并提取指纹进行比对
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
                       clean_old = TIME_PATTERN.sub("", old_content).strip()
                       
                       if clean_old != clean_new:
-                          print(f"⚡  [更新] {file_path}: 检测到数据变动")
+                          print(f"⚡ [更新] {file_path}: 检测到比赛数据或排名变动")
                           should_write = True
                       else:
-                          print(f"跳过] {file_path}: 比赛数据无变化")
+                          print(f"💤 [跳过] {file_path}: 数据与本地一致 (仅时间戳不同)")
 
-                  # === 写入逻辑 ===
+                  # === 3. 写入逻辑 (1:1 静态复制) ===
                   if should_write:
-                      final_content = raw_template.replace("{{UPDATED_TIME}}", now_cst)
+                      # 【方案1 核心修复】：直接写入原始 raw_template
+                      # Worker 已经把时间戳填好了，不需要 Python 二次加工
                       with open(file_path, "w", encoding="utf-8") as f:
-                          f.write(final_content)
-                          changes_count += 1
+                          f.write(raw_template)
+                      changes_count += 1
               
-              print(f"\n处理完成。共更新 {changes_count} 个文件。")
+              print(f"\n✅ 处理完成。共更新/新建 {changes_count} 个文件。")
 
           except Exception as e:
               print(f"❌ 脚本执行发生错误: {e}")
