@@ -4,6 +4,13 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
+    # --- 新增：强制更新选项框 ---
+    inputs:
+      force_update:
+        description: '是否强制更新所有文件 (忽略内容对比)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   archive:
@@ -18,25 +25,30 @@ jobs:
       - name: Fetch and Smart Update
         env:
           WORKER_URL: "https://lol-stats.closur3.workers.dev/backup"
+          # --- 新增：将输入参数传递给 Python ---
+          FORCE_UPDATE: ${{ github.event.inputs.force_update }}
         run: |
           import requests
           import os
           import re
           from datetime import datetime, timedelta, timezone
 
-          # --- 1. 设置北京时间 (UTC+8) ---
-          # 修正：加回秒数 (%S)
+          # --- 1. 获取配置 ---
           cst_tz = timezone(timedelta(hours=8))
           now_cst = datetime.now(cst_tz).strftime("%Y-%m-%d %H:%M:%S")
           
           url = os.environ.get("WORKER_URL")
+          # 获取强制更新布尔值 (GitHub 传递过来的是字符串 "true" 或 "false")
+          force_update = os.environ.get("FORCE_UPDATE") == "true"
+          
           if not url:
               print("❌ 错误: WORKER_URL 环境变量未设置")
               exit(1)
 
+          if force_update:
+              print("⚠️  检测到【强制更新】模式：将跳过对比，直接覆盖所有文件")
+
           # --- 2. 正则配置 ---
-          # 作用：匹配 "Updated: 2026-xx-xx ... (CST)" 这一整行
-          # 无论时间怎么变，这行都会被剔除后再比对剩余内容
           TIME_PATTERN = re.compile(r"^Updated:.*\(CST\)$", re.MULTILINE)
 
           print(f"🚀 开始抓取: {url}")
@@ -49,39 +61,35 @@ jobs:
               changes_count = 0
 
               for file_path, raw_template in data.items():
-                  # 确保目录存在
                   os.makedirs(os.path.dirname(file_path), exist_ok=True)
                   
-                  # === 核心比对逻辑 ===
-                  
-                  # A. 准备新数据的“指纹”（移除模板中的占位符行）
-                  # raw_template 里是 {{UPDATED_TIME}}，正则也会将其移除
+                  # A. 准备新数据的“指纹”
                   clean_new = TIME_PATTERN.sub("", raw_template).strip()
                   
-                  should_write = True
+                  should_write = False
                   
-                  # B. 读取本地旧文件
-                  if os.path.exists(file_path):
+                  # B. 判断逻辑
+                  if not os.path.exists(file_path):
+                      print(f"✨  [新建] {file_path}")
+                      should_write = True
+                  elif force_update:
+                      print(f"🔄  [强制] {file_path}")
+                      should_write = True
+                  else:
+                      # 读取本地旧文件进行指纹比对
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
-                      
-                      # C. 准备旧数据的“指纹”（移除旧文件里的时间行）
                       clean_old = TIME_PATTERN.sub("", old_content).strip()
                       
-                      # D. 比对指纹（不含时间的内容）
-                      if clean_old == clean_new:
-                          print(f"⏭️  [跳过] {file_path}: 比赛数据无变化")
-                          should_write = False
-                      else:
+                      if clean_old != clean_new:
                           print(f"⚡  [更新] {file_path}: 检测到数据变动")
-                  else:
-                      print(f"✨  [新建] {file_path}")
+                          should_write = True
+                      else:
+                          print(f"跳过] {file_path}: 比赛数据无变化")
 
                   # === 写入逻辑 ===
                   if should_write:
-                      # 只有确定要写的时候，才把当前带秒的时间填进去
                       final_content = raw_template.replace("{{UPDATED_TIME}}", now_cst)
-                      
                       with open(file_path, "w", encoding="utf-8") as f:
                           f.write(final_content)
                           changes_count += 1
@@ -96,5 +104,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🗃️ Auto: Archive stats"
+          commit_message: "🗃️ Auto: Archive stats (forced: ${{ github.event.inputs.force_update }})"
           file_pattern: 'tournament/*.md'
