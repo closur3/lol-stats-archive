@@ -49,13 +49,13 @@ jobs:
           BLACK  = "\033[30m"   # INFO  → 纯黑
           YELLOW = "\033[93m"   # WARN  → 亮黄
           RED    = "\033[91m"   # ERROR → 亮红
-          CYAN   = "\033[96m"   # DEBUG → 亮青
+          PURPLE = "\033[95m"   # DEBUG → 亮紫
 
           def log(level, msg):
-              colors = {"INFO": BLACK, "WARN": YELLOW, "ERROR": RED, "DEBUG": CYAN}
-              tag    = f"[{level:<5}]"   # 统一 7 字符：[INFO ] [WARN ] [ERROR] [DEBUG]
+              colors = {"INFO": BLACK, "WARN": YELLOW, "ERROR": RED, "DEBUG": PURPLE}
+              tag    = f"[{level:<5}]"
               color  = colors.get(level, RESET)
-              print(f"{color}{tag}{RESET}  {msg}", flush=True)
+              print(f"{color}{tag}  {msg}{RESET}", flush=True)
           # ────────────────────────────────────────────────────────────────────
 
           def get_robust_session():
