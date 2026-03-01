@@ -795,10 +795,26 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         if(minTs===9999999999999)minTs=maxTsLocal;
 
         stats.sort((a,b) => {
-            const rA = utils.rate(a.bo3_f, a.bo3_t) ?? -1.0; const rB = utils.rate(b.bo3_f, b.bo3_t) ?? -1.0;
-            if(rA !== rB) return rA - rB; 
-            const sWA = utils.rate(a.s_w, a.s_t) || 0; const sWB = utils.rate(b.s_w, b.s_t) || 0;
-            if(sWA !== sWB) return sWB - sWA;
+            // 算出每支队伍的总打满数和总场数（BO3 和 BO5 合并）
+            const aFulls = a.bo3_f + a.bo5_f;
+            const aTotal = a.bo3_t + a.bo5_t;
+            const bFulls = b.bo3_f + b.bo5_f;
+            const bTotal = b.bo3_t + b.bo5_t;
+            
+            // 1. 总体打满率 升序（没打过比赛的给 2.0 强制沉底）
+            const aFullRate = aTotal > 0 ? aFulls / aTotal : 2.0;
+            const bFullRate = bTotal > 0 ? bFulls / bTotal : 2.0;
+            if (aFullRate !== bFullRate) return aFullRate - bFullRate;
+            
+            // 2. 比赛样本量 降序（打满率一样时，打得多的样本更可靠，排在前面）
+            if (aTotal !== bTotal) return bTotal - aTotal;
+            
+            // 3. 胜率兜底 降序（同样是不加班，一直赢的排在一直输的前面）
+            const aWR = utils.rate(a.s_w, a.s_t) || 0;
+            const bWR = utils.rate(b.s_w, b.s_t) || 0;
+            if (aWR !== bWR) return bWR - aWR;
+            
+            // 4. 小场净胜局降序（终极平局决胜点）
             return (utils.rate(b.g_w, b.g_t) || 0) - (utils.rate(a.g_w, a.g_t) || 0);
         });
 
