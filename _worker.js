@@ -753,7 +753,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
         const parts = val.split(sep);
         if(parts.length !== 2) return val;
-        return `<div class="spine-row"><span class="spine-l" style="font-weight:700">${parts[0]}</span><span class="spine-sep">${sep}</span><span class="spine-r" style="font-weight:700">${parts[1]}</span></div>`;
+        return `<div class="spine-row"><span class="spine-l" style="font-weight:700">${parts[0]}</span><span class="spine-sep" style="font-size:14px; opacity:0.4;">${sep}</span><span class="spine-r" style="font-weight:700">${parts[1]}</span></div>`;
     };
     const getRateHtml = (teamName, slug, bo) => {
         const stats = globalStats[slug];
@@ -824,7 +824,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                     else {
                         const r = c.full/c.total;
                         const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}/${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
+                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}<span style="opacity:0.5; margin:0 1px;">/</span>${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
                     }
                 }
                 timeTableHtml += "</tr>";
