@@ -1,4 +1,4 @@
-name: Auto Discover Tournaments (Production Ready)
+name: Auto Discover Tournaments (Anti-Fake-200 Edition)
 
 on:
   push:
@@ -28,8 +28,8 @@ jobs:
           import requests
           import json
           import re
+          import time
           from datetime import datetime, timedelta
-          # 引入重试机制的核心组件
           from requests.adapters import HTTPAdapter
           from urllib3.util.retry import Retry
 
@@ -43,16 +43,14 @@ jobs:
           WHITELIST = ["LPL", "LCK"]
           BLACKLIST = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary", "Qualifier", "Academy", "Division"]
 
-          # --- 🚀 核心：构建带指数退避的强力 Session ---
           def get_robust_session():
               session = requests.Session()
               retry_strategy = Retry(
-                  total=5,  # 最多重试 5 次
-                  backoff_factor=2,  # 退避系数：重试等待时间会变成 2s, 4s, 8s...
-                  status_forcelist=[429, 500, 502, 503, 504], # 遇到这些状态码强制重试
+                  total=5,
+                  backoff_factor=2,
+                  status_forcelist=[429, 500, 502, 503, 504],
                   allowed_methods=["GET"]
               )
-              # 挂载重试适配器
               adapter = HTTPAdapter(max_retries=retry_strategy)
               session.mount("https://", adapter)
               return session
@@ -65,111 +63,120 @@ jobs:
                   "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
                   "where": where_sql, "order_by": "DateStart ASC", "limit": "400"
               }
-              headers = {"User-Agent": "LoLStatsProd/30.0"}
+              headers = {"User-Agent": "LoLStatsAntiFake200/31.0"}
 
-              print(f"🚀 [INIT] 启动全量抓取 | 挂载 429 防御护盾 | 预热: {PREHEAT_DAYS}天\n" + "="*50)
+              print(f"🚀 [INIT] 启动抓取 | 挂载应用层 429 防御 | 预热: {PREHEAT_DAYS}天\n" + "="*50)
 
-              try:
-                  # 使用我们构建的 session 发起请求，遇到 429 会自动等待并重试
-                  session = get_robust_session()
-                  resp = session.get(url, params=params, headers=headers, timeout=30)
-                  
-                  # 如果重试 5 次后依然失败，主动抛出异常终止程序
-                  resp.raise_for_status() 
-                  
-                  data = resp.json().get("cargoquery", [])
-                  if not data:
-                      print("⚠️ [API] 未抓取到任何数据")
-                      return
-                  
-                  print(f"📥 [API] 成功获取 {len(data)} 条原始数据，开始安检...\n" + "-"*50)
-
-                  raw_groups = {}
-                  for item in data:
-                      t = item["title"]
-                      name = t.get("Name", "")
-                      ov = t.get("OverviewPage", "")
-                      region = t.get("Region", "")
-                      y = t.get("Year", "")
-                      is_playoffs = t.get("IsPlayoffs")
-                      is_qualifier = t.get("IsQualifier")
+              session = get_robust_session()
+              data = []
+              
+              # --- 🛡️ 核心：应用层重试循环 ---
+              MAX_ATTEMPTS = 4
+              for attempt in range(1, MAX_ATTEMPTS + 1):
+                  try:
+                      resp = session.get(url, params=params, headers=headers, timeout=30)
+                      resp.raise_for_status()
+                      resp_json = resp.json()
                       
-                      if is_qualifier == "1":
-                          continue 
-                      if any(k.lower() in name.lower() for k in BLACKLIST):
-                          print(f"🚫 [拦截-黑名单] 命中兜底词库 | Name: {name}")
-                          continue
-
-                      is_intl = (region == 'International')
-                      is_white = any(k.upper() in ov.upper() for k in WHITELIST)
-
-                      if not (is_intl or is_white):
-                          print(f"🚫 [拦截-非目标] 既非国际赛也不在白名单 | Name: {name} | Region: {region}")
-                          continue
-                      
-                      print(f"✅ [准入] 放行 | 身份: {'国际赛' if is_intl else '白名单'} | Name: {name}")
-
-                      clean_ov = ov
-                      if is_playoffs == "1" and not is_intl:
-                          anchors = [r'Split[\s_]\d+', r'Cup', r'Season_Play-In', r'Season_Playoffs', r'Versus']
-                          for pattern in anchors:
-                              match = re.search(f'^(.+?{pattern})', ov, re.IGNORECASE)
-                              if match:
-                                  clean_ov = match.group(1)
-                                  print(f"   ✂️ [切尾] 识别到季后赛，执行溯源: {ov} -> {clean_ov}")
-                                  break
-
-                      group_key = f"INTL_{name}" if is_intl else f"{clean_ov}_{y}"
-
-                      try:
-                          s_dt = datetime.strptime(t["DateStart"], '%Y-%m-%d').date()
-                          e_dt = datetime.strptime(t["Date"], '%Y-%m-%d').date() if t.get("Date") else s_dt
-                      except: continue
-
-                      if group_key not in raw_groups:
-                          raw_groups[group_key] = {
-                              "ov": clean_ov, "year": y, "name": name, "is_intl": is_intl,
-                              "start": s_dt, "end": e_dt
-                          }
+                      # 抓取应用层报错 (HTTP 200，但带有 error 字段)
+                      if "error" in resp_json:
+                          err_info = resp_json["error"]
+                          print(f"⚠️ [API假笑报错] 尝试 {attempt}/{MAX_ATTEMPTS} | 错误信息: {err_info}")
+                          
+                          # 如果是限流，强行睡几秒后再试
+                          if "ratelimit" in err_info.get("code", "").lower() or "limit" in err_info.get("code", "").lower():
+                              sleep_time = 5 * attempt
+                              print(f"   💤 触发应用层限流退避，等待 {sleep_time} 秒...")
+                              time.sleep(sleep_time)
+                              continue
+                          else:
+                              print("   ❌ 非限流错误，终止重试。")
+                              break
+                              
+                      # 如果没有 error，拿数据
+                      data = resp_json.get("cargoquery", [])
+                      if data:
+                          print(f"📥 [API] 第 {attempt} 次尝试成功获取 {len(data)} 条数据。\n" + "-"*50)
+                          break
                       else:
-                          old_end = raw_groups[group_key]["end"]
-                          raw_groups[group_key]["start"] = min(raw_groups[group_key]["start"], s_dt)
-                          raw_groups[group_key]["end"] = max(raw_groups[group_key]["end"], e_dt)
-                          if e_dt > old_end:
-                              print(f"   🔗 [延寿] 成功吸收季后赛时间，结束日期延至 {e_dt}")
+                          print(f"⚠️ [API] 返回数据为空，且无明确报错。原始响应: {resp_json}")
+                          break
 
-                  print("\n" + "="*50 + f"\n🎯 [生命周期判定 (预热{PREHEAT_DAYS}天)]")
+                  except requests.exceptions.RequestException as e:
+                      print(f"💥 [网络异常] 尝试 {attempt}/{MAX_ATTEMPTS} 失败: {e}")
+                      time.sleep(5 * attempt)
+
+              if not data:
+                  print("❌ [致命] 所有重试均失败，或数据确为空。")
+                  return
+
+              # ==========================================
+              # 下面是完全一样的安检和时间聚合逻辑
+              # ==========================================
+              raw_groups = {}
+              for item in data:
+                  t = item["title"]
+                  name = t.get("Name", "")
+                  ov = t.get("OverviewPage", "")
+                  region = t.get("Region", "")
+                  y = t.get("Year", "")
+                  is_playoffs = t.get("IsPlayoffs")
+                  is_qualifier = t.get("IsQualifier")
                   
-                  final_output = []
-                  for gk, v in raw_groups.items():
-                      if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
-                          print(f"⏳ [潜伏] {v['name']} | 开赛: {v['start']} (未满{PREHEAT_DAYS}天预热)")
-                          continue
-                      if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                          print(f"🗑️ [过期] {v['name']} | 结束: {v['end']} (已过保质期)")
-                          continue
+                  if is_qualifier == "1": continue 
+                  if any(k.lower() in name.lower() for k in BLACKLIST): continue
 
-                      if v["is_intl"]:
-                          slug_name = v["name"].lower().replace(str(v["year"]), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
-                          slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', slug_name).strip('-')}"
-                      else:
-                          parts = v["ov"].split('/')
-                          slug = f"{v['year']}-{parts[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', parts[-1].lower()).strip('-')}"
-                      
-                      print(f"✨ [生成] Slug: {slug} | Date: {v['start']} ~ {v['end']}")
-                      final_output.append({
-                          "slug": slug, "overview_page": v["ov"],
-                          "start_date": v["start"].strftime('%Y-%m-%d'), "end_date": v["end"].strftime('%Y-%m-%d')
-                      })
+                  is_intl = (region == 'International')
+                  is_white = any(k.upper() in ov.upper() for k in WHITELIST)
 
-                  unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
-                  with open(TEST_FILE, "w", encoding="utf-8") as f:
-                      json.dump(unique_res, f, indent=4, ensure_ascii=False)
+                  if not (is_intl or is_white): continue
                   
-                  print("\n" + "="*50 + f"\n🎉 同步彻底完成。最终生成 {len(unique_res)} 条有效 JSON。")
+                  clean_ov = ov
+                  if is_playoffs == "1" and not is_intl:
+                      anchors = [r'Split[\s_]\d+', r'Cup', r'Season_Play-In', r'Season_Playoffs', r'Versus']
+                      for pattern in anchors:
+                          match = re.search(f'^(.+?{pattern})', ov, re.IGNORECASE)
+                          if match:
+                              clean_ov = match.group(1)
+                              break
 
-              except Exception as e:
-                  print(f"💥 异常崩溃: {e}")
+                  group_key = f"INTL_{name}" if is_intl else f"{clean_ov}_{y}"
+
+                  try:
+                      s_dt = datetime.strptime(t["DateStart"], '%Y-%m-%d').date()
+                      e_dt = datetime.strptime(t["Date"], '%Y-%m-%d').date() if t.get("Date") else s_dt
+                  except: continue
+
+                  if group_key not in raw_groups:
+                      raw_groups[group_key] = {
+                          "ov": clean_ov, "year": y, "name": name, "is_intl": is_intl,
+                          "start": s_dt, "end": e_dt
+                      }
+                  else:
+                      raw_groups[group_key]["start"] = min(raw_groups[group_key]["start"], s_dt)
+                      raw_groups[group_key]["end"] = max(raw_groups[group_key]["end"], e_dt)
+
+              final_output = []
+              for gk, v in raw_groups.items():
+                  if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)): continue
+                  if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)): continue
+
+                  if v["is_intl"]:
+                      slug_name = v["name"].lower().replace(str(v["year"]), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
+                      slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', slug_name).strip('-')}"
+                  else:
+                      parts = v["ov"].split('/')
+                      slug = f"{v['year']}-{parts[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', parts[-1].lower()).strip('-')}"
+                  
+                  final_output.append({
+                      "slug": slug, "overview_page": v["ov"],
+                      "start_date": v["start"].strftime('%Y-%m-%d'), "end_date": v["end"].strftime('%Y-%m-%d')
+                  })
+
+              unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
+              with open(TEST_FILE, "w", encoding="utf-8") as f:
+                  json.dump(unique_res, f, indent=4, ensure_ascii=False)
+              print(f"🎉 同步彻底完成。最终生成 {len(unique_res)} 条有效 JSON。")
 
           if __name__ == "__main__":
               run_sniff()
@@ -178,5 +185,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🛡️ Prod: Added urllib3 Retry adapter for 429/5xx backoff"
+          commit_message: "🛡️ Fix: Catch HTTP 200 rate limits and application errors from Fandom API"
           file_pattern: 'tournaments-test.json'
