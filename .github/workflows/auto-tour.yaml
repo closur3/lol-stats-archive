@@ -22,6 +22,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
       - name: Install dependencies
         run: pip install requests
@@ -178,7 +179,9 @@ jobs:
                   try:
                       s_dt = datetime.strptime(t["DateStart"], '%Y-%m-%d').date()
                       e_dt = datetime.strptime(t.get("Date") or t["DateStart"], '%Y-%m-%d').date()
-                  except: continue
+                  except Exception as e:
+                      log("WARN", f"日期异常 | 跳过赛事 | 赛事: {name} | 报错: {e}", YELLOW)
+                      continue
 
                   ev = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt}
                   if t.get("IsPlayoffs") == "1" and not is_intl:
@@ -196,7 +199,7 @@ jobs:
               log("INFO", "-" * 85)
               log("INFO", "启动季后赛数据关联匹配模块...")
               for p in playoff_events:
-                  m_key = next((k for k, m in main_events.items() if not m["is_intl"] and m["year"] == p["year"] and m["name"] in p["name"]), None)
+                  m_key = next((k for k, m in main_events.items() if not m["is_intl"] and m["year"] == p["year"] and (m["name"] in p["name"] or p["ov"].startswith(m["ov"]))), None)
                   if m_key:
                       log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[m_key]['name']} | 关联季后赛: {p['name']}")
                       main_events[m_key]["end"] = max(main_events[m_key]["end"], p["end"])
@@ -227,7 +230,9 @@ jobs:
                       slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', sn).strip('-')}"
                   else:
                       pl = v["ov"].split('/')
-                      slug = f"{v['year']}-{pl[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', pl[-1].lower()).strip('-')}"
+                      league_name = pl[0].lower()
+                      sub_name = re.sub(r'[^a-z0-9]+', '-', pl[-1].lower()).strip('-')
+                      slug = f"{v['year']}-{league_name}-{sub_name}"
                   
                   log("INFO", f"确认准入 | 数据落库 | Slug: {slug} | 赛事: {v['name']}", GREEN)
                   
@@ -245,7 +250,14 @@ jobs:
 
               new_s = {item["slug"] for item in unique_res}
               diff = [f"➕ {s}" for s in sorted(new_s - old_slugs)] + [f"➖ {s}" for s in sorted(old_slugs - new_s)]
-              commit_msg = f"📊 Data Sync: {' | '.join(diff)}" if diff else "🔄 Data Sync: no changes"
+              
+              if len(diff) > 5:
+                  commit_msg = f"📊 Data Sync: 新增 {len(new_s - old_slugs)} 项, 移除 {len(old_slugs - new_s)} 项"
+              elif diff:
+                  commit_msg = f"📊 Data Sync: {' | '.join(diff)}"
+              else:
+                  commit_msg = "🔄 Data Sync: no changes"
+              
               if "GITHUB_OUTPUT" in os.environ:
                   with open(os.environ["GITHUB_OUTPUT"], "a") as f: f.write(f"commit_msg={commit_msg}\n")
 
