@@ -248,7 +248,8 @@ jobs:
                       "end_date": str(v["end"])
                   })
 
-              unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
+              unique_dict = {item["slug"]: item for item in final_output}
+              unique_res = sorted(unique_dict.values(), key=lambda x: x['slug'])
               with open(TARGET_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
 
