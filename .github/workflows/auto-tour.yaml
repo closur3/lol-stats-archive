@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # 👇 1. 在这里全局定义文件名，以后只需修改这里
+    env:
+      TARGET_FILENAME: 'tournaments.json'
 
     steps:
       - name: Checkout repo
@@ -30,8 +33,6 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
           TZ: Asia/Korea
-          # 请在 GitHub Repository -> Settings -> Secrets and variables -> Actions 中配置这两个变量
-          # 注意：MediaWiki的 Bot Password 用户名格式通常为 "你的主用户名@机器人名称"
           FANDOM_BOT_USERNAME: ${{ secrets.FANDOM_BOT_USERNAME }}
           FANDOM_BOT_PASSWORD: ${{ secrets.FANDOM_BOT_PASSWORD }}
         shell: python
@@ -41,7 +42,9 @@ jobs:
 
           now = datetime.now()
           today_dt = now.date()
-          TEST_FILE = "tournaments-test.json"
+          
+          # 👇 2. Python 脚本直接读取全局环境变量
+          TARGET_FILE = os.environ.get("TARGET_FILENAME")
           
           # 配置区
           PREHEAT_DAYS, EXPIRE_DAYS = 7, 1
@@ -71,9 +74,9 @@ jobs:
 
           def run_sniff():
               old_slugs = set()
-              if os.path.exists(TEST_FILE):
+              if os.path.exists(TARGET_FILE):
                   try:
-                      with open(TEST_FILE, "r", encoding="utf-8") as f:
+                      with open(TARGET_FILE, "r", encoding="utf-8") as f:
                           old_data = json.load(f)
                           old_slugs = {item.get("slug") for item in old_data if item.get("slug")}
                   except: pass
@@ -84,23 +87,19 @@ jobs:
 
               url = "https://lol.fandom.com/api.php"
               
-              # 1. 初始化 Session 并固定 User-Agent
               session = requests.Session()
               session.headers.update({"User-Agent": "LoLStatsWorker/2026 (User:HsuX)"})
 
-              # 2. 鉴权登录流程 (Bot Password)
               bot_user = os.environ.get("FANDOM_BOT_USERNAME")
               bot_pass = os.environ.get("FANDOM_BOT_PASSWORD")
               
               if bot_user and bot_pass:
                   try:
-                      # 获取 Login Token
                       token_res = session.get(url, params={
                           "action": "query", "meta": "tokens", "type": "login", "format": "json"
                       }, timeout=15).json()
                       login_token = token_res.get("query", {}).get("tokens", {}).get("logintoken")
                       
-                      # 发起登录请求
                       if login_token:
                           login_res = session.post(url, data={
                               "action": "login",
@@ -119,43 +118,58 @@ jobs:
               else:
                   log("WARN", "未检测到凭证(FANDOM_BOT_USERNAME/PASSWORD)，以匿名身份抓取", YELLOW)
 
-              # 3. 抓取赛事数据 (Limit 已修改为 100)
-              params = {
-                  "action": "cargoquery", "format": "json", "tables": "Tournaments",
-                  "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
-                  "where": f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'",
-                  "order_by": "DateStart ASC", "limit": "100"
-              }
-              
-              data = []
+              all_data = []
+              offset = 0
+              limit = 100
               MAX_ATTEMPTS = 5
-              for attempt in range(1, MAX_ATTEMPTS + 1):
-                  try:
-                      # 使用带有鉴权状态的 session 进行请求
-                      resp = session.get(url, params=params, timeout=30)
-                      resp.raise_for_status()
-                      resp_json = resp.json()
-                      if "error" in resp_json:
-                          log("WARN", f"API受限 | 重试 {attempt}/{MAX_ATTEMPTS} | 详情: {resp_json['error']}", YELLOW)
-                          time.sleep(15 * attempt); continue
-                      data = resp_json.get("cargoquery", [])
-                      if data: break
-                      log("WARN", f"未发现数据 | 重试 {attempt}/{MAX_ATTEMPTS}", YELLOW)
-                      time.sleep(10)
-                  except Exception as e:
-                      st = 15 * attempt
-                      log("WARN", f"网络异常 | 重试 {attempt}/{MAX_ATTEMPTS} | 详情: {e}", YELLOW)
-                      time.sleep(st)
+              
+              log("INFO", "开始执行分页抓取机制...")
+              
+              while True:
+                  params = {
+                      "action": "cargoquery", "format": "json", "tables": "Tournaments",
+                      "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
+                      "where": f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'",
+                      "order_by": "DateStart ASC", "limit": str(limit), "offset": str(offset)
+                  }
+                  
+                  page_data = []
+                  for attempt in range(1, MAX_ATTEMPTS + 1):
+                      try:
+                          resp = session.get(url, params=params, timeout=30)
+                          resp.raise_for_status()
+                          resp_json = resp.json()
+                          if "error" in resp_json:
+                              log("WARN", f"API受限 | 重试 {attempt}/{MAX_ATTEMPTS} | 详情: {resp_json['error']}", YELLOW)
+                              time.sleep(15 * attempt); continue
+                          page_data = resp_json.get("cargoquery", [])
+                          break
+                      except Exception as e:
+                          st = 15 * attempt
+                          log("WARN", f"网络异常 | 重试 {attempt}/{MAX_ATTEMPTS} | 详情: {e}", YELLOW)
+                          time.sleep(st)
 
-              if not data:
-                  log("WARN", "任务中止 | 已耗尽所有重试机会。", RED)
-                  sys.exit(1)
+                  if not page_data and offset == 0:
+                      log("WARN", "任务中止 | 首屏即未获取到任何数据。", RED)
+                      sys.exit(1)
+                  
+                  if not page_data:
+                      break
+                      
+                  all_data.extend(page_data)
+                  log("INFO", f"获取成功 | 当前 Offset: {offset:<4} | 取得数据: {len(page_data)} 条 | 累计: {len(all_data)} 条")
+                  
+                  if len(page_data) < limit:
+                      break
+                  
+                  offset += limit
+                  time.sleep(1)
 
               main_events, playoff_events = {}, []
-              log("INFO", f"数据同步成功 | 原始数据共计 {len(data)} 条")
+              log("INFO", f"数据同步成功 | 原始数据共计 {len(all_data)} 条")
               log("INFO", "-" * 85)
 
-              for item in data:
+              for item in all_data:
                   t = item["title"]
                   name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
                   if t.get("IsQualifier") == "1":
@@ -226,10 +240,16 @@ jobs:
                       slug = f"{v['year']}-{pl[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', pl[-1].lower()).strip('-')}"
                   
                   log("INFO", f"确认准入 | 数据落库 | {wfill(f'Slug: {slug}', W3+14)} | 赛事: {v['name']}", GREEN)
-                  final_output.append({"slug": slug, "overview_page": v["ov"], "start_date": str(v["start"]), "end_date": str(v["end"])})
+                  
+                  final_output.append({
+                      "slug": slug, 
+                      "overview_page": [v["ov"]], 
+                      "start_date": str(v["start"]), 
+                      "end_date": str(v["end"])
+                  })
 
               unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
-              with open(TEST_FILE, "w", encoding="utf-8") as f:
+              with open(TARGET_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
 
               new_s = {item["slug"] for item in unique_res}
@@ -245,4 +265,5 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "${{ steps.process_data.outputs.commit_msg }}"
-          file_pattern: 'tournaments.json'
+          # 👇 3. 提交插件读取全局环境变量
+          file_pattern: ${{ env.TARGET_FILENAME }}
