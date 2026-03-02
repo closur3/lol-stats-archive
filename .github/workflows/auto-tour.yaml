@@ -32,47 +32,28 @@ jobs:
           TZ: Asia/Korea
         shell: python
         run: |
-          import requests
-          import json
-          import re
-          import time
-          import os
-          import sys  # <--- 导入 sys 模块用于控制退出状态
+          import requests, json, re, time, os, sys
           from datetime import datetime, timedelta
 
           now = datetime.now()
           today_dt = now.date()
           TEST_FILE = "tournaments-test.json"
-
-          PREHEAT_DAYS = 7
-          EXPIRE_DAYS  = 1
-          WHITELIST    = ["LPL", "LCK"]
-          BLACKLIST    = ["Opening"]
-
-          # ── ANSI 颜色定义 ────────────────────────────────────────────────
-          RESET  = "\033[0m"
-          BLACK  = "\033[30m"
-          RED    = "\033[91m"
-          GREEN  = "\033[92m"
-          YELLOW = "\033[93m"
-          PURPLE = "\033[95m"
+          PREHEAT_DAYS, EXPIRE_DAYS = 7, 1
+          WHITELIST, BLACKLIST = ["LPL", "LCK"], ["Opening"]
+          RESET, RED, GREEN, YELLOW, PURPLE, BLACK = "\033[0m", "\033[91m", "\033[92m", "\033[93m", "\033[95m", "\033[30m"
 
           def wlen(s):
               """计算字符串的显示宽度（CJK 字符占 2，其余占 1）"""
-              w = 0
-              for c in s:
-                  w += 2 if '\u1100' <= c <= '\u9fff' or '\uf900' <= c <= '\uffef' else 1
-              return w
+              return sum(2 if '\u1100' <= c <= '\u9fff' or '\uf900' <= c <= '\uffef' else 1 for c in s)
 
           def wfill(s, width):
               """按显示宽度右侧补空格"""
               return s + " " * max(0, width - wlen(s))
 
-          # 统一让第三列输出固定为 W3 显示宽
-          W3 = 26
-
           def log(level, msg, color=BLACK):
               print(f"{color}[{level}] {msg}{RESET}", flush=True)
+
+          W3 = 26
 
           def run_sniff():
               old_slugs = set()
@@ -83,68 +64,70 @@ jobs:
                           old_slugs = {item.get("slug") for item in old_data if item.get("slug")}
                   except: pass
 
-              url = "https://lol.fandom.com/api.php"
-              where_sql = f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'"
-              params = {"action": "cargoquery", "format": "json", "tables": "Tournaments", "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs", "where": where_sql, "order_by": "DateStart ASC", "limit": "400"}
-              headers = {"User-Agent": "LoLStatsEnterprise/36.0"}
-
               log("INFO", "=" * 85)
               log("INFO", f"系统初始化完成 (日期: {today_dt}) | 开始抓取赛事目录")
               log("INFO", "=" * 85)
 
-              # ── 核心请求重试逻辑 ──────────────────────────────────────────
+              url = "https://lol.fandom.com/api.php"
+              params = {
+                  "action": "cargoquery", "format": "json", "tables": "Tournaments",
+                  "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
+                  "where": f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'",
+                  "order_by": "DateStart ASC", "limit": "400"
+              }
+              headers = {"User-Agent": "LoLStatsEnterprise/36.0"}
+              
               data = []
               MAX_ATTEMPTS = 20
               for attempt in range(1, MAX_ATTEMPTS + 1):
                   try:
-                      # 发起请求
                       resp = requests.get(url, params=params, headers=headers, timeout=30)
                       resp.raise_for_status()
                       resp_json = resp.json()
                       
-                      # 检查 API 是否返回逻辑错误（如频率限制）
+                      # API 内部报错处理
                       if "error" in resp_json:
-                          err_msg = str(resp_json["error"])
-                          sleep_time = 15 * attempt
-                          log("WARN", f"API 访问受限 | 重试 {attempt}/{MAX_ATTEMPTS} | 挂起 {sleep_time}s | 详情: {err_msg}", YELLOW)
-                          time.sleep(sleep_time)
+                          log("WARN", f"API受限 | 重试 {attempt}/{MAX_ATTEMPTS} | 详情: {resp_json['error']}", YELLOW)
+                          time.sleep(15 * attempt)
                           continue
                       
                       data = resp_json.get("cargoquery", [])
                       if data: 
-                          break # 成功获取数据，退出循环
-                      else:
-                          # 如果请求成功但数据为空，可能还没到更新时间，也进行短时间重试
-                          log("WARN", f"未发现匹配赛事数据 | 重试 {attempt}/{MAX_ATTEMPTS}", YELLOW)
-                          time.sleep(10)
-
+                          break # 成功获取数据，直接退出重试循环
+                      
+                      # 没拿到 data 但也没报错的情况
+                      log("WARN", f"未发现匹配赛事数据 | 重试 {attempt}/{MAX_ATTEMPTS}", YELLOW)
+                      time.sleep(10)
+                      
                   except Exception as e:
-                      sleep_time = 15 * attempt
-                      log("WARN", f"网络故障    | 重试 {attempt}/{MAX_ATTEMPTS} | 挂起 {sleep_time}s | 详情: {e}", YELLOW)
-                      time.sleep(sleep_time)
+                      # 处理网络连接、超时等异常
+                      st = 15 * attempt
+                      log("WARN", f"网络异常 | 重试 {attempt}/{MAX_ATTEMPTS} | 挂起 {st}s | 详情: {e}", YELLOW)
+                      time.sleep(st)
 
-              # ── 如果最终没有拿到数据，强制报错退出 ────────────────────────────
+              # 耗尽机会仍无数据，强制以失败状态退出
               if not data:
-                  log("WARN", "任务中止    | 已耗尽所有重试机会，无法获取原始数据。", RED)
-                  sys.exit(1) # <--- 让 GitHub Actions 任务变红失败
+                  log("WARN", "任务中止 | 已耗尽所有重试机会，无法获取原始数据。", RED)
+                  sys.exit(1)
 
               main_events, playoff_events = {}, []
-
               log("INFO", f"数据同步成功 | 原始数据共计 {len(data)} 条")
               log("INFO", "-" * 85)
 
+              # ── 业务过滤逻辑 ──
               for item in data:
                   t = item["title"]
                   name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
-                  is_playoffs, is_qualifier = t.get("IsPlayoffs"), t.get("IsQualifier")
-
-                  if is_qualifier == "1":
+                  
+                  if t.get("IsQualifier") == "1":
                       log("INFO", f"全局拦截 | 业务过滤 | {wfill('判定为预选赛 (Qualifier)', W3)} | 赛事: {name}", BLACK)
                       continue
+                  
                   hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
                   if hit_black:
                       log("INFO", f"全局拦截 | 业务过滤 | {wfill(f'命中黑名单关键词 ({hit_black})', W3)} | 赛事: {name}", BLACK)
                       continue
+                  
                   is_intl = (region == 'International')
                   hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
                   if not (is_intl or hit_white):
@@ -153,18 +136,18 @@ jobs:
 
                   try:
                       s_dt = datetime.strptime(t["DateStart"], '%Y-%m-%d').date()
-                      e_dt = datetime.strptime(t["Date"], '%Y-%m-%d').date() if t.get("Date") else s_dt
+                      e_dt = datetime.strptime(t.get("Date") or t["DateStart"], '%Y-%m-%d').date()
                   except: continue
 
-                  event = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt}
-                  if is_playoffs == "1" and not is_intl:
+                  ev = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt}
+                  if t.get("IsPlayoffs") == "1" and not is_intl:
                       log("INFO", f"初步准入 | 校验通过 | {wfill('赛事已进入季后赛待匹配池', W3)} | 赛事: {name}", PURPLE)
-                      playoff_events.append(event)
+                      playoff_events.append(ev)
                   else:
                       key = f"INTL_{name}" if is_intl else f"{ov}_{y}"
                       if key not in main_events:
                           log("INFO", f"初步准入 | 校验通过 | {wfill('赛事已加入主赛聚合列表', W3)} | 赛事: {name}", PURPLE)
-                          main_events[key] = event
+                          main_events[key] = ev
                       else:
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
                           main_events[key]["end"] = max(main_events[key]["end"], e_dt)
@@ -172,16 +155,10 @@ jobs:
               log("INFO", "-" * 85)
               log("INFO", "启动季后赛数据关联匹配模块...")
               for p in playoff_events:
-                  matched_key = None
-                  for mk, m in main_events.items():
-                      if m["is_intl"] or m["year"] != p["year"]: continue
-                      if m["name"] in p["name"]:
-                          matched_key = mk
-                          break
-                  if matched_key:
-                      main_name = main_events[matched_key]['name']
-                      log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_name:<25} | 关联季后赛: {p['name']}")
-                      main_events[matched_key]["end"] = max(main_events[matched_key]["end"], p["end"])
+                  m_key = next((k for k, m in main_events.items() if not m["is_intl"] and m["year"] == p["year"] and m["name"] in p["name"]), None)
+                  if m_key:
+                      log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[m_key]['name']:<25} | 关联季后赛: {p['name']}")
+                      main_events[m_key]["end"] = max(main_events[m_key]["end"], p["end"])
                   else:
                       log("WARN", f"关联失败 | 独立保留 | {wfill('未发现关联主赛条目的季后赛', W3)} | 赛事: {p['name']}", YELLOW)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
@@ -191,40 +168,36 @@ jobs:
               final_output = []
               for v in main_events.values():
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
-                      days_diff = (v["start"] - today_dt).days
-                      col3 = f"距开赛 {days_diff:>3} 天 (阈值 {PREHEAT_DAYS} 天)"
-                      log("INFO", f"周期拦截 | 尚未预热 | {wfill(col3, W3)} | 赛事: {v['name']}", YELLOW)
+                      diff_days = (v["start"] - today_dt).days
+                      log("INFO", f"周期拦截 | 尚未预热 | {wfill(f'距开赛 {diff_days:>3} 天 (阈值 {PREHEAT_DAYS} 天)', W3)} | 赛事: {v['name']}", YELLOW)
                       continue
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                      days_diff = (today_dt - v["end"]).days
-                      col3 = f"已结束 {days_diff:>3} 天 (阈值 {EXPIRE_DAYS} 天)"
-                      log("INFO", f"周期拦截 | 赛事过期 | {wfill(col3, W3)} | 赛事: {v['name']}", YELLOW)
+                      diff_days = (today_dt - v["end"]).days
+                      log("INFO", f"周期拦截 | 赛事过期 | {wfill(f'已结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天)', W3)} | 赛事: {v['name']}", YELLOW)
                       continue
-
+                  
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       log("INFO", f"周期放行 | 宽限期内 | {wfill('赛事已结束但仍在宽限期内', W3)} | 赛事: {v['name']}")
 
+                  # Slug 生成逻辑
                   if v["is_intl"]:
-                      slug_name = v["name"].lower().replace(str(v["year"]), "").replace("first stand", "fst").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
-                      slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', slug_name).strip('-')}"
+                      sn = v["name"].lower().replace(str(v["year"]), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
+                      slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', sn).strip('-')}"
                   else:
-                      p_list = v["ov"].split('/')
-                      slug = f"{v['year']}-{p_list[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', p_list[-1].lower()).strip('-')}"
-
+                      pl = v["ov"].split('/')
+                      slug = f"{v['year']}-{pl[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', pl[-1].lower()).strip('-')}"
+                  
                   log("INFO", f"确认准入 | 数据落库 | {wfill(f'Slug: {slug}', W3+14)} | 赛事: {v['name']}", GREEN)
                   final_output.append({"slug": slug, "overview_page": v["ov"], "start_date": str(v["start"]), "end_date": str(v["end"])})
 
+              # 去重并排序
               unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
               with open(TEST_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
 
-              new_slugs = {item["slug"] for item in unique_res}
-              added, removed = new_slugs - old_slugs, old_slugs - new_slugs
-              msg = []
-              if added:   msg.append(f"➕ {', '.join(sorted(added))}")
-              if removed: msg.append(f"➖ {', '.join(sorted(removed))}")
-              commit_msg = f"📊 Data Sync: {' | '.join(msg)}" if msg else f"🔄 Data Sync: no changes"
-
+              new_s = {item["slug"] for item in unique_res}
+              diff = [f"➕ {s}" for s in sorted(new_s - old_slugs)] + [f"➖ {s}" for s in sorted(old_slugs - new_s)]
+              commit_msg = f"📊 Data Sync: {' | '.join(diff)}" if diff else "🔄 Data Sync: no changes"
               if "GITHUB_OUTPUT" in os.environ:
                   with open(os.environ["GITHUB_OUTPUT"], "a") as f: f.write(f"commit_msg={commit_msg}\n")
 
