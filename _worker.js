@@ -609,7 +609,7 @@ const PYTHON_STYLE = `
     .sch-time { width: 60px; color: #94a3b8; font-size: 13px; display:flex; align-items:center; justify-content:center; } 
     .sch-tag-col { width: 60px; display: flex; align-items:center; justify-content: center; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
-    .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; }
+    .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #dbeafe; color: #1d4ed8; }
     .sch-pill.gold { background: #f2d49c; color: #9c5326; }
     .sch-live-score { color: #10b981; font-size: 13px; }
     .sch-fin-score { color: #334155; font-size: 13px; }
