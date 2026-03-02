@@ -871,7 +871,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         // 1. 【核心】直接调用公用排序函数，确保 1:1 静态复制
         const stats = utils.sortTeams(globalStats[t.slug]);
         
-        const tableId = `t${idx}`;
+        const tableId = `t_${t.slug.replace(/-/g, '_')}`;
         const lastTs = updateTimestamps[t.slug];
         const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
         const debugLabel = `<span style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px">${timeStr}</span>`;
