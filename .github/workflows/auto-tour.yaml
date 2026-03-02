@@ -61,16 +61,8 @@ jobs:
 
           RESET, RED, GREEN, YELLOW, PURPLE, BLACK = "\033[0m", "\033[91m", "\033[92m", "\033[93m", "\033[95m", "\033[30m"
 
-          def wlen(s):
-              return sum(2 if '\u1100' <= c <= '\u9fff' or '\uf900' <= c <= '\uffef' else 1 for c in s)
-
-          def wfill(s, width):
-              return s + " " * max(0, width - wlen(s))
-
           def log(level, msg, color=BLACK):
               print(f"{color}[{level}] {msg}{RESET}", flush=True)
-
-          W3 = 26
 
           def run_sniff():
               old_slugs = set()
@@ -173,16 +165,16 @@ jobs:
                   t = item["title"]
                   name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
                   if t.get("IsQualifier") == "1":
-                      log("INFO", f"全局拦截 | 业务过滤 | {wfill('判定为预选赛 (Qualifier)', W3)} | 赛事: {name}", BLACK)
+                      log("INFO", f"全局拦截 | 业务过滤 | 判定为预选赛 (Qualifier) | 赛事: {name}", BLACK)
                       continue
                   hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
                   if hit_black:
-                      log("INFO", f"全局拦截 | 业务过滤 | {wfill(f'命中黑名单关键词 ({hit_black})', W3)} | 赛事: {name}", BLACK)
+                      log("INFO", f"全局拦截 | 业务过滤 | 命中黑名单关键词 ({hit_black}) | 赛事: {name}", BLACK)
                       continue
                   is_intl = (region == 'International')
                   hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
                   if not (is_intl or hit_white):
-                      log("INFO", f"全局拦截 | 业务过滤 | {wfill('非国际赛且未命中白名单区域', W3)} | 赛事: {name}", BLACK)
+                      log("INFO", f"全局拦截 | 业务过滤 | 非国际赛且未命中白名单区域 | 赛事: {name}", BLACK)
                       continue
 
                   try:
@@ -192,12 +184,12 @@ jobs:
 
                   ev = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt}
                   if t.get("IsPlayoffs") == "1" and not is_intl:
-                      log("INFO", f"初步准入 | 校验通过 | {wfill('赛事已进入季后赛待匹配池', W3)} | 赛事: {name}", PURPLE)
+                      log("INFO", f"初步准入 | 校验通过 | 赛事已进入季后赛待匹配池 | 赛事: {name}", PURPLE)
                       playoff_events.append(ev)
                   else:
                       key = f"INTL_{name}" if is_intl else f"{ov}_{y}"
                       if key not in main_events:
-                          log("INFO", f"初步准入 | 校验通过 | {wfill('赛事已加入主赛聚合列表', W3)} | 赛事: {name}", PURPLE)
+                          log("INFO", f"初步准入 | 校验通过 | 赛事已加入主赛聚合列表 | 赛事: {name}", PURPLE)
                           main_events[key] = ev
                       else:
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
@@ -208,10 +200,10 @@ jobs:
               for p in playoff_events:
                   m_key = next((k for k, m in main_events.items() if not m["is_intl"] and m["year"] == p["year"] and m["name"] in p["name"]), None)
                   if m_key:
-                      log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[m_key]['name']:<25} | 关联季后赛: {p['name']}")
+                      log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[m_key]['name']} | 关联季后赛: {p['name']}")
                       main_events[m_key]["end"] = max(main_events[m_key]["end"], p["end"])
                   else:
-                      log("WARN", f"关联失败 | 独立保留 | {wfill('未发现关联主赛的季后赛', W3)} | 赛事: {p['name']}", YELLOW)
+                      log("WARN", f"关联失败 | 独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']}", YELLOW)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
               log("INFO", "-" * 85)
@@ -220,15 +212,15 @@ jobs:
               for v in main_events.values():
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
                       diff_days = (v["start"] - today_dt).days
-                      log("INFO", f"周期拦截 | 尚未预热 | {wfill(f'距开赛 {diff_days:>3} 天 (阈值 {PREHEAT_DAYS} 天)', W3)} | 赛事: {v['name']}", YELLOW)
+                      log("INFO", f"周期拦截 | 尚未预热 | 距开赛 {diff_days:>3} 天 (阈值 {PREHEAT_DAYS} 天) | 赛事: {v['name']}", YELLOW)
                       continue
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       diff_days = (today_dt - v["end"]).days
-                      log("INFO", f"周期拦截 | 赛事过期 | {wfill(f'已结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天)', W3)} | 赛事: {v['name']}", YELLOW)
+                      log("INFO", f"周期拦截 | 赛事过期 | 已结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天) | 赛事: {v['name']}", YELLOW)
                       continue
                   
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                      log("INFO", f"周期放行 | 宽限期内 | {wfill('赛事已结束但仍在宽限期内', W3)} | 赛事: {v['name']}")
+                      log("INFO", f"周期放行 | 宽限期内 | 赛事已结束但仍在宽限期内 | 赛事: {v['name']}")
 
                   if v["is_intl"]:
                       sn = v["name"].lower().replace(str(v["year"]), "").strip()
@@ -239,7 +231,7 @@ jobs:
                       pl = v["ov"].split('/')
                       slug = f"{v['year']}-{pl[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', pl[-1].lower()).strip('-')}"
                   
-                  log("INFO", f"确认准入 | 数据落库 | {wfill(f'Slug: {slug}', W3+14)} | 赛事: {v['name']}", GREEN)
+                  log("INFO", f"确认准入 | 数据落库 | Slug: {slug} | 赛事: {v['name']}", GREEN)
                   
                   final_output.append({
                       "slug": slug, 
