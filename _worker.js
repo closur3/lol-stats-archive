@@ -1170,6 +1170,9 @@ async function runUpdate(env, force=false) {
     for (const slug of Object.keys(cache.rawMatches)) {
         if (!activeSlugs.has(slug)) delete cache.rawMatches[slug];
     }
+    for (const slug of Object.keys(cache.updateTimestamps)) {
+        if (!activeSlugs.has(slug)) delete cache.updateTimestamps[slug];
+    }
 
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
