@@ -846,7 +846,7 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
 function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
     if (!scheduleMap) scheduleMap = {};
     if (!updateTimestamps) updateTimestamps = {};
-    const injectedData = `<script>window.g_stats = ${JSON.stringify(globalStats)};</script>`;
+    const injectedData = `<script>window.g_stats = Object.assign(window.g_stats || {}, ${JSON.stringify(globalStats)});</script>`;
     const mkSpine = (val, sep) => {
         if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
         const parts = val.split(sep);
