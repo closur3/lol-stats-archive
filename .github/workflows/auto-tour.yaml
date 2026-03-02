@@ -99,7 +99,7 @@ jobs:
               session.mount("https://", HTTPAdapter(max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[429, 502, 503, 504])))
 
               data = []
-              MAX_ATTEMPTS = 5
+              MAX_ATTEMPTS = 20
               for attempt in range(1, MAX_ATTEMPTS + 1):
                   try:
                       resp = session.get(url, params=params, headers=headers, timeout=30)
@@ -121,7 +121,7 @@ jobs:
 
               if not data:
                   log("WARN", "任务中止   | 已耗尽所有重试机会，无法获取原始数据。", RED)
-                  return
+                  exit 1
 
               main_events, playoff_events = {}, []
 
