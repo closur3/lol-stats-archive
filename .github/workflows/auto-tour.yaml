@@ -205,7 +205,7 @@ jobs:
                       log("INFO", f"周期放行 | 宽限期内 | {wfill('赛事已结束但仍在宽限期内', W3)} | 赛事: {v['name']}")
 
                   if v["is_intl"]:
-                      slug_name = v["name"].lower().replace(str(v["year"]), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
+                      slug_name = v["name"].lower().replace(str(v["year"]), "").replace("first stand", "fst").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
                       slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', slug_name).strip('-')}"
                   else:
                       p_list = v["ov"].split('/')
