@@ -1,4 +1,4 @@
-name: Auto Discover Tournaments (Enterprise Logging)
+name: Auto Discover Tournaments
 
 on:
   push:
@@ -45,7 +45,7 @@ jobs:
           PREHEAT_DAYS = 7
           EXPIRE_DAYS  = 1
           WHITELIST    = ["LPL", "LCK"]
-          BLACKLIST    = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary", "Qualifier", "Academy", "Division"]
+          BLACKLIST    = ["Opening"]
 
           # ── ANSI 颜色定义 ────────────────────────────────────────────────
           RESET  = "\033[0m"
