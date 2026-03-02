@@ -865,7 +865,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         return `<span style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px">(${Math.round(r*100)}%)</span>`;
     };
 
-    let tablesHtml = isArchive ? `<div class="arch-content">` : "";
+    let tablesHtml = "";
 
     runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
         // 1. 【核心】直接调用公用排序函数，确保 1:1 静态复制
@@ -944,8 +944,6 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             tablesHtml += `<div class="wrapper"><div class="table-title"><div>${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
         }
     });
-
-    if (isArchive) tablesHtml += `</div>`;
     
     let scheduleHtml = "";
     if (!isArchive) {
@@ -1169,6 +1167,11 @@ async function runUpdate(env, force=false) {
         }
     });
 
+    const activeSlugs = new Set(runtimeConfig.TOURNAMENTS.map(t => t.slug));
+    for (const slug of Object.keys(cache.rawMatches)) {
+        if (!activeSlugs.has(slug)) delete cache.rawMatches[slug];
+    }
+
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
@@ -1197,10 +1200,17 @@ async function runUpdate(env, force=false) {
         homeHtml: homeFragment 
     }));
 
-    const archiveFragment = renderContentOnly(
-        analysis.globalStats, analysis.timeGrid, analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, true 
-    );
-    await env.LOL_KV.put("ARCHIVE_FRAGMENT", archiveFragment);
+    for (const t of runtimeConfig.TOURNAMENTS) {
+        const slug = t.slug;
+        if (!analysis.globalStats[slug]) continue;
+        const singleConfig = { TOURNAMENTS: [t] };
+        const singleFragment = renderContentOnly(
+            { [slug]: analysis.globalStats[slug] },
+            { [slug]: analysis.timeGrid[slug] },
+            {}, singleConfig, cache.updateTimestamps, true
+        );
+        await env.LOL_KV.put(`ARCHIVE_${slug}`, singleFragment);
+    }
 
     await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
     
@@ -1333,9 +1343,14 @@ export default {
             }
             
             case "/archive": {
-                const fragment = await env.LOL_KV.get("ARCHIVE_FRAGMENT");
-                if (!fragment) return new Response("No archive data available. Please wait for the next update.", { headers: { "content-type": "text/html" } });
-                const fullPage = renderPageShell("LoL Archive", fragment, "", "archive");
+                const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
+                if (!allKeys.keys.length) return new Response("No archive data available.", { headers: { "content-type": "text/html" } });
+                allKeys.keys.sort((a, b) => b.name.localeCompare(a.name));
+                const fragments = await Promise.all(
+                    allKeys.keys.map(k => env.LOL_KV.get(k.name))
+                );
+                const combined = `<div class="arch-content">${fragments.filter(Boolean).join("")}</div>`;
+                const fullPage = renderPageShell("LoL Archive", combined, "", "archive");
                 return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
             }
 
