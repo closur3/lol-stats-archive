@@ -128,7 +128,7 @@ jobs:
               }
               
               data = []
-              MAX_ATTEMPTS = 20
+              MAX_ATTEMPTS = 5
               for attempt in range(1, MAX_ATTEMPTS + 1):
                   try:
                       # 使用带有鉴权状态的 session 进行请求
@@ -245,4 +245,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "${{ steps.process_data.outputs.commit_msg }}"
-          file_pattern: 'tournaments-test.json'
+          file_pattern: 'tournaments.json'
