@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: write
     env:
-      TARGET_FILENAME: 'tournaments.json'
+      TARGET_FILENAME: 'tour.json'
 
     steps:
       - name: Checkout repo
