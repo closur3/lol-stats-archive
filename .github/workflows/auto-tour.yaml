@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  update-tournaments-test:
+  auto-tour:
     runs-on: ubuntu-latest
     permissions:
       contents: write
