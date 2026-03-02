@@ -1,15 +1,14 @@
 // ====================================================
-// 🥇 Worker V41.2.9: Etiquette & CSS Modularization (Cleaned)
+// 🥇 Worker V41.3.0: Archive Persistence & KV Hygiene
 // 更新日志:
-// 1. 滑动窗口: 引入 48h 前至 48h 后的双向滑动时间窗，完美捕获跨天比分与赛程变更。
-// 2. 坐标覆写: 重构 getUniqueKey，剔除队伍依赖，彻底解决 TBD 确定后导致的数据分身 Bug。
-// 3. 架构解耦: 提取 COMMON_STYLE，统一多端 UI，Update 移至 Logs 并附加安全锁。
-// 4. API 礼仪: 合并双路 Cookie 防降级，遵守 maxlag 与 Retry-After 指数退避规范。
-// 5. 代码精简: 清理无用 CSS、未使用的 DOM 节点及废弃渲染参数。
-// 6. 统一标识: 移除 region 字段，全面使用 slug 作为唯一标识符。
+// 1. Archive 持久化: 每个联赛独立存储 ARCHIVE_{slug}，历史赛季永久保留。
+// 2. KV 清理: 每次更新前自动删除不在 tour.json 里的残留 rawMatches 数据。
+// 3. 配置重命名: teams.json → mapping.json，tournaments.json → tour.json。
+// 4. 字段直读: 联赛全称取 tour.json name 字段，简写取 league 字段。
+// 5. 移除工具函数: 删除 formatTitle 与 getShortName，不再依赖 slug 推导名称。
 // ====================================================
 
-const UI_VERSION = "2026-02-26-V41.2.9-Clean";
+const UI_VERSION = "2026-02-26-V41.3.0";
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
@@ -1274,7 +1273,7 @@ function renderLogPage(logs) {
 
             const btn = document.querySelector('.update-btn');
             const originalText = btn.innerHTML;
-            btn.innerHTML = '<span class="btn-icon">⏳</span> <span class="btn-text">Updating...</span>';
+            btn.innerHTML = '<span class="btn-icon">⏳</span> <span class="btn-text">Updating</span>';
             btn.style.pointerEvents = 'none';
             btn.style.opacity = '0.7';
 
