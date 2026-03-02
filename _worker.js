@@ -44,21 +44,24 @@ const utils = {
     // 标题解析：第一个非数字全大写，其余首字母大写
     formatTitle: (slug) => {
         if (!slug) return "";
-        let foundFirstString = false;
         return slug.split('-').map(w => {
-            if (!isNaN(w)) return w; // 数字保持原样 (如 2026)
-            if (!foundFirstString) {
-                foundFirstString = true;
-                return w.toUpperCase(); // 第一个非数字全大写 (如 LCK)
-            }
-            return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); // 其余首字母大写 (如 Cup)
+        // 1. 如果是数字，原样保留
+            if (!isNaN(w)) return w; 
+        
+        // 2. 如果长度等于 3，则全大写 (如 LCK, LPL)
+            if (w.length === 3) return w.toUpperCase();
+        
+        // 3. 其余情况：首字母大写，其余小写 (如 Spring, Cup)
+            return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
         }).join(' ');
     },
-    
-    // 简称解析：直接抓取第一个非数字词并全大写，给赛程标签用
+
     getShortName: (slug) => {
         if (!slug) return "";
-        return (slug.split('-').find(w => isNaN(w)) || slug).toUpperCase();
+    // 优先找长度为 3 的非数字词，找不到则找第一个非数字词
+        const words = slug.split('-');
+        const target = words.find(w => isNaN(w) && w.length === 3) || words.find(w => isNaN(w)) || slug;
+        return target.toUpperCase();
     },
     
     color: (r, rev = false) => {
