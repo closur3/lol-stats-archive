@@ -6,7 +6,7 @@ on:
     - cron: '0 15 * * *' 
 
 jobs:
-  auto-tour:
+  discover:
     runs-on: ubuntu-latest
     permissions:
       contents: write
