@@ -55,6 +55,7 @@ const utils = {
         if (diffDays <= 7) return "hsl(215, 50%, 50%)";
         if (diffDays <= 14 return "hsl(215, 40%, 55%)";
         return "hsl(215, 40%, 55%)";
+        },
     
     parseDate: (str) => {
         if(!str) return null;
