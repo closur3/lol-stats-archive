@@ -1303,7 +1303,7 @@ export default {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache || !cache.globalStats) return new Response(JSON.stringify({ error: "No data" }), { status: 503 });
                 const payload = {};
-                for (const t of cache.runtimeConfig.TOURNAMENTS) if (cache.globalStats[t.slug]) payload[`tournament/${t.slug}.md`] = generateMarkdown(t, cache.globalStats[t.slug], cache.timeGrid);
+                for (const t of cache.runtimeConfig.TOURNAMENTS) if (cache.globalStats[t.slug]) payload[`markdown/${t.slug}.md`] = generateMarkdown(t, cache.globalStats[t.slug], cache.timeGrid);
                 return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
             }
 
