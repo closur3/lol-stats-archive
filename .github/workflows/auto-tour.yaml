@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+      - cron: '0 15 * * *' 
 
 jobs:
   auto-tour:
@@ -27,7 +29,7 @@ jobs:
         id: process_data
         env:
           PYTHONUNBUFFERED: "1"
-          TZ: Asia/Shanghai
+          TZ: Asia/Korea
         run: |
           import requests
           import json
