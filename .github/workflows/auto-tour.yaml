@@ -45,16 +45,18 @@ jobs:
           PREHEAT_DAYS = 7
           EXPIRE_DAYS  = 1
           WHITELIST    = ["LPL", "LCK"]
-          BLACKLIST    = ["Opening"]
+          BLACKLIST    = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary", "Qualifier", "Academy", "Division"]
 
           # ── ANSI 颜色定义 ────────────────────────────────────────────────
           RESET  = "\033[0m"
-          BLACK  = "\033[30m"   # 全局拦截
-          RED    = "\033[91m"   # 错误
+          BLACK  = "\033[30m"
+          RED    = "\033[91m"   # 全局拦截
+          GREEN  = "\033[92m"   # 最终准入 (亮绿)
           YELLOW = "\033[93m"   # 周期拦截/警告
-          PURPLE = "\033[95m"   # 准入通过 & 写入就绪
+          PURPLE = "\033[95m"   # 初步准入 (亮紫)
           
           def log(level, msg, color=BLACK):
+              # 保持 [INFO] 紧凑，去除多余空格
               print(f"{color}[{level:<5}] {msg}{RESET}", flush=True)
 
           def run_sniff():
@@ -71,9 +73,9 @@ jobs:
               params = {"action": "cargoquery", "format": "json", "tables": "Tournaments", "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs", "where": where_sql, "order_by": "DateStart ASC", "limit": "400"}
               headers = {"User-Agent": "LoLStatsEnterprise/36.0"}
 
-              log("INFO", "=" * 74)
-              log("INFO", f"系统初始化完成 (日期: {today_dt})，开始执行赛事自动化工作流。")
-              log("INFO", "=" * 74)
+              log("INFO", "=" * 85)
+              log("INFO", f"系统初始化完成 (日期: {today_dt}) | 启动赛事发现自动化流水线")
+              log("INFO", "=" * 85)
 
               session = requests.Session()
               session.mount("https://", HTTPAdapter(max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[429, 502, 503, 504])))
@@ -88,7 +90,7 @@ jobs:
                       if "error" in resp_json:
                           err_msg = str(resp_json["error"])
                           sleep_time = 15 * attempt
-                          log("WARN", f"API 访问受限 (重试 {attempt}/{MAX_ATTEMPTS}) | 挂起 {sleep_time}s | 详情：{err_msg}", YELLOW)
+                          log("WARN", f"API 访问受限 | 重试 {attempt}/{MAX_ATTEMPTS} | 挂起 {sleep_time}s | 详情: {err_msg}", YELLOW)
                           time.sleep(sleep_time)
                           continue
                       data = resp_json.get("cargoquery", [])
@@ -96,33 +98,34 @@ jobs:
                       else: break
                   except Exception as e:
                       sleep_time = 15 * attempt
-                      log("ERROR", f"网络/系统故障 (重试 {attempt}/{MAX_ATTEMPTS}) | 挂起 {sleep_time}s | 详情：{e}", RED)
+                      log("ERROR", f"网络故障    | 重试 {attempt}/{MAX_ATTEMPTS} | 挂起 {sleep_time}s | 详情: {e}", RED)
                       time.sleep(sleep_time)
 
               if not data:
-                  log("ERROR", "致命错误：已耗尽所有重试机会，抓取任务终止。", RED)
+                  log("ERROR", "任务中止    | 已耗尽所有重试机会，无法获取原始数据。", RED)
                   return
 
               main_events, playoff_events = {}, []
 
-              log("INFO", f"API 请求成功 | 原始数据共 {len(data)} 条。")
-              log("INFO", "启动准入规则过滤模块...")
+              log("INFO", f"数据同步成功 | 原始数据共计 {len(data)} 条")
+              log("INFO", "-" * 85)
+              
               for item in data:
                   t = item["title"]
                   name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
                   is_playoffs, is_qualifier = t.get("IsPlayoffs"), t.get("IsQualifier")
                   
                   if is_qualifier == "1":
-                      log("INFO", f"全局拦截 [业务过滤] | 判定为预选赛 (IsQualifier=1) | 赛事：{name}", BLACK)
+                      log("INFO", f"全局拦截 | 业务过滤 | 判定为预选赛 (Qualifier)        | 赛事: {name}", BLACK)
                       continue
                   hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
                   if hit_black:
-                      log("INFO", f"全局拦截 [业务过滤] | 命中黑名单关键词 ({hit_black:<9}) | 赛事：{name}", BLACK)
+                      log("INFO", f"全局拦截 | 业务过滤 | 命中黑名单关键词 ({hit_black:<10}) | 赛事: {name}", BLACK)
                       continue
                   is_intl = (region == 'International')
                   hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
                   if not (is_intl or hit_white):
-                      log("INFO", f"全局拦截 [业务过滤] | 非国际赛且未命中白名单区域 | 赛事：{name}", BLACK)
+                      log("INFO", f"全局拦截 | 业务过滤 | 非国际赛且未命中白名单区域       | 赛事: {name}", BLACK)
                       continue
 
                   try:
@@ -132,18 +135,19 @@ jobs:
 
                   event = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt}
                   if is_playoffs == "1" and not is_intl:
-                      log("INFO", f"规则放行 [准入通过] | 赛事已进入季后赛待匹配池       | 赛事：{name}", PURPLE)
+                      log("INFO", f"初步准入 | 校验通过 | 赛事已进入季后赛待匹配池         | 赛事: {name}", PURPLE)
                       playoff_events.append(event)
                   else:
                       key = f"INTL_{name}" if is_intl else f"{ov}_{y}"
                       if key not in main_events:
-                          log("INFO", f"规则放行 [准入通过] | 赛事已加入主赛聚合列表       | 赛事：{name}", PURPLE)
+                          log("INFO", f"初步准入 | 校验通过 | 赛事已加入主赛聚合列表           | 赛事: {name}", PURPLE)
                           main_events[key] = event
                       else:
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
                           main_events[key]["end"] = max(main_events[key]["end"], e_dt)
 
-              log("INFO", "执行季后赛名称匹配与赛程延展模块...")
+              log("INFO", "-" * 85)
+              log("INFO", "启动季后赛数据关联匹配模块...")
               for p in playoff_events:
                   matched_key = None
                   for mk, m in main_events.items():
@@ -153,25 +157,26 @@ jobs:
                           break
                   if matched_key:
                       main_events[matched_key]["end"] = max(main_events[matched_key]["end"], p["end"])
-                      log("INFO", f"规则匹配延期 | 主赛：{main_events[matched_key]['name']:<30} <- 关联季后赛：{p['name']}")
+                      log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[matched_key]['name']:<25} | 关联季后赛: {p['name']}")
                   else:
-                      log("WARN", f"赛程分离 [匹配失败] | 未发现关联主赛：{p['name']}", YELLOW)
+                      log("WARN", f"关联失败 | 独立保留 | 未发现关联主赛条目的季后赛       | 赛事: {p['name']}", YELLOW)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
-              log("INFO", "启动生命周期管理与 JSON 构建模块...")
+              log("INFO", "-" * 85)
+              log("INFO", "启动生命周期终审模块...")
               final_output = []
               for v in main_events.values():
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
                       days_diff = (v["start"] - today_dt).days
-                      log("INFO", f"周期拦截 [尚未预热] | 距开赛 {days_diff:>3} 天 (阈值 {PREHEAT_DAYS}) | 赛事：{v['name']}", YELLOW)
+                      log("INFO", f"周期拦截 | 尚未预热 | 距开赛 {days_diff:>3} 天 (当前阈值 {PREHEAT_DAYS} 天) | 赛事: {v['name']}", YELLOW)
                       continue
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       days_diff = (today_dt - v["end"]).days
-                      log("INFO", f"周期拦截 [赛事过期] | 已结束 {days_diff:>3} 天 (阈值 {EXPIRE_DAYS}) | 赛事：{v['name']}", YELLOW)
+                      log("INFO", f"周期拦截 | 赛事过期 | 已结束 {days_diff:>3} 天 (当前阈值 {EXPIRE_DAYS} 天) | 赛事: {v['name']}", YELLOW)
                       continue
 
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                      log("INFO", f"周期放行 [宽限期保留] | 赛事：{v['name']} 处于宽限期内")
+                      log("INFO", f"周期放行 | 宽限期内 | 赛事已结束但仍在缓冲时间内       | 赛事: {v['name']}")
 
                   if v["is_intl"]:
                       slug_name = v["name"].lower().replace(str(v["year"]), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
@@ -180,7 +185,8 @@ jobs:
                       p_list = v["ov"].split('/')
                       slug = f"{v['year']}-{p_list[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', p_list[-1].lower()).strip('-')}"
                   
-                  log("INFO", f"确认准入 [写入就绪] | Slug: {slug:<30} | 赛事：{v['name']}", PURPLE)
+                  # 核心优化：语调改为“正式入选”，颜色改为 GREEN (亮绿)
+                  log("INFO", f"正式入选 | 确认准入 | Slug: {slug:<28} | 赛事: {v['name']}", GREEN)
                   final_output.append({"slug": slug, "overview_page": v["ov"], "start_date": str(v["start"]), "end_date": str(v["end"])})
 
               unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
