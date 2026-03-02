@@ -30,6 +30,10 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
           TZ: Asia/Korea
+          # 请在 GitHub Repository -> Settings -> Secrets and variables -> Actions 中配置这两个变量
+          # 注意：MediaWiki的 Bot Password 用户名格式通常为 "你的主用户名@机器人名称"
+          FANDOM_BOT_USERNAME: ${{ secrets.FANDOM_BOT_USERNAME }}
+          FANDOM_BOT_PASSWORD: ${{ secrets.FANDOM_BOT_PASSWORD }}
         shell: python
         run: |
           import requests, json, re, time, os, sys
@@ -79,19 +83,56 @@ jobs:
               log("INFO", "=" * 85)
 
               url = "https://lol.fandom.com/api.php"
+              
+              # 1. 初始化 Session 并固定 User-Agent
+              session = requests.Session()
+              session.headers.update({"User-Agent": "LoLStatsWorker/2026 (User:HsuX)"})
+
+              # 2. 鉴权登录流程 (Bot Password)
+              bot_user = os.environ.get("FANDOM_BOT_USERNAME")
+              bot_pass = os.environ.get("FANDOM_BOT_PASSWORD")
+              
+              if bot_user and bot_pass:
+                  try:
+                      # 获取 Login Token
+                      token_res = session.get(url, params={
+                          "action": "query", "meta": "tokens", "type": "login", "format": "json"
+                      }, timeout=15).json()
+                      login_token = token_res.get("query", {}).get("tokens", {}).get("logintoken")
+                      
+                      # 发起登录请求
+                      if login_token:
+                          login_res = session.post(url, data={
+                              "action": "login",
+                              "lgname": bot_user,
+                              "lgpassword": bot_pass,
+                              "lgtoken": login_token,
+                              "format": "json"
+                          }, timeout=15).json()
+                          
+                          if login_res.get("login", {}).get("result") == "Success":
+                              log("INFO", f"Fandom API 身份认证成功 | 用户: {bot_user}", GREEN)
+                          else:
+                              log("WARN", f"身份认证失败，将以匿名身份继续 | 详情: {login_res}", YELLOW)
+                  except Exception as e:
+                      log("WARN", f"登录环节发生网络或解析异常: {e}", YELLOW)
+              else:
+                  log("WARN", "未检测到凭证(FANDOM_BOT_USERNAME/PASSWORD)，以匿名身份抓取", YELLOW)
+
+              # 3. 抓取赛事数据 (Limit 已修改为 100)
               params = {
                   "action": "cargoquery", "format": "json", "tables": "Tournaments",
                   "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
                   "where": f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'",
-                  "order_by": "DateStart ASC", "limit": "400"
+                  "order_by": "DateStart ASC", "limit": "100"
               }
-              headers = {"User-Agent": "LoLStatsEnterprise/36.0"}
               
               data = []
               MAX_ATTEMPTS = 20
               for attempt in range(1, MAX_ATTEMPTS + 1):
                   try:
-                      resp = requests.get(url, params=params, headers=headers, timeout=30)
+                      # 使用带有鉴权状态的 session 进行请求
+                      resp = session.get(url, params=params, timeout=30)
                       resp.raise_for_status()
                       resp_json = resp.json()
                       if "error" in resp_json:
@@ -177,7 +218,6 @@ jobs:
 
                   if v["is_intl"]:
                       sn = v["name"].lower().replace(str(v["year"]), "").strip()
-                      # 应用缩写映射表
                       for full, short in SLUG_REPLACEMENTS.items():
                           sn = sn.replace(full, short)
                       slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', sn).strip('-')}"
