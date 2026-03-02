@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # 👇 1. 在这里全局定义文件名，以后只需修改这里
     env:
       TARGET_FILENAME: 'tournaments.json'
 
@@ -42,7 +41,6 @@ jobs:
           now = datetime.now()
           today_dt = now.date()
           
-          # 👇 2. Python 脚本直接读取全局环境变量
           TARGET_FILE = os.environ.get("TARGET_FILENAME")
           
           # 配置区
@@ -50,13 +48,14 @@ jobs:
           WHITELIST = ["LPL", "LCK"]
           BLACKLIST = ["Opening"]
           
-          # Slug 缩写映射表
-          SLUG_REPLACEMENTS = {
-              "first stand": "fst",
-              "mid-season invitational": "msi",
-              "world championship": "worlds",
-              "esports world cup": "ewc"
-          }
+          # 👇 核心改动：外置字典读取 (替换掉原来的 SLUG_REPLACEMENTS 和硬编码的 LEAGUE_MAPPING)
+          LEAGUE_MAPPING = {}
+          if os.path.exists("teams.json"):
+              try:
+                  with open("teams.json", "r", encoding="utf-8") as f:
+                      LEAGUE_MAPPING = json.load(f)
+              except Exception as e:
+                  print(f"读取 teams.json 异常: {e}", flush=True)
 
           RESET, RED, GREEN, YELLOW, PURPLE, BLACK = "\033[0m", "\033[91m", "\033[92m", "\033[93m", "\033[95m", "\033[30m"
 
@@ -119,7 +118,7 @@ jobs:
               while True:
                   params = {
                       "action": "cargoquery", "format": "json", "tables": "Tournaments",
-                      "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs",
+                      "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs, League",
                       "where": f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'",
                       "order_by": "DateStart ASC", "limit": str(limit), "offset": str(offset)
                   }
@@ -163,6 +162,8 @@ jobs:
               for item in all_data:
                   t = item["title"]
                   name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
+                  league_full = t.get("League", "")
+
                   if t.get("IsQualifier") == "1":
                       log("INFO", f"全局拦截 | 业务过滤 | 判定为预选赛 (Qualifier) | 赛事: {name}", BLACK)
                       continue
@@ -183,7 +184,7 @@ jobs:
                       log("WARN", f"日期异常 | 跳过赛事 | 赛事: {name} | 报错: {e}", YELLOW)
                       continue
 
-                  ev = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt}
+                  ev = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt, "league_full": league_full}
                   if t.get("IsPlayoffs") == "1" and not is_intl:
                       log("INFO", f"初步准入 | 校验通过 | 赛事已进入季后赛待匹配池 | 赛事: {name}", PURPLE)
                       playoff_events.append(ev)
@@ -223,12 +224,32 @@ jobs:
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       log("INFO", f"周期放行 | 宽限期内 | 赛事已结束但仍在宽限期内 | 赛事: {v['name']}")
 
+                  league_short = ""
+
                   if v["is_intl"]:
                       sn = v["name"].lower().replace(str(v["year"]), "").strip()
-                      for full, short in SLUG_REPLACEMENTS.items():
-                          sn = sn.replace(full, short)
+                      
+                      # 国际赛：遍历 teams.json 字典去匹配名字，并替换 Slug
+                      for full, short in LEAGUE_MAPPING.items():
+                          if full.lower() in sn:
+                              if not league_short:
+                                  league_short = str(short).upper()
+                          # 不管大小写，都进行替换，生成小写的 slug
+                          sn = sn.replace(full.lower(), str(short).lower())
+                      
+                      if not league_short:
+                          league_short = "INTL" # 如果都没匹配到，国际赛兜底
+                          
                       slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', sn).strip('-')}"
                   else:
+                      # 常规赛：优先匹配 teams.json 里的 League 全称
+                      mapped = LEAGUE_MAPPING.get(v.get("league_full", ""))
+                      if mapped:
+                          league_short = str(mapped).upper()
+                      else:
+                          # 字典没配的话兜底
+                          league_short = v["ov"].split('/')[0].upper()
+                          
                       pl = v["ov"].split('/')
                       league_name = pl[0].lower()
                       sub_name = re.sub(r'[^a-z0-9]+', '-', pl[-1].lower()).strip('-')
@@ -238,6 +259,7 @@ jobs:
                   
                   final_output.append({
                       "slug": slug, 
+                      "league": league_short,
                       "overview_page": [v["ov"]], 
                       "start_date": str(v["start"]), 
                       "end_date": str(v["end"])
@@ -268,5 +290,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "${{ steps.process_data.outputs.commit_msg }}"
-          # 👇 3. 提交插件读取全局环境变量
           file_pattern: ${{ env.TARGET_FILENAME }}
