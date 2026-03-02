@@ -48,7 +48,7 @@ jobs:
           WHITELIST = ["LPL", "LCK"]
           BLACKLIST = ["Opening"]
           
-          # 👇 核心改动：外置字典读取 (替换掉原来的 SLUG_REPLACEMENTS 和硬编码的 LEAGUE_MAPPING)
+          # 字典外置：读取本地 teams.json 作为联赛映射字典
           LEAGUE_MAPPING = {}
           if os.path.exists("teams.json"):
               try:
@@ -224,41 +224,23 @@ jobs:
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       log("INFO", f"周期放行 | 宽限期内 | 赛事已结束但仍在宽限期内 | 赛事: {v['name']}")
 
-                  league_short = ""
-
-                  if v["is_intl"]:
-                      sn = v["name"].lower().replace(str(v["year"]), "").strip()
-                      
-                      # 国际赛：遍历 teams.json 字典去匹配名字，并替换 Slug
-                      for full, short in LEAGUE_MAPPING.items():
-                          if full.lower() in sn:
-                              if not league_short:
-                                  league_short = str(short).upper()
-                          # 不管大小写，都进行替换，生成小写的 slug
-                          sn = sn.replace(full.lower(), str(short).lower())
-                      
-                      if not league_short:
-                          league_short = "INTL" # 如果都没匹配到，国际赛兜底
-                          
-                      slug = f"{v['year']}-{re.sub(r'[^a-z0-9]+', '-', sn).strip('-')}"
+                  # 联赛简写映射逻辑 (依赖外置 teams.json)
+                  mapped = LEAGUE_MAPPING.get(v.get("league_full", ""))
+                  if mapped:
+                      league_short = str(mapped).upper()
                   else:
-                      # 常规赛：优先匹配 teams.json 里的 League 全称
-                      mapped = LEAGUE_MAPPING.get(v.get("league_full", ""))
-                      if mapped:
-                          league_short = str(mapped).upper()
-                      else:
-                          # 字典没配的话兜底
-                          league_short = v["ov"].split('/')[0].upper()
-                          
-                      pl = v["ov"].split('/')
-                      league_name = pl[0].lower()
-                      sub_name = re.sub(r'[^a-z0-9]+', '-', pl[-1].lower()).strip('-')
-                      slug = f"{v['year']}-{league_name}-{sub_name}"
+                      # 字典里没配的话兜底
+                      league_short = "INTL" if v["is_intl"] else v["ov"].split('/')[0].upper()
+
+                  # 👇 极简核心逻辑：直接从 LP 获取 name 并生成 slug
+                  lp_name = v["name"]
+                  slug = lp_name.lower().replace(" ", "-")
                   
-                  log("INFO", f"确认准入 | 数据落库 | Slug: {slug} | 赛事: {v['name']}", GREEN)
+                  log("INFO", f"确认准入 | 数据落库 | Slug: {slug} | 赛事: {lp_name}", GREEN)
                   
                   final_output.append({
                       "slug": slug, 
+                      "name": lp_name,          # 👇 新增：原始 Name 字段落库
                       "league": league_short,
                       "overview_page": [v["ov"]], 
                       "start_date": str(v["start"]), 
