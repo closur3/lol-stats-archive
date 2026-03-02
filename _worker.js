@@ -40,29 +40,6 @@ const utils = {
 
     rate: (n, d) => d > 0 ? n / d : null,
     pct: (r) => r !== null ? `${Math.round(r * 100)}%` : "-",
-
-    // 标题解析：第一个非数字全大写，其余首字母大写
-    formatTitle: (slug) => {
-        if (!slug) return "";
-        return slug.split('-').map(w => {
-        // 1. 如果是数字，原样保留
-            if (!isNaN(w)) return w; 
-        
-        // 2. 如果长度等于 3，则全大写 (如 LCK, LPL)
-            if (w.length === 3) return w.toUpperCase();
-        
-        // 3. 其余情况：首字母大写，其余小写 (如 Spring, Cup)
-            return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-        }).join(' ');
-    },
-
-    getShortName: (slug) => {
-        if (!slug) return "";
-    // 优先找长度为 3 的非数字词，找不到则找第一个非数字词
-        const words = slug.split('-');
-        const target = words.find(w => isNaN(w) && w.length === 3) || words.find(w => isNaN(w)) || slug;
-        return target.toUpperCase();
-    },
     
     color: (r, rev = false) => {
         if (r === null) return "#f1f5f9"; 
@@ -398,7 +375,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     allFutureMatches[matchDateStr].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
-                        tourn: utils.getShortName(tourn.slug), tournSlug: tourn.slug,
+                        tourn: tourn.league || tourn.slug, tournSlug: tourn.slug,
                         tournIndex: tournIdx, blockName: blockName || ""  
                     });
                 }
@@ -509,7 +486,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 // --- 6. Markdown 生成器 (静态 1:1 复制版) ---
 function generateMarkdown(tourn, stats, timeGrid) {
     const UPDATED_TIME = utils.getNow().full;
-    let md = `# ${utils.formatTitle(tourn.slug)}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    let md = `# ${tourn.name || tourn.slug}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     // 调用公用排序函数
     const sorted = utils.sortTeams(stats);
@@ -959,7 +936,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             timeTableHtml += "</tbody></table>";
         }
 
-        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${utils.formatTitle(t.slug)}</a>`;
+        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.name || t.slug}</a>`;
         if (isArchive) {
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">${tableBody}${timeTableHtml}</div></details>`;
@@ -1034,12 +1011,12 @@ async function runUpdate(env, force=false) {
     
     let runtimeConfig = null;
     try {
-        const teams = await gh.fetchJson(env, "teams.json");
-        const tourns = await gh.fetchJson(env, "tournaments.json");
+        const teams = await gh.fetchJson(env, "mapping.json");
+        const tourns = await gh.fetchJson(env, "tour.json");
         if (teams && tourns) runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
     } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
 
-    if (!runtimeConfig) { l.error("🛑 CONFIG ERROR: Failed to load or parse teams.json / tournaments.json."); return l; }
+    if (!runtimeConfig) { l.error("🛑 CONFIG ERROR: Failed to load or parse json."); return l; }
     if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
