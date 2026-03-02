@@ -10,7 +10,7 @@
 // ====================================================
 
 const UI_VERSION = "2026-02-26-V41.2.9-Clean";
-const BOT_UA = `LoLStatsWorker/${UI_VERSION} (User:HsuX)`;
+const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
