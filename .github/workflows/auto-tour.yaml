@@ -55,7 +55,6 @@ jobs:
 
           def get_robust_session():
               session = requests.Session()
-              # 网络层指数退避：1s, 2s, 4s, 8s, 16s
               retry_strategy = Retry(total=5, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504], allowed_methods=["GET"])
               session.mount("https://", HTTPAdapter(max_retries=retry_strategy))
               return session
@@ -91,7 +90,6 @@ jobs:
                       if "error" in resp_json:
                           err_info = resp_json["error"]
                           log("WARN", f"API 应用层异常 (重试 {attempt}/{MAX_ATTEMPTS}) | 详情：{err_info}")
-                          # 👈 应用层退避：15s, 30s, 45s, 60s, 75s
                           if "ratelimit" in str(err_info).lower() or "limit" in str(err_info).lower():
                               sleep_time = 15 * attempt
                               log("WARN", f"触发速率限制 (Rate Limit) | 系统挂起等待 {sleep_time} 秒...")
@@ -102,11 +100,10 @@ jobs:
                       data = resp_json.get("cargoquery", [])
                       if data: break
                       else:
-                          log("WARN", "API 响应数据集为空，可能未匹配到符合条件的赛事。")
+                          log("WARN", "API 响应数据集为空。")
                           break
 
                   except requests.exceptions.RequestException as e:
-                      # 👈 网络波动退避：5s, 10s, 15s, 20s, 25s
                       wait_sec = 5 * attempt
                       log("ERROR", f"网络通信故障 (重试 {attempt}/{MAX_ATTEMPTS}) | 等待 {wait_sec}s | 详情：{e}")
                       time.sleep(wait_sec)
@@ -118,13 +115,29 @@ jobs:
               main_events = {}
               playoff_events = []
 
+              log("INFO", "启动数据校验与分离聚合模块...")
               for item in data:
                   t = item["title"]
                   name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
                   is_playoffs, is_qualifier = t.get("IsPlayoffs"), t.get("IsQualifier")
-                  if is_qualifier == "1" or any(k.lower() in name.lower() for k in BLACKLIST): continue
+                  
+                  # 👈 找回 DEBUG：全局拦截日志
+                  if is_qualifier == "1":
+                      log("DEBUG", f"全局拦截 [底层属性] | 判定为预选赛 | 赛事：{name}")
+                      continue
+                  
+                  hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
+                  if hit_black:
+                      log("DEBUG", f"全局拦截 [命中黑名] | 匹配项：{hit_black} | 赛事：{name}")
+                      continue
+
                   is_intl = (region == 'International')
-                  if not (is_intl or any(k.upper() in ov.upper() for k in WHITELIST)): continue
+                  hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
+                  
+                  if not (is_intl or hit_white):
+                      log("DEBUG", f"全局拦截 [非目标项] | 非国际赛且未命中白名单 | 赛事：{name}")
+                      continue
+
                   try:
                       s_dt = datetime.strptime(t["DateStart"], '%Y-%m-%d').date()
                       e_dt = datetime.strptime(t["Date"], '%Y-%m-%d').date() if t.get("Date") else s_dt
@@ -145,7 +158,6 @@ jobs:
                   matched_key = None
                   for mk, m in main_events.items():
                       if m["is_intl"] or m["year"] != p["year"]: continue
-                      # 严格执行: isplayoffs=0 的 LIKE 匹配 isplayoffs=1
                       if m["name"] in p["name"]:
                           matched_key = mk
                           break
@@ -156,10 +168,21 @@ jobs:
                       log("WARN", f"赛程分离 [无关联主赛] | 季后赛：{p['name']}")
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
+              log("INFO", "启动生命周期管理与 JSON 构建模块...")
               final_output = []
               for v in main_events.values():
-                  if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)) or today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
+                  # 👈 找回 DEBUG：尚未预热日志
+                  if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
+                      days_diff = (v["start"] - today_dt).days
+                      log("DEBUG", f"周期拦截 [尚未预热] | 距开赛 {days_diff} 天 (阈值 {PREHEAT_DAYS}) | 赛事：{v['name']}")
                       continue
+
+                  # 👈 找回 DEBUG：赛事过期日志
+                  if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
+                      days_diff = (today_dt - v["end"]).days
+                      log("DEBUG", f"周期拦截 [赛事过期] | 已结束 {days_diff} 天 (阈值 {EXPIRE_DAYS}) | 赛事：{v['name']}")
+                      continue
+
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       log("INFO", f"周期放行 [缓冲期保留] | 赛事：{v['name']}")
 
