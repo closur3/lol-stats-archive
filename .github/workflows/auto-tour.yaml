@@ -45,7 +45,7 @@ jobs:
           PREHEAT_DAYS = 7
           EXPIRE_DAYS  = 1
           WHITELIST    = ["LPL", "LCK"]
-          BLACKLIST    = ["Opening"]
+          BLACKLIST    = ["Opening", "Promotion", "KeSPA", "Showmatch", "LCK CL", "LPLOL", "Secondary", "Qualifier", "Academy", "Division"]
 
           # ── ANSI 颜色定义 ────────────────────────────────────────────────
           RESET  = "\033[0m"
@@ -55,8 +55,16 @@ jobs:
           YELLOW = "\033[93m"
           PURPLE = "\033[95m"
 
-          # 第三列统一宽度（纯 ASCII，用 str.ljust 即可完美对齐）
-          # 最长候选: "SLUG:2026-esports-nations-cup" = 29
+          def wlen(s):
+              w = 0
+              for c in s:
+                  w += 2 if '\u4e00' <= c <= '\u9fff' or '\u3000' <= c <= '\u303f' or '\uff00' <= c <= '\uffef' else 1
+              return w
+
+          def wfill(s, width):
+              return s + " " * max(0, width - wlen(s))
+
+          # 第三列统一显示宽度，最长候选: "归档:2026-esports-nations-cup" = 29
           W3 = 29
 
           def log(level, msg, color=BLACK):
@@ -121,16 +129,16 @@ jobs:
                   is_playoffs, is_qualifier = t.get("IsPlayoffs"), t.get("IsQualifier")
 
                   if is_qualifier == "1":
-                      log("INFO", f"全局拦截 | 业务过滤 | {'QUALIFIER_BLOCK':<{W3}} | 赛事: {name}", BLACK)
+                      log("INFO", f"全局拦截 | 业务过滤 | {wfill('判定为预选赛', W3)} | 赛事: {name}", BLACK)
                       continue
                   hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
                   if hit_black:
-                      log("INFO", f"全局拦截 | 业务过滤 | {f'BLACKLIST:{hit_black}':<{W3}} | 赛事: {name}", BLACK)
+                      log("INFO", f"全局拦截 | 业务过滤 | {wfill(f'命中黑名单:{hit_black}', W3)} | 赛事: {name}", BLACK)
                       continue
                   is_intl = (region == 'International')
                   hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
                   if not (is_intl or hit_white):
-                      log("INFO", f"全局拦截 | 业务过滤 | {'NON_WHITELIST':<{W3}} | 赛事: {name}", BLACK)
+                      log("INFO", f"全局拦截 | 业务过滤 | {wfill('非白名单区域', W3)} | 赛事: {name}", BLACK)
                       continue
 
                   try:
@@ -140,12 +148,12 @@ jobs:
 
                   event = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt}
                   if is_playoffs == "1" and not is_intl:
-                      log("INFO", f"初步准入 | 校验通过 | {'ADMITTED:PLAYOFF':<{W3}} | 赛事: {name}", PURPLE)
+                      log("INFO", f"初步准入 | 校验通过 | {wfill('进入季后赛池', W3)} | 赛事: {name}", PURPLE)
                       playoff_events.append(event)
                   else:
                       key = f"INTL_{name}" if is_intl else f"{ov}_{y}"
                       if key not in main_events:
-                          log("INFO", f"初步准入 | 校验通过 | {'ADMITTED:MAIN':<{W3}} | 赛事: {name}", PURPLE)
+                          log("INFO", f"初步准入 | 校验通过 | {wfill('加入主赛列表', W3)} | 赛事: {name}", PURPLE)
                           main_events[key] = event
                       else:
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
@@ -162,10 +170,10 @@ jobs:
                           break
                   if matched_key:
                       main_name = main_events[matched_key]['name']
-                      log("INFO", f"赛程合并 | 规则延期 | {'MERGED:PLAYOFF':<{W3}} | 主赛: {main_name} + {p['name']}")
+                      log("INFO", f"赛程合并 | 规则延期 | {wfill('合并季后赛程', W3)} | 主赛: {main_name} + {p['name']}")
                       main_events[matched_key]["end"] = max(main_events[matched_key]["end"], p["end"])
                   else:
-                      log("WARN", f"关联失败 | 独立保留 | {'UNMATCHED_PLAYOFF':<{W3}} | 赛事: {p['name']}", YELLOW)
+                      log("WARN", f"关联失败 | 独立保留 | {wfill('未匹配季后赛', W3)} | 赛事: {p['name']}", YELLOW)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
               log("INFO", "-" * 85)
@@ -174,17 +182,17 @@ jobs:
               for v in main_events.values():
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
                       days_diff = (v["start"] - today_dt).days
-                      col3 = f"PREHEAT +{days_diff}d /-{PREHEAT_DAYS}d"
-                      log("INFO", f"周期拦截 | 尚未预热 | {col3:<{W3}} | 赛事: {v['name']}", YELLOW)
+                      col3 = f"距开赛{days_diff}天/阈值{PREHEAT_DAYS}天"
+                      log("INFO", f"周期拦截 | 尚未预热 | {wfill(col3, W3)} | 赛事: {v['name']}", YELLOW)
                       continue
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       days_diff = (today_dt - v["end"]).days
-                      col3 = f"EXPIRED +{days_diff}d /-{EXPIRE_DAYS}d"
-                      log("INFO", f"周期拦截 | 赛事过期 | {col3:<{W3}} | 赛事: {v['name']}", YELLOW)
+                      col3 = f"已过期{days_diff}天/阈值{EXPIRE_DAYS}天"
+                      log("INFO", f"周期拦截 | 赛事过期 | {wfill(col3, W3)} | 赛事: {v['name']}", YELLOW)
                       continue
 
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                      log("INFO", f"周期放行 | 宽限期内 | {'GRACE_PERIOD':<{W3}} | 赛事: {v['name']}")
+                      log("INFO", f"周期放行 | 宽限期内 | {wfill('宽限期内', W3)} | 赛事: {v['name']}")
 
                   if v["is_intl"]:
                       slug_name = v["name"].lower().replace(str(v["year"]), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
@@ -193,7 +201,7 @@ jobs:
                       p_list = v["ov"].split('/')
                       slug = f"{v['year']}-{p_list[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', p_list[-1].lower()).strip('-')}"
 
-                  log("INFO", f"确认准入 | 数据落库 | {f'SLUG:{slug}':<{W3}} | 赛事: {v['name']}", GREEN)
+                  log("INFO", f"确认准入 | 数据落库 | {wfill(f'归档:{slug}', W3)} | 赛事: {v['name']}", GREEN)
                   final_output.append({"slug": slug, "overview_page": v["ov"], "start_date": str(v["start"]), "end_date": str(v["end"])})
 
               unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
