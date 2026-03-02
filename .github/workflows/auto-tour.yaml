@@ -50,15 +50,8 @@ jobs:
           # ── ANSI 颜色 & 日志工具 ──────────────────────────────────────────
           RESET, BLACK, YELLOW, RED = "\033[0m", "\033[30m", "\033[93m", "\033[91m"
           def log(level, msg):
-              # 统一使用标准业务色，只有警告和错误高亮
               colors = {"INFO": BLACK, "WARN": YELLOW, "ERROR": RED}
               print(f"{colors.get(level, RESET)}[{level:<5}]  {msg}{RESET}", flush=True)
-
-          def get_robust_session():
-              session = requests.Session()
-              retry_strategy = Retry(total=5, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504], allowed_methods=["GET"])
-              session.mount("https://", HTTPAdapter(max_retries=retry_strategy))
-              return session
 
           def run_sniff():
               old_slugs = set()
@@ -78,37 +71,44 @@ jobs:
               log("INFO", f"系统初始化完成 (日期: {today_dt})，开始执行赛事自动化工作流。")
               log("INFO", "=" * 74)
 
-              session = get_robust_session()
-              data = []
+              session = requests.Session()
+              # 保持底层基础重试
+              session.mount("https://", HTTPAdapter(max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[429, 502, 503, 504])))
               
+              data = []
               MAX_ATTEMPTS = 5
               for attempt in range(1, MAX_ATTEMPTS + 1):
                   try:
                       resp = session.get(url, params=params, headers=headers, timeout=30)
                       resp.raise_for_status()
                       resp_json = resp.json()
+
+                      # 检查 API 逻辑错误 (通常是 ratelimit)
                       if "error" in resp_json:
-                          err_info = resp_json["error"]
-                          log("WARN", f"API 应用层异常 (重试 {attempt}/{MAX_ATTEMPTS}) | 详情：{err_info}")
-                          if "ratelimit" in str(err_info).lower() or "limit" in str(err_info).lower():
-                              sleep_time = 15 * attempt
-                              time.sleep(sleep_time)
-                              continue
-                          else: break
+                          err_msg = str(resp_json["error"])
+                          # 👈 统一退避逻辑：只要报错，一律 15s * attempt
+                          sleep_time = 15 * attempt
+                          log("WARN", f"API 访问受限 (重试 {attempt}/{MAX_ATTEMPTS}) | 挂起 {sleep_time}s | 详情：{err_msg}")
+                          time.sleep(sleep_time)
+                          continue
+
                       data = resp_json.get("cargoquery", [])
                       if data: break
-                      else: break
-                  except requests.exceptions.RequestException as e:
-                      wait_sec = 5 * attempt
-                      log("ERROR", f"网络通信故障 (重试 {attempt}/{MAX_ATTEMPTS}) | 等待 {wait_sec}s")
-                      time.sleep(wait_sec)
+                      else:
+                          log("WARN", "API 响应数据集为空。")
+                          break
+
+                  except Exception as e:
+                      # 👈 统一退避逻辑：网络异常也直接使用 15s 起步逻辑
+                      sleep_time = 15 * attempt
+                      log("ERROR", f"网络/系统故障 (重试 {attempt}/{MAX_ATTEMPTS}) | 挂起 {sleep_time}s | 详情：{e}")
+                      time.sleep(sleep_time)
 
               if not data:
-                  log("ERROR", "致命错误：数据抓取异常中止。")
+                  log("ERROR", "致命错误：已耗尽所有重试机会，抓取任务终止。")
                   return
 
-              main_events = {}
-              playoff_events = []
+              main_events, playoff_events = {}, []
 
               log("INFO", f"API 请求成功 | 原始数据共 {len(data)} 条。")
               log("INFO", "启动准入规则过滤模块...")
@@ -117,19 +117,15 @@ jobs:
                   name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
                   is_playoffs, is_qualifier = t.get("IsPlayoffs"), t.get("IsQualifier")
                   
-                  # 👈 变更：全部改为 INFO 输出
                   if is_qualifier == "1":
                       log("INFO", f"全局拦截 [业务过滤] | 判定为预选赛 (IsQualifier=1) | 赛事：{name}")
                       continue
-                  
                   hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
                   if hit_black:
                       log("INFO", f"全局拦截 [业务过滤] | 命中黑名单关键词 ({hit_black}) | 赛事：{name}")
                       continue
-
                   is_intl = (region == 'International')
                   hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
-                  
                   if not (is_intl or hit_white):
                       log("INFO", f"全局拦截 [业务过滤] | 非国际赛且未命中白名单区域 | 赛事：{name}")
                       continue
@@ -141,10 +137,13 @@ jobs:
 
                   event = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt}
                   if is_playoffs == "1" and not is_intl:
+                      log("INFO", f"规则放行 [准入通过] | 赛事已进入季后赛待匹配池 | 赛事：{name}")
                       playoff_events.append(event)
                   else:
                       key = f"INTL_{name}" if is_intl else f"{ov}_{y}"
-                      if key not in main_events: main_events[key] = event
+                      if key not in main_events:
+                          log("INFO", f"规则放行 [准入通过] | 赛事已加入主赛聚合列表 | 赛事：{name}")
+                          main_events[key] = event
                       else:
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
                           main_events[key]["end"] = max(main_events[key]["end"], e_dt)
@@ -161,25 +160,23 @@ jobs:
                       main_events[matched_key]["end"] = max(main_events[matched_key]["end"], p["end"])
                       log("INFO", f"规则匹配延期 | 主赛：{main_events[matched_key]['name']} <- 关联季后赛：{p['name']}")
                   else:
-                      log("WARN", f"赛程分离 [匹配失败] | 未发现关联主赛条目的季后赛：{p['name']}")
+                      log("WARN", f"赛程分离 [匹配失败] | 未发现关联主赛：{p['name']}")
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
               log("INFO", "启动生命周期管理与 JSON 构建模块...")
               final_output = []
               for v in main_events.values():
-                  # 👈 变更：全部改为 INFO 输出
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
                       days_diff = (v["start"] - today_dt).days
-                      log("INFO", f"周期拦截 [尚未预热] | 距开赛 {days_diff} 天 (当前阈值 {PREHEAT_DAYS}) | 赛事：{v['name']}")
+                      log("INFO", f"周期拦截 [尚未预热] | 距开赛 {days_diff} 天 (阈值 {PREHEAT_DAYS}) | 赛事：{v['name']}")
                       continue
-
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       days_diff = (today_dt - v["end"]).days
-                      log("INFO", f"周期拦截 [赛事过期] | 已结束 {days_diff} 天 (当前阈值 {EXPIRE_DAYS}) | 赛事：{v['name']}")
+                      log("INFO", f"周期拦截 [赛事过期] | 已结束 {days_diff} 天 (阈值 {EXPIRE_DAYS}) | 赛事：{v['name']}")
                       continue
 
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                      log("INFO", f"周期放行 [缓冲期保留] | 赛事：{v['name']} 处于宽限期内")
+                      log("INFO", f"周期放行 [宽限期保留] | 赛事：{v['name']} 处于宽限期内")
 
                   if v["is_intl"]:
                       slug_name = v["name"].lower().replace(str(v["year"]), "").replace("mid-season invitational", "msi").replace("world championship", "worlds").replace("esports world cup", "ewc").strip()
@@ -188,7 +185,7 @@ jobs:
                       p_list = v["ov"].split('/')
                       slug = f"{v['year']}-{p_list[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', p_list[-1].lower()).strip('-')}"
                   
-                  log("INFO", f"数据就绪 [写入待定] | 拟生成 Slug: {slug:<25} | 赛事：{v['name']}")
+                  log("INFO", f"确认准入 [写入就绪] | Slug: {slug:<30} | 赛事：{v['name']}")
                   final_output.append({"slug": slug, "overview_page": v["ov"], "start_date": str(v["start"]), "end_date": str(v["end"])})
 
               unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
