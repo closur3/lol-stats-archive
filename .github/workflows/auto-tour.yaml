@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Extract, Validate and Aggregate Data
+      - name: Sync Tournament Data
         id: process_data
         env:
           PYTHONUNBUFFERED: "1"
@@ -50,14 +50,13 @@ jobs:
           # ── ANSI 颜色定义 ────────────────────────────────────────────────
           RESET  = "\033[0m"
           BLACK  = "\033[30m"
-          RED    = "\033[91m"   # 全局拦截
-          GREEN  = "\033[92m"   # 最终准入 (亮绿)
-          YELLOW = "\033[93m"   # 周期拦截/警告
-          PURPLE = "\033[95m"   # 初步准入 (亮紫)
-          
+          RED    = "\033[91m"
+          GREEN  = "\033[92m"
+          YELLOW = "\033[93m"
+          PURPLE = "\033[95m"
+
           def log(level, msg, color=BLACK):
-              # 保持 [INFO] 紧凑，去除多余空格
-              print(f"{color}[{level:<5}] {msg}{RESET}", flush=True)
+              print(f"{color}[{level}] {msg}{RESET}", flush=True)
 
           def run_sniff():
               old_slugs = set()
@@ -79,7 +78,7 @@ jobs:
 
               session = requests.Session()
               session.mount("https://", HTTPAdapter(max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[429, 502, 503, 504])))
-              
+
               data = []
               MAX_ATTEMPTS = 5
               for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -98,23 +97,25 @@ jobs:
                       else: break
                   except Exception as e:
                       sleep_time = 15 * attempt
-                      log("ERROR", f"网络故障    | 重试 {attempt}/{MAX_ATTEMPTS} | 挂起 {sleep_time}s | 详情: {e}", RED)
+                      log("WARN", f"网络故障   | 重试 {attempt}/{MAX_ATTEMPTS} | 挂起 {sleep_time}s | 详情: {e}", YELLOW)
                       time.sleep(sleep_time)
 
               if not data:
-                  log("ERROR", "任务中止    | 已耗尽所有重试机会，无法获取原始数据。", RED)
+                  log("WARN", "任务中止   | 已耗尽所有重试机会，无法获取原始数据。", RED)
                   return
 
               main_events, playoff_events = {}, []
 
               log("INFO", f"数据同步成功 | 原始数据共计 {len(data)} 条")
               log("INFO", "-" * 85)
-              
+
+              # ── 列宽常量（第一段日志）─────────────────────────────────────
+              # 格式: [阶段(4)] | [类型(4)] | [说明(固定宽)] | 赛事: {name}
               for item in data:
                   t = item["title"]
                   name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
                   is_playoffs, is_qualifier = t.get("IsPlayoffs"), t.get("IsQualifier")
-                  
+
                   if is_qualifier == "1":
                       log("INFO", f"全局拦截 | 业务过滤 | 判定为预选赛 (Qualifier)        | 赛事: {name}", BLACK)
                       continue
@@ -156,8 +157,9 @@ jobs:
                           matched_key = mk
                           break
                   if matched_key:
+                      main_name = main_events[matched_key]['name']
+                      log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_name:<25} | 关联季后赛: {p['name']}")
                       main_events[matched_key]["end"] = max(main_events[matched_key]["end"], p["end"])
-                      log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[matched_key]['name']:<25} | 关联季后赛: {p['name']}")
                   else:
                       log("WARN", f"关联失败 | 独立保留 | 未发现关联主赛条目的季后赛       | 赛事: {p['name']}", YELLOW)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
@@ -184,9 +186,8 @@ jobs:
                   else:
                       p_list = v["ov"].split('/')
                       slug = f"{v['year']}-{p_list[0].lower()}-{re.sub(r'[^a-z0-9]+', '-', p_list[-1].lower()).strip('-')}"
-                  
-                  # 核心优化：语调改为“正式入选”，颜色改为 GREEN (亮绿)
-                  log("INFO", f"正式入选 | 确认准入 | Slug: {slug:<28} | 赛事: {v['name']}", GREEN)
+
+                  log("INFO", f"正式入选 | 确认准入 | Slug: {slug:<40} | 赛事: {v['name']}", GREEN)
                   final_output.append({"slug": slug, "overview_page": v["ov"], "start_date": str(v["start"]), "end_date": str(v["end"])})
 
               unique_res = sorted([dict(t) for t in {tuple(d.items()) for d in final_output}], key=lambda x: x['slug'])
@@ -196,10 +197,10 @@ jobs:
               new_slugs = {item["slug"] for item in unique_res}
               added, removed = new_slugs - old_slugs, old_slugs - new_slugs
               msg = []
-              if added: msg.append(f"➕ {len(added)} added: {', '.join(added)}")
-              if removed: msg.append(f"➖ {len(removed)} removed: {', '.join(removed)}")
-              commit_msg = f"📊 Data Sync: {' | '.join(msg)}" if msg else f"🔄 Data Sync: {len(unique_res)} tournaments updated"
-              
+              if added:   msg.append(f"➕ {', '.join(sorted(added))}")
+              if removed: msg.append(f"➖ {', '.join(sorted(removed))}")
+              commit_msg = f"📊 Data Sync: {' | '.join(msg)}" if msg else f"🔄 Data Sync: no changes"
+
               if "GITHUB_OUTPUT" in os.environ:
                   with open(os.environ["GITHUB_OUTPUT"], "a") as f: f.write(f"commit_msg={commit_msg}\n")
 
