@@ -117,8 +117,8 @@ jobs:
               while True:
                   params = {
                       "action": "cargoquery", "format": "json", "tables": "Tournaments",
-                      "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsQualifier, IsPlayoffs, League",
-                      "where": f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary'",
+                      "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsPlayoffs, League",
+                      "where": f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary' AND IsQualifier = '0'",
                       "order_by": "DateStart ASC", "limit": str(limit), "offset": str(offset)
                   }
                   
