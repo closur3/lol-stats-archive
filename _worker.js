@@ -47,13 +47,14 @@ const utils = {
         return `hsl(${parseInt(hue)}, 55%, 50%)`;
     },
     
-    colorDate: (ts, minTs, maxTs) => {
-        if (!ts) return "#9ca3af"; 
-        if (maxTs === minTs) return "hsl(215, 80%, 50%)";
-        const factor = (ts - minTs) / (maxTs - minTs);
-        const sat = Math.round(factor * 60 + 20); 
-        const lig = Math.round(60 - factor * 10);
-        return `hsl(215, ${sat}%, ${lig}%)`;
+    colorDate: (ts) => {
+        if (!ts) return "#9ca3af";
+        const diffDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
+        if (diffDays <= 1) return "hsl(215, 80%, 45%)";
+        if (diffDays <= 3) return "hsl(215, 70%, 50%)";
+        if (diffDays <= 7) return "hsl(215, 55%, 55%)";
+        if (diffDays <= 14) return "hsl(215, 35%, 60%)";
+        return "hsl(215, 15%, 70%)";
     },
     
     parseDate: (str) => {
@@ -875,16 +876,6 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
         const debugLabel = `<span style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px">${timeStr}</span>`;
 
-        // 2. 计算日期颜色范围
-        let minTs = 9999999999999, maxTsLocal = 0;
-        stats.forEach(s => { 
-            if(s.last){ 
-                if(s.last < minTs) minTs = s.last; 
-                if(s.last > maxTsLocal) maxTsLocal = s.last; 
-            }
-        });
-        if(minTs === 9999999999999) minTs = maxTsLocal;
-
         // 3. 生成 Statistics 统计行
         const rows = stats.map(s => {
             const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
@@ -895,7 +886,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
             const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
             const last = s.last ? utils.fmtDate(s.last).slice(0) : "-";
-            const lastColor = utils.colorDate(s.last, minTs, maxTsLocal);
+            const lastColor = utils.colorDate(s.last);
             const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
             const cls = (base, count) => count > 0 ? `${base} team-clickable` : base;
             const clk = (slug, name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${name}', '${type}')"` : "";
