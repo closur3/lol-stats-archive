@@ -1204,14 +1204,18 @@ async function runUpdate(env, force=false) {
     return l;
 }
 
-function renderLogPage(logs) {
+function renderLogPage(logs, time, sha) {
     if (!Array.isArray(logs)) logs = [];
     const entries = logs.map(l => {
         let lvlClass = "lvl-inf";
-        if(l.l==="ERROR") lvlClass = "lvl-err";
-        if(l.l==="SUCCESS") lvlClass = "lvl-ok";
+        if(l.l === "ERROR") lvlClass = "lvl-err";
+        if(l.l === "SUCCESS") lvlClass = "lvl-ok";
         return `<li class="log-entry"><span class="log-time">${l.t}</span><span class="log-level ${lvlClass}">${l.l}</span><span class="log-msg">${l.m}</span></li>`;
     }).join("");
+
+    // 截取 7 位用于显示
+    const shortSha = (sha || "").slice(0, 7) || "unknown";
+
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -1232,6 +1236,20 @@ function renderLogPage(logs) {
         .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
         .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
+        
+        /* 极简页脚样式 */
+        .build-footer { 
+            text-align: center; 
+            padding: 20px; 
+            color: #94a3b8; 
+            font-size: 11px; 
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            border-top: 1px solid #f1f5f9; 
+        }
+        .build-footer b { color: #64748b; }
+        .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
+        .build-footer a:hover { opacity: 1; text-decoration: underline; }
+
         @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } .log-time { font-size: 12px; opacity: 0.7; text-align: left; } .log-level { display: inline-block; width: auto; padding: 3px 10px; } }
     </style>
 </head>
@@ -1250,6 +1268,10 @@ function renderLogPage(logs) {
     <div class="container">
         <ul class="log-list">${entries}</ul>
         ${logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : ''}
+        
+        <div class="build-footer">
+            deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
+        </div>
     </div>
     
     <script>
@@ -1324,7 +1346,12 @@ export default {
 
             case "/logs": {
                 const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-                return new Response(renderLogPage(logs), { headers: { "content-type": "text/html;charset=utf-8" } });
+                const time = env.GITHUB_TIME;
+                const sha = env.GITHUB_SHA;
+
+            return new Response(renderLogPage(logs, time, sha), { 
+                headers: { "content-type": "text/html;charset=utf-8" } 
+                });
             }
             
             case "/archive": {
