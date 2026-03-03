@@ -1166,10 +1166,6 @@ async function runUpdate(env, force=false) {
         if (oldMode === "fast" && newMode === "slow") l.success(`💤 SlowMode: ${slug} Entering SLOW mode`);
         else if (oldMode === "slow" && newMode === "fast") l.info(`⚡ FastMode: ${slug} Activating FAST mode`);
     });
-
-    const homeFragment = renderContentOnly(
-        analysis.globalStats, analysis.timeGrid, analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, false
-    );
     
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
         globalStats: analysis.globalStats,
@@ -1181,20 +1177,18 @@ async function runUpdate(env, force=false) {
         updateTime: utils.getNow(),
         runtimeConfig,
         rawMatches: cache.rawMatches,
-        updateTimestamps: cache.updateTimestamps,
-        homeHtml: homeFragment 
+        updateTimestamps: cache.updateTimestamps
     }));
 
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const slug = tourn.slug;
         if (!analysis.globalStats[slug]) continue;
-        const singleConfig = { TOURNAMENTS: [tourn] };
-        const singleFragment = renderContentOnly(
-            { [slug]: analysis.globalStats[slug] },
-            { [slug]: analysis.timeGrid[slug] },
-            {}, singleConfig, cache.updateTimestamps, true
-        );
-        await env.LOL_KV.put(`ARCHIVE_${slug}`, singleFragment);
+        const snapshot = {
+            tourn: tourn,
+            rawMatches: cache.rawMatches[slug] || [],
+            updateTimestamps: { [slug]: cache.updateTimestamps[slug] }
+        };
+        await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
     }
 
     await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
@@ -1405,11 +1399,30 @@ export default {
             case "/archive": {
                 const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
                 if (!allKeys.keys.length) return new Response("No archive data available.", { headers: { "content-type": "text/html" } });
+
                 allKeys.keys.sort((a, b) => b.name.localeCompare(a.name));
-                const fragments = await Promise.all(
-                    allKeys.keys.map(k => env.LOL_KV.get(k.name))
+
+                const cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
+
+                const snapshots = await Promise.all(
+                    allKeys.keys.map(k => env.LOL_KV.get(k.name, { type: "json" }))
                 );
-                const combined = `<div class="arch-content">${fragments.filter(Boolean).join("")}</div>`;
+
+                const fragments = snapshots.filter(Boolean).map(snap => {
+                    const miniConfig = { TEAM_MAP: teamMap, TOURNAMENTS: [snap.tourn] };
+                    const analysis = runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches }, {}, miniConfig);
+                    return renderContentOnly(
+                        { [snap.tourn.slug]: analysis.globalStats[snap.tourn.slug] },
+                        { [snap.tourn.slug]: analysis.timeGrid[snap.tourn.slug] },
+                        {},
+                        { TOURNAMENTS: [snap.tourn] },
+                        snap.updateTimestamps,
+                        true
+                    );
+                });
+
+                const combined = `<div class="arch-content">${fragments.join("")}</div>`;
                 const fullPage = renderPageShell("LoL Archive", combined, "", "archive");
                 return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
             }
@@ -1418,15 +1431,11 @@ export default {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache) return new Response("Initializing... <a href='/force'>Click to Build</a>", { headers: { "content-type": "text/html" } });
 
-                let homeFragment;
-                if (cache.homeHtml) {
-                    homeFragment = cache.homeHtml;
-                } else {
-                    homeFragment = renderContentOnly(
-                        cache.globalStats, cache.timeGrid, cache.scheduleMap, cache.runtimeConfig || { TOURNAMENTS: [] }, cache.updateTimestamps, false
-                    );
-                }
-
+                const homeFragment = renderContentOnly(
+                    cache.globalStats, cache.timeGrid, cache.scheduleMap,
+                    cache.runtimeConfig || { TOURNAMENTS: [] },
+                    cache.updateTimestamps, false
+                );
                 const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
                 return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
             }
