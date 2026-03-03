@@ -1041,7 +1041,7 @@ async function runUpdate(env, force=false) {
             });
             needsNetworkUpdate = true;
         } else {
-            waitings.push(`${t.slug.toUpperCase()} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
+            waitings.push(`${t.league} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
         }
     });
 
