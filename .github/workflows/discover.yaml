@@ -118,7 +118,7 @@ jobs:
                   params = {
                       "action": "cargoquery", "format": "json", "tables": "Tournaments",
                       "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsPlayoffs, League",
-                      "where": f"(Year = '{now.year}' OR Year = '{now.year + 1}') AND DateStart IS NOT NULL AND TournamentLevel = 'Primary' AND IsQualifier = '0'",
+                      "where": f"Year = '{now.year}' AND DateStart IS NOT NULL AND TournamentLevel = 'Primary' AND IsQualifier = '0'",
                       "order_by": "DateStart ASC", "limit": str(limit), "offset": str(offset)
                   }
                   
@@ -231,7 +231,7 @@ jobs:
                       # 字典里没配的话兜底
                       league_short = "INTL" if v["is_intl"] else v["ov"].split('/')[0].upper()
 
-                  # 👇 极简核心逻辑：直接从 LP 获取 name 并生成 slug
+                  # 极简核心逻辑：直接从 LP 获取 name 并生成 slug
                   lp_name = v["name"]
                   slug = lp_name.lower().replace(" ", "-")
                   
@@ -239,15 +239,34 @@ jobs:
                   
                   final_output.append({
                       "slug": slug, 
-                      "name": lp_name,          # 👇 新增：原始 Name 字段落库
+                      "name": lp_name,
                       "league": league_short,
                       "overview_page": [v["ov"]], 
                       "start_date": str(v["start"]), 
                       "end_date": str(v["end"])
                   })
 
+              # 读取本地已有数据，将未过期的条目作为基底保留
+              base_dict = {}
+              if os.path.exists(TARGET_FILE):
+                  try:
+                      with open(TARGET_FILE, "r", encoding="utf-8") as f:
+                          existing = json.load(f)
+                      for item in existing:
+                          try:
+                              e_dt = datetime.strptime(item["end_date"], "%Y-%m-%d").date()
+                              if today_dt <= (e_dt + timedelta(days=EXPIRE_DAYS)):
+                                  base_dict[item["slug"]] = item
+                          except:
+                              pass
+                  except Exception as e:
+                      log("WARN", f"读取本地缓存异常: {e}", YELLOW)
+
+              # 用本次 API 新数据覆盖基底（新数据优先），end_date 决定淘汰
               unique_dict = {item["slug"]: item for item in final_output}
-              unique_res = sorted(unique_dict.values(), key=lambda x: x['slug'])
+              merged = {**base_dict, **unique_dict}
+              unique_res = sorted(merged.values(), key=lambda x: x['slug'])
+
               with open(TARGET_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
 
