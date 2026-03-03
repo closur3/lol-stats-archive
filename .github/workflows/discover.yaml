@@ -39,14 +39,48 @@ jobs:
 
           now = datetime.now()
           today_dt = now.date()
-          
+
           TARGET_FILE = os.environ.get("TARGET_FILENAME")
-          
-          # 配置区
+
+          # ==================== 配置区 ====================
           PREHEAT_DAYS, EXPIRE_DAYS = 7, 1
           WHITELIST = ["LPL", "LCK"]
           BLACKLIST = ["Opening"]
-          
+
+          CARGO_FIELDS = [
+              "Name", "OverviewPage", "DateStart", "Date", "Region", "Year", "IsPlayoffs", "League"
+          ]
+          CARGO_WHERE = {
+              "Year": [now.year],
+              "DateStart IS NOT NULL": None,
+              "TournamentLevel": "Primary",
+              "IsQualifier": "0",
+              "Region": ["International", "China", "Korea"],
+          }
+          CARGO_ORDER_BY = "DateStart ASC"
+          # ================================================
+
+          def build_where(where_dict):
+              parts = []
+              for k, v in where_dict.items():
+                  if v is None:
+                      parts.append(k)
+                  elif isinstance(v, list):
+                      if len(v) == 1:
+                          parts.append(f"{k} = '{v[0]}'")
+                      else:
+                          values = ", ".join(f"'{x}'" for x in v)
+                          parts.append(f"{k} IN ({values})")
+                  else:
+                      parts.append(f"{k} = '{v}'")
+              return " AND ".join(parts)
+
+          # 从 CARGO_WHERE 提取允许的 Region 集合，供 Python 层过滤逻辑复用
+          ALLOWED_REGIONS = set()
+          if "Region" in CARGO_WHERE and CARGO_WHERE["Region"] is not None:
+              raw = CARGO_WHERE["Region"]
+              ALLOWED_REGIONS = {str(r) for r in (raw if isinstance(raw, list) else [raw])}
+
           # 字典外置：读取本地 teams.json 作为联赛映射字典
           LEAGUE_MAPPING = {}
           if os.path.exists("teams.json"):
@@ -75,20 +109,20 @@ jobs:
               log("INFO", "=" * 85)
 
               url = "https://lol.fandom.com/api.php"
-              
+
               session = requests.Session()
               session.headers.update({"User-Agent": "LoLStatsWorker/2026 (User:HsuX)"})
 
               bot_user = os.environ.get("FANDOM_BOT_USERNAME")
               bot_pass = os.environ.get("FANDOM_BOT_PASSWORD")
-              
+
               if bot_user and bot_pass:
                   try:
                       token_res = session.get(url, params={
                           "action": "query", "meta": "tokens", "type": "login", "format": "json"
                       }, timeout=15).json()
                       login_token = token_res.get("query", {}).get("tokens", {}).get("logintoken")
-                      
+
                       if login_token:
                           login_res = session.post(url, data={
                               "action": "login",
@@ -97,7 +131,7 @@ jobs:
                               "lgtoken": login_token,
                               "format": "json"
                           }, timeout=15).json()
-                          
+
                           if login_res.get("login", {}).get("result") == "Success":
                               log("INFO", f"Fandom API 身份认证成功 | 用户: {bot_user}", GREEN)
                           else:
@@ -111,17 +145,17 @@ jobs:
               offset = 0
               limit = 100
               MAX_ATTEMPTS = 5
-              
+
               log("INFO", "开始执行分页抓取机制...")
-              
+
               while True:
                   params = {
                       "action": "cargoquery", "format": "json", "tables": "Tournaments",
-                      "fields": "Name, OverviewPage, DateStart, Date, Region, Year, IsPlayoffs, League",
-                      "where": f"Year = '{now.year}' AND DateStart IS NOT NULL AND TournamentLevel = 'Primary' AND IsQualifier = '0'",
-                      "order_by": "DateStart ASC", "limit": str(limit), "offset": str(offset)
+                      "fields": ", ".join(CARGO_FIELDS),
+                      "where": build_where(CARGO_WHERE),
+                      "order_by": CARGO_ORDER_BY, "limit": str(limit), "offset": str(offset)
                   }
-                  
+
                   page_data = []
                   for attempt in range(1, MAX_ATTEMPTS + 1):
                       try:
@@ -141,16 +175,16 @@ jobs:
                   if not page_data and offset == 0:
                       log("WARN", "任务中止 | 首屏即未获取到任何数据。", RED)
                       sys.exit(1)
-                  
+
                   if not page_data:
                       break
-                      
+
                   all_data.extend(page_data)
                   log("INFO", f"获取成功 | 当前 Offset: {offset:<4} | 取得数据: {len(page_data)} 条 | 累计: {len(all_data)} 条")
-                  
+
                   if len(page_data) < limit:
                       break
-                  
+
                   offset += limit
                   time.sleep(1)
 
@@ -170,10 +204,9 @@ jobs:
                   if hit_black:
                       log("INFO", f"全局拦截 | 业务过滤 | 命中黑名单关键词 ({hit_black}) | 赛事: {name}", BLACK)
                       continue
-                  is_intl = (region == 'International')
                   hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
-                  if not (is_intl or hit_white):
-                      log("INFO", f"全局拦截 | 业务过滤 | 非国际赛且未命中白名单区域 | 赛事: {name}", BLACK)
+                  if ALLOWED_REGIONS and region not in ALLOWED_REGIONS and not hit_white:
+                      log("INFO", f"全局拦截 | 业务过滤 | Region ({region}) 不在目标列表且未命中白名单 | 赛事: {name}", BLACK)
                       continue
 
                   try:
@@ -183,12 +216,12 @@ jobs:
                       log("WARN", f"日期异常 | 跳过赛事 | 赛事: {name} | 报错: {e}", YELLOW)
                       continue
 
-                  ev = {"ov": ov, "year": y, "name": name, "is_intl": is_intl, "start": s_dt, "end": e_dt, "league_full": league_full}
-                  if t.get("IsPlayoffs") == "1" and not is_intl:
+                  ev = {"ov": ov, "year": y, "name": name, "region": region, "start": s_dt, "end": e_dt, "league_full": league_full}
+                  if t.get("IsPlayoffs") == "1" and region != "International":
                       log("INFO", f"初步准入 | 校验通过 | 赛事已进入季后赛待匹配池 | 赛事: {name}", PURPLE)
                       playoff_events.append(ev)
                   else:
-                      key = f"INTL_{name}" if is_intl else f"{ov}_{y}"
+                      key = f"INTL_{name}" if region == "International" else f"{ov}_{y}"
                       if key not in main_events:
                           log("INFO", f"初步准入 | 校验通过 | 赛事已加入主赛聚合列表 | 赛事: {name}", PURPLE)
                           main_events[key] = ev
@@ -199,7 +232,7 @@ jobs:
               log("INFO", "-" * 85)
               log("INFO", "启动季后赛数据关联匹配模块...")
               for p in playoff_events:
-                  m_key = next((k for k, m in main_events.items() if not m["is_intl"] and m["year"] == p["year"] and (m["name"] in p["name"] or p["ov"].startswith(m["ov"]))), None)
+                  m_key = next((k for k, m in main_events.items() if m["region"] != "International" and m["year"] == p["year"] and (m["name"] in p["name"] or p["ov"].startswith(m["ov"]))), None)
                   if m_key:
                       log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[m_key]['name']} | 关联季后赛: {p['name']}")
                       main_events[m_key]["end"] = max(main_events[m_key]["end"], p["end"])
@@ -219,7 +252,7 @@ jobs:
                       diff_days = (today_dt - v["end"]).days
                       log("INFO", f"周期拦截 | 赛事过期 | 已结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天) | 赛事: {v['name']}", YELLOW)
                       continue
-                  
+
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       log("INFO", f"周期放行 | 宽限期内 | 赛事已结束但仍在宽限期内 | 赛事: {v['name']}")
 
@@ -228,21 +261,19 @@ jobs:
                   if mapped:
                       league_short = str(mapped).upper()
                   else:
-                      # 字典里没配的话兜底
-                      league_short = "INTL" if v["is_intl"] else v["ov"].split('/')[0].upper()
+                      league_short = "INTL" if v["region"] == "International" else v["ov"].split('/')[0].upper()
 
-                  # 极简核心逻辑：直接从 LP 获取 name 并生成 slug
                   lp_name = v["name"]
                   slug = lp_name.lower().replace(" ", "-")
-                  
+
                   log("INFO", f"确认准入 | 数据落库 | Slug: {slug} | 赛事: {lp_name}", GREEN)
-                  
+
                   final_output.append({
-                      "slug": slug, 
+                      "slug": slug,
                       "name": lp_name,
                       "league": league_short,
-                      "overview_page": [v["ov"]], 
-                      "start_date": str(v["start"]), 
+                      "overview_page": [v["ov"]],
+                      "start_date": str(v["start"]),
                       "end_date": str(v["end"])
                   })
 
@@ -272,14 +303,14 @@ jobs:
 
               new_s = {item["slug"] for item in unique_res}
               diff = [f"➕ {s}" for s in sorted(new_s - old_slugs)] + [f"➖ {s}" for s in sorted(old_slugs - new_s)]
-              
+
               if len(diff) > 5:
                   commit_msg = f"📊 Data Sync: 新增 {len(new_s - old_slugs)} 项, 移除 {len(old_slugs - new_s)} 项"
               elif diff:
                   commit_msg = f"📊 Data Sync: {' | '.join(diff)}"
               else:
                   commit_msg = "🔄 Data Sync: no changes"
-              
+
               if "GITHUB_OUTPUT" in os.environ:
                   with open(os.environ["GITHUB_OUTPUT"], "a") as f: f.write(f"commit_msg={commit_msg}\n")
 
