@@ -13,20 +13,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # 1. 用标准的 GitHub 方式生成北京时间，存入环境
       - name: Set Time Variable
         run: echo "CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
 
-      # 2. 部署并注入
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
+          wranglerVersion: '4'
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          # 这里只写“变量名”列表（换行分割）
           vars: |
             GITHUB_SHA
             GITHUB_TIME
         env:
-          # 这里才是真正“赋值”的地方！
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_TIME: ${{ env.CURRENT_TIME }}
