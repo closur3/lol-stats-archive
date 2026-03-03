@@ -445,15 +445,21 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         if (failedSlugs.has(tourn.slug)) {
             nextStreak = prevT.streak || 0;
             nextMode = prevT.mode || "fast";
-        } else if (t_matchesToday > 0 && t_pendingToday > 0) { 
-            nextStreak = 0; 
+        } else if (t_matchesToday > 0 && t_pendingToday > 0) {
+            nextStreak = 0;
+            // 只要当前时间超过了今天第一场的开赛时间，且今天还有没打完的比赛，就死锁在 fast 模式
             nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
-        } else { 
-            nextStreak = prevT.streak >= 1 ? 2 : 1; 
-            nextMode = nextStreak >= 2 ? "slow" : "fast"; 
+        } else {
+            nextStreak = prevT.streak >= 1 ? 2 : 1;
+            nextMode = nextStreak >= 2 ? "slow" : "fast";
         }
         
-        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode };
+        // 把当天的首场开赛时间传给外层调度器
+        tournMeta[tourn.slug] = { 
+            streak: nextStreak, 
+            mode: nextMode,
+            startTs: earliestPendingTs !== Infinity ? earliestPendingTs : 0
+        };
     });
 
     let scheduleMap = {};
@@ -1025,10 +1031,13 @@ async function runUpdate(env, force=false) {
         const dayLast = utils.toCST(lastTs).getUTCDate();
         const isNewDay = dayNow !== dayLast;
         
-        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0 };
+        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0, startTs: 0 };
         const currentMode = tMeta.mode;
-        const threshold = currentMode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
+        // 核心：如果时间已经到达了今天的首场开赛时间，强制解除 56 分钟的休眠枷锁
+        const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
+        const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
+
         if (force || elapsed >= threshold || isNewDay) {
             if (isNewDay) l.info(`🌅 NewDay: ${t.slug} Force daily check triggered`);
             candidates.push({ 
