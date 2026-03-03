@@ -386,7 +386,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     const pyDay = p.day === 0 ? 6 : p.day - 1;
                     const targetH = parseInt(p.h, 10);
 
-                    const matchObj = { d: `${p.mo}-${p.da}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
+                    const matchObj = { d: `${p.mo}-${p.da}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull, bo: bo };
                     
                     if (!timeGrid[tourn.slug]) timeGrid[tourn.slug] = { "Total": createSlot() };
                     if (!timeGrid[tourn.slug][targetH]) timeGrid[tourn.slug][targetH] = createSlot();
@@ -748,17 +748,15 @@ const PYTHON_JS = `
         
         const listHtml = sortedMatches.map(item => {
             let boTag = '<span style="color:#cbd5e1">-</span>';
-            if (item.s && item.s.includes('-')) {
-                const scores = item.s.split('-');
-                const maxWin = Math.max(parseInt(scores[0]), parseInt(scores[1]));
-                if (maxWin === 3) {
-                    boTag = '<span class="sch-pill gold" style="font-size:9px; padding:2px 4px;">BO5</span>';
-                } else if (maxWin === 2) {
-                    boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO3</span>';
-                } else if (maxWin === 1) {
-                    boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO1</span>';
-                }
+    
+            if (item.bo === 5) {
+                boTag = '<span class="sch-pill gold" style="font-size:9px; padding:2px 4px;">BO5</span>';
+            } else if (item.bo === 3) {
+                boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO3</span>';
+            } else if (item.bo === 1) {
+                boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO1</span>';
             }
+
             return renderMatchItem('dist', item.d, boTag, item.t1, item.t2, item.f, item.s);
         });
         
