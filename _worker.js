@@ -1,13 +1,13 @@
 // ====================================================
-// 🥇 Worker V41.4.0: Ultimate Unification & Wake-up Logic
+// 🥇 Worker V42.0.0: Tools Hub & Archive Rebuild
 // 更新日志:
 // 1. 状态机升级: 记录首场 startTs，实现“首场开赛唤醒 -> 保持 Fast 直至全天结束 -> 重新慢速”机制。
 // 2. 字段直读: 联赛全称严格取 name，简写严格取 league，废弃所有 || slug 的降级。
 // 3. 核心精简: 提取 utils.timeParts 统一时间引擎，消除重复的日期换算和 pad 补零逻辑。
-// 4. 清理残留: 移除 Fandom API 抓取数据中多余的带空格字段回退，统一变量命名。
+// 4. 新增工具箱: 移除原生 Update 按钮，新增 /tools 路由承载 Force Update 与 Rebuild Archive 功能。
 // ====================================================
 
-const UI_VERSION = "2026-03-03-V41.4.0";
+const UI_VERSION = "2026-03-03-V42.0.0";
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
@@ -17,7 +17,6 @@ const utils = {
     pad: (n) => n < 10 ? '0' + n : n,
     toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
     
-    // 统一的时间解构引擎，拒绝重复造轮子
     timeParts: (ts) => {
         const d = utils.toCST(ts);
         return {
@@ -830,7 +829,7 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
     if (navMode === "home") navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
     else if (navMode === "archive") navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a><a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
 }
 
 function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
@@ -964,7 +963,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     return `${tablesHtml} ${scheduleHtml} ${injectedData}`;
 }
 
-// --- 8. 主控 ---
+// --- 8. 主控 & Tasks ---
 class Logger {
     constructor() { this.l=[]; }
     info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
@@ -1075,7 +1074,7 @@ async function runUpdate(env, force=false) {
     }
 
     let successCount = 0, failureCount = 0; 
-    const failedSlugs = new Set(); // 熔断及失败记录
+    const failedSlugs = new Set(); 
     
     results.forEach(res => {
         if (res.status === 'fulfilled') {
@@ -1198,6 +1197,148 @@ async function runUpdate(env, force=false) {
     return l;
 }
 
+async function runRebuildArchive(env) {
+    const l = new Logger();
+    l.info("🚀 Starting Archive Rebuild Task...");
+    
+    const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
+    if (!allKeys.keys.length) {
+        l.info("💤 No archives found to rebuild.");
+        return l;
+    }
+
+    const authContext = await loginToFandom(env, l);
+    if (authContext?.isAnonymous) {
+        // ...
+    } else if (!authContext) {
+        l.info("⚠️ Auth Failed. Proceeding anonymously"); 
+    } else {
+        l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
+    }
+
+    let successCount = 0;
+    for (const k of allKeys.keys) {
+        try {
+            const snap = await env.LOL_KV.get(k.name, { type: "json" });
+            if (!snap || !snap.tourn) continue;
+            
+            const slug = snap.tourn.slug;
+            const page = snap.tourn.overview_page;
+            
+            l.info(`📡 Fetching fully updated archive data for: ${slug}`);
+            const matches = await fetchAllMatches(slug, page, l, authContext, null);
+            
+            if (matches && matches.length > 0) {
+                snap.rawMatches = matches;
+                if (!snap.updateTimestamps) snap.updateTimestamps = {};
+                snap.updateTimestamps[slug] = Date.now();
+                
+                await env.LOL_KV.put(k.name, JSON.stringify(snap));
+                l.success(`♻️ Rebuilt Archive: ${slug} (${matches.length} matches)`);
+                successCount++;
+            } else {
+                l.error(`⚠️ No matches found for archive rebuild: ${slug}`);
+            }
+        } catch (e) {
+            l.error(`❌ Failed to rebuild ${k.name}: ${e.message}`);
+        }
+        await new Promise(res => setTimeout(res, 2000));
+    }
+    
+    l.success(`🎉 Archive Rebuild Complete: ${successCount}/${allKeys.keys.length} updated.`);
+    return l;
+}
+
+// --- 9. 独立页面渲染 ---
+function renderToolsPage(time, sha) {
+    const shortSha = (sha || "").slice(0, 7) || "unknown";
+    return `<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tools Hub</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🧰</text></svg>">
+        <style>
+            ${COMMON_STYLE}
+            body { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; }
+            .container { flex: 1; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+            .tool-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 10px; }
+            .tool-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 10px; }
+            .tool-desc { color: #64748b; font-size: 14px; margin: 0; line-height: 1.5; }
+            .tool-btn { background: #2563eb; color: #fff; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; transition: 0.2s; align-self: flex-start; margin-top: 10px; font-family: inherit; }
+            .tool-btn:hover { background: #1d4ed8; }
+            .tool-btn.secondary { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
+            .tool-btn.secondary:hover { background: #f1f5f9; color: #0f172a; }
+            .build-footer { text-align: center; padding: 20px; color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; flex-shrink: 0; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+            .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
+            .build-footer a:hover { opacity: 1; text-decoration: underline; }
+        </style>
+    </head>
+    <body>
+        <header class="main-header">
+            <div class="header-left">
+                <span class="header-logo">🧰</span>
+                <h1 class="header-title">System Tools</h1>
+            </div>
+            <div class="header-right">
+                <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
+                <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
+            </div>
+        </header>
+        <div class="container">
+            <div class="tool-card">
+                <h2 class="tool-title"><span>⚡</span> Force Update</h2>
+                <p class="tool-desc">Triggers a full synchronization for all ACTIVE tournaments defined in <code>tour.json</code>. Bypasses standard cooldowns and fetches fresh data from Fandom.</p>
+                <button class="tool-btn" id="btn-force" onclick="runTask('/force', 'btn-force')">Run Force Update</button>
+            </div>
+            <div class="tool-card">
+                <h2 class="tool-title"><span>📦</span> Rebuild Archives</h2>
+                <p class="tool-desc">Fetches the absolute latest data from Fandom for ALL archived tournaments (including those removed from the active configuration) to ensure your historical snapshots are completely up-to-date.</p>
+                <button class="tool-btn secondary" id="btn-rebuild" onclick="runTask('/rebuild-archive', 'btn-rebuild')">Run Archive Rebuild</button>
+            </div>
+        </div>
+        <div class="build-footer">
+            deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
+        </div>
+        <script>
+            async function runTask(endpoint, btnId) {
+                const pwd = prompt("🔒 Enter Admin Password:");
+                if (!pwd) return;
+
+                const btn = document.getElementById(btnId);
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '⏳ Processing...';
+                btn.style.pointerEvents = 'none';
+                btn.style.opacity = '0.7';
+
+                try {
+                    const res = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + pwd }
+                    });
+                    
+                    if (res.status === 401) {
+                        alert("❌ Incorrect password");
+                    } else if (res.ok) {
+                        alert("✅ Task completed successfully! Redirecting to Logs.");
+                        window.location.href = '/logs';
+                    } else {
+                        alert("⚠️ Server error: " + res.status);
+                    }
+                } catch (e) {
+                    alert("❌ Network connection failed");
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.style.pointerEvents = 'auto';
+                    btn.style.opacity = '1';
+                }
+            }
+        </script>
+    </body>
+    </html>`;
+}
+
 function renderLogPage(logs, time, sha) {
     if (!Array.isArray(logs)) logs = [];
     const entries = logs.map(l => {
@@ -1207,7 +1348,6 @@ function renderLogPage(logs, time, sha) {
         return `<li class="log-entry"><span class="log-time">${l.t}</span><span class="log-level ${lvlClass}">${l.l}</span><span class="log-msg">${l.m}</span></li>`;
     }).join("");
 
-    // 截取 7 位用于显示
     const shortSha = (sha || "").slice(0, 7) || "unknown";
 
     return `<!DOCTYPE html>
@@ -1219,21 +1359,16 @@ function renderLogPage(logs, time, sha) {
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
     <style>
         ${COMMON_STYLE}
-        /* 1. 修复 iOS 视口高度问题，使用 100dvh */
         body {
-            height: 100vh; /* 老版本浏览器回退 */
-            height: 100dvh; /* 动态视口高度，完美避开 iOS 底部工具栏 */
+            height: 100vh;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
             margin: 0;
             padding: 0;
         }
-        
-        /* 2. Header 不可压缩 */
         .main-header { flex-shrink: 0; margin-bottom: 20px; }
-        
-        /* 3. 容器自动占满剩余空间 */
         .container { 
             flex: 1; 
             min-height: 0; 
@@ -1247,22 +1382,17 @@ function renderLogPage(logs, time, sha) {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
             border: 1px solid #e2e8f0; 
             overflow: hidden;
-            /* 关键修复：强制 Safari 在有滚动条时依然尊重 border-radius 裁剪 */
             transform: translateZ(0); 
             -webkit-mask-image: -webkit-radial-gradient(white, black);
         }
-        
-        /* 4. 只有日志列表本身出现滚动条 */
         .log-list { 
             flex: 1;
             overflow-y: auto; 
-            /* 关键修复：恢复 iOS 专属的顺滑回弹滚动 */
             -webkit-overflow-scrolling: touch; 
             list-style: none; 
             margin: 0; 
             padding: 0; 
         }
-        
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
         .log-time { color: #64748b; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -1272,13 +1402,10 @@ function renderLogPage(logs, time, sha) {
         .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
         .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
-        
-        /* 5. 独立的页脚，不被压缩 */
         .build-footer { 
             flex-shrink: 0;
             text-align: center; 
             padding: 15px 20px; 
-            /* 防止 iOS 底部安全区吃掉文字 */
             padding-bottom: calc(15px + env(safe-area-inset-bottom));
             color: #94a3b8; 
             font-size: 11px; 
@@ -1303,7 +1430,7 @@ function renderLogPage(logs, time, sha) {
         </div>
         <div class="header-right">
             <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
-            <button class="action-btn update-btn" onclick="triggerUpdate()"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button>
+            <a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a>
         </div>
     </header>
     
@@ -1315,40 +1442,6 @@ function renderLogPage(logs, time, sha) {
     <div class="build-footer">
         deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
     </div>
-    
-    <script>
-        async function triggerUpdate() {
-            const pwd = prompt("🔒 Password:");
-            if (!pwd) return;
-
-            const btn = document.querySelector('.update-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<span class="btn-icon">⏳</span> <span class="btn-text">Updating</span>';
-            btn.style.pointerEvents = 'none';
-            btn.style.opacity = '0.7';
-
-            try {
-                const res = await fetch('/force', {
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + pwd }
-                });
-                
-                if (res.status === 401) {
-                    alert("❌ Incorrect password");
-                } else if (res.ok) {
-                    window.location.reload(); 
-                } else {
-                    alert("⚠️ Server error: " + res.status);
-                }
-            } catch (e) {
-                alert("❌ Network connection failed");
-            } finally {
-                btn.innerHTML = originalText;
-                btn.style.pointerEvents = 'auto';
-                btn.style.opacity = '1';
-            }
-        }
-    </script>
 </body>
 </html>`;
 }
@@ -1385,14 +1478,42 @@ export default {
                 
                 return new Response("OK", { status: 200 });
             }
+            
+            case "/rebuild-archive": {
+                const expectedSecret = env.ADMIN_SECRET;
+                const authHeader = request.headers.get("Authorization");
+                
+                if (expectedSecret) {
+                    if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
+                        return new Response("Unauthorized", { status: 401 });
+                    }
+                }
+
+                const l = await runRebuildArchive(env);
+                const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+                const newLogs = l.export();
+                let combinedLogs = [...newLogs, ...oldLogs];
+                if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+                await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+                
+                return new Response("OK", { status: 200 });
+            }
+
+            case "/tools": {
+                const time = env.GITHUB_TIME;
+                const sha = env.GITHUB_SHA;
+                return new Response(renderToolsPage(time, sha), { 
+                    headers: { "content-type": "text/html;charset=utf-8" } 
+                });
+            }
 
             case "/logs": {
                 const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
                 const time = env.GITHUB_TIME;
                 const sha = env.GITHUB_SHA;
 
-            return new Response(renderLogPage(logs, time, sha), { 
-                headers: { "content-type": "text/html;charset=utf-8" } 
+                return new Response(renderLogPage(logs, time, sha), { 
+                    headers: { "content-type": "text/html;charset=utf-8" } 
                 });
             }
             
@@ -1429,7 +1550,7 @@ export default {
 
             case "/": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                if (!cache) return new Response("Initializing... <a href='/force'>Click to Build</a>", { headers: { "content-type": "text/html" } });
+                if (!cache) return new Response("Initializing... <a href='/tools'>Click to Build</a>", { headers: { "content-type": "text/html" } });
 
                 const homeFragment = renderContentOnly(
                     cache.globalStats, cache.timeGrid, cache.scheduleMap,
