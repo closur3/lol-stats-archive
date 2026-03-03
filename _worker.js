@@ -1303,7 +1303,7 @@ function renderLogPage(logs, time, sha) {
         </div>
         <div class="header-right">
             <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
-            <button class="action-btn update-btn" onclick="triggerUpdate()"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button>
+            <a href="/admin" class="action-btn"><span class="btn-icon">⚙️</span> <span class="btn-text">Admin</span></a>
         </div>
     </header>
     
@@ -1316,39 +1316,6 @@ function renderLogPage(logs, time, sha) {
         deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
     </div>
     
-    <script>
-        async function triggerUpdate() {
-            const pwd = prompt("🔒 Password:");
-            if (!pwd) return;
-
-            const btn = document.querySelector('.update-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<span class="btn-icon">⏳</span> <span class="btn-text">Updating</span>';
-            btn.style.pointerEvents = 'none';
-            btn.style.opacity = '0.7';
-
-            try {
-                const res = await fetch('/force', {
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + pwd }
-                });
-                
-                if (res.status === 401) {
-                    alert("❌ Incorrect password");
-                } else if (res.ok) {
-                    window.location.reload(); 
-                } else {
-                    alert("⚠️ Server error: " + res.status);
-                }
-            } catch (e) {
-                alert("❌ Network connection failed");
-            } finally {
-                btn.innerHTML = originalText;
-                btn.style.pointerEvents = 'auto';
-                btn.style.opacity = '1';
-            }
-        }
-    </script>
 </body>
 </html>`;
 }
@@ -1438,6 +1405,131 @@ export default {
                 );
                 const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
                 return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
+            }
+            case "/admin": {
+                const expectedSecret = env.ADMIN_SECRET;
+                const authHeader = request.headers.get("Authorization");
+    
+                return new Response(`<!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Admin</title>
+                <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>⚙️</text></svg>">
+                <style>
+                    ${COMMON_STYLE}
+                    body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+                    .main-header { flex-shrink: 0; margin-bottom: 0; }
+                    .container { flex: 1; min-height: 0; overflow-y: auto; max-width: 600px; width: calc(100% - 30px); margin: 30px auto; padding-bottom: 40px; }
+                    .card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+                    .card-title { font-size: 14px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+                    .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+                    .form-row label { font-size: 13px; font-weight: 600; color: #475569; }
+                    .form-row input { border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 12px; font-size: 14px; font-family: inherit; outline: none; transition: 0.2s; }
+                    .form-row input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+                    .submit-btn { width: 100%; background: #2563eb; color: white; border: none; border-radius: 8px; padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; transition: 0.2s; }
+                    .submit-btn:hover { background: #1d4ed8; }
+                    .submit-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+                    .result { margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; display: none; }
+                    .result.ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+                    .result.err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+                </style>
+            </head>
+            <body>
+                <header class="main-header">
+                    <div class="header-left">
+                        <span class="header-logo">⚙️</span>
+                        <h1 class="header-title">Admin</h1>
+                    </div>
+                    <div class="header-right">
+                        <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
+                        <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
+                    </div>
+                </header>
+
+                <div class="container">
+                    <div class="card">
+                        <div class="card-title">🔄 Force Update</div>
+                        <div class="form-row">
+                            <label>Password</label>
+                            <input id="pwd1" type="password" placeholder="ADMIN_SECRET">
+                        </div>
+                        <button class="submit-btn" onclick="forceUpdate()">Run Force Update</button>
+                        <div id="res1" class="result"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">📦 Rebuild Archive</div>
+                        <div class="form-row">
+                            <label>Slug <span style="color:#94a3b8;font-weight:400">(e.g. LCK/2025-Season/Spring-Season)</span></label>
+                            <input id="slug" type="text" placeholder="LCK/2025-Season/Spring-Season">
+                        </div>
+                        <div class="form-row">
+                            <label>Overview Page <span style="color:#94a3b8;font-weight:400">(usually same as slug)</span></label>
+                            <input id="page" type="text" placeholder="LCK/2025-Season/Spring-Season">
+                        </div>
+                        <div class="form-row">
+                            <label>Display Name <span style="color:#94a3b8;font-weight:400">(e.g. LCK Spring 2025)</span></label>
+                            <input id="name" type="text" placeholder="LCK Spring 2025">
+                        </div>
+                        <div class="form-row">
+                            <label>League Short <span style="color:#94a3b8;font-weight:400">(e.g. LCK)</span></label>
+                            <input id="league" type="text" placeholder="LCK">
+                        </div>
+                        <div class="form-row">
+                            <label>Password</label>
+                            <input id="pwd2" type="password" placeholder="ADMIN_SECRET">
+                        </div>
+                        <button class="submit-btn" onclick="rebuildArchive()">Rebuild Archive</button>
+                        <div id="res2" class="result"></div>
+                    </div>
+                </div>
+
+                <script>    
+                    function showResult(id, ok, msg) {
+                        const el = document.getElementById(id);
+                        el.className = 'result ' + (ok ? 'ok' : 'err');
+                        el.textContent = msg;
+                        el.style.display = 'block';
+                    }
+
+                    async function forceUpdate() {
+                        const pwd = document.getElementById('pwd1').value;
+                        if (!pwd) return showResult('res1', false, 'Password required');
+                        const btn = event.target;
+                        btn.disabled = true; btn.textContent = 'Running...';
+                        try {
+                            const res = await fetch('/force', { method: 'POST', headers: { 'Authorization': 'Bearer ' + pwd } });
+                            if (res.status === 401) showResult('res1', false, '❌ Incorrect password');
+                            else if (res.ok) showResult('res1', true, '✅ Force update completed');
+                            else showResult('res1', false, '⚠️ Server error: ' + res.status);
+                        } catch(e) { showResult('res1', false, '❌ Network error'); }
+                        btn.disabled = false; btn.textContent = 'Run Force Update';
+                    }
+
+                    async function rebuildArchive() {
+                        const slug = document.getElementById('slug').value.trim();
+                        const page = document.getElementById('page').value.trim();
+                        const name = document.getElementById('name').value.trim();
+                        const league = document.getElementById('league').value.trim();
+                        const pwd = document.getElementById('pwd2').value;
+                        if (!slug || !page) return showResult('res2', false, 'Slug and Overview Page are required');
+                        if (!pwd) return showResult('res2', false, 'Password required');
+                        const btn = event.target;
+                        btn.disabled = true; btn.textContent = 'Fetching...';
+                        try {
+                            const params = new URLSearchParams({ slug, page, name, league });
+                            const res = await fetch('/archive/rebuild?' + params, { method: 'POST', headers: { 'Authorization': 'Bearer ' + pwd } });
+                            if (res.status === 401) showResult('res2', false, '❌ Incorrect password');
+                            else if (res.ok) showResult('res2', true, '✅ ' + await res.text());
+                            else showResult('res2', false, '⚠️ ' + await res.text());
+                        } catch(e) { showResult('res2', false, '❌ Network error'); }
+                        btn.disabled = false; btn.textContent = 'Rebuild Archive';
+                    }
+                </script>
+            </body>
+            </html>`, { headers: { "content-type": "text/html;charset=utf-8" } });
             }
 
             case "/favicon.ico":
