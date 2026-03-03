@@ -52,20 +52,20 @@ jobs:
           ]
           CARGO_WHERE = {
               "Year": [now.year],
-              "DateStart IS NOT NULL": None,
               "TournamentLevel": "Primary",
               "IsQualifier": "0",
               "Region": ["International", "China", "Korea"],
           }
+          CARGO_WHERE_RAW = [
+              "DateStart IS NOT NULL",
+          ]
           CARGO_ORDER_BY = "DateStart ASC"
           # ================================================
 
-          def build_where(where_dict):
+          def build_where(where_dict, raw=None):
               parts = []
               for k, v in where_dict.items():
-                  if v is None:
-                      parts.append(k)
-                  elif isinstance(v, list):
+                  if isinstance(v, list):
                       if len(v) == 1:
                           parts.append(f"{k} = '{v[0]}'")
                       else:
@@ -73,6 +73,8 @@ jobs:
                           parts.append(f"{k} IN ({values})")
                   else:
                       parts.append(f"{k} = '{v}'")
+              if raw:
+                  parts.extend(raw)
               return " AND ".join(parts)
 
           # 从 CARGO_WHERE 提取允许的 Region 集合，供 Python 层过滤逻辑复用
@@ -152,7 +154,7 @@ jobs:
                   params = {
                       "action": "cargoquery", "format": "json", "tables": "Tournaments",
                       "fields": ", ".join(CARGO_FIELDS),
-                      "where": build_where(CARGO_WHERE),
+                      "where": build_where(CARGO_WHERE, CARGO_WHERE_RAW),
                       "order_by": CARGO_ORDER_BY, "limit": str(limit), "offset": str(offset)
                   }
 
