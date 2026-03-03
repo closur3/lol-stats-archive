@@ -1,9 +1,9 @@
 // ====================================================
-// 🥇 Worker V42.4.0: Ultimate Tools UI & Auth Overlay
+// 🥇 Worker V42.5.0: Fresh & Minimalist UI
 // 更新日志:
-// 1. 鉴权升级: 引入沉浸式毛玻璃锁屏鉴权，替换原生 prompt，支持 Session 暂存。
-// 2. 表单美化: 移除冗余版本号和 e.g.，重构输入框为沉浸式选中态，提升卡片质感。
-// 3. 日志对齐: 严格统一 Rebuild Archive 的 Log 输出前缀和格式。
+// 1. 代码清理: 彻底移除 UI_VERSION 相关逻辑。
+// 2. 视觉净化: 移除 Tools 页面的所有冗余副标题、描述和 e.g. 占位符。
+// 3. 风格对齐: Tools 采用极简风格，Force Update 改为单行左右布局，圆角与阴影全面对齐主页。
 // ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
@@ -1099,55 +1099,59 @@ function renderToolsPage(time, sha) {
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Tools Hub</title>
+        <title>Tools</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🧰</text></svg>">
         <style>
             ${COMMON_STYLE}
             body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; }
             .container { flex: 1; overflow-y: auto; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 20px; padding-bottom: 20px; -webkit-overflow-scrolling: touch; }
-            .tool-card { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 30px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 15px; }
-            .tool-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 10px; }
-            .tool-desc { color: #64748b; font-size: 14px; margin: 0; line-height: 1.5; }
-            .tool-btn { background: #2563eb; color: #fff; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; transition: 0.2s; align-self: flex-end; margin-top: 5px; font-family: inherit; }
-            .tool-btn:hover { background: #1d4ed8; }
+            
+            .tool-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 15px; }
+            .tool-row { flex-direction: row; align-items: center; justify-content: space-between; }
+            .tool-title { font-size: 16px; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 8px; }
+            
+            .tool-btn { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; transition: 0.2s; align-self: flex-end; font-family: inherit; margin: 0; }
+            .tool-btn:hover { background: #1d4ed8; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
+            .tool-row .tool-btn { align-self: center; }
+
+            .input-group { display: flex; flex-direction: column; gap: 8px; margin: 5px 0; }
+            .input-row { display: flex; align-items: center; gap: 15px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 15px; transition: all 0.2s ease; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+            .input-row:focus-within { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+            .input-label { width: 110px; font-size: 13px; font-weight: 700; color: #64748b; flex-shrink: 0; text-align: left; }
+            .tool-input { flex: 1; min-width: 0; padding: 8px 0; border: none; background: transparent; font-size: 14px; font-weight: 600; font-family: inherit; outline: none; color: #0f172a; }
+            .tool-input::placeholder { color: #cbd5e1; font-weight: 400; }
+            
+            @media (max-width: 600px) {
+                .tool-card { padding: 20px; }
+                .input-row { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 15px; }
+                .input-label { width: auto; font-size: 11px; opacity: 0.8; }
+                .tool-input { padding: 4px 0; width: 100%; }
+            }
+
             .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
             .build-footer b { color: #64748b; }
             .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
             .build-footer a:hover { opacity: 1; text-decoration: underline; }
             
-            /* Enhanced Form Inputs */
-            .input-group { display: flex; flex-direction: column; gap: 12px; margin: 10px 0; }
-            .input-row { display: flex; align-items: center; gap: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px 15px; transition: all 0.2s ease; }
-            .input-row:focus-within { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-            .input-label { width: 120px; font-size: 13px; font-weight: 700; color: #475569; text-align: left; flex-shrink: 0; }
-            .tool-input { flex: 1; min-width: 0; padding: 10px 0; border: none; background: transparent; font-size: 14px; font-weight: 600; font-family: inherit; outline: none; color: #0f172a; }
-            .tool-input::placeholder { color: #cbd5e1; font-weight: 400; }
-            
-            @media (max-width: 600px) {
-                .input-row { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 15px; }
-                .input-label { width: auto; text-align: left; font-size: 11px; opacity: 0.8; }
-                .tool-input { padding: 4px 0; width: 100%; }
-            }
-
             /* Auth Overlay */
-            #auth-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999; }
-            .auth-card { background: #fff; padding: 35px 30px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); width: 340px; text-align: center; box-sizing: border-box; }
-            .auth-title { font-size: 22px; font-weight: 800; margin-bottom: 8px; color: #0f172a; display: flex; align-items: center; justify-content: center; gap: 10px; }
+            #auth-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.6); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; }
+            .auth-card { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); width: 320px; text-align: center; box-sizing: border-box; border: 1px solid #e2e8f0; }
+            .auth-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; color: #0f172a; display: flex; align-items: center; justify-content: center; gap: 10px; }
             .auth-subtitle { color: #64748b; font-size: 13px; margin-bottom: 25px; line-height: 1.4; }
-            .auth-input { width: 100%; padding: 14px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; text-align: center; margin-bottom: 20px; box-sizing: border-box; transition: all 0.2s; outline: none; -webkit-text-security: disc; background: #f8fafc; font-family: ui-monospace, monospace; letter-spacing: 2px; }
-            .auth-input:focus { border-color: #2563eb; background: #fff; box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+            .auth-input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px; text-align: center; margin-bottom: 20px; box-sizing: border-box; transition: all 0.2s; outline: none; -webkit-text-security: disc; background: #f8fafc; font-family: ui-monospace, monospace; letter-spacing: 2px; }
+            .auth-input:focus { border-color: #2563eb; background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
             .auth-input::placeholder { letter-spacing: normal; font-family: -apple-system, sans-serif; color: #94a3b8; }
-            .auth-btn { width: 100%; background: #0f172a; color: #fff; border: none; padding: 14px; border-radius: 10px; font-weight: 700; font-size: 15px; cursor: pointer; transition: 0.2s; }
+            .auth-btn { width: 100%; background: #0f172a; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; transition: 0.2s; }
             .auth-btn:hover { background: #334155; }
         </style>
     </head>
     <body>
         <div id="auth-overlay">
             <div class="auth-card">
-                <div class="auth-title"><span>🔐</span> Admin Tools</div>
-                <div class="auth-subtitle">Restricted area. Please verify your identity to proceed.</div>
+                <div class="auth-title"><span>🔐</span> Admin</div>
+                <div class="auth-subtitle">Verify your identity to proceed</div>
                 <input type="password" id="auth-pwd" class="auth-input" placeholder="Password" onkeypress="if(event.key==='Enter') unlockTools()">
-                <button class="auth-btn" onclick="unlockTools()">Unlock Area</button>
+                <button class="auth-btn" onclick="unlockTools()">Unlock</button>
             </div>
         </div>
 
@@ -1163,34 +1167,32 @@ function renderToolsPage(time, sha) {
         </header>
         
         <div class="container">
-            <div class="tool-card">
+            <div class="tool-card tool-row">
                 <h2 class="tool-title"><span>⚡</span> Force Update</h2>
-                <p class="tool-desc">Triggers a full synchronization for all ACTIVE tournaments defined in <code>tour.json</code>. Bypasses standard cooldowns and fetches fresh data from Fandom.</p>
-                <button class="tool-btn" id="btn-force" onclick="runTask('/force', 'btn-force')">Run Force Update</button>
+                <button class="tool-btn" id="btn-force" onclick="runTask('/force', 'btn-force')">Run</button>
             </div>
             
             <div class="tool-card">
                 <h2 class="tool-title"><span>📦</span> Rebuild Archive</h2>
-                <p class="tool-desc">Manually reconstruct a deleted or archived tournament by providing its specific Fandom details.</p>
                 <div class="input-group">
                     <div class="input-row">
                         <span class="input-label">Slug</span>
-                        <input type="text" id="rb-slug" placeholder="lpl-2024-spring" class="tool-input">
+                        <input type="text" id="rb-slug" class="tool-input">
                     </div>
                     <div class="input-row">
                         <span class="input-label">Name</span>
-                        <input type="text" id="rb-name" placeholder="LPL 2024 Spring" class="tool-input">
+                        <input type="text" id="rb-name" class="tool-input">
                     </div>
                     <div class="input-row">
                         <span class="input-label">Overview Page</span>
-                        <input type="text" id="rb-overview" placeholder="LPL/2024 Season/Spring Season" class="tool-input">
+                        <input type="text" id="rb-overview" class="tool-input">
                     </div>
                     <div class="input-row">
                         <span class="input-label">League</span>
-                        <input type="text" id="rb-league" placeholder="LPL" class="tool-input">
+                        <input type="text" id="rb-league" class="tool-input">
                     </div>
                 </div>
-                <button class="tool-btn" id="btn-rebuild" onclick="submitRebuild()">Rebuild Archive</button>
+                <button class="tool-btn" id="btn-rebuild" onclick="submitRebuild()">Rebuild</button>
             </div>
         </div>
         <div class="build-footer">
