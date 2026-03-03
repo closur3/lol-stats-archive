@@ -1,13 +1,12 @@
 // ====================================================
-// 🥇 Worker V42.2.0: Tools UI Polish
+// 🥇 Worker V42.3.0: Tools Form UI Polish
 // 更新日志:
-// 1. 隐藏入口: Tools 按钮现在仅存在于 Logs 页面，保持主页清爽。
-// 2. 样式统一: Tools 页面操作按钮右对齐，页脚样式与 Logs 页完全一致。
-// 3. 文案修正: 移除冗余的 Custom 字眼，标题简化为 Tools。
-// 4. 日志修复: 恢复了 fetch 过程中的重试次数 (Attempt) 记录。
+// 1. 表单重构: Rebuild Archive 的输入项提取出独立的左侧 Label，增加表单背景。
+// 2. 按钮统一: Tools 页面内所有操作按钮采用统一的主色调，并严格居右对齐。
+// 3. 响应式: 左侧 Label 表单在移动端会自动折叠为上下结构。
 // ====================================================
 
-const UI_VERSION = "2026-03-04-V42.2.0";
+const UI_VERSION = "2026-03-04-V42.3.0";
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
@@ -723,7 +722,12 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
     if (navMode === "home") navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
     else if (navMode === "archive") navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
+    // 只有非 home & archive（即 logs 页）才展示 Tools 入口，主页保持清爽
+    const toolsBtn = (navMode !== "home" && navMode !== "archive") 
+        ? `<a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a>` 
+        : "";
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
 }
 
 function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
@@ -1108,18 +1112,23 @@ function renderToolsPage(time, sha) {
             .tool-desc { color: #64748b; font-size: 14px; margin: 0; line-height: 1.5; }
             .tool-btn { background: #2563eb; color: #fff; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; transition: 0.2s; align-self: flex-end; margin-top: 10px; font-family: inherit; }
             .tool-btn:hover { background: #1d4ed8; }
-            .tool-btn.secondary { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
-            .tool-btn.secondary:hover { background: #f1f5f9; color: #0f172a; }
             .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
             .build-footer b { color: #64748b; }
             .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
             .build-footer a:hover { opacity: 1; text-decoration: underline; }
             
-            /* Inputs */
-            .input-group { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-            .tool-input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-family: inherit; box-sizing: border-box; outline: none; transition: 0.2s; }
+            /* Enhanced Form Inputs */
+            .input-group { display: flex; flex-direction: column; gap: 12px; margin: 15px 0 10px 0; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+            .input-row { display: flex; align-items: center; gap: 15px; }
+            .input-label { width: 120px; font-size: 13px; font-weight: 700; color: #475569; text-align: right; flex-shrink: 0; }
+            .tool-input { flex: 1; min-width: 0; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; outline: none; transition: 0.2s; }
             .tool-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-            .tool-input::placeholder { color: #94a3b8; }
+            .tool-input::placeholder { color: #94a3b8; font-weight: 400; }
+            
+            @media (max-width: 600px) {
+                .input-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+                .input-label { width: auto; text-align: left; }
+            }
         </style>
     </head>
     <body>
@@ -1144,12 +1153,24 @@ function renderToolsPage(time, sha) {
                 <h2 class="tool-title"><span>📦</span> Rebuild Archive</h2>
                 <p class="tool-desc">Manually reconstruct a deleted or archived tournament by providing its specific Fandom details.</p>
                 <div class="input-group">
-                    <input type="text" id="rb-slug" placeholder="Slug (e.g. lpl-2024-spring)" class="tool-input">
-                    <input type="text" id="rb-name" placeholder="Name (e.g. LPL 2024 Spring)" class="tool-input">
-                    <input type="text" id="rb-overview" placeholder="Overview Page (e.g. LPL/2024 Season/Spring Season)" class="tool-input">
-                    <input type="text" id="rb-league" placeholder="League (e.g. LPL)" class="tool-input">
+                    <div class="input-row">
+                        <span class="input-label">Slug</span>
+                        <input type="text" id="rb-slug" placeholder="e.g. lpl-2024-spring" class="tool-input">
+                    </div>
+                    <div class="input-row">
+                        <span class="input-label">Name</span>
+                        <input type="text" id="rb-name" placeholder="e.g. LPL 2024 Spring" class="tool-input">
+                    </div>
+                    <div class="input-row">
+                        <span class="input-label">Overview Page</span>
+                        <input type="text" id="rb-overview" placeholder="e.g. LPL/2024 Season/Spring Season" class="tool-input">
+                    </div>
+                    <div class="input-row">
+                        <span class="input-label">League</span>
+                        <input type="text" id="rb-league" placeholder="e.g. LPL" class="tool-input">
+                    </div>
                 </div>
-                <button class="tool-btn secondary" id="btn-rebuild" onclick="submitRebuild()">Rebuild Archive</button>
+                <button class="tool-btn" id="btn-rebuild" onclick="submitRebuild()">Rebuild Archive</button>
             </div>
         </div>
         <div class="build-footer">
