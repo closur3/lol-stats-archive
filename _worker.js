@@ -333,8 +333,8 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
         rawMatches.forEach(m => {
-            const t1 = resolveName(m.Team1);
-            const t2 = resolveName(m.Team2);
+            const t1 = resolveName(m.Team1 || m["Team 1"]);
+            const t2 = resolveName(m.Team2 || m["Team 2"]);
             if(!t1 || !t2) { skipped++; return; } 
             
             ensureTeam(t1); ensureTeam(t2);
@@ -345,7 +345,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             const isLive = !isFinished && (s1 > 0 || s2 > 0 || (m.Team1Score !== "" && m.Team1Score != null));
             const isFull = (bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2);
             
-            const dt = utils.parseDate(m.DateTime_UTC);
+            const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
             let dateDisplay = "-";
             let ts = 0;
 
@@ -1089,8 +1089,13 @@ async function runUpdate(env, force=false) {
 
                     const getUniqueKey = (m) => {
                         const page = m.OverviewPage || "Unknown";
-                        if (m.N_MatchInPage) return `${page}_${m.N_MatchInPage}`;
-                        return `${page}_${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
+                        const n = m.N_MatchInPage || m["N MatchInPage"];
+                        if (n) return `${page}_${n}`;
+                        
+                        const t_utc = m.DateTime_UTC || m["DateTime UTC"];
+                        const t1 = m.Team1 || m["Team 1"];
+                        const t2 = m.Team2 || m["Team 2"];
+                        return `${page}_${t_utc}_${t1}_${t2}`;
                     };
 
                     oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
