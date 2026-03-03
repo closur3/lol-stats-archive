@@ -1185,7 +1185,8 @@ async function runUpdate(env, force=false) {
         if (!analysis.globalStats[slug]) continue;
         const snapshot = {
             tourn: tourn,
-            rawMatches: cache.rawMatches[slug] || [],
+            globalStats: analysis.globalStats[slug],
+            timeGrid: analysis.timeGrid[slug],
             updateTimestamps: { [slug]: cache.updateTimestamps[slug] }
         };
         await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
@@ -1196,6 +1197,131 @@ async function runUpdate(env, force=false) {
     if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Ignored: ${failureCount} · Total Parsed: ${analysis.grandTotal}`);
     else l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
     return l;
+}
+
+function renderToolsPage(time, sha) {
+    const shortSha = (sha || "").slice(0, 7) || "unknown";
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tools</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🔧</text></svg>">
+    <style>
+        ${COMMON_STYLE}
+        body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; margin: 0; padding: 0; }
+        .main-header { flex-shrink: 0; margin-bottom: 20px; }
+        .tools-container { max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+        .tool-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .tool-card h2 { margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #0f172a; }
+        .tool-card p { margin: 0 0 14px 0; font-size: 13px; color: #64748b; }
+        .tool-inputs { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+        .tool-inputs input { border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-family: inherit; color: #0f172a; outline: none; transition: border 0.2s; }
+        .tool-inputs input:focus { border-color: #94a3b8; }
+        .tool-btn { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; font-family: inherit; color: #475569; cursor: pointer; transition: 0.2s; }
+        .tool-btn:hover { background: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+        .tool-btn:disabled { opacity: 0.5; pointer-events: none; }
+        .tool-result { margin-top: 10px; font-size: 13px; color: #475569; display: none; }
+        .build-footer { text-align: center; padding: 30px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        .build-footer b { color: #64748b; }
+        .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
+        .build-footer a:hover { opacity: 1; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <div class="header-left">
+            <span class="header-logo">🔧</span>
+            <h1 class="header-title">Tools</h1>
+        </div>
+        <div class="header-right">
+            <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
+        </div>
+    </header>
+
+    <div class="tools-container">
+        <div class="tool-card">
+            <h2>⚡ Force Update</h2>
+            <p>Trigger a full data refresh for all active tournaments.</p>
+            <button class="tool-btn" onclick="triggerForce(event)">Run Force Update</button>
+            <div class="tool-result" id="forceResult"></div>
+        </div>
+
+        <div class="tool-card">
+            <h2>📦 Rebuild Archive</h2>
+            <p>Fetch and rebuild archive data for a removed or outdated tournament.</p>
+            <div class="tool-inputs">
+                <input id="rebuildSlug" placeholder="Slug" />
+                <input id="rebuildPage" placeholder="Overview Page" />
+                <input id="rebuildName" placeholder="Display Name" />
+                <input id="rebuildLeague" placeholder="League Short Name" />
+            </div>
+            <button class="tool-btn" onclick="triggerRebuild(event)">Run Rebuild</button>
+            <div class="tool-result" id="rebuildResult"></div>
+        </div>
+    </div>
+
+    <div class="build-footer">
+        deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
+    </div>
+
+    <script>
+        async function triggerForce(e) {
+            const pwd = prompt("🔒 Password:");
+            if (!pwd) return;
+            const btn = e.currentTarget;
+            const result = document.getElementById('forceResult');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            result.style.display = 'none';
+            try {
+                const res = await fetch('/force', { method: 'POST', headers: { 'Authorization': 'Bearer ' + pwd } });
+                result.style.display = 'block';
+                if (res.status === 401) result.textContent = '❌ Incorrect password';
+                else if (res.ok) result.textContent = '✅ Done';
+                else result.textContent = '⚠️ Server error: ' + res.status;
+            } catch(e) {
+                result.style.display = 'block';
+                result.textContent = '❌ Network error';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Run Force Update';
+            }
+        }
+
+        async function triggerRebuild(e) {
+            const slug = document.getElementById('rebuildSlug').value.trim();
+            const page = document.getElementById('rebuildPage').value.trim();
+            const name = document.getElementById('rebuildName').value.trim();
+            const league = document.getElementById('rebuildLeague').value.trim();
+            const result = document.getElementById('rebuildResult');
+            if (!slug || !page) {
+                result.style.display = 'block';
+                result.textContent = '⚠️ Slug and Overview Page are required';
+                return;
+            }
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            result.style.display = 'none';
+            try {
+                const params = new URLSearchParams({ slug, page, ...(name && { name }), ...(league && { league }) });
+                const res = await fetch('/tools/rebuild?' + params, { method: 'POST' });
+                result.style.display = 'block';
+                if (res.ok) result.textContent = '✅ ' + await res.text();
+                else result.textContent = '⚠️ Server error: ' + res.status;
+            } catch(e) {
+                result.style.display = 'block';
+                result.textContent = '❌ Network error';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Run Rebuild';
+            }
+        }
+    </script>
+</body>
+</html>`;
 }
 
 function renderLogPage(logs, time, sha) {
