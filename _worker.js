@@ -1185,8 +1185,7 @@ async function runUpdate(env, force=false) {
         if (!analysis.globalStats[slug]) continue;
         const snapshot = {
             tourn: tourn,
-            globalStats: analysis.globalStats[slug],
-            timeGrid: analysis.timeGrid[slug],
+            rawMatches: cache.rawMatches[slug] || [],
             updateTimestamps: { [slug]: cache.updateTimestamps[slug] }
         };
         await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
@@ -1197,211 +1196,6 @@ async function runUpdate(env, force=false) {
     if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Ignored: ${failureCount} · Total Parsed: ${analysis.grandTotal}`);
     else l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
     return l;
-}
-
-function renderToolsPage(time, sha) {
-    const shortSha = (sha || "").slice(0, 7) || "unknown";
-    return `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Worker Console - Tools</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🔧</text></svg>">
-    <style>
-        ${COMMON_STYLE}
-        body { background: #f8fafc; min-height: 100vh; }
-        .tools-container { max-width: 800px; margin: 0 auto; padding: 20px 15px 60px; display: flex; flex-direction: column; gap: 20px; }
-        
-        /* 概览卡片 */
-        .status-overview { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 10px; }
-        .status-item { background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 4px; }
-        .status-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-        .status-value { font-size: 14px; font-weight: 700; color: #1e293b; font-family: ui-monospace, monospace; }
-
-        /* 通用卡片样式 */
-        .tool-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01); transition: transform 0.2s; }
-        .card-header { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #fff; display: flex; align-items: center; gap: 10px; }
-        .card-icon { font-size: 20px; }
-        .card-title { font-weight: 800; font-size: 16px; color: #0f172a; flex: 1; }
-        .card-body { padding: 20px; }
-        .card-desc { margin: 0 0 18px 0; font-size: 13px; color: #64748b; line-height: 1.5; }
-
-        /* 输入控件 */
-        .tool-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-        .input-group { display: flex; flex-direction: column; gap: 6px; }
-        .input-label { font-size: 12px; font-weight: 600; color: #475569; padding-left: 2px; }
-        input { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; font-size: 14px; transition: 0.2s; background: #fcfcfd; }
-        input:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); background: #fff; }
-        
-        /* 按钮与结果 */
-        .btn-row { display: flex; align-items: center; gap: 12px; }
-        .tool-btn { background: #1e293b; color: #fff; border: none; border-radius: 10px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; }
-        .tool-btn:hover { background: #0f172a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .tool-btn:active { transform: translateY(0); }
-        .tool-btn:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; box-shadow: none; }
-        
-        .result-pill { font-size: 13px; font-weight: 600; padding: 10px 16px; border-radius: 10px; display: none; animation: slideIn 0.3s ease; flex: 1; }
-        .res-success { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
-        .res-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
-
-        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-        @media (max-width: 600px) { .tool-inputs { grid-template-columns: 1fr; } .status-overview { grid-template-columns: 1fr; } .btn-row { flex-direction: column; align-items: stretch; } }
-        
-        .build-footer { text-align: center; padding: 30px 20px; color: #94a3b8; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <header class="main-header">
-        <div class="header-left">
-            <span class="header-logo">🔧</span>
-            <h1 class="header-title">Worker Tools</h1>
-        </div>
-        <div class="header-right">
-            <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
-            <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
-        </div>
-    </header>
-
-    <div class="tools-container">
-        <div class="status-overview">
-            <div class="status-item">
-                <span class="status-label">Environment Version</span>
-                <span class="status-value">${UI_VERSION}</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Last Deployed (CST)</span>
-                <span class="status-value">${time || "Unknown"}</span>
-            </div>
-        </div>
-
-        <div class="tool-card">
-            <div class="card-header">
-                <span class="card-icon">⚡</span>
-                <span class="card-title">System Refresh</span>
-            </div>
-            <div class="card-body">
-                <p class="card-desc">强制从 Fandom API 重新抓取所有当前活跃联赛的数据。此操作将绕过所有缓存逻辑，通常用于修复数据异常或同步紧急赛程更动。</p>
-                <div class="btn-row">
-                    <button class="tool-btn" id="btnForce" onclick="triggerForce(event)">
-                        <span class="btn-spinner" id="spinForce" style="display:none">⏳</span>
-                        Execute Force Update
-                    </button>
-                    <div id="forceResult" class="result-pill"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="tool-card">
-            <div class="card-header">
-                <span class="card-icon">📦</span>
-                <span class="card-title">Archive Rebuild</span>
-            </div>
-            <div class="card-body">
-                <p class="card-desc">手动为指定联赛创建归档。适用于已结束的联赛、或不在当前热更列表中的历史赛事同步。</p>
-                <div class="tool-inputs">
-                    <div class="input-group">
-                        <span class="input-label">Slug (Internal ID)</span>
-                        <input id="rebuildSlug" placeholder="e.g. lpl-2024-summer" />
-                    </div>
-                    <div class="input-group">
-                        <span class="input-label">Overview Page</span>
-                        <input id="rebuildPage" placeholder="LPL/2024_Season/Summer_Season" />
-                    </div>
-                    <div class="input-group">
-                        <span class="input-label">Display Name</span>
-                        <input id="rebuildName" placeholder="LPL 2024 Summer" />
-                    </div>
-                    <div class="input-group">
-                        <span class="input-label">League Short</span>
-                        <input id="rebuildLeague" placeholder="LPL" />
-                    </div>
-                </div>
-                <div class="btn-row">
-                    <button class="tool-btn" id="btnRebuild" onclick="triggerRebuild(event)">
-                        <span class="btn-spinner" id="spinRebuild" style="display:none">⏳</span>
-                        Build Archive
-                    </button>
-                    <div id="rebuildResult" class="result-pill"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="build-footer">
-            Build: <b>${shortSha}</b> • ${BOT_UA}
-        </div>
-    </div>
-
-    <script>
-        function showResult(elId, msg, isError = false) {
-            const el = document.getElementById(elId);
-            el.textContent = msg;
-            el.style.display = 'block';
-            el.className = 'result-pill ' + (isError ? 'res-error' : 'res-success');
-            setTimeout(() => { el.style.opacity = '0.5'; }, 5000);
-        }
-
-        async function triggerForce(e) {
-            const pwd = prompt("🔒 Admin Secret Required:");
-            if (!pwd) return;
-            
-            const btn = document.getElementById('btnForce');
-            const spin = document.getElementById('spinForce');
-            const resEl = document.getElementById('forceResult');
-            
-            btn.disabled = true;
-            spin.style.display = 'inline-block';
-            resEl.style.display = 'none';
-
-            try {
-                const res = await fetch('/force', { 
-                    method: 'POST', 
-                    headers: { 'Authorization': 'Bearer ' + pwd } 
-                });
-                if (res.status === 401) showResult('forceResult', '❌ Unauthorized: Invalid Secret', true);
-                else if (res.ok) showResult('forceResult', '✅ Update sequence completed successfully');
-                else showResult('forceResult', '⚠️ Server returned ' + res.status, true);
-            } catch(e) {
-                showResult('forceResult', '❌ Connection failed', true);
-            } finally {
-                btn.disabled = false;
-                spin.style.display = 'none';
-            }
-        }
-
-        async function triggerRebuild(e) {
-            const slug = document.getElementById('rebuildSlug').value.trim();
-            const page = document.getElementById('rebuildPage').value.trim();
-            const name = document.getElementById('rebuildName').value.trim();
-            const league = document.getElementById('rebuildLeague').value.trim();
-            
-            if (!slug || !page) {
-                showResult('rebuildResult', '⚠️ Slug and Page are mandatory', true);
-                return;
-            }
-
-            const btn = document.getElementById('btnRebuild');
-            const spin = document.getElementById('spinRebuild');
-            
-            btn.disabled = true;
-            spin.style.display = 'inline-block';
-            document.getElementById('rebuildResult').style.display = 'none';
-
-            try {
-                const params = new URLSearchParams({ slug, page, name, league });
-                const res = await fetch('/tools/rebuild?' + params, { method: 'POST' });
-                if (res.ok) showResult('rebuildResult', '✅ ' + await res.text());
-                else showResult('rebuildResult', '⚠️ Rebuild failed: ' + res.status, true);
-            } catch(e) {
-                showResult('rebuildResult', '❌ Network error', true);
-            } finally {
-                btn.disabled = false;
-                spin.style.display = 'none';
-            }
-        }
-    </script>
-</body>
-</html>`;
 }
 
 function renderLogPage(logs, time, sha) {
@@ -1509,7 +1303,7 @@ function renderLogPage(logs, time, sha) {
         </div>
         <div class="header-right">
             <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
-            <a href="/tools" class="action-btn"><span class="btn-icon">🔧</span> <span class="btn-text">Tools</span></a>
+            <button class="action-btn update-btn" onclick="triggerUpdate()"><span class="btn-icon">⚡</span> <span class="btn-text">Update</span></button>
         </div>
     </header>
     
@@ -1522,6 +1316,39 @@ function renderLogPage(logs, time, sha) {
         deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
     </div>
     
+    <script>
+        async function triggerUpdate() {
+            const pwd = prompt("🔒 Password:");
+            if (!pwd) return;
+
+            const btn = document.querySelector('.update-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="btn-icon">⏳</span> <span class="btn-text">Updating</span>';
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.7';
+
+            try {
+                const res = await fetch('/force', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + pwd }
+                });
+                
+                if (res.status === 401) {
+                    alert("❌ Incorrect password");
+                } else if (res.ok) {
+                    window.location.reload(); 
+                } else {
+                    alert("⚠️ Server error: " + res.status);
+                }
+            } catch (e) {
+                alert("❌ Network connection failed");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.style.pointerEvents = 'auto';
+                btn.style.opacity = '1';
+            }
+        }
+    </script>
 </body>
 </html>`;
 }
@@ -1542,17 +1369,20 @@ export default {
             case "/force": {
                 const expectedSecret = env.ADMIN_SECRET;
                 const authHeader = request.headers.get("Authorization");
+                
                 if (expectedSecret) {
                     if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
                         return new Response("Unauthorized", { status: 401 });
                     }
                 }
+
                 const l = await runUpdate(env, true);
                 const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
                 const newLogs = l.export();
                 let combinedLogs = [...newLogs, ...oldLogs];
                 if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
                 await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+                
                 return new Response("OK", { status: 200 });
             }
 
@@ -1560,71 +1390,38 @@ export default {
                 const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
                 const time = env.GITHUB_TIME;
                 const sha = env.GITHUB_SHA;
-                return new Response(renderLogPage(logs, time, sha), {
-                    headers: { "content-type": "text/html;charset=utf-8" }
+
+            return new Response(renderLogPage(logs, time, sha), { 
+                headers: { "content-type": "text/html;charset=utf-8" } 
                 });
             }
-
-            case "/tools": {
-                const expectedSecret = env.ADMIN_SECRET;
-                const submittedPwd = url.searchParams.get("pwd");
-    
-                if (expectedSecret && submittedPwd !== expectedSecret) {
-                    return new Response(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tools</title><style>${COMMON_STYLE} body{display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;} .login-box{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px;box-shadow:0 4px 6px rgba(0,0,0,0.05);display:flex;flex-direction:column;gap:12px;width:280px;} .login-box h2{margin:0;font-size:16px;font-weight:700;color:#0f172a;} .login-box input{border:1px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;} .login-box input:focus{border-color:#94a3b8;} .login-box button{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px;font-size:13px;font-weight:600;font-family:inherit;color:#475569;cursor:pointer;} .login-box button:hover{background:#f1f5f9;color:#0f172a;border-color:#94a3b8;} .err{font-size:12px;color:#b91c1c;display:none;}</style></head><body><div class="login-box"><h2>🔧 Tools</h2><input type="password" id="pwd" placeholder="Password" onkeydown="if(event.key==='Enter')login()"/><div class="err" id="err">Incorrect password</div><button onclick="login()">Enter</button></div><script>function login(){const p=document.getElementById('pwd').value;if(!p)return;window.location.href='/tools?pwd='+encodeURIComponent(p);} ${submittedPwd ? "document.getElementById('err').style.display='block';" : ""}</script></body></html>`, {
-                        headers: { "content-type": "text/html;charset=utf-8" }
-                    });
-                }
-
-                const time = env.GITHUB_TIME;
-                const sha = env.GITHUB_SHA;
-                return new Response(renderToolsPage(time, sha), {
-                    headers: { "content-type": "text/html;charset=utf-8" }
-                });
-            }
-
-            case "/tools/rebuild": {
-                const slugParam = url.searchParams.get("slug");
-                const pageParam = url.searchParams.get("page");
-                const nameParam = url.searchParams.get("name") || slugParam;
-                const leagueParam = url.searchParams.get("league") || slugParam;
-                if (!slugParam || !pageParam) {
-                    return new Response("Missing ?slug= and ?page= params", { status: 400 });
-                }
-                const l = new Logger();
-                const authContext = await loginToFandom(env, l);
-                const rawMatches = await fetchAllMatches(slugParam, pageParam, l, authContext, null);
-                const cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
-                const tourn = { slug: slugParam, overview_page: pageParam, name: nameParam, league: leagueParam };
-                const miniConfig = { TEAM_MAP: teamMap, TOURNAMENTS: [tourn] };
-                const analysis = runFullAnalysis({ [slugParam]: rawMatches }, {}, miniConfig);
-                const snapshot = {
-                    tourn: tourn,
-                    globalStats: analysis.globalStats[slugParam],
-                    timeGrid: analysis.timeGrid[slugParam],
-                    updateTimestamps: { [slugParam]: Date.now() }
-                };
-                await env.LOL_KV.put(`ARCHIVE_${slugParam}`, JSON.stringify(snapshot));
-                return new Response(`OK: ${rawMatches.length} matches archived for ${slugParam}`, { status: 200 });
-            }
-
+            
             case "/archive": {
                 const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
                 if (!allKeys.keys.length) return new Response("No archive data available.", { headers: { "content-type": "text/html" } });
+
                 allKeys.keys.sort((a, b) => b.name.localeCompare(a.name));
-                const fragments = [];
-                for (const key of allKeys.keys) {
-                    const snap = await env.LOL_KV.get(key.name, { type: "json" });
-                    if (!snap) continue;
-                    fragments.push(renderContentOnly(
-                        { [snap.tourn.slug]: snap.globalStats },
-                        { [snap.tourn.slug]: snap.timeGrid },
+
+                const cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
+
+                const snapshots = await Promise.all(
+                    allKeys.keys.map(k => env.LOL_KV.get(k.name, { type: "json" }))
+                );
+
+                const fragments = snapshots.filter(Boolean).map(snap => {
+                    const miniConfig = { TEAM_MAP: teamMap, TOURNAMENTS: [snap.tourn] };
+                    const analysis = runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches }, {}, miniConfig);
+                    return renderContentOnly(
+                        { [snap.tourn.slug]: analysis.globalStats[snap.tourn.slug] },
+                        { [snap.tourn.slug]: analysis.timeGrid[snap.tourn.slug] },
                         {},
                         { TOURNAMENTS: [snap.tourn] },
                         snap.updateTimestamps,
                         true
-                    ));
-                }
+                    );
+                });
+
                 const combined = `<div class="arch-content">${fragments.join("")}</div>`;
                 const fullPage = renderPageShell("LoL Archive", combined, "", "archive");
                 return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
@@ -1633,13 +1430,11 @@ export default {
             case "/": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache) return new Response("Initializing... <a href='/force'>Click to Build</a>", { headers: { "content-type": "text/html" } });
+
                 const homeFragment = renderContentOnly(
-                    cache.globalStats,
-                    cache.timeGrid,
-                    cache.scheduleMap,
+                    cache.globalStats, cache.timeGrid, cache.scheduleMap,
                     cache.runtimeConfig || { TOURNAMENTS: [] },
-                    cache.updateTimestamps,
-                    false
+                    cache.updateTimestamps, false
                 );
                 const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
                 return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
