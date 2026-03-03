@@ -1,10 +1,10 @@
 // ====================================================
-// 🥇 Worker V42.6.0: Perfect Unified Aesthetic
+// 🥇 Worker V42.7.0: Flawless UI & Scroll Fix
 // 更新日志:
-// 1. 终极统一样式: Tools 页面彻底复用主页的 .wrapper 和 .table-title 容器，实现 100% 风格对齐。
-// 2. 表单重绘: 引入网格布局(Grid)和高级表单输入框，Label 采用全大写微标风格。
-// 3. 鉴权框净化: 移除黑色压抑元素，改用浅色毛玻璃背景与主题蓝按钮。
-// 4. 清理残留: 彻底从系统和 HTML 骨架中剔除 UI_VERSION。
+// 1. 滚动条修复: 引入全局 box-sizing: border-box，解决 Tools 页横向溢出 Bug。
+// 2. 标签格式化: 移除全大写样式，恢复首字母大写的自然阅读习惯。
+// 3. 提示词净化: 移除冗余的 e.g.，直接展示标准格式范例。
+// 4. 底层清理: 从页面外壳渲染中彻底清除 UI_VERSION 的残留挂载点。
 // ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
@@ -501,8 +501,9 @@ function generateMarkdown(tourn, stats, timeGrid) {
 
 // --- 7. HTML 渲染器 & 页面外壳 ---
 const COMMON_STYLE = `
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; }
-    .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; }
+    .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: 100%; }
     .header-left { display: flex; align-items: center; gap: 12px; }
     .header-logo { font-size: 1.8rem; }
     .header-title { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
@@ -515,7 +516,7 @@ const COMMON_STYLE = `
 
 const PYTHON_STYLE = `
     ${COMMON_STYLE}
-    .container { max-width: 1400px; margin: 0 auto; padding: 0 15px 40px 15px; }
+    .container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 0 15px 40px 15px; }
     .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; padding-bottom: 0; display: flex; flex-direction: column; }
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list { -ms-overflow-style: none; scrollbar-width: none; }
@@ -1105,11 +1106,11 @@ function renderToolsPage(time, sha) {
         <style>
             ${COMMON_STYLE}
             body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; }
-            .container { flex: 1; overflow-y: auto; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 25px; padding-bottom: 20px; -webkit-overflow-scrolling: touch; }
+            .container { flex: 1; overflow-y: auto; overflow-x: hidden; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 25px; -webkit-overflow-scrolling: touch; }
             
-            .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; }
-            .table-title { padding: 15px 20px; font-weight: 700; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; }
-            .section-body { padding: 25px 20px; }
+            .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
+            .table-title { padding: 15px 20px; font-weight: 700; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; box-sizing: border-box; }
+            .section-body { padding: 25px 20px; box-sizing: border-box; }
             
             .flex-row { display: flex; justify-content: space-between; align-items: center; }
             
@@ -1118,7 +1119,7 @@ function renderToolsPage(time, sha) {
             
             .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
             .form-group { display: flex; flex-direction: column; }
-            .tool-label { font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 6px; padding-left: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .tool-label { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px; padding-left: 2px; }
             .form-input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; color: #0f172a; box-sizing: border-box; transition: all 0.2s; background: #f8fafc; }
             .form-input:focus { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); outline: none; }
             .form-input::placeholder { color: #94a3b8; }
@@ -1183,19 +1184,19 @@ function renderToolsPage(time, sha) {
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="tool-label">Slug</label>
-                            <input type="text" id="rb-slug" class="form-input">
+                            <input type="text" id="rb-slug" placeholder="lpl-2026-spring" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Name</label>
-                            <input type="text" id="rb-name" class="form-input">
+                            <input type="text" id="rb-name" placeholder="LPL 2026 Spring" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Overview Page</label>
-                            <input type="text" id="rb-overview" class="form-input">
+                            <input type="text" id="rb-overview" placeholder="LPL/2026 Season/Spring Season" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">League</label>
-                            <input type="text" id="rb-league" class="form-input">
+                            <input type="text" id="rb-league" placeholder="LPL" class="form-input">
                         </div>
                     </div>
                     <div style="display: flex; justify-content: flex-end;">
@@ -1327,7 +1328,7 @@ function renderLogPage(logs, time, sha) {
         ${COMMON_STYLE}
         body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; padding: 0; }
         .main-header { flex-shrink: 0; margin-bottom: 20px; }
-        .container { flex: 1; min-height: 0; display: flex; flex-direction: column; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; overflow: hidden; transform: translateZ(0); -webkit-mask-image: -webkit-radial-gradient(white, black); }
+        .container { flex: 1; min-height: 0; display: flex; flex-direction: column; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; overflow: hidden; transform: translateZ(0); -webkit-mask-image: -webkit-radial-gradient(white, black); }
         .log-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; list-style: none; margin: 0; padding: 0; }
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
@@ -1353,7 +1354,7 @@ function renderLogPage(logs, time, sha) {
             <a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a>
         </div>
     </header>
-    <div class="container">
+    <div class="container" style="padding: 0; width: calc(100% - 30px);">
         <ul class="log-list">${entries}</ul>
         ${logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : ''}
     </div>
