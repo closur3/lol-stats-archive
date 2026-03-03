@@ -1,0 +1,16 @@
+name: Deploy Worker
+on:
+  push:
+    branches: [ main ]
+    paths: [ '_worker.js', 'wrangler.toml' ] # 只有代码和配置变动才触发部署
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          vars: |
+            GITHUB_SHA: "${{ github.sha }}"
+            GITHUB_TIME: "$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
