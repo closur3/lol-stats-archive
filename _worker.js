@@ -1,41 +1,42 @@
 // ====================================================
-// 🥇 Worker V41.3.1: Archive Persistence & KV Hygiene
+// 🥇 Worker V41.4.0: Ultimate Unification & Wake-up Logic
 // 更新日志:
-// 1. Archive 持久化: 每个联赛独立存储 ARCHIVE_{slug}，历史赛季永久保留。
-// 2. KV 清理: 每次更新前自动删除不在 tour.json 里的残留 rawMatches 数据。
-// 3. 配置重命名: teams.json → mapping.json，tournaments.json → tour.json。
-// 4. 字段直读: 联赛全称严格取 tour.json name，简写严格取 league，废弃 || slug。
-// 5. 状态机升级: 记录首场 startTs，实现“首场开赛唤醒 -> 保持 Fast 直至全天结束 -> 重新慢速”机制。
-// 6. 消除冗余: 移除抓取数据中多余的带空格字段回退，统一遍历变量名为 tourn。
+// 1. 状态机升级: 记录首场 startTs，实现“首场开赛唤醒 -> 保持 Fast 直至全天结束 -> 重新慢速”机制。
+// 2. 字段直读: 联赛全称严格取 name，简写严格取 league，废弃所有 || slug 的降级。
+// 3. 核心精简: 提取 utils.timeParts 统一时间引擎，消除重复的日期换算和 pad 补零逻辑。
+// 4. 清理残留: 移除 Fandom API 抓取数据中多余的带空格字段回退，统一变量命名。
 // ====================================================
 
-const UI_VERSION = "2026-03-03-V41.3.1";
+const UI_VERSION = "2026-03-03-V41.4.0";
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
 
 const utils = {
+    pad: (n) => n < 10 ? '0' + n : n,
     toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
+    
+    // 统一的时间解构引擎，拒绝重复造轮子
+    timeParts: (ts) => {
+        const d = utils.toCST(ts);
+        return {
+            y: d.getUTCFullYear(), mo: utils.pad(d.getUTCMonth() + 1), da: utils.pad(d.getUTCDate()),
+            h: utils.pad(d.getUTCHours()), m: utils.pad(d.getUTCMinutes()), s: utils.pad(d.getUTCSeconds()),
+            day: d.getUTCDay()
+        };
+    },
 
     getNow: () => {
-        const d = new Date(Date.now() + CST_OFFSET);
-        const pad = n => n < 10 ? '0'+n : n;
-        const iso = `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-        return {
-            obj: d,
-            full: iso,
-            short: iso.slice(2),
-            date: iso.slice(0, 10),
-            time: iso.slice(11, 16)
-        };
+        const p = utils.timeParts();
+        const iso = `${p.y}-${p.mo}-${p.da} ${p.h}:${p.m}:${p.s}`;
+        return { obj: utils.toCST(), full: iso, short: iso.slice(2), date: iso.slice(0, 10), time: iso.slice(11, 16) };
     },
     
     fmtDate: (ts) => {
         if (!ts) return "(Pending)";
-        const d = new Date(ts + CST_OFFSET);
-        const pad = n => n < 10 ? '0'+n : n;
-        return `${d.getUTCFullYear().toString().slice(2)}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+        const p = utils.timeParts(ts);
+        return `${p.y.toString().slice(2)}-${p.mo}-${p.da} ${p.h}:${p.m}`;
     },
 
     rate: (n, d) => d > 0 ? n / d : null,
@@ -56,7 +57,7 @@ const utils = {
         if (diffDays <= 7) return "hsl(215, 55%, 55%)";
         if (diffDays <= 14) return "hsl(215, 40%, 60%)";
         return "hsl(215, 40%, 60%)";
-        },
+    },
     
     parseDate: (str) => {
         if(!str) return null;
@@ -78,6 +79,7 @@ const utils = {
             .filter(c => c.includes('='))
             .join('; ');
     },
+
     sortTeams: (statsObj) => {
         if (!statsObj) return [];
         const BO5_WEIGHT = 1.33;
@@ -321,14 +323,11 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         return res;
     };
 
-    const pad2 = (n) => n < 10 ? '0'+n : n;
-
     runtimeConfig.TOURNAMENTS.forEach((tourn, tournIdx) => {
         const rawMatches = allRawMatches[tourn.slug] || [];
         const stats = {};
         let processed = 0, skipped = 0;
-        let t_matchesToday = 0;
-        let t_pendingToday = 0;
+        let matchesToday = 0, pendingToday = 0;
         let earliestPendingTs = Infinity;
         
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
@@ -352,23 +351,16 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 
             if (dt) {
                 ts = dt.getTime();
-                const localTs = ts + CST_OFFSET;
-                const localD = new Date(localTs); 
+                const p = utils.timeParts(ts);
                 
-                const y = localD.getUTCFullYear();
-                const mo = localD.getUTCMonth() + 1;
-                const da = localD.getUTCDate();
-                const ho = localD.getUTCHours();
-                const mi = localD.getUTCMinutes();
-                
-                const matchDateStr = `${y}-${pad2(mo)}-${pad2(da)}`;
-                const matchTimeStr = `${pad2(ho)}:${pad2(mi)}`;
-                dateDisplay = `${pad2(mo)}-${pad2(da)} ${matchTimeStr}`;
+                const matchDateStr = `${p.y}-${p.mo}-${p.da}`;
+                const matchTimeStr = `${p.h}:${p.m}`;
+                dateDisplay = `${p.mo}-${p.da} ${matchTimeStr}`;
 
                 if (matchDateStr >= todayStr) {
                     if (matchDateStr === todayStr) {
-                        t_matchesToday++;
-                        if (!isFinished) t_pendingToday++;
+                        matchesToday++;
+                        if (!isFinished) pendingToday++;
                         if (ts < earliestPendingTs) earliestPendingTs = ts;
                     }
                     if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
@@ -379,7 +371,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     allFutureMatches[matchDateStr].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
-                        tourn: tourn.league, tournSlug: tourn.slug,
+                        league: tourn.league, slug: tourn.slug,
                         tournIndex: tournIdx, blockName: blockName || ""  
                     });
                 }
@@ -389,11 +381,10 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     if(ts > stats[t2].last) stats[t2].last = ts;
                     if(ts > maxDateTs) maxDateTs = ts;
 
-                    const wd = localD.getUTCDay();
-                    const pyDay = wd === 0 ? 6 : wd - 1;
-                    const targetH = ho;
+                    const pyDay = p.day === 0 ? 6 : p.day - 1;
+                    const targetH = parseInt(p.h, 10);
 
-                    const matchObj = { d: `${pad2(mo)}-${pad2(da)}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
+                    const matchObj = { d: `${p.mo}-${p.da}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull };
                     
                     if (!timeGrid[tourn.slug]) timeGrid[tourn.slug] = { "Total": createSlot() };
                     if (!timeGrid[tourn.slug][targetH]) timeGrid[tourn.slug][targetH] = createSlot();
@@ -437,7 +428,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
         globalStats[tourn.slug] = stats;
         grandTotal += processed;
-        totalMatchesToday += t_matchesToday;
+        totalMatchesToday += matchesToday;
 
         const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
         let nextStreak = 0, nextMode = "fast";
@@ -445,7 +436,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         if (failedSlugs.has(tourn.slug)) {
             nextStreak = prevT.streak || 0;
             nextMode = prevT.mode || "fast";
-        } else if (t_matchesToday > 0 && t_pendingToday > 0) { 
+        } else if (matchesToday > 0 && pendingToday > 0) { 
             nextStreak = 0; 
             nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
         } else { 
@@ -944,15 +935,15 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                 let lastGroupKey = "";
                 matches.forEach(m => {
                     const blockName = m.blockName || "";
-                    const groupKey = `${m.tourn}_${blockName}`;
+                    const groupKey = `${m.league}_${blockName}`;
                     if (groupKey !== lastGroupKey) {
-                        cardHtml += `<div class="sch-group-header" style="background:#f8fafc"><div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box"><span class="spine-l" style="font-weight:800">${m.tourn}</span><span class="spine-sep">/</span><span class="spine-r" style="font-weight:800; opacity:0.7">${blockName || "REGULAR"}</span></div></div>`;
+                        cardHtml += `<div class="sch-group-header" style="background:#f8fafc"><div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box"><span class="spine-l" style="font-weight:800">${m.league}</span><span class="spine-sep">/</span><span class="spine-r" style="font-weight:800; opacity:0.7">${blockName || "REGULAR"}</span></div></div>`;
                         lastGroupKey = groupKey;
                     }
                     const boLabel = m.bo ? `BO${m.bo}` : ''; const isBo5 = m.bo === 5; const boClass = isBo5 ? "sch-pill gold" : "sch-pill";
                     const isTbd1 = m.t1 === "TBD", isTbd2 = m.t2 === "TBD";
-                    const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t1}')"`, t2Click = isTbd2 ? "" : `onclick="openTeam('${m.tournSlug}', '${m.t2}')"`;
-                    const r1 = getRateHtml(m.t1, m.tournSlug, m.bo), r2 = getRateHtml(m.t2, m.tournSlug, m.bo);
+                    const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.slug}', '${m.t1}')"`, t2Click = isTbd2 ? "" : `onclick="openTeam('${m.slug}', '${m.t2}')"`;
+                    const r1 = getRateHtml(m.t1, m.slug, m.bo), r2 = getRateHtml(m.t2, m.slug, m.bo);
                     let midContent = `<span style="color:#94a3b8;font-size:13px;font-weight:700;margin:0 2px;">vs</span>`;
                     if (m.is_finished) {
                         const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8", s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
@@ -962,7 +953,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                     }
 
                     const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
-                    const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.tournSlug}', '${m.t1}', '${m.t2}')"` : "";
+                    const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.slug}', '${m.t1}', '${m.t2}')"` : "";
                     cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="${h2hClass}" ${h2hClick} style="display:flex;justify-content:center;align-items:center;width:40px;transition:background 0.2s;">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;               });
                 cardHtml += `</div></div>`;
                 scheduleHtml += cardHtml;
