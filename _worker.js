@@ -1,14 +1,15 @@
 // ====================================================
-// 🥇 Worker V41.3.0: Archive Persistence & KV Hygiene
+// 🥇 Worker V41.3.1: Archive Persistence & KV Hygiene
 // 更新日志:
 // 1. Archive 持久化: 每个联赛独立存储 ARCHIVE_{slug}，历史赛季永久保留。
 // 2. KV 清理: 每次更新前自动删除不在 tour.json 里的残留 rawMatches 数据。
 // 3. 配置重命名: teams.json → mapping.json，tournaments.json → tour.json。
-// 4. 字段直读: 联赛全称取 tour.json name 字段，简写取 league 字段。
-// 5. 移除工具函数: 删除 formatTitle 与 getShortName，不再依赖 slug 推导名称。
+// 4. 字段直读: 联赛全称严格取 tour.json name，简写严格取 league，废弃 || slug。
+// 5. 状态机升级: 记录首场 startTs，实现“首场开赛唤醒 -> 保持 Fast 直至全天结束 -> 重新慢速”机制。
+// 6. 消除冗余: 移除抓取数据中多余的带空格字段回退，统一遍历变量名为 tourn。
 // ====================================================
 
-const UI_VERSION = "2026-02-26-V41.3.0";
+const UI_VERSION = "2026-03-03-V41.3.1";
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
@@ -80,7 +81,6 @@ const utils = {
     sortTeams: (statsObj) => {
         if (!statsObj) return [];
         const BO5_WEIGHT = 1.33;
-        // 转换对象为数组，并过滤掉 TBD
         const statsArray = Object.values(statsObj).filter(s => s && s.name && s.name !== "TBD");
 
         return statsArray.sort((a, b) => {
@@ -183,7 +183,7 @@ async function loginToFandom(env, logger) {
     }
 }
 
-// --- 4. 抓取逻辑 (API 礼仪重构版) ---
+// --- 4. 抓取逻辑 ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     let attempt = 1;
     
@@ -334,8 +334,8 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
         rawMatches.forEach(m => {
-            const t1 = resolveName(m.Team1 || m["Team 1"]);
-            const t2 = resolveName(m.Team2 || m["Team 2"]);
+            const t1 = resolveName(m.Team1);
+            const t2 = resolveName(m.Team2);
             if(!t1 || !t2) { skipped++; return; } 
             
             ensureTeam(t1); ensureTeam(t2);
@@ -346,7 +346,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             const isLive = !isFinished && (s1 > 0 || s2 > 0 || (m.Team1Score !== "" && m.Team1Score != null));
             const isFull = (bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2);
             
-            const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
+            const dt = utils.parseDate(m.DateTime_UTC);
             let dateDisplay = "-";
             let ts = 0;
 
@@ -379,7 +379,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     allFutureMatches[matchDateStr].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
-                        tourn: tourn.league || tourn.slug, tournSlug: tourn.slug,
+                        tourn: tourn.league, tournSlug: tourn.slug,
                         tournIndex: tournIdx, blockName: blockName || ""  
                     });
                 }
@@ -445,16 +445,14 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         if (failedSlugs.has(tourn.slug)) {
             nextStreak = prevT.streak || 0;
             nextMode = prevT.mode || "fast";
-        } else if (t_matchesToday > 0 && t_pendingToday > 0) {
-            nextStreak = 0;
-            // 只要当前时间超过了今天第一场的开赛时间，且今天还有没打完的比赛，就死锁在 fast 模式
+        } else if (t_matchesToday > 0 && t_pendingToday > 0) { 
+            nextStreak = 0; 
             nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
-        } else {
-            nextStreak = prevT.streak >= 1 ? 2 : 1;
-            nextMode = nextStreak >= 2 ? "slow" : "fast";
+        } else { 
+            nextStreak = prevT.streak >= 1 ? 2 : 1; 
+            nextMode = nextStreak >= 2 ? "slow" : "fast"; 
         }
         
-        // 把当天的首场开赛时间传给外层调度器
         tournMeta[tourn.slug] = { 
             streak: nextStreak, 
             mode: nextMode,
@@ -493,12 +491,11 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
     return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
 }
 
-// --- 6. Markdown 生成器 (静态 1:1 复制版) ---
+// --- 6. Markdown 生成器 ---
 function generateMarkdown(tourn, stats, timeGrid) {
     const UPDATED_TIME = utils.getNow().full;
-    let md = `# ${tourn.name || tourn.slug}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    let md = `# ${tourn.name}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
-    // 调用公用排序函数
     const sorted = utils.sortTeams(stats);
 
     if (sorted.length === 0) {
@@ -520,17 +517,15 @@ function generateMarkdown(tourn, stats, timeGrid) {
         });
     }
 
-    // --- 📅 动态时间分布 (与网页完全一致) ---
+    // --- 📅 动态时间分布 ---
     md += `\n## 📅 Time Slot Distribution\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
     
     const regionGrid = timeGrid[tourn.slug] || {};
-    // 获取所有小时 key 并排序
     const hours = Object.keys(regionGrid)
         .filter(k => k !== "Total" && !isNaN(k))
         .map(Number)
         .sort((a, b) => a - b);
     
-    // 依次生成 小时行 和 Total 总计行
     const displayRows = [...hours, "Total"];
     displayRows.forEach(h => {
         if (!regionGrid[h]) return;
@@ -663,10 +658,8 @@ const PYTHON_JS = `
               k = 'data-sort-dir-' + c, 
               cur = t.getAttribute(k);
 
-        // 定义哪些列第一次点击时默认“升序” (从小到大)
         const defaultAscCols = [COL_TEAM, COL_BO3_PCT, COL_BO5_PCT];
         
-        // 确定本次排序的方向
         const next = (!cur) 
             ? (defaultAscCols.includes(c) ? 'asc' : 'desc') 
             : (cur === 'desc' ? 'asc' : 'desc');
@@ -674,7 +667,6 @@ const PYTHON_JS = `
         r.sort((ra, rb) => {
             let va = ra.cells[c].innerText, vb = rb.cells[c].innerText;
             
-            // 1. 针对不同列采用特定解析策略
             if (c === COL_LAST_DATE) {
                 va = va === "-" ? "" : va;
                 vb = vb === "-" ? "" : vb;
@@ -685,12 +677,10 @@ const PYTHON_JS = `
                 va = parseValue(va); vb = parseValue(vb);
             }
             
-            // 2. 执行排序比较
             if (va !== vb) {
                 return next === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
             }
             
-            // 3. 胜率相同时的二级排序逻辑 (始终保持强队在前，所以二级排序通常用降序)
             if (c === COL_BO3_PCT || c === COL_BO5_PCT) { 
                 let sA = parseValue(ra.cells[COL_SERIES_WR].innerText), 
                     sB = parseValue(rb.cells[COL_SERIES_WR].innerText); 
@@ -704,7 +694,6 @@ const PYTHON_JS = `
             return 0;
         });
 
-        // 更新 DOM 属性并重新挂载行
         t.setAttribute(k, next); 
         r.forEach(x => b.appendChild(x));
     }
@@ -765,7 +754,6 @@ const PYTHON_JS = `
         const sortedMatches = [...m].sort((a, b) => b.d.localeCompare(a.d));
         
         const listHtml = sortedMatches.map(item => {
-            // 通过完赛比分巧妙反推赛制，填补右侧视觉空缺
             let boTag = '<span style="color:#cbd5e1">-</span>';
             if (item.s && item.s.includes('-')) {
                 const scores = item.s.split('-');
@@ -877,16 +865,14 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
 
     let tablesHtml = "";
 
-    runtimeConfig.TOURNAMENTS.forEach((t, idx) => {
-        // 1. 【核心】直接调用公用排序函数，确保 1:1 静态复制
-        const stats = utils.sortTeams(globalStats[t.slug]);
+    runtimeConfig.TOURNAMENTS.forEach((tourn, idx) => {
+        const stats = utils.sortTeams(globalStats[tourn.slug]);
         
-        const tableId = `t_${t.slug.replace(/-/g, '_')}`;
-        const lastTs = updateTimestamps[t.slug];
+        const tableId = `t_${tourn.slug.replace(/-/g, '_')}`;
+        const lastTs = updateTimestamps[tourn.slug];
         const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
         const debugLabel = `<span style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px">${timeStr}</span>`;
 
-        // 3. 生成 Statistics 统计行
         const rows = stats.map(s => {
             const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
             const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
@@ -901,15 +887,14 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             const cls = (base, count) => count > 0 ? `${base} team-clickable` : base;
             const clk = (slug, name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${name}', '${type}')"` : "";
             
-            return `<tr><td class="team-col team-clickable" onclick="openTeam('${t.slug}', '${s.name}')">${s.name}</td><td class="${cls('col-bo3', s.bo3_t)}" ${clk(t.slug, s.name, 'bo3', s.bo3_t)} style="background:${s.bo3_t===0?emptyBg:'transparent'};color:${s.bo3_t===0?emptyCol:'inherit'}">${bo3Txt}</td><td class="col-bo3-pct" style="background:${utils.color(bo3R,true)};color:${bo3R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo3R)}</td><td class="${cls('col-bo5', s.bo5_t)}" ${clk(t.slug, s.name, 'bo5', s.bo5_t)} style="background:${s.bo5_t===0?emptyBg:'transparent'};color:${s.bo5_t===0?emptyCol:'inherit'}">${bo5Txt}</td><td class="col-bo5-pct" style="background:${utils.color(bo5R,true)};color:${bo5R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo5R)}</td><td class="${cls('col-series', s.s_t)}" ${clk(t.slug, s.name, 'series', s.s_t)} style="background:${s.s_t===0?emptyBg:'transparent'};color:${s.s_t===0?emptyCol:'inherit'}">${serTxt}</td><td class="col-series-wr" style="background:${utils.color(winR)};color:${winR!==null?'white':emptyCol};font-weight:bold">${utils.pct(winR)}</td><td class="col-game" style="background:${s.g_t===0?emptyBg:'transparent'};color:${s.g_t===0?emptyCol:'inherit'}">${gamTxt}</td><td class="col-game-wr" style="background:${utils.color(gameR)};color:${gameR!==null?'white':emptyCol};font-weight:bold">${utils.pct(gameR)}</td><td class="col-streak" style="background:${s.strk_w===0&&s.strk_l===0?emptyBg:'transparent'};color:${s.strk_w===0&&s.strk_l===0?emptyCol:'inherit'}">${strk}</td><td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
+            return `<tr><td class="team-col team-clickable" onclick="openTeam('${tourn.slug}', '${s.name}')">${s.name}</td><td class="${cls('col-bo3', s.bo3_t)}" ${clk(tourn.slug, s.name, 'bo3', s.bo3_t)} style="background:${s.bo3_t===0?emptyBg:'transparent'};color:${s.bo3_t===0?emptyCol:'inherit'}">${bo3Txt}</td><td class="col-bo3-pct" style="background:${utils.color(bo3R,true)};color:${bo3R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo3R)}</td><td class="${cls('col-bo5', s.bo5_t)}" ${clk(tourn.slug, s.name, 'bo5', s.bo5_t)} style="background:${s.bo5_t===0?emptyBg:'transparent'};color:${s.bo5_t===0?emptyCol:'inherit'}">${bo5Txt}</td><td class="col-bo5-pct" style="background:${utils.color(bo5R,true)};color:${bo5R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo5R)}</td><td class="${cls('col-series', s.s_t)}" ${clk(tourn.slug, s.name, 'series', s.s_t)} style="background:${s.s_t===0?emptyBg:'transparent'};color:${s.s_t===0?emptyCol:'inherit'}">${serTxt}</td><td class="col-series-wr" style="background:${utils.color(winR)};color:${winR!==null?'white':emptyCol};font-weight:bold">${utils.pct(winR)}</td><td class="col-game" style="background:${s.g_t===0?emptyBg:'transparent'};color:${s.g_t===0?emptyCol:'inherit'}">${gamTxt}</td><td class="col-game-wr" style="background:${utils.color(gameR)};color:${gameR!==null?'white':emptyCol};font-weight:bold">${utils.pct(gameR)}</td><td class="col-streak" style="background:${s.strk_w===0&&s.strk_l===0?emptyBg:'transparent'};color:${s.strk_w===0&&s.strk_l===0?emptyCol:'inherit'}">${strk}</td><td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
         }).join("");
 
-        const mainPage = Array.isArray(t.overview_page) ? t.overview_page[0] : t.overview_page;
+        const mainPage = Array.isArray(tourn.overview_page) ? tourn.overview_page[0] : tourn.overview_page;
         const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
         
-        // 4. 生成时间分布表 (动态获取 Key，移除赛区硬编码判断)
         let timeTableHtml = "";
-        const regionGrid = timeData[t.slug] || {};
+        const regionGrid = timeData[tourn.slug] || {};
         const hours = Object.keys(regionGrid).filter(k => k !== "Total" && !isNaN(k)).map(Number).sort((a,b) => a - b);
         
         if (hours.length > 0 || regionGrid["Total"]) {
@@ -936,7 +921,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             timeTableHtml += "</tbody></table>";
         }
 
-        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${t.name || t.slug}</a>`;
+        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name}</a>`;
         if (isArchive) {
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">${tableBody}${timeTableHtml}</div></details>`;
@@ -978,7 +963,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
 
                     const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
                     const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.tournSlug}', '${m.t1}', '${m.t2}')"` : "";
-                    cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="${h2hClass}" ${h2hClick} style="display:flex;justify-content:center;align-items:center;width:40px;transition:background 0.2s;">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;                });
+                    cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="${h2hClass}" ${h2hClick} style="display:flex;justify-content:center;align-items:center;width:40px;transition:background 0.2s;">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;               });
                 cardHtml += `</div></div>`;
                 scheduleHtml += cardHtml;
             });
@@ -1023,34 +1008,33 @@ async function runUpdate(env, force=false) {
     
     const dayNow = utils.toCST(NOW).getUTCDate();
 
-    runtimeConfig.TOURNAMENTS.forEach(t => {
-        const lastTs = cache.updateTimestamps[t.slug] || 0;
+    runtimeConfig.TOURNAMENTS.forEach(tourn => {
+        const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
         const elapsedMins = Math.floor(elapsed / 60000);
         
         const dayLast = utils.toCST(lastTs).getUTCDate();
         const isNewDay = dayNow !== dayLast;
         
-        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0, startTs: 0 };
+        const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
         const currentMode = tMeta.mode;
         
-        // 核心：如果时间已经到达了今天的首场开赛时间，强制解除 56 分钟的休眠枷锁
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
         const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
-
+        
         if (force || elapsed >= threshold || isNewDay) {
-            if (isNewDay) l.info(`🌅 NewDay: ${t.slug} Force daily check triggered`);
+            if (isNewDay) l.info(`🌅 NewDay: ${tourn.slug} Force daily check triggered`);
             candidates.push({ 
-                slug: t.slug, 
-                overview_page: t.overview_page, 
+                slug: tourn.slug, 
+                overview_page: tourn.overview_page, 
                 elapsed: elapsed, 
-                label: `${t.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
+                label: `${tourn.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
                 isNewDay: isNewDay,
                 mode: currentMode 
             });
             needsNetworkUpdate = true;
         } else {
-            waitings.push(`${t.league} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
+            waitings.push(`${tourn.league} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
         }
     });
 
@@ -1114,8 +1098,7 @@ async function runUpdate(env, force=false) {
 
                     const getUniqueKey = (m) => {
                         const page = m.OverviewPage || "Unknown";
-                        const n = m.N_MatchInPage || m["N MatchInPage"];
-                        if (n) return `${page}_${n}`;
+                        if (m.N_MatchInPage) return `${page}_${m.N_MatchInPage}`;
                         return `${page}_${m.DateTime_UTC}_${m.Team1}_${m.Team2}`;
                     };
 
@@ -1206,10 +1189,10 @@ async function runUpdate(env, force=false) {
         homeHtml: homeFragment 
     }));
 
-    for (const t of runtimeConfig.TOURNAMENTS) {
-        const slug = t.slug;
+    for (const tourn of runtimeConfig.TOURNAMENTS) {
+        const slug = tourn.slug;
         if (!analysis.globalStats[slug]) continue;
-        const singleConfig = { TOURNAMENTS: [t] };
+        const singleConfig = { TOURNAMENTS: [tourn] };
         const singleFragment = renderContentOnly(
             { [slug]: analysis.globalStats[slug] },
             { [slug]: analysis.timeGrid[slug] },
@@ -1319,7 +1302,7 @@ export default {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache || !cache.globalStats) return new Response(JSON.stringify({ error: "No data" }), { status: 503 });
                 const payload = {};
-                for (const t of cache.runtimeConfig.TOURNAMENTS) if (cache.globalStats[t.slug]) payload[`markdown/${t.slug}.md`] = generateMarkdown(t, cache.globalStats[t.slug], cache.timeGrid);
+                for (const tourn of cache.runtimeConfig.TOURNAMENTS) if (cache.globalStats[tourn.slug]) payload[`markdown/${tourn.slug}.md`] = generateMarkdown(tourn, cache.globalStats[tourn.slug], cache.timeGrid);
                 return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
             }
 
