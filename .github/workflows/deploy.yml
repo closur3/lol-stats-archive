@@ -16,6 +16,4 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        env:
-          CLOUDFLARE_VAR_GITHUB_SHA: "${{ github.sha }}"
-          CLOUDFLARE_VAR_GITHUB_TIME: "$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
+          command: deploy --var GITHUB_SHA:${{ github.sha }} --var GITHUB_TIME:"$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
