@@ -1225,8 +1225,41 @@ function renderLogPage(logs, time, sha) {
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
     <style>
         ${COMMON_STYLE}
-        .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 20px; }
-        .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
+        /* 1. 锁定全局视口高度，禁止全局滚动条 */
+        body {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* 2. Header 不可压缩 */
+        .main-header { flex-shrink: 0; margin-bottom: 20px; }
+        
+        /* 3. 容器自动占满剩余空间 */
+        .container { 
+            flex: 1; 
+            min-height: 0; /* 关键：允许内部元素挤压高度 */
+            display: flex;
+            flex-direction: column;
+            max-width: 900px; 
+            width: calc(100% - 30px); 
+            margin: 0 auto; 
+            background: #fff; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            border: 1px solid #e2e8f0; 
+        }
+        
+        /* 4. 只有日志列表本身出现滚动条 */
+        .log-list { 
+            flex: 1;
+            overflow-y: auto; 
+            list-style: none; 
+            margin: 0; 
+            padding: 0; 
+        }
+        
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
         .log-time { color: #64748b; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -1237,10 +1270,11 @@ function renderLogPage(logs, time, sha) {
         .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
         
-        /* 极简页脚样式 - 独立在外 */
+        /* 5. 独立的页脚，不被压缩 */
         .build-footer { 
+            flex-shrink: 0;
             text-align: center; 
-            padding: 10px 20px 40px; 
+            padding: 15px 20px; 
             color: #94a3b8; 
             font-size: 11px; 
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -1249,7 +1283,11 @@ function renderLogPage(logs, time, sha) {
         .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
         .build-footer a:hover { opacity: 1; text-decoration: underline; }
 
-        @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } .log-time { font-size: 12px; opacity: 0.7; text-align: left; } .log-level { display: inline-block; width: auto; padding: 3px 10px; } }
+        @media (max-width: 600px) { 
+            .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } 
+            .log-time { font-size: 12px; opacity: 0.7; text-align: left; } 
+            .log-level { display: inline-block; width: auto; padding: 3px 10px; } 
+        }
     </style>
 </head>
 <body>
