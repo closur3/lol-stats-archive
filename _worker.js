@@ -1,12 +1,13 @@
 // ====================================================
-// 🥇 Worker V42.1.0: Custom Archive Rebuilder
+// 🥇 Worker V42.2.0: Tools UI Polish
 // 更新日志:
-// 1. 重构 Tools 页面: 提供手动填表单的 Rebuild Archive 功能。
-// 2. 字段直读: Rebuild 支持传入自定义的 slug/name/overview/league。
-// 3. 全局导航: 确保 Tools 按钮在首页和归档页的导航栏均可见。
+// 1. 隐藏入口: Tools 按钮现在仅存在于 Logs 页面，保持主页清爽。
+// 2. 样式统一: Tools 页面操作按钮右对齐，页脚样式与 Logs 页完全一致。
+// 3. 文案修正: 移除冗余的 Custom 字眼，标题简化为 Tools。
+// 4. 日志修复: 恢复了 fetch 过程中的重试次数 (Attempt) 记录。
 // ====================================================
 
-const UI_VERSION = "2026-03-04-V42.1.0";
+const UI_VERSION = "2026-03-04-V42.2.0";
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
@@ -218,7 +219,7 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
                 logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`); 
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`);                
                 await new Promise(res => setTimeout(res, waitTimeMs));
             }
             attempt++;
@@ -722,7 +723,7 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
     if (navMode === "home") navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
     else if (navMode === "archive") navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a><a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
 }
 
 function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
@@ -1105,11 +1106,12 @@ function renderToolsPage(time, sha) {
             .tool-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 10px; }
             .tool-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 10px; }
             .tool-desc { color: #64748b; font-size: 14px; margin: 0; line-height: 1.5; }
-            .tool-btn { background: #2563eb; color: #fff; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; transition: 0.2s; align-self: flex-start; margin-top: 10px; font-family: inherit; }
+            .tool-btn { background: #2563eb; color: #fff; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; transition: 0.2s; align-self: flex-end; margin-top: 10px; font-family: inherit; }
             .tool-btn:hover { background: #1d4ed8; }
             .tool-btn.secondary { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
             .tool-btn.secondary:hover { background: #f1f5f9; color: #0f172a; }
-            .build-footer { text-align: center; padding: 15px 20px; color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; flex-shrink: 0; padding-bottom: calc(15px + env(safe-area-inset-bottom)); border-top: 1px solid #e2e8f0; background: #f8fafc;}
+            .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+            .build-footer b { color: #64748b; }
             .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
             .build-footer a:hover { opacity: 1; text-decoration: underline; }
             
@@ -1124,7 +1126,7 @@ function renderToolsPage(time, sha) {
         <header class="main-header">
             <div class="header-left">
                 <span class="header-logo">🧰</span>
-                <h1 class="header-title">System Tools</h1>
+                <h1 class="header-title">Tools</h1>
             </div>
             <div class="header-right">
                 <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
@@ -1139,7 +1141,7 @@ function renderToolsPage(time, sha) {
             </div>
             
             <div class="tool-card">
-                <h2 class="tool-title"><span>📦</span> Rebuild Custom Archive</h2>
+                <h2 class="tool-title"><span>📦</span> Rebuild Archive</h2>
                 <p class="tool-desc">Manually reconstruct a deleted or archived tournament by providing its specific Fandom details.</p>
                 <div class="input-group">
                     <input type="text" id="rb-slug" placeholder="Slug (e.g. lpl-2024-spring)" class="tool-input">
@@ -1391,7 +1393,7 @@ export default {
 
             case "/": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                if (!cache) return new Response("Initializing... <a href='/tools'>Click to Build</a>", { headers: { "content-type": "text/html" } });
+                if (!cache) return new Response("Initializing... <a href='/logs'>Check Logs</a>", { headers: { "content-type": "text/html" } });
 
                 const homeFragment = renderContentOnly(
                     cache.globalStats, cache.timeGrid, cache.scheduleMap,
