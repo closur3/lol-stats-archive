@@ -1436,20 +1436,24 @@ export default {
                 return new Response(renderLogPage(logs, time, sha), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
             
-            case "/archive": {
+            case "/archive":
                 const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
                 if (!allKeys.keys.length) return new Response("No archive data available.", { headers: { "content-type": "text/html" } });
-
-                allKeys.keys.sort((a, b) => b.name.localeCompare(a.name));
 
                 const cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
 
-                const snapshots = await Promise.all(
-                    allKeys.keys.map(k => env.LOL_KV.get(k.name, { type: "json" }))
-                );
+                const rawSnapshots = await Promise.all(allKeys.keys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
+                const validSnapshots = rawSnapshots.filter(Boolean);
 
-                const fragments = snapshots.filter(Boolean).map(snap => {
+
+                validSnapshots.sort((a, b) => {
+                    const tsA = (a.updateTimestamps && a.tourn) ? (a.updateTimestamps[a.tourn.slug] || 0) : 0;
+                    const tsB = (b.updateTimestamps && b.tourn) ? (b.updateTimestamps[b.tourn.slug] || 0) : 0;
+                    return tsB - tsA;
+                });
+
+                const combined = validSnapshots.map(snap => {
                     const miniConfig = { TEAM_MAP: teamMap, TOURNAMENTS: [snap.tourn] };
                     const analysis = runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches }, {}, miniConfig);
                     return renderContentOnly(
@@ -1457,12 +1461,9 @@ export default {
                         { [snap.tourn.slug]: analysis.timeGrid[snap.tourn.slug] },
                         {}, { TOURNAMENTS: [snap.tourn] }, snap.updateTimestamps, true
                     );
-                });
-
-                const combined = `<div class="arch-content">${fragments.join("")}</div>`;
-                const fullPage = renderPageShell("LoL Archive", combined, "", "archive");
-                return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
-            }
+                }).join("");
+                
+                return new Response(renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "", "archive"), { headers: { "content-type": "text/html;charset=utf-8" } });
 
             case "/": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
