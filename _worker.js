@@ -1487,10 +1487,14 @@ export default {
 
             case "/tools": {
                 const expectedSecret = env.ADMIN_SECRET;
-                const authHeader = request.headers.get("Authorization");
-                if (expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`)) {
-                    return new Response("Unauthorized", { status: 401 });
+                const submittedPwd = url.searchParams.get("pwd");
+    
+                if (expectedSecret && submittedPwd !== expectedSecret) {
+                    return new Response(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tools</title><style>${COMMON_STYLE} body{display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;} .login-box{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px;box-shadow:0 4px 6px rgba(0,0,0,0.05);display:flex;flex-direction:column;gap:12px;width:280px;} .login-box h2{margin:0;font-size:16px;font-weight:700;color:#0f172a;} .login-box input{border:1px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;} .login-box input:focus{border-color:#94a3b8;} .login-box button{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px;font-size:13px;font-weight:600;font-family:inherit;color:#475569;cursor:pointer;} .login-box button:hover{background:#f1f5f9;color:#0f172a;border-color:#94a3b8;} .err{font-size:12px;color:#b91c1c;display:none;}</style></head><body><div class="login-box"><h2>🔧 Tools</h2><input type="password" id="pwd" placeholder="Password" onkeydown="if(event.key==='Enter')login()"/><div class="err" id="err">Incorrect password</div><button onclick="login()">Enter</button></div><script>function login(){const p=document.getElementById('pwd').value;if(!p)return;window.location.href='/tools?pwd='+encodeURIComponent(p);} ${submittedPwd ? "document.getElementById('err').style.display='block';" : ""}</script></body></html>`, {
+                        headers: { "content-type": "text/html;charset=utf-8" }
+                    });
                 }
+
                 const time = env.GITHUB_TIME;
                 const sha = env.GITHUB_SHA;
                 return new Response(renderToolsPage(time, sha), {
