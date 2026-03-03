@@ -1,12 +1,11 @@
 // ====================================================
-// 🥇 Worker V42.3.0: Tools Form UI Polish
+// 🥇 Worker V42.4.0: Ultimate Tools UI & Auth Overlay
 // 更新日志:
-// 1. 表单重构: Rebuild Archive 的输入项提取出独立的左侧 Label，增加表单背景。
-// 2. 按钮统一: Tools 页面内所有操作按钮采用统一的主色调，并严格居右对齐。
-// 3. 响应式: 左侧 Label 表单在移动端会自动折叠为上下结构。
+// 1. 鉴权升级: 引入沉浸式毛玻璃锁屏鉴权，替换原生 prompt，支持 Session 暂存。
+// 2. 表单美化: 移除冗余版本号和 e.g.，重构输入框为沉浸式选中态，提升卡片质感。
+// 3. 日志对齐: 严格统一 Rebuild Archive 的 Log 输出前缀和格式。
 // ====================================================
 
-const UI_VERSION = "2026-03-04-V42.3.0";
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
@@ -722,12 +721,11 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
     if (navMode === "home") navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
     else if (navMode === "archive") navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
 
-    // 只有非 home & archive（即 logs 页）才展示 Tools 入口，主页保持清爽
     const toolsBtn = (navMode !== "home" && navMode !== "archive") 
         ? `<a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a>` 
         : "";
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body data-ui-version="${UI_VERSION}"><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
 }
 
 function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
@@ -1054,7 +1052,7 @@ async function runUpdate(env, force=false) {
 
 async function runCustomRebuild(env, payload) {
     const l = new Logger();
-    l.info(`🚀 Starting Custom Archive Rebuild for: ${payload.slug}`);
+    l.info(`🚀 Rebuild: ${payload.slug} Starting custom archive rebuild`);
     
     const authContext = await loginToFandom(env, l);
     if (authContext?.isAnonymous) { } 
@@ -1062,7 +1060,7 @@ async function runCustomRebuild(env, payload) {
     else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
 
     try {
-        l.info(`📡 Fetching matches for ${payload.slug} from ${payload.overview_page}`);
+        l.info(`📡 FullSync: ${payload.slug} Fetching matches from ${payload.overview_page}`);
         const matches = await fetchAllMatches(payload.slug, payload.overview_page, l, authContext, null);
         
         if (matches && matches.length > 0) {
@@ -1080,13 +1078,13 @@ async function runCustomRebuild(env, payload) {
             };
             
             await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
-            l.success(`♻️ Successfully rebuilt & saved Archive: ${payload.slug} (${matches.length} matches)`);
+            l.success(`♻️ Rebuilt: ${payload.slug} Saved ${matches.length} matches`);
         } else {
-            l.error(`⚠️ No matches found for ${payload.slug}. Archive not saved.`);
+            l.error(`⚠️ Breaker: ${payload.slug} No matches found. Archive not saved.`);
             throw new Error("No matches found from Fandom API");
         }
     } catch (e) {
-        l.error(`❌ Failed to rebuild ${payload.slug}: ${e.message}`);
+        l.error(`❌ Failed: ${payload.slug} -> ${e.message}`);
         throw e;
     }
     
@@ -1107,10 +1105,10 @@ function renderToolsPage(time, sha) {
             ${COMMON_STYLE}
             body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; }
             .container { flex: 1; overflow-y: auto; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 20px; padding-bottom: 20px; -webkit-overflow-scrolling: touch; }
-            .tool-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 10px; }
+            .tool-card { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 30px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 15px; }
             .tool-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 10px; }
             .tool-desc { color: #64748b; font-size: 14px; margin: 0; line-height: 1.5; }
-            .tool-btn { background: #2563eb; color: #fff; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; transition: 0.2s; align-self: flex-end; margin-top: 10px; font-family: inherit; }
+            .tool-btn { background: #2563eb; color: #fff; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; transition: 0.2s; align-self: flex-end; margin-top: 5px; font-family: inherit; }
             .tool-btn:hover { background: #1d4ed8; }
             .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
             .build-footer b { color: #64748b; }
@@ -1118,20 +1116,41 @@ function renderToolsPage(time, sha) {
             .build-footer a:hover { opacity: 1; text-decoration: underline; }
             
             /* Enhanced Form Inputs */
-            .input-group { display: flex; flex-direction: column; gap: 12px; margin: 15px 0 10px 0; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
-            .input-row { display: flex; align-items: center; gap: 15px; }
-            .input-label { width: 120px; font-size: 13px; font-weight: 700; color: #475569; text-align: right; flex-shrink: 0; }
-            .tool-input { flex: 1; min-width: 0; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; outline: none; transition: 0.2s; }
-            .tool-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-            .tool-input::placeholder { color: #94a3b8; font-weight: 400; }
+            .input-group { display: flex; flex-direction: column; gap: 12px; margin: 10px 0; }
+            .input-row { display: flex; align-items: center; gap: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px 15px; transition: all 0.2s ease; }
+            .input-row:focus-within { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+            .input-label { width: 120px; font-size: 13px; font-weight: 700; color: #475569; text-align: left; flex-shrink: 0; }
+            .tool-input { flex: 1; min-width: 0; padding: 10px 0; border: none; background: transparent; font-size: 14px; font-weight: 600; font-family: inherit; outline: none; color: #0f172a; }
+            .tool-input::placeholder { color: #cbd5e1; font-weight: 400; }
             
             @media (max-width: 600px) {
-                .input-row { flex-direction: column; align-items: flex-start; gap: 6px; }
-                .input-label { width: auto; text-align: left; }
+                .input-row { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 15px; }
+                .input-label { width: auto; text-align: left; font-size: 11px; opacity: 0.8; }
+                .tool-input { padding: 4px 0; width: 100%; }
             }
+
+            /* Auth Overlay */
+            #auth-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999; }
+            .auth-card { background: #fff; padding: 35px 30px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); width: 340px; text-align: center; box-sizing: border-box; }
+            .auth-title { font-size: 22px; font-weight: 800; margin-bottom: 8px; color: #0f172a; display: flex; align-items: center; justify-content: center; gap: 10px; }
+            .auth-subtitle { color: #64748b; font-size: 13px; margin-bottom: 25px; line-height: 1.4; }
+            .auth-input { width: 100%; padding: 14px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; text-align: center; margin-bottom: 20px; box-sizing: border-box; transition: all 0.2s; outline: none; -webkit-text-security: disc; background: #f8fafc; font-family: ui-monospace, monospace; letter-spacing: 2px; }
+            .auth-input:focus { border-color: #2563eb; background: #fff; box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+            .auth-input::placeholder { letter-spacing: normal; font-family: -apple-system, sans-serif; color: #94a3b8; }
+            .auth-btn { width: 100%; background: #0f172a; color: #fff; border: none; padding: 14px; border-radius: 10px; font-weight: 700; font-size: 15px; cursor: pointer; transition: 0.2s; }
+            .auth-btn:hover { background: #334155; }
         </style>
     </head>
     <body>
+        <div id="auth-overlay">
+            <div class="auth-card">
+                <div class="auth-title"><span>🔐</span> Admin Tools</div>
+                <div class="auth-subtitle">Restricted area. Please verify your identity to proceed.</div>
+                <input type="password" id="auth-pwd" class="auth-input" placeholder="Password" onkeypress="if(event.key==='Enter') unlockTools()">
+                <button class="auth-btn" onclick="unlockTools()">Unlock Area</button>
+            </div>
+        </div>
+
         <header class="main-header">
             <div class="header-left">
                 <span class="header-logo">🧰</span>
@@ -1142,6 +1161,7 @@ function renderToolsPage(time, sha) {
                 <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
             </div>
         </header>
+        
         <div class="container">
             <div class="tool-card">
                 <h2 class="tool-title"><span>⚡</span> Force Update</h2>
@@ -1155,19 +1175,19 @@ function renderToolsPage(time, sha) {
                 <div class="input-group">
                     <div class="input-row">
                         <span class="input-label">Slug</span>
-                        <input type="text" id="rb-slug" placeholder="e.g. lpl-2024-spring" class="tool-input">
+                        <input type="text" id="rb-slug" placeholder="lpl-2024-spring" class="tool-input">
                     </div>
                     <div class="input-row">
                         <span class="input-label">Name</span>
-                        <input type="text" id="rb-name" placeholder="e.g. LPL 2024 Spring" class="tool-input">
+                        <input type="text" id="rb-name" placeholder="LPL 2024 Spring" class="tool-input">
                     </div>
                     <div class="input-row">
                         <span class="input-label">Overview Page</span>
-                        <input type="text" id="rb-overview" placeholder="e.g. LPL/2024 Season/Spring Season" class="tool-input">
+                        <input type="text" id="rb-overview" placeholder="LPL/2024 Season/Spring Season" class="tool-input">
                     </div>
                     <div class="input-row">
                         <span class="input-label">League</span>
-                        <input type="text" id="rb-league" placeholder="e.g. LPL" class="tool-input">
+                        <input type="text" id="rb-league" placeholder="LPL" class="tool-input">
                     </div>
                 </div>
                 <button class="tool-btn" id="btn-rebuild" onclick="submitRebuild()">Rebuild Archive</button>
@@ -1178,10 +1198,32 @@ function renderToolsPage(time, sha) {
         </div>
         
         <script>
-            async function runTask(endpoint, btnId) {
-                const pwd = prompt("🔒 Enter Admin Password:");
-                if (!pwd) return;
+            let adminToken = sessionStorage.getItem('admin_pwd') || "";
+            if (adminToken) document.getElementById('auth-overlay').style.display = 'none';
 
+            function unlockTools() {
+                const pwd = document.getElementById('auth-pwd').value.trim();
+                if (pwd) {
+                    adminToken = pwd;
+                    sessionStorage.setItem('admin_pwd', pwd);
+                    document.getElementById('auth-overlay').style.display = 'none';
+                }
+            }
+
+            function checkAuthError(status) {
+                if (status === 401) {
+                    alert("❌ Session expired or incorrect password.");
+                    sessionStorage.removeItem('admin_pwd');
+                    adminToken = "";
+                    document.getElementById('auth-pwd').value = "";
+                    document.getElementById('auth-overlay').style.display = 'flex';
+                    return true;
+                }
+                return false;
+            }
+
+            async function runTask(endpoint, btnId) {
+                if (!adminToken) { document.getElementById('auth-overlay').style.display = 'flex'; return; }
                 const btn = document.getElementById(btnId);
                 const originalText = btn.innerHTML;
                 btn.innerHTML = '⏳ Processing...';
@@ -1191,11 +1233,11 @@ function renderToolsPage(time, sha) {
                 try {
                     const res = await fetch(endpoint, {
                         method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + pwd }
+                        headers: { 'Authorization': 'Bearer ' + adminToken }
                     });
                     
-                    if (res.status === 401) alert("❌ Incorrect password");
-                    else if (res.ok) { alert("✅ Task completed successfully! Redirecting to Logs."); window.location.href = '/logs'; }
+                    if (checkAuthError(res.status)) return;
+                    if (res.ok) { alert("✅ Task completed successfully! Redirecting to Logs."); window.location.href = '/logs'; }
                     else alert("⚠️ Server error: " + res.status);
                 } catch (e) {
                     alert("❌ Network connection failed");
@@ -1207,6 +1249,7 @@ function renderToolsPage(time, sha) {
             }
 
             async function submitRebuild() {
+                if (!adminToken) { document.getElementById('auth-overlay').style.display = 'flex'; return; }
                 const slug = document.getElementById('rb-slug').value.trim();
                 const name = document.getElementById('rb-name').value.trim();
                 const overview = document.getElementById('rb-overview').value.trim();
@@ -1216,9 +1259,6 @@ function renderToolsPage(time, sha) {
                     alert("⚠️ Please fill in all 4 fields.");
                     return;
                 }
-
-                const pwd = prompt("🔒 Enter Admin Password:");
-                if (!pwd) return;
 
                 const btn = document.getElementById('btn-rebuild');
                 const originalText = btn.innerHTML;
@@ -1230,14 +1270,14 @@ function renderToolsPage(time, sha) {
                     const res = await fetch('/rebuild-archive', {
                         method: 'POST',
                         headers: { 
-                            'Authorization': 'Bearer ' + pwd,
+                            'Authorization': 'Bearer ' + adminToken,
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({ slug, name, overview_page: overview, league })
                     });
                     
-                    if (res.status === 401) alert("❌ Incorrect password");
-                    else if (res.ok) { alert("✅ Archive reconstructed successfully! Redirecting to Archive."); window.location.href = '/archive'; }
+                    if (checkAuthError(res.status)) return;
+                    if (res.ok) { alert("✅ Archive reconstructed successfully! Redirecting to Archive."); window.location.href = '/archive'; }
                     else {
                         const errText = await res.text();
                         alert("⚠️ Server error: " + errText);
