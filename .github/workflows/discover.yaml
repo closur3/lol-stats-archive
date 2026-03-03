@@ -238,6 +238,8 @@ jobs:
                   if m_key:
                       log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[m_key]['name']} | 关联季后赛: {p['name']}")
                       main_events[m_key]["end"] = max(main_events[m_key]["end"], p["end"])
+                      if p["ov"] not in main_events[m_key].setdefault("extra_ovs", []):
+                          main_events[m_key]["extra_ovs"].append(p["ov"])
                   else:
                       log("WARN", f"关联失败 | 独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']}", YELLOW)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
@@ -274,7 +276,7 @@ jobs:
                       "slug": slug,
                       "name": lp_name,
                       "league": league_short,
-                      "overview_page": [v["ov"]],
+                      "overview_page": [v["ov"]] + v.get("extra_ovs", []),
                       "start_date": str(v["start"]),
                       "end_date": str(v["end"])
                   })
