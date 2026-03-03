@@ -16,7 +16,6 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          # 核心修复：使用 GitHub 原生时间戳，避开 Shell 执行错误
-          vars: |
-            GITHUB_SHA: '${{ github.sha }}'
-            GITHUB_TIME: '${{ github.event.head_commit.timestamp }}'
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_TIME: ${{ github.event.head_commit.timestamp }}
