@@ -1,13 +1,12 @@
 // ====================================================
-// 🥇 Worker V42.0.0: Tools Hub & Archive Rebuild
+// 🥇 Worker V42.1.0: Custom Archive Rebuilder
 // 更新日志:
-// 1. 状态机升级: 记录首场 startTs，实现“首场开赛唤醒 -> 保持 Fast 直至全天结束 -> 重新慢速”机制。
-// 2. 字段直读: 联赛全称严格取 name，简写严格取 league，废弃所有 || slug 的降级。
-// 3. 核心精简: 提取 utils.timeParts 统一时间引擎，消除重复的日期换算和 pad 补零逻辑。
-// 4. 新增工具箱: 移除原生 Update 按钮，新增 /tools 路由承载 Force Update 与 Rebuild Archive 功能。
+// 1. 重构 Tools 页面: 提供手动填表单的 Rebuild Archive 功能。
+// 2. 字段直读: Rebuild 支持传入自定义的 slug/name/overview/league。
+// 3. 全局导航: 确保 Tools 按钮在首页和归档页的导航栏均可见。
 // ====================================================
 
-const UI_VERSION = "2026-03-03-V42.0.0";
+const UI_VERSION = "2026-03-04-V42.1.0";
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
@@ -90,22 +89,18 @@ const utils = {
             const bFulls_W = (b.bo3_f || 0) + ((b.bo5_f || 0) * BO5_WEIGHT);
             const bTotal_W = (b.bo3_t || 0) + ((b.bo5_t || 0) * BO5_WEIGHT);
 
-            // 1. 加权打满率 升序
             const aFullRate = aTotal_W > 0 ? aFulls_W / aTotal_W : 2.0;
             const bFullRate = bTotal_W > 0 ? bFulls_W / bTotal_W : 2.0;
             if (aFullRate !== bFullRate) return aFullRate - bFullRate;
 
-            // 2. 真实比赛样本量 降序
             const aRealTotal = (a.bo3_t || 0) + (a.bo5_t || 0);
             const bRealTotal = (b.bo3_t || 0) + (b.bo5_t || 0);
             if (aRealTotal !== bRealTotal) return bRealTotal - aRealTotal;
 
-            // 3. 系列赛胜率 降序
             const aWR = utils.rate(a.s_w, a.s_t) || 0;
             const bWR = utils.rate(b.s_w, b.s_t) || 0;
             if (aWR !== bWR) return bWR - aWR;
 
-            // 4. 小场胜率/净胜局 降序
             return (utils.rate(b.g_w, b.g_t) || 0) - (utils.rate(a.g_w, a.g_t) || 0);
         });
     }
@@ -136,12 +131,10 @@ const gh = {
 // --- 3. 认证逻辑 ---
 async function loginToFandom(env, logger) {
     const user = env.FANDOM_USER;
-    
     if (user && user.trim().toLowerCase() === "anonymous") {
         logger.info("👻 Anonymous: Login Skipped by Config");
         return { isAnonymous: true };
     }
-
     const pass = env.FANDOM_PASS;
     if (!user || !pass) {
         logger.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set.");
@@ -187,18 +180,14 @@ async function loginToFandom(env, logger) {
 // --- 4. 抓取逻辑 ---
 async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     let attempt = 1;
-    
     const headers = { 
-        "User-Agent": BOT_UA,
-        "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate, br" 
+        "User-Agent": BOT_UA, "Accept": "application/json", "Accept-Encoding": "gzip, deflate, br" 
     };
     if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
 
     while (attempt <= maxRetries) {
         try {
             const r = await fetch(url, { headers });
-            
             if (r.status === 429 || r.status === 503) {
                 const retryAfter = r.headers.get("Retry-After");
                 const waitSecs = retryAfter ? parseInt(retryAfter) : 30;
@@ -218,10 +207,8 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
                 }
                 throw new Error(`API Error [${data.error.code}]: ${data.error.info}`);
             }
-            
             if (!data.cargoquery) throw new Error(`Structure Error`);
             return data.cargoquery; 
-            
         } catch (e) {
             let waitTimeMs = 15000 * Math.pow(2, attempt - 1); 
             const match = e.message.match(/wait (\d+)s/);
@@ -231,7 +218,7 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
                 logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`);                
+                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`); 
                 await new Promise(res => setTimeout(res, waitTimeMs));
             }
             attempt++;
@@ -290,25 +277,19 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
     const debugInfo = {};
     const tournMeta = {}; 
     
-    // [Init TimeGrid]
     const timeGrid = { "ALL": {} };
     const createSlot = () => { const t = {}; for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; return t; };
     timeGrid.ALL = createSlot(); 
 
-    let maxDateTs = 0;
-    let grandTotal = 0;
-    let totalMatchesToday = 0;
-
+    let maxDateTs = 0, grandTotal = 0, totalMatchesToday = 0;
     const todayStr = utils.getNow().date;
     const allFutureMatches = {}; 
 
     const teamMapEntries = runtimeConfig.TEAM_MAP ? Object.entries(runtimeConfig.TEAM_MAP).map(([k,v]) => ({k: k.toUpperCase(), v})) : [];
-    
     const nameCache = new Map();
     const resolveName = (raw) => {
         if (!raw) return "Unknown";
         if (nameCache.has(raw)) return nameCache.get(raw);
-        
         let res = raw;
         const upper = raw.toUpperCase();
         if (upper.includes("TBD") || upper.includes("TBA") || upper.includes("TO BE DETERMINED")) {
@@ -345,13 +326,11 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             const isFull = (bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2);
             
             const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
-            let dateDisplay = "-";
-            let ts = 0;
+            let dateDisplay = "-", ts = 0;
 
             if (dt) {
                 ts = dt.getTime();
                 const p = utils.timeParts(ts);
-                
                 const matchDateStr = `${p.y}-${p.mo}-${p.da}`;
                 const matchTimeStr = `${p.h}:${p.m}`;
                 dateDisplay = `${p.mo}-${p.da} ${matchTimeStr}`;
@@ -391,14 +370,10 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     if (!timeGrid[tourn.slug][targetH]) timeGrid[tourn.slug][targetH] = createSlot();
                     
                     const add = (grid, h, d) => { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); };
-                    
                     add(timeGrid[tourn.slug], targetH, pyDay);      
                     add(timeGrid[tourn.slug], "Total", pyDay);      
                     add(timeGrid[tourn.slug], targetH, 7);            
                     add(timeGrid[tourn.slug], "Total", 7);            
-                    
-                    timeGrid.ALL[pyDay].total++; if(isFull) timeGrid.ALL[pyDay].full++; timeGrid.ALL[pyDay].matches.push(matchObj);
-                    timeGrid.ALL[7].total++; if(isFull) timeGrid.ALL[7].full++; timeGrid.ALL[7].matches.push(matchObj);
                 }
             }
             
@@ -445,11 +420,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             nextMode = nextStreak >= 2 ? "slow" : "fast"; 
         }
         
-        tournMeta[tourn.slug] = { 
-            streak: nextStreak, 
-            mode: nextMode,
-            startTs: earliestPendingTs !== Infinity ? earliestPendingTs : 0
-        };
+        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode, startTs: earliestPendingTs !== Infinity ? earliestPendingTs : 0 };
     });
 
     let scheduleMap = {};
@@ -487,7 +458,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 function generateMarkdown(tourn, stats, timeGrid) {
     const UPDATED_TIME = utils.getNow().full;
     let md = `# ${tourn.name}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
-
     const sorted = utils.sortTeams(stats);
 
     if (sorted.length === 0) {
@@ -504,37 +474,28 @@ function generateMarkdown(tourn, stats, timeGrid) {
             const gamWR = utils.pct(utils.rate(s.g_w, s.g_t));
             const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
             const last = s.last ? utils.fmtDate(s.last) : "-";
-
             md += `| ${s.name} | ${bo3Txt} | ${bo3Pct} | ${bo5Txt} | ${bo5Pct} | ${serTxt} | ${serWR} | ${gamTxt} | ${gamWR} | ${strk} | ${last} |\n`;
         });
     }
 
-    // --- 📅 动态时间分布 ---
     md += `\n## 📅 Time Slot Distribution\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
-    
     const regionGrid = timeGrid[tourn.slug] || {};
-    const hours = Object.keys(regionGrid)
-        .filter(k => k !== "Total" && !isNaN(k))
-        .map(Number)
-        .sort((a, b) => a - b);
+    const hours = Object.keys(regionGrid).filter(k => k !== "Total" && !isNaN(k)).map(Number).sort((a, b) => a - b);
     
-    const displayRows = [...hours, "Total"];
-    displayRows.forEach(h => {
+    [...hours, "Total"].forEach(h => {
         if (!regionGrid[h]) return;
         const label = h === "Total" ? `**Total**` : `**${h}:00**`;
         let line = `| ${label} |`;
         for (let w = 0; w < 8; w++) {
             const cell = regionGrid[h][w];
-            if (!cell || cell.total === 0) {
-                line += " - |";
-            } else {
+            if (!cell || cell.total === 0) line += " - |";
+            else {
                 const rate = Math.round((cell.full / cell.total) * 100);
                 line += ` ${cell.full}/${cell.total} (${rate}%) |`;
             }
         }
         md += line + "\n";
     });
-
     return md + `\n---\n*Generated by LoL Stats Worker*\n`;
 }
 
@@ -620,7 +581,6 @@ const PYTHON_STYLE = `
     #modalTitle { text-align: left; margin: 0 -20px 12px -20px; padding: 0 20px 12px 22px; border-bottom: 1.5px solid #cbd5e1; font-size: 18px; font-weight: 800; color: #1e293b; white-space: nowrap; }
     
     .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
-    
     .match-item { display: flex; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 7px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; min-height: 40px; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .col-date { width: 50px; flex-shrink: 0; font-size: 13px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
@@ -628,13 +588,11 @@ const PYTHON_STYLE = `
     .col-vs-area { flex: 1; min-width: 0; }
     .modal-divider { width: 1px; height: 20px; background: #e2e8f0; flex-shrink: 0; margin: 0 6px; }
     .score-box { display: flex; align-items: center; justify-content: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 0; min-height: 22px; min-width: 42px; transition: 0.2s; }
-    
     .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 6px rgba(253, 186, 116, 0.15); }
     .score-box.is-full .score-text { color: #c2410c; }
     .score-text { font-weight: 800; font-size: 14px; color: #334155; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
     .score-text.live { color: #10b981; }
     .score-text.vs { color: #94a3b8; font-size: 9px; letter-spacing: 0; }
-    .full-tag { font-size: 9px; color: #ea580c; background: #ffedd5; padding: 1px 4px; border-radius: 4px; font-weight: 800; margin-top: 2px; line-height: 1; border: 1px solid #fdba74; }
     .hist-icon { font-size: 14px; }
 `;
 
@@ -644,45 +602,19 @@ const PYTHON_JS = `
     const RES_MAP = { 'W': '✔', 'L': '❌', 'LIV': '🔵', 'N': '🕒' };
     
     function doSort(c, id) {
-        const t = document.getElementById(id), 
-              b = t.tBodies[0], 
-              r = Array.from(b.rows), 
-              k = 'data-sort-dir-' + c, 
-              cur = t.getAttribute(k);
-
+        const t = document.getElementById(id), b = t.tBodies[0], r = Array.from(b.rows), k = 'data-sort-dir-' + c, cur = t.getAttribute(k);
         const defaultAscCols = [COL_TEAM, COL_BO3_PCT, COL_BO5_PCT];
-        
-        const next = (!cur) 
-            ? (defaultAscCols.includes(c) ? 'asc' : 'desc') 
-            : (cur === 'desc' ? 'asc' : 'desc');
+        const next = (!cur) ? (defaultAscCols.includes(c) ? 'asc' : 'desc') : (cur === 'desc' ? 'asc' : 'desc');
 
         r.sort((ra, rb) => {
             let va = ra.cells[c].innerText, vb = rb.cells[c].innerText;
+            if (c === COL_LAST_DATE) { va = va === "-" ? "" : va; vb = vb === "-" ? "" : vb; } 
+            else if (c === COL_STREAK) { const ps = x => x === "-" ? 0 : (x.includes('W') ? parseInt(x) : -parseInt(x)); va = ps(va); vb = ps(vb); } 
+            else { va = parseValue(va); vb = parseValue(vb); }
             
-            if (c === COL_LAST_DATE) {
-                va = va === "-" ? "" : va;
-                vb = vb === "-" ? "" : vb;
-            } else if (c === COL_STREAK) {
-                const ps = x => x === "-" ? 0 : (x.includes('W') ? parseInt(x) : -parseInt(x));
-                va = ps(va); vb = ps(vb);
-            } else {
-                va = parseValue(va); vb = parseValue(vb);
-            }
-            
-            if (va !== vb) {
-                return next === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
-            }
-            
-            if (c === COL_BO3_PCT || c === COL_BO5_PCT) { 
-                let sA = parseValue(ra.cells[COL_SERIES_WR].innerText), 
-                    sB = parseValue(rb.cells[COL_SERIES_WR].innerText); 
-                if (sA !== sB) return sB - sA; 
-            }
-            if (c === COL_SERIES || c === COL_SERIES_WR) { 
-                let gA = parseValue(ra.cells[COL_GAME_WR].innerText), 
-                    gB = parseValue(rb.cells[COL_GAME_WR].innerText); 
-                if (gA !== gB) return gB - gA; 
-            }
+            if (va !== vb) return next === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+            if (c === COL_BO3_PCT || c === COL_BO5_PCT) { let sA = parseValue(ra.cells[COL_SERIES_WR].innerText), sB = parseValue(rb.cells[COL_SERIES_WR].innerText); if (sA !== sB) return sB - sA; }
+            if (c === COL_SERIES || c === COL_SERIES_WR) { let gA = parseValue(ra.cells[COL_GAME_WR].innerText), gB = parseValue(rb.cells[COL_GAME_WR].innerText); if (gA !== gB) return gB - gA; }
             return 0;
         });
 
@@ -699,39 +631,15 @@ const PYTHON_JS = `
 
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
         const dateParts = (date || '').split(' ');
-        const dateHtml = dateParts.length === 2
-            ? dateParts[0] + '<br><span style="font-weight:700;color:#475569">' + dateParts[1] + '</span>'
-            : (date || '');
-
-        let scoreContent = '';
-        let scoreClass = 'score-text';
+        const dateHtml = dateParts.length === 2 ? dateParts[0] + '<br><span style="font-weight:700;color:#475569">' + dateParts[1] + '</span>' : (date || '');
+        let scoreContent = '', scoreClass = 'score-text';
         if (resStatus === 'LIV') scoreClass += ' live';
-        if (resStatus === 'N') {
-            scoreContent = '<span class="score-text vs">VS</span>';
-        } else {
-            const fmtScore = (score || '').toString().replace('-', '<span style="opacity:0.4;margin:0 1px">-</span>');
-            scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>';
-        }
+        if (resStatus === 'N') { scoreContent = '<span class="score-text vs">VS</span>'; } 
+        else { const fmtScore = (score || '').toString().replace('-', '<span style="opacity:0.4;margin:0 1px">-</span>'); scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>'; }
         const boxClass = isFull ? 'score-box is-full' : 'score-box';
+        const t1Color = team1 === 'TBD' ? 'color:#9ca3af;' : '', t2Color = team2 === 'TBD' ? 'color:#9ca3af;' : '';
 
-        const t1Color = team1 === 'TBD' ? 'color:#9ca3af;' : '';
-        const t2Color = team2 === 'TBD' ? 'color:#9ca3af;' : '';
-
-        return '<div class="match-item">' +
-               '<div class="col-date">' + dateHtml + '</div>' +
-               '<div class="modal-divider"></div>' +
-               '<div class="col-vs-area">' +
-                   '<div class="spine-row">' +
-                       '<span class="spine-l" style="padding-right:5px;' + t1Color + '">' + team1 + '</span>' +
-                       '<div style="width:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center">' +
-                           '<div class="' + boxClass + '">' + scoreContent + '</div>' +
-                       '</div>' +
-                       '<span class="spine-r" style="padding-left:5px;' + t2Color + '">' + team2 + '</span>' +
-                   '</div>' +
-               '</div>' +
-               '<div class="modal-divider"></div>' +
-               '<div class="col-res">' + resTag + '</div>' +
-               '</div>';
+        return '<div class="match-item"><div class="col-date">' + dateHtml + '</div><div class="modal-divider"></div><div class="col-vs-area"><div class="spine-row"><span class="spine-l" style="padding-right:5px;' + t1Color + '">' + team1 + '</span><div style="width:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center"><div class="' + boxClass + '">' + scoreContent + '</div></div><span class="spine-r" style="padding-left:5px;' + t2Color + '">' + team2 + '</span></div></div><div class="modal-divider"></div><div class="col-res">' + resTag + '</div></div>';
     }
 
     function renderListHTML(htmlArr) {
@@ -744,21 +652,13 @@ const PYTHON_JS = `
         const ds=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Total"];
         document.getElementById('modalTitle').innerText=t+" - "+ds[d];
         const sortedMatches = [...m].sort((a, b) => b.d.localeCompare(a.d));
-        
         const listHtml = sortedMatches.map(item => {
             let boTag = '<span style="color:#cbd5e1">-</span>';
-    
-            if (item.bo === 5) {
-                boTag = '<span class="sch-pill gold" style="font-size:9px; padding:2px 4px;">BO5</span>';
-            } else if (item.bo === 3) {
-                boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO3</span>';
-            } else if (item.bo === 1) {
-                boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO1</span>';
-            }
-
+            if (item.bo === 5) boTag = '<span class="sch-pill gold" style="font-size:9px; padding:2px 4px;">BO5</span>';
+            else if (item.bo === 3) boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO3</span>';
+            else if (item.bo === 1) boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO1</span>';
             return renderMatchItem('dist', item.d, boTag, item.t1, item.t2, item.f, item.s);
         });
-        
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
     }
@@ -797,18 +697,11 @@ const PYTHON_JS = `
     function openH2H(slug, t1, t2) {
         if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][t1]) return;
         const data = window.g_stats[slug][t1];
-        
         const h2hHistory = (data.history || []).filter(h => h.vs === t2);
-        
         let t1Wins = 0, t2Wins = 0;
-        h2hHistory.forEach(h => {
-            if(h.res === 'W') t1Wins++;
-            else if(h.res === 'L') t2Wins++;
-        });
-        
+        h2hHistory.forEach(h => { if(h.res === 'W') t1Wins++; else if(h.res === 'L') t2Wins++; });
         const summary = h2hHistory.length > 0 ? ' <span style="color:#94a3b8;font-size:14px">(' + t1Wins + '<span style="margin:0 1px">-</span>' + t2Wins + ')</span>' : "";
         document.getElementById('modalTitle').innerHTML = t1 + " vs " + t2 + summary;
-        
         const listHtml = h2hHistory.map(h => {
             const icon = RES_MAP[h.res] || RES_MAP['N'];
             const resTag = '<span class="' + ((h.res === 'W' || h.res === 'L') ? '' : 'hist-icon') + '">' + icon + '</span>';
@@ -857,7 +750,6 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
 
     runtimeConfig.TOURNAMENTS.forEach((tourn, idx) => {
         const stats = utils.sortTeams(globalStats[tourn.slug]);
-        
         const tableId = `t_${tourn.slug.replace(/-/g, '_')}`;
         const lastTs = updateTimestamps[tourn.slug];
         const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
@@ -995,53 +887,38 @@ async function runUpdate(env, force=false) {
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
     let needsNetworkUpdate = false, candidates = [], waitings = [];
-    
     const dayNow = utils.toCST(NOW).getUTCDate();
 
     runtimeConfig.TOURNAMENTS.forEach(tourn => {
         const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
         const elapsedMins = Math.floor(elapsed / 60000);
-        
         const dayLast = utils.toCST(lastTs).getUTCDate();
         const isNewDay = dayNow !== dayLast;
         
         const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
         const currentMode = tMeta.mode;
-        
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
         const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
         if (force || elapsed >= threshold || isNewDay) {
             if (isNewDay) l.info(`🌅 NewDay: ${tourn.slug} Force daily check triggered`);
             candidates.push({ 
-                slug: tourn.slug, 
-                overview_page: tourn.overview_page, 
-                elapsed: elapsed, 
+                slug: tourn.slug, overview_page: tourn.overview_page, elapsed: elapsed, 
                 label: `${tourn.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
-                isNewDay: isNewDay,
-                mode: currentMode 
+                isNewDay: isNewDay, mode: currentMode 
             });
             needsNetworkUpdate = true;
-        } else {
-            waitings.push(`${tourn.league} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
-        }
+        } else waitings.push(`${tourn.league} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
     });
 
     if (waitings.length > 0) l.info(`❄️ Cooldown: ${waitings.join(" | ")}`);
-
-    if (!needsNetworkUpdate || candidates.length === 0) {
-        return l;
-    }
+    if (!needsNetworkUpdate || candidates.length === 0) return l;
 
     const authContext = await loginToFandom(env, l);
-    if (authContext?.isAnonymous) {
-        // 显式匿名，已记录日志，此处跳过
-    } else if (!authContext) {
-        l.info("⚠️ Auth Failed. Proceeding anonymously"); 
-    } else {
-        l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
-    }
+    if (authContext?.isAnonymous) { } 
+    else if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously"); 
+    else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
 
     candidates.sort((a, b) => b.elapsed - a.elapsed);
     const totalLeagues = runtimeConfig.TOURNAMENTS.length;
@@ -1058,14 +935,12 @@ async function runUpdate(env, force=false) {
         try {
             const oldData = cache.rawMatches[c.slug] || [];
             const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
-            
             const dateQuery = isFullFetch ? null : { start: deltaStartUTC, end: deltaEndUTC };
 
             if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.label} Fetching ${deltaStartUTC} to ${deltaEndUTC}`);
             else l.info(`📡 FullSync: ${c.label} Fetching entire matches`);
 
             const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
-            
             results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
         } catch (err) {
             results.push({ status: 'rejected', slug: c.slug, err: err });
@@ -1085,12 +960,10 @@ async function runUpdate(env, force=false) {
             if (res.isDelta) {
                 if (newData.length > 0) {
                     const matchMap = new Map();
-
                     const getUniqueKey = (m) => {
                         const page = m.OverviewPage || "Unknown";
                         const n = m.N_MatchInPage || m["N MatchInPage"];
                         if (n) return `${page}_${n}`;
-                        
                         const t_utc = m.DateTime_UTC || m["DateTime UTC"];
                         const t1 = m.Team1 || m["Team 1"];
                         const t2 = m.Team2 || m["Team 2"];
@@ -1103,7 +976,6 @@ async function runUpdate(env, force=false) {
                     newData.forEach(m => {
                         const key = getUniqueKey(m);
                         const oldM = matchMap.get(key);
-                        
                         if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
                             matchMap.set(key, m);
                             changesCount++;
@@ -1117,31 +989,22 @@ async function runUpdate(env, force=false) {
                             const tB = b.DateTime_UTC || "9999-99-99";
                             return tA.localeCompare(tB);
                         });
-
                         cache.rawMatches[slug] = mergedList;
                         l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches (Total: ${mergedList.length})`);
-                    } else {
-                        l.info(`💤 Identical: ${slug} Data not changed`);
-                    }
-                } else {
-                    l.info(`💤 OffDay: ${slug} No matches for today`);
-                }
+                    } else l.info(`💤 Identical: ${slug} Data not changed`);
+                } else l.info(`💤 OffDay: ${slug} No matches for today`);
 
             } else {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
                     l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
-                    failureCount++; 
-                    failedSlugs.add(slug); 
-                    return; 
+                    failureCount++; failedSlugs.add(slug); return; 
                 } else {
                     cache.rawMatches[slug] = newData;
                     l.success(`💾 Overwrote: ${slug} Overwrote ${newData.length} matches`);
                 }
             }
-
             cache.updateTimestamps[slug] = NOW;
             successCount++;
-
         } else {
             failureCount++;
             failedSlugs.add(res.slug);
@@ -1149,12 +1012,8 @@ async function runUpdate(env, force=false) {
     });
 
     const activeSlugs = new Set(runtimeConfig.TOURNAMENTS.map(t => t.slug));
-    for (const slug of Object.keys(cache.rawMatches)) {
-        if (!activeSlugs.has(slug)) delete cache.rawMatches[slug];
-    }
-    for (const slug of Object.keys(cache.updateTimestamps)) {
-        if (!activeSlugs.has(slug)) delete cache.updateTimestamps[slug];
-    }
+    for (const slug of Object.keys(cache.rawMatches)) if (!activeSlugs.has(slug)) delete cache.rawMatches[slug];
+    for (const slug of Object.keys(cache.updateTimestamps)) if (!activeSlugs.has(slug)) delete cache.updateTimestamps[slug];
 
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
@@ -1167,26 +1026,17 @@ async function runUpdate(env, force=false) {
     });
     
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
-        globalStats: analysis.globalStats,
-        timeGrid: analysis.timeGrid,
-        debugInfo: analysis.debugInfo,
-        maxDateTs: analysis.maxDateTs,
-        statusText: analysis.statusText,
-        scheduleMap: analysis.scheduleMap,
-        updateTime: utils.getNow(),
-        runtimeConfig,
-        rawMatches: cache.rawMatches,
-        updateTimestamps: cache.updateTimestamps
+        globalStats: analysis.globalStats, timeGrid: analysis.timeGrid,
+        debugInfo: analysis.debugInfo, maxDateTs: analysis.maxDateTs,
+        statusText: analysis.statusText, scheduleMap: analysis.scheduleMap,
+        updateTime: utils.getNow(), runtimeConfig,
+        rawMatches: cache.rawMatches, updateTimestamps: cache.updateTimestamps
     }));
 
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const slug = tourn.slug;
         if (!analysis.globalStats[slug]) continue;
-        const snapshot = {
-            tourn: tourn,
-            rawMatches: cache.rawMatches[slug] || [],
-            updateTimestamps: { [slug]: cache.updateTimestamps[slug] }
-        };
+        const snapshot = { tourn: tourn, rawMatches: cache.rawMatches[slug] || [], updateTimestamps: { [slug]: cache.updateTimestamps[slug] } };
         await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
     }
 
@@ -1197,55 +1047,44 @@ async function runUpdate(env, force=false) {
     return l;
 }
 
-async function runRebuildArchive(env) {
+async function runCustomRebuild(env, payload) {
     const l = new Logger();
-    l.info("🚀 Starting Archive Rebuild Task...");
+    l.info(`🚀 Starting Custom Archive Rebuild for: ${payload.slug}`);
     
-    const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
-    if (!allKeys.keys.length) {
-        l.info("💤 No archives found to rebuild.");
-        return l;
-    }
-
     const authContext = await loginToFandom(env, l);
-    if (authContext?.isAnonymous) {
-        // ...
-    } else if (!authContext) {
-        l.info("⚠️ Auth Failed. Proceeding anonymously"); 
-    } else {
-        l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
-    }
+    if (authContext?.isAnonymous) { } 
+    else if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously"); 
+    else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
 
-    let successCount = 0;
-    for (const k of allKeys.keys) {
-        try {
-            const snap = await env.LOL_KV.get(k.name, { type: "json" });
-            if (!snap || !snap.tourn) continue;
+    try {
+        l.info(`📡 Fetching matches for ${payload.slug} from ${payload.overview_page}`);
+        const matches = await fetchAllMatches(payload.slug, payload.overview_page, l, authContext, null);
+        
+        if (matches && matches.length > 0) {
+            const tourn = {
+                slug: payload.slug,
+                name: payload.name,
+                overview_page: payload.overview_page,
+                league: payload.league
+            };
             
-            const slug = snap.tourn.slug;
-            const page = snap.tourn.overview_page;
+            const snapshot = {
+                tourn: tourn,
+                rawMatches: matches,
+                updateTimestamps: { [payload.slug]: Date.now() }
+            };
             
-            l.info(`📡 Fetching fully updated archive data for: ${slug}`);
-            const matches = await fetchAllMatches(slug, page, l, authContext, null);
-            
-            if (matches && matches.length > 0) {
-                snap.rawMatches = matches;
-                if (!snap.updateTimestamps) snap.updateTimestamps = {};
-                snap.updateTimestamps[slug] = Date.now();
-                
-                await env.LOL_KV.put(k.name, JSON.stringify(snap));
-                l.success(`♻️ Rebuilt Archive: ${slug} (${matches.length} matches)`);
-                successCount++;
-            } else {
-                l.error(`⚠️ No matches found for archive rebuild: ${slug}`);
-            }
-        } catch (e) {
-            l.error(`❌ Failed to rebuild ${k.name}: ${e.message}`);
+            await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
+            l.success(`♻️ Successfully rebuilt & saved Archive: ${payload.slug} (${matches.length} matches)`);
+        } else {
+            l.error(`⚠️ No matches found for ${payload.slug}. Archive not saved.`);
+            throw new Error("No matches found from Fandom API");
         }
-        await new Promise(res => setTimeout(res, 2000));
+    } catch (e) {
+        l.error(`❌ Failed to rebuild ${payload.slug}: ${e.message}`);
+        throw e;
     }
     
-    l.success(`🎉 Archive Rebuild Complete: ${successCount}/${allKeys.keys.length} updated.`);
     return l;
 }
 
@@ -1261,8 +1100,8 @@ function renderToolsPage(time, sha) {
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🧰</text></svg>">
         <style>
             ${COMMON_STYLE}
-            body { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; }
-            .container { flex: 1; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+            body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; }
+            .container { flex: 1; overflow-y: auto; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 20px; padding-bottom: 20px; -webkit-overflow-scrolling: touch; }
             .tool-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 10px; }
             .tool-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 10px; }
             .tool-desc { color: #64748b; font-size: 14px; margin: 0; line-height: 1.5; }
@@ -1270,9 +1109,15 @@ function renderToolsPage(time, sha) {
             .tool-btn:hover { background: #1d4ed8; }
             .tool-btn.secondary { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
             .tool-btn.secondary:hover { background: #f1f5f9; color: #0f172a; }
-            .build-footer { text-align: center; padding: 20px; color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; flex-shrink: 0; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+            .build-footer { text-align: center; padding: 15px 20px; color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; flex-shrink: 0; padding-bottom: calc(15px + env(safe-area-inset-bottom)); border-top: 1px solid #e2e8f0; background: #f8fafc;}
             .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
             .build-footer a:hover { opacity: 1; text-decoration: underline; }
+            
+            /* Inputs */
+            .input-group { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+            .tool-input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-family: inherit; box-sizing: border-box; outline: none; transition: 0.2s; }
+            .tool-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+            .tool-input::placeholder { color: #94a3b8; }
         </style>
     </head>
     <body>
@@ -1292,15 +1137,23 @@ function renderToolsPage(time, sha) {
                 <p class="tool-desc">Triggers a full synchronization for all ACTIVE tournaments defined in <code>tour.json</code>. Bypasses standard cooldowns and fetches fresh data from Fandom.</p>
                 <button class="tool-btn" id="btn-force" onclick="runTask('/force', 'btn-force')">Run Force Update</button>
             </div>
+            
             <div class="tool-card">
-                <h2 class="tool-title"><span>📦</span> Rebuild Archives</h2>
-                <p class="tool-desc">Fetches the absolute latest data from Fandom for ALL archived tournaments (including those removed from the active configuration) to ensure your historical snapshots are completely up-to-date.</p>
-                <button class="tool-btn secondary" id="btn-rebuild" onclick="runTask('/rebuild-archive', 'btn-rebuild')">Run Archive Rebuild</button>
+                <h2 class="tool-title"><span>📦</span> Rebuild Custom Archive</h2>
+                <p class="tool-desc">Manually reconstruct a deleted or archived tournament by providing its specific Fandom details.</p>
+                <div class="input-group">
+                    <input type="text" id="rb-slug" placeholder="Slug (e.g. lpl-2024-spring)" class="tool-input">
+                    <input type="text" id="rb-name" placeholder="Name (e.g. LPL 2024 Spring)" class="tool-input">
+                    <input type="text" id="rb-overview" placeholder="Overview Page (e.g. LPL/2024 Season/Spring Season)" class="tool-input">
+                    <input type="text" id="rb-league" placeholder="League (e.g. LPL)" class="tool-input">
+                </div>
+                <button class="tool-btn secondary" id="btn-rebuild" onclick="submitRebuild()">Rebuild Archive</button>
             </div>
         </div>
         <div class="build-footer">
             deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
         </div>
+        
         <script>
             async function runTask(endpoint, btnId) {
                 const pwd = prompt("🔒 Enter Admin Password:");
@@ -1318,13 +1171,53 @@ function renderToolsPage(time, sha) {
                         headers: { 'Authorization': 'Bearer ' + pwd }
                     });
                     
-                    if (res.status === 401) {
-                        alert("❌ Incorrect password");
-                    } else if (res.ok) {
-                        alert("✅ Task completed successfully! Redirecting to Logs.");
-                        window.location.href = '/logs';
-                    } else {
-                        alert("⚠️ Server error: " + res.status);
+                    if (res.status === 401) alert("❌ Incorrect password");
+                    else if (res.ok) { alert("✅ Task completed successfully! Redirecting to Logs."); window.location.href = '/logs'; }
+                    else alert("⚠️ Server error: " + res.status);
+                } catch (e) {
+                    alert("❌ Network connection failed");
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.style.pointerEvents = 'auto';
+                    btn.style.opacity = '1';
+                }
+            }
+
+            async function submitRebuild() {
+                const slug = document.getElementById('rb-slug').value.trim();
+                const name = document.getElementById('rb-name').value.trim();
+                const overview = document.getElementById('rb-overview').value.trim();
+                const league = document.getElementById('rb-league').value.trim();
+
+                if (!slug || !name || !overview || !league) {
+                    alert("⚠️ Please fill in all 4 fields.");
+                    return;
+                }
+
+                const pwd = prompt("🔒 Enter Admin Password:");
+                if (!pwd) return;
+
+                const btn = document.getElementById('btn-rebuild');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '⏳ Rebuilding...';
+                btn.style.pointerEvents = 'none';
+                btn.style.opacity = '0.7';
+
+                try {
+                    const res = await fetch('/rebuild-archive', {
+                        method: 'POST',
+                        headers: { 
+                            'Authorization': 'Bearer ' + pwd,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ slug, name, overview_page: overview, league })
+                    });
+                    
+                    if (res.status === 401) alert("❌ Incorrect password");
+                    else if (res.ok) { alert("✅ Archive reconstructed successfully! Redirecting to Archive."); window.location.href = '/archive'; }
+                    else {
+                        const errText = await res.text();
+                        alert("⚠️ Server error: " + errText);
                     }
                 } catch (e) {
                     alert("❌ Network connection failed");
@@ -1347,7 +1240,6 @@ function renderLogPage(logs, time, sha) {
         if(l.l === "SUCCESS") lvlClass = "lvl-ok";
         return `<li class="log-entry"><span class="log-time">${l.t}</span><span class="log-level ${lvlClass}">${l.l}</span><span class="log-msg">${l.m}</span></li>`;
     }).join("");
-
     const shortSha = (sha || "").slice(0, 7) || "unknown";
 
     return `<!DOCTYPE html>
@@ -1359,40 +1251,10 @@ function renderLogPage(logs, time, sha) {
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
     <style>
         ${COMMON_STYLE}
-        body {
-            height: 100vh;
-            height: 100dvh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            margin: 0;
-            padding: 0;
-        }
+        body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; padding: 0; }
         .main-header { flex-shrink: 0; margin-bottom: 20px; }
-        .container { 
-            flex: 1; 
-            min-height: 0; 
-            display: flex;
-            flex-direction: column;
-            max-width: 900px; 
-            width: calc(100% - 30px); 
-            margin: 0 auto; 
-            background: #fff; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
-            border: 1px solid #e2e8f0; 
-            overflow: hidden;
-            transform: translateZ(0); 
-            -webkit-mask-image: -webkit-radial-gradient(white, black);
-        }
-        .log-list { 
-            flex: 1;
-            overflow-y: auto; 
-            -webkit-overflow-scrolling: touch; 
-            list-style: none; 
-            margin: 0; 
-            padding: 0; 
-        }
+        .container { flex: 1; min-height: 0; display: flex; flex-direction: column; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; overflow: hidden; transform: translateZ(0); -webkit-mask-image: -webkit-radial-gradient(white, black); }
+        .log-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; list-style: none; margin: 0; padding: 0; }
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
         .log-time { color: #64748b; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -1402,46 +1264,26 @@ function renderLogPage(logs, time, sha) {
         .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
         .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
-        .build-footer { 
-            flex-shrink: 0;
-            text-align: center; 
-            padding: 15px 20px; 
-            padding-bottom: calc(15px + env(safe-area-inset-bottom));
-            color: #94a3b8; 
-            font-size: 11px; 
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        }
+        .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
         .build-footer b { color: #64748b; }
         .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
         .build-footer a:hover { opacity: 1; text-decoration: underline; }
-
-        @media (max-width: 600px) { 
-            .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } 
-            .log-time { font-size: 12px; opacity: 0.7; text-align: left; } 
-            .log-level { display: inline-block; width: auto; padding: 3px 10px; } 
-        }
+        @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } .log-time { font-size: 12px; opacity: 0.7; text-align: left; } .log-level { display: inline-block; width: auto; padding: 3px 10px; } }
     </style>
 </head>
 <body>
     <header class="main-header">
-        <div class="header-left">
-            <span class="header-logo">📜</span>
-            <h1 class="header-title">Logs</h1>
-        </div>
+        <div class="header-left"><span class="header-logo">📜</span><h1 class="header-title">Logs</h1></div>
         <div class="header-right">
             <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
             <a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a>
         </div>
     </header>
-    
     <div class="container">
         <ul class="log-list">${entries}</ul>
         ${logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : ''}
     </div>
-    
-    <div class="build-footer">
-        deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
-    </div>
+    <div class="build-footer">deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a></div>
 </body>
 </html>`;
 }
@@ -1462,12 +1304,7 @@ export default {
             case "/force": {
                 const expectedSecret = env.ADMIN_SECRET;
                 const authHeader = request.headers.get("Authorization");
-                
-                if (expectedSecret) {
-                    if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
-                        return new Response("Unauthorized", { status: 401 });
-                    }
-                }
+                if (expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`)) return new Response("Unauthorized", { status: 401 });
 
                 const l = await runUpdate(env, true);
                 const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
@@ -1480,41 +1317,48 @@ export default {
             }
             
             case "/rebuild-archive": {
+                if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+                
                 const expectedSecret = env.ADMIN_SECRET;
                 const authHeader = request.headers.get("Authorization");
-                
-                if (expectedSecret) {
-                    if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
-                        return new Response("Unauthorized", { status: 401 });
-                    }
+                if (expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`)) return new Response("Unauthorized", { status: 401 });
+
+                let payload;
+                try {
+                    payload = await request.json();
+                } catch (e) {
+                    return new Response("Invalid JSON payload", { status: 400 });
                 }
 
-                const l = await runRebuildArchive(env);
-                const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-                const newLogs = l.export();
-                let combinedLogs = [...newLogs, ...oldLogs];
-                if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-                await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
-                
-                return new Response("OK", { status: 200 });
+                if (!payload.slug || !payload.name || !payload.overview_page || !payload.league) {
+                    return new Response("Missing required fields. Please provide slug, name, overview_page, and league.", { status: 400 });
+                }
+
+                try {
+                    const l = await runCustomRebuild(env, payload);
+                    const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+                    const newLogs = l.export();
+                    let combinedLogs = [...newLogs, ...oldLogs];
+                    if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+                    await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+                    
+                    return new Response("OK", { status: 200 });
+                } catch (err) {
+                    return new Response(err.message || "Internal Server Error", { status: 500 });
+                }
             }
 
             case "/tools": {
                 const time = env.GITHUB_TIME;
                 const sha = env.GITHUB_SHA;
-                return new Response(renderToolsPage(time, sha), { 
-                    headers: { "content-type": "text/html;charset=utf-8" } 
-                });
+                return new Response(renderToolsPage(time, sha), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
 
             case "/logs": {
                 const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
                 const time = env.GITHUB_TIME;
                 const sha = env.GITHUB_SHA;
-
-                return new Response(renderLogPage(logs, time, sha), { 
-                    headers: { "content-type": "text/html;charset=utf-8" } 
-                });
+                return new Response(renderLogPage(logs, time, sha), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
             
             case "/archive": {
@@ -1536,10 +1380,7 @@ export default {
                     return renderContentOnly(
                         { [snap.tourn.slug]: analysis.globalStats[snap.tourn.slug] },
                         { [snap.tourn.slug]: analysis.timeGrid[snap.tourn.slug] },
-                        {},
-                        { TOURNAMENTS: [snap.tourn] },
-                        snap.updateTimestamps,
-                        true
+                        {}, { TOURNAMENTS: [snap.tourn] }, snap.updateTimestamps, true
                     );
                 });
 
