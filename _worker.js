@@ -1220,17 +1220,20 @@ function renderLogPage(logs, time, sha) {
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Logs</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
     <style>
         ${COMMON_STYLE}
-        /* 1. 锁定全局视口高度，禁止全局滚动条 */
+        /* 1. 修复 iOS 视口高度问题，使用 100dvh */
         body {
-            height: 100vh;
+            height: 100vh; /* 老版本浏览器回退 */
+            height: 100dvh; /* 动态视口高度，完美避开 iOS 底部工具栏 */
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            margin: 0;
+            padding: 0;
         }
         
         /* 2. Header 不可压缩 */
@@ -1239,7 +1242,7 @@ function renderLogPage(logs, time, sha) {
         /* 3. 容器自动占满剩余空间 */
         .container { 
             flex: 1; 
-            min-height: 0; /* 关键：允许内部元素挤压高度 */
+            min-height: 0; 
             display: flex;
             flex-direction: column;
             max-width: 900px; 
@@ -1249,12 +1252,18 @@ function renderLogPage(logs, time, sha) {
             border-radius: 12px; 
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
             border: 1px solid #e2e8f0; 
+            overflow: hidden;
+            /* 关键修复：强制 Safari 在有滚动条时依然尊重 border-radius 裁剪 */
+            transform: translateZ(0); 
+            -webkit-mask-image: -webkit-radial-gradient(white, black);
         }
         
         /* 4. 只有日志列表本身出现滚动条 */
         .log-list { 
             flex: 1;
             overflow-y: auto; 
+            /* 关键修复：恢复 iOS 专属的顺滑回弹滚动 */
+            -webkit-overflow-scrolling: touch; 
             list-style: none; 
             margin: 0; 
             padding: 0; 
@@ -1275,6 +1284,8 @@ function renderLogPage(logs, time, sha) {
             flex-shrink: 0;
             text-align: center; 
             padding: 15px 20px; 
+            /* 防止 iOS 底部安全区吃掉文字 */
+            padding-bottom: calc(15px + env(safe-area-inset-bottom));
             color: #94a3b8; 
             font-size: 11px; 
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
