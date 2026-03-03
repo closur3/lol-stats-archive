@@ -369,21 +369,23 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     t_matchesToday++;
                     if (!isFinished) {
                         t_pendingToday++;
-                        if (ts < earliestPendingTs) earliestPendingTs = ts; // 移入内部
+                        if (ts < earliestPendingTs) earliestPendingTs = ts;
                     }
                 }
-                    if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
-                    
-                    let blockName = m.Tab || "";
-                    if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") if (m.Round) blockName = m.Round;
 
-                    allFutureMatches[matchDateStr].push({
-                        time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
-                        is_finished: isFinished, is_live: isLive, 
-                        tourn: tourn.league || tourn.slug, tournSlug: tourn.slug,
-                        tournIndex: tournIdx, blockName: blockName || ""  
-                    });
+                if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
+                
+                let blockName = m.Tab || "";
+                if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") {
+                    if (m.Round) blockName = m.Round;
                 }
+
+                allFutureMatches[matchDateStr].push({
+                    time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
+                    is_finished: isFinished, is_live: isLive, 
+                    tourn: tourn.league || tourn.slug, tournSlug: tourn.slug,
+                    tournIndex: tournIdx, blockName: blockName || ""  
+                });
 
                 if (isFinished) {
                     if(ts > stats[t1].last) stats[t1].last = ts;
@@ -998,7 +1000,7 @@ async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
     const FAST_THRESHOLD = 6 * 60 * 1000;         
-    const SLOW_THRESHOLD = 66 * 60 * 1000;        
+    const SLOW_THRESHOLD = 56 * 60 * 1000;        
     const UPDATE_ROUNDS = 1;
 
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
