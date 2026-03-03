@@ -1225,7 +1225,7 @@ function renderLogPage(logs, time, sha) {
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
     <style>
         ${COMMON_STYLE}
-        .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 40px; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 20px; }
         .log-list { list-style: none; margin: 0; padding: 0; max-height: 80vh; overflow-y: auto; }
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
@@ -1237,14 +1237,13 @@ function renderLogPage(logs, time, sha) {
         .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
         
-        /* 极简页脚样式 */
+        /* 极简页脚样式 - 独立在外 */
         .build-footer { 
             text-align: center; 
-            padding: 20px; 
+            padding: 10px 20px 40px; 
             color: #94a3b8; 
             font-size: 11px; 
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            border-top: 1px solid #f1f5f9; 
         }
         .build-footer b { color: #64748b; }
         .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
@@ -1268,10 +1267,10 @@ function renderLogPage(logs, time, sha) {
     <div class="container">
         <ul class="log-list">${entries}</ul>
         ${logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : ''}
-        
-        <div class="build-footer">
-            deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
-        </div>
+    </div>
+    
+    <div class="build-footer">
+        deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
     </div>
     
     <script>
