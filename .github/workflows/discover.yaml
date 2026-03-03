@@ -44,7 +44,7 @@ jobs:
 
           # ==================== 配置区 ====================
           PREHEAT_DAYS, EXPIRE_DAYS = 7, 1
-          WHITELIST = ["LPL", "LCK"]
+          WHITELIST = []
           BLACKLIST = ["Opening"]
 
           CARGO_FIELDS = [
