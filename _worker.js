@@ -365,12 +365,13 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 const matchTimeStr = `${pad2(ho)}:${pad2(mi)}`;
                 dateDisplay = `${pad2(mo)}-${pad2(da)} ${matchTimeStr}`;
 
-                if (matchDateStr >= todayStr) {
-                    if (matchDateStr === todayStr) {
-                        t_matchesToday++;
-                        if (!isFinished) t_pendingToday++;
-                        if (ts < earliestPendingTs) earliestPendingTs = ts;
+                if (matchDateStr === todayStr) {
+                    t_matchesToday++;
+                    if (!isFinished) {
+                        t_pendingToday++;
+                        if (ts < earliestPendingTs) earliestPendingTs = ts; // 移入内部
                     }
+                }
                     if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
                     
                     let blockName = m.Tab || "";
@@ -453,7 +454,9 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             nextMode = nextStreak >= 2 ? "slow" : "fast"; 
         }
         
-        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode };
+        let saveNextTs = earliestPendingTs === Infinity ? 0 : earliestPendingTs;
+        if (failedSlugs.has(tourn.slug)) saveNextTs = prevT.nextTs || 0;
+        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode, nextTs: saveNextTs };
     });
 
     let scheduleMap = {};
@@ -1025,8 +1028,12 @@ async function runUpdate(env, force=false) {
         const dayLast = utils.toCST(lastTs).getUTCDate();
         const isNewDay = dayNow !== dayLast;
         
-        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0 };
-        const currentMode = tMeta.mode;
+        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0, nextTs: 0 };
+        let currentMode = tMeta.mode;
+        if (currentMode === "slow" && tMeta.nextTs > 0 && NOW >= tMeta.nextTs) {
+            currentMode = "fast";
+        }
+
         const threshold = currentMode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
         if (force || elapsed >= threshold || isNewDay) {
