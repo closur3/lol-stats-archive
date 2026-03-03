@@ -1,9 +1,10 @@
 // ====================================================
-// 🥇 Worker V42.5.0: Fresh & Minimalist UI
+// 🥇 Worker V42.6.0: Perfect Unified Aesthetic
 // 更新日志:
-// 1. 代码清理: 彻底移除 UI_VERSION 相关逻辑。
-// 2. 视觉净化: 移除 Tools 页面的所有冗余副标题、描述和 e.g. 占位符。
-// 3. 风格对齐: Tools 采用极简风格，Force Update 改为单行左右布局，圆角与阴影全面对齐主页。
+// 1. 终极统一样式: Tools 页面彻底复用主页的 .wrapper 和 .table-title 容器，实现 100% 风格对齐。
+// 2. 表单重绘: 引入网格布局(Grid)和高级表单输入框，Label 采用全大写微标风格。
+// 3. 鉴权框净化: 移除黑色压抑元素，改用浅色毛玻璃背景与主题蓝按钮。
+// 4. 清理残留: 彻底从系统和 HTML 骨架中剔除 UI_VERSION。
 // ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
@@ -1104,28 +1105,26 @@ function renderToolsPage(time, sha) {
         <style>
             ${COMMON_STYLE}
             body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; }
-            .container { flex: 1; overflow-y: auto; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 20px; padding-bottom: 20px; -webkit-overflow-scrolling: touch; }
+            .container { flex: 1; overflow-y: auto; max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 25px; padding-bottom: 20px; -webkit-overflow-scrolling: touch; }
             
-            .tool-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 15px; }
-            .tool-row { flex-direction: row; align-items: center; justify-content: space-between; }
-            .tool-title { font-size: 16px; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 8px; }
+            .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; }
+            .table-title { padding: 15px 20px; font-weight: 700; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; }
+            .section-body { padding: 25px 20px; }
             
-            .tool-btn { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; transition: 0.2s; align-self: flex-end; font-family: inherit; margin: 0; }
-            .tool-btn:hover { background: #1d4ed8; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
-            .tool-row .tool-btn { align-self: center; }
-
-            .input-group { display: flex; flex-direction: column; gap: 8px; margin: 5px 0; }
-            .input-row { display: flex; align-items: center; gap: 15px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 15px; transition: all 0.2s ease; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
-            .input-row:focus-within { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-            .input-label { width: 110px; font-size: 13px; font-weight: 700; color: #64748b; flex-shrink: 0; text-align: left; }
-            .tool-input { flex: 1; min-width: 0; padding: 8px 0; border: none; background: transparent; font-size: 14px; font-weight: 600; font-family: inherit; outline: none; color: #0f172a; }
-            .tool-input::placeholder { color: #cbd5e1; font-weight: 400; }
+            .flex-row { display: flex; justify-content: space-between; align-items: center; }
+            
+            .primary-btn { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; }
+            .primary-btn:hover { background: #1d4ed8; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
+            
+            .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+            .form-group { display: flex; flex-direction: column; }
+            .tool-label { font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 6px; padding-left: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .form-input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; color: #0f172a; box-sizing: border-box; transition: all 0.2s; background: #f8fafc; }
+            .form-input:focus { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); outline: none; }
+            .form-input::placeholder { color: #94a3b8; }
             
             @media (max-width: 600px) {
-                .tool-card { padding: 20px; }
-                .input-row { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 15px; }
-                .input-label { width: auto; font-size: 11px; opacity: 0.8; }
-                .tool-input { padding: 4px 0; width: 100%; }
+                .form-grid { grid-template-columns: 1fr; gap: 12px; }
             }
 
             .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
@@ -1133,25 +1132,22 @@ function renderToolsPage(time, sha) {
             .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
             .build-footer a:hover { opacity: 1; text-decoration: underline; }
             
-            /* Auth Overlay */
-            #auth-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.6); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; }
-            .auth-card { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); width: 320px; text-align: center; box-sizing: border-box; border: 1px solid #e2e8f0; }
-            .auth-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; color: #0f172a; display: flex; align-items: center; justify-content: center; gap: 10px; }
+            /* Clean Glass Auth Overlay */
+            #auth-overlay { position: fixed; inset: 0; background: rgba(241,245,249,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999; }
+            .auth-card { background: #fff; padding: 35px 30px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); width: 340px; text-align: center; box-sizing: border-box; border: 1px solid #e2e8f0; }
+            .auth-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; color: #0f172a; }
             .auth-subtitle { color: #64748b; font-size: 13px; margin-bottom: 25px; line-height: 1.4; }
-            .auth-input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px; text-align: center; margin-bottom: 20px; box-sizing: border-box; transition: all 0.2s; outline: none; -webkit-text-security: disc; background: #f8fafc; font-family: ui-monospace, monospace; letter-spacing: 2px; }
-            .auth-input:focus { border-color: #2563eb; background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-            .auth-input::placeholder { letter-spacing: normal; font-family: -apple-system, sans-serif; color: #94a3b8; }
-            .auth-btn { width: 100%; background: #0f172a; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; transition: 0.2s; }
-            .auth-btn:hover { background: #334155; }
+            .auth-btn { width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
         </style>
     </head>
     <body>
         <div id="auth-overlay">
             <div class="auth-card">
-                <div class="auth-title"><span>🔐</span> Admin</div>
-                <div class="auth-subtitle">Verify your identity to proceed</div>
-                <input type="password" id="auth-pwd" class="auth-input" placeholder="Password" onkeypress="if(event.key==='Enter') unlockTools()">
-                <button class="auth-btn" onclick="unlockTools()">Unlock</button>
+                <div style="font-size: 32px; margin-bottom: 12px;">🔐</div>
+                <div class="auth-title">Admin Authentication</div>
+                <div class="auth-subtitle">Please verify your identity to access tools.</div>
+                <input type="password" id="auth-pwd" class="form-input" style="text-align:center; font-family:monospace; letter-spacing:2px; margin-bottom:20px; padding:12px;" placeholder="Password" onkeypress="if(event.key==='Enter') unlockTools()">
+                <button class="primary-btn auth-btn" onclick="unlockTools()">Unlock</button>
             </div>
         </div>
 
@@ -1167,32 +1163,45 @@ function renderToolsPage(time, sha) {
         </header>
         
         <div class="container">
-            <div class="tool-card tool-row">
-                <h2 class="tool-title"><span>⚡</span> Force Update</h2>
-                <button class="tool-btn" id="btn-force" onclick="runTask('/force', 'btn-force')">Run</button>
+            <div class="wrapper">
+                <div class="table-title">⚡ Synchronization</div>
+                <div class="section-body flex-row" style="padding-top: 20px; padding-bottom: 20px;">
+                    <div>
+                        <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px;">Force Update</div>
+                        <div style="font-size: 13px; color: #64748b;">Trigger a full manual sync for all active tournaments.</div>
+                    </div>
+                    <button class="primary-btn" id="btn-force" style="flex-shrink:0;" onclick="runTask('/force', 'btn-force')">Run Now</button>
+                </div>
             </div>
             
-            <div class="tool-card">
-                <h2 class="tool-title"><span>📦</span> Rebuild Archive</h2>
-                <div class="input-group">
-                    <div class="input-row">
-                        <span class="input-label">Slug</span>
-                        <input type="text" id="rb-slug" class="tool-input">
+            <div class="wrapper">
+                <div class="table-title">📦 Archive Management</div>
+                <div class="section-body">
+                    <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px;">Rebuild Archive</div>
+                    <div style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Manually reconstruct a deleted tournament by providing its Fandom details.</div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="tool-label">Slug</label>
+                            <input type="text" id="rb-slug" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="tool-label">Name</label>
+                            <input type="text" id="rb-name" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="tool-label">Overview Page</label>
+                            <input type="text" id="rb-overview" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="tool-label">League</label>
+                            <input type="text" id="rb-league" class="form-input">
+                        </div>
                     </div>
-                    <div class="input-row">
-                        <span class="input-label">Name</span>
-                        <input type="text" id="rb-name" class="tool-input">
-                    </div>
-                    <div class="input-row">
-                        <span class="input-label">Overview Page</span>
-                        <input type="text" id="rb-overview" class="tool-input">
-                    </div>
-                    <div class="input-row">
-                        <span class="input-label">League</span>
-                        <input type="text" id="rb-league" class="tool-input">
+                    <div style="display: flex; justify-content: flex-end;">
+                        <button class="primary-btn" id="btn-rebuild" onclick="submitRebuild()">Rebuild</button>
                     </div>
                 </div>
-                <button class="tool-btn" id="btn-rebuild" onclick="submitRebuild()">Rebuild</button>
             </div>
         </div>
         <div class="build-footer">
