@@ -365,27 +365,24 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 const matchTimeStr = `${pad2(ho)}:${pad2(mi)}`;
                 dateDisplay = `${pad2(mo)}-${pad2(da)} ${matchTimeStr}`;
 
-                if (matchDateStr === todayStr) {
-                    t_matchesToday++;
-                    if (!isFinished) {
-                        t_pendingToday++;
+                if (matchDateStr >= todayStr) {
+                    if (matchDateStr === todayStr) {
+                        t_matchesToday++;
+                        if (!isFinished) t_pendingToday++;
                         if (ts < earliestPendingTs) earliestPendingTs = ts;
                     }
-                }
+                    if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
+                    
+                    let blockName = m.Tab || "";
+                    if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") if (m.Round) blockName = m.Round;
 
-                if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
-                
-                let blockName = m.Tab || "";
-                if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") {
-                    if (m.Round) blockName = m.Round;
+                    allFutureMatches[matchDateStr].push({
+                        time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
+                        is_finished: isFinished, is_live: isLive, 
+                        tourn: tourn.league || tourn.slug, tournSlug: tourn.slug,
+                        tournIndex: tournIdx, blockName: blockName || ""  
+                    });
                 }
-
-                allFutureMatches[matchDateStr].push({
-                    time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
-                    is_finished: isFinished, is_live: isLive, 
-                    tourn: tourn.league || tourn.slug, tournSlug: tourn.slug,
-                    tournIndex: tournIdx, blockName: blockName || ""  
-                });
 
                 if (isFinished) {
                     if(ts > stats[t1].last) stats[t1].last = ts;
@@ -456,9 +453,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             nextMode = nextStreak >= 2 ? "slow" : "fast"; 
         }
         
-        let saveNextTs = earliestPendingTs === Infinity ? 0 : earliestPendingTs;
-        if (failedSlugs.has(tourn.slug)) saveNextTs = prevT.nextTs || 0;
-        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode, nextTs: saveNextTs };
+        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode };
     });
 
     let scheduleMap = {};
@@ -1030,12 +1025,8 @@ async function runUpdate(env, force=false) {
         const dayLast = utils.toCST(lastTs).getUTCDate();
         const isNewDay = dayNow !== dayLast;
         
-        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0, nextTs: 0 };
-        let currentMode = tMeta.mode;
-        if (currentMode === "slow" && tMeta.nextTs > 0 && NOW >= tMeta.nextTs) {
-            currentMode = "fast";
-        }
-
+        const tMeta = (meta.tournaments && meta.tournaments[t.slug]) || { mode: "fast", streak: 0 };
+        const currentMode = tMeta.mode;
         const threshold = currentMode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
         if (force || elapsed >= threshold || isNewDay) {
