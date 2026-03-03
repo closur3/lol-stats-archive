@@ -258,7 +258,7 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
 
         const params = new URLSearchParams({
             action: "cargoquery", format: "json", tables: "MatchSchedule",
-            fields: "Team1,Team2,Team1Score,Team2Score,DateTime UTC=DateTime_UTC,OverviewPage,BestOf,N MatchInPage=N_MatchInPage,Tab,Round",
+            fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC AS DateTime_UTC,OverviewPage,BestOf,N_MatchInPage AS N_MatchInPage,Tab,Round",
             where: whereClause,
             limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
         });
