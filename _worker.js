@@ -1184,15 +1184,15 @@ function renderToolsPage(time, sha) {
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="tool-label">Slug</label>
-                            <input type="text" id="rb-slug" placeholder="lpl-2026-spring" class="form-input">
+                            <input type="text" id="rb-slug" placeholder="lpl-2026-split-1" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Name</label>
-                            <input type="text" id="rb-name" placeholder="LPL 2026 Spring" class="form-input">
+                            <input type="text" id="rb-name" placeholder="LPL 2026 Split 1" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Overview Page</label>
-                            <input type="text" id="rb-overview" placeholder="LPL/2026 Season/Spring Season" class="form-input">
+                            <input type="text" id="rb-overview" placeholder="LPL/2026 Season/Split 1" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">League</label>
