@@ -1,3 +1,4 @@
+
 name: Deploy Worker
 
 on:
@@ -17,5 +18,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         env:
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_TIME: ${{ github.event.head_commit.timestamp }}
+          CLOUDFLARE_VAR_GITHUB_SHA: "${{ github.sha }}"
+          CLOUDFLARE_VAR_GITHUB_TIME: "$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
