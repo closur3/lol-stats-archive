@@ -360,8 +360,10 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 if (matchDateStr >= todayStr) {
                     if (matchDateStr === todayStr) {
                         matchesToday++;
-                        if (!isFinished) pendingToday++;
-                        if (ts < earliestPendingTs) earliestPendingTs = ts;
+                        if (!isFinished) {
+                            pendingToday++;
+                            if (ts < earliestPendingTs) earliestPendingTs = ts;
+                        }
                     }
                     if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
                     
