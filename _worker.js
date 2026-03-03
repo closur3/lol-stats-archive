@@ -1206,87 +1206,166 @@ function renderToolsPage(time, sha) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tools</title>
+    <title>Worker Console - Tools</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🔧</text></svg>">
     <style>
         ${COMMON_STYLE}
-        body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; margin: 0; padding: 0; }
-        .main-header { flex-shrink: 0; margin-bottom: 20px; }
-        .tools-container { max-width: 900px; width: calc(100% - 30px); margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
-        .tool-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .tool-card h2 { margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #0f172a; }
-        .tool-card p { margin: 0 0 14px 0; font-size: 13px; color: #64748b; }
-        .tool-inputs { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-        .tool-inputs input { border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-family: inherit; color: #0f172a; outline: none; transition: border 0.2s; }
-        .tool-inputs input:focus { border-color: #94a3b8; }
-        .tool-btn { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; font-family: inherit; color: #475569; cursor: pointer; transition: 0.2s; }
-        .tool-btn:hover { background: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
-        .tool-btn:disabled { opacity: 0.5; pointer-events: none; }
-        .tool-result { margin-top: 10px; font-size: 13px; color: #475569; display: none; }
-        .build-footer { text-align: center; padding: 30px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-        .build-footer b { color: #64748b; }
-        .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
-        .build-footer a:hover { opacity: 1; text-decoration: underline; }
+        body { background: #f8fafc; min-height: 100vh; }
+        .tools-container { max-width: 800px; margin: 0 auto; padding: 20px 15px 60px; display: flex; flex-direction: column; gap: 20px; }
+        
+        /* 概览卡片 */
+        .status-overview { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 10px; }
+        .status-item { background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 4px; }
+        .status-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+        .status-value { font-size: 14px; font-weight: 700; color: #1e293b; font-family: ui-monospace, monospace; }
+
+        /* 通用卡片样式 */
+        .tool-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01); transition: transform 0.2s; }
+        .card-header { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #fff; display: flex; align-items: center; gap: 10px; }
+        .card-icon { font-size: 20px; }
+        .card-title { font-weight: 800; font-size: 16px; color: #0f172a; flex: 1; }
+        .card-body { padding: 20px; }
+        .card-desc { margin: 0 0 18px 0; font-size: 13px; color: #64748b; line-height: 1.5; }
+
+        /* 输入控件 */
+        .tool-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .input-group { display: flex; flex-direction: column; gap: 6px; }
+        .input-label { font-size: 12px; font-weight: 600; color: #475569; padding-left: 2px; }
+        input { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; font-size: 14px; transition: 0.2s; background: #fcfcfd; }
+        input:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); background: #fff; }
+        
+        /* 按钮与结果 */
+        .btn-row { display: flex; align-items: center; gap: 12px; }
+        .tool-btn { background: #1e293b; color: #fff; border: none; border-radius: 10px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; }
+        .tool-btn:hover { background: #0f172a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .tool-btn:active { transform: translateY(0); }
+        .tool-btn:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; box-shadow: none; }
+        
+        .result-pill { font-size: 13px; font-weight: 600; padding: 10px 16px; border-radius: 10px; display: none; animation: slideIn 0.3s ease; flex: 1; }
+        .res-success { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+        .res-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        @media (max-width: 600px) { .tool-inputs { grid-template-columns: 1fr; } .status-overview { grid-template-columns: 1fr; } .btn-row { flex-direction: column; align-items: stretch; } }
+        
+        .build-footer { text-align: center; padding: 30px 20px; color: #94a3b8; font-size: 12px; }
     </style>
 </head>
 <body>
     <header class="main-header">
         <div class="header-left">
             <span class="header-logo">🔧</span>
-            <h1 class="header-title">Tools</h1>
+            <h1 class="header-title">Worker Tools</h1>
         </div>
         <div class="header-right">
+            <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
             <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
         </div>
     </header>
 
     <div class="tools-container">
-        <div class="tool-card">
-            <h2>⚡ Force Update</h2>
-            <p>Trigger a full data refresh for all active tournaments.</p>
-            <button class="tool-btn" onclick="triggerForce(event)">Run Force Update</button>
-            <div class="tool-result" id="forceResult"></div>
-        </div>
-
-        <div class="tool-card">
-            <h2>📦 Rebuild Archive</h2>
-            <p>Fetch and rebuild archive data for a removed or outdated tournament.</p>
-            <div class="tool-inputs">
-                <input id="rebuildSlug" placeholder="Slug" />
-                <input id="rebuildPage" placeholder="Overview Page" />
-                <input id="rebuildName" placeholder="Display Name" />
-                <input id="rebuildLeague" placeholder="League Short Name" />
+        <div class="status-overview">
+            <div class="status-item">
+                <span class="status-label">Environment Version</span>
+                <span class="status-value">${UI_VERSION}</span>
             </div>
-            <button class="tool-btn" onclick="triggerRebuild(event)">Run Rebuild</button>
-            <div class="tool-result" id="rebuildResult"></div>
+            <div class="status-item">
+                <span class="status-label">Last Deployed (CST)</span>
+                <span class="status-value">${time || "Unknown"}</span>
+            </div>
         </div>
-    </div>
 
-    <div class="build-footer">
-        deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
+        <div class="tool-card">
+            <div class="card-header">
+                <span class="card-icon">⚡</span>
+                <span class="card-title">System Refresh</span>
+            </div>
+            <div class="card-body">
+                <p class="card-desc">强制从 Fandom API 重新抓取所有当前活跃联赛的数据。此操作将绕过所有缓存逻辑，通常用于修复数据异常或同步紧急赛程更动。</p>
+                <div class="btn-row">
+                    <button class="tool-btn" id="btnForce" onclick="triggerForce(event)">
+                        <span class="btn-spinner" id="spinForce" style="display:none">⏳</span>
+                        Execute Force Update
+                    </button>
+                    <div id="forceResult" class="result-pill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tool-card">
+            <div class="card-header">
+                <span class="card-icon">📦</span>
+                <span class="card-title">Archive Rebuild</span>
+            </div>
+            <div class="card-body">
+                <p class="card-desc">手动为指定联赛创建归档。适用于已结束的联赛、或不在当前热更列表中的历史赛事同步。</p>
+                <div class="tool-inputs">
+                    <div class="input-group">
+                        <span class="input-label">Slug (Internal ID)</span>
+                        <input id="rebuildSlug" placeholder="e.g. lpl-2024-summer" />
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label">Overview Page</span>
+                        <input id="rebuildPage" placeholder="LPL/2024_Season/Summer_Season" />
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label">Display Name</span>
+                        <input id="rebuildName" placeholder="LPL 2024 Summer" />
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label">League Short</span>
+                        <input id="rebuildLeague" placeholder="LPL" />
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="tool-btn" id="btnRebuild" onclick="triggerRebuild(event)">
+                        <span class="btn-spinner" id="spinRebuild" style="display:none">⏳</span>
+                        Build Archive
+                    </button>
+                    <div id="rebuildResult" class="result-pill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="build-footer">
+            Build: <b>${shortSha}</b> • ${BOT_UA}
+        </div>
     </div>
 
     <script>
+        function showResult(elId, msg, isError = false) {
+            const el = document.getElementById(elId);
+            el.textContent = msg;
+            el.style.display = 'block';
+            el.className = 'result-pill ' + (isError ? 'res-error' : 'res-success');
+            setTimeout(() => { el.style.opacity = '0.5'; }, 5000);
+        }
+
         async function triggerForce(e) {
-            const pwd = prompt("🔒 Password:");
+            const pwd = prompt("🔒 Admin Secret Required:");
             if (!pwd) return;
-            const btn = e.currentTarget;
-            const result = document.getElementById('forceResult');
+            
+            const btn = document.getElementById('btnForce');
+            const spin = document.getElementById('spinForce');
+            const resEl = document.getElementById('forceResult');
+            
             btn.disabled = true;
-            btn.textContent = 'Running...';
-            result.style.display = 'none';
+            spin.style.display = 'inline-block';
+            resEl.style.display = 'none';
+
             try {
-                const res = await fetch('/force', { method: 'POST', headers: { 'Authorization': 'Bearer ' + pwd } });
-                result.style.display = 'block';
-                if (res.status === 401) result.textContent = '❌ Incorrect password';
-                else if (res.ok) result.textContent = '✅ Done';
-                else result.textContent = '⚠️ Server error: ' + res.status;
+                const res = await fetch('/force', { 
+                    method: 'POST', 
+                    headers: { 'Authorization': 'Bearer ' + pwd } 
+                });
+                if (res.status === 401) showResult('forceResult', '❌ Unauthorized: Invalid Secret', true);
+                else if (res.ok) showResult('forceResult', '✅ Update sequence completed successfully');
+                else showResult('forceResult', '⚠️ Server returned ' + res.status, true);
             } catch(e) {
-                result.style.display = 'block';
-                result.textContent = '❌ Network error';
+                showResult('forceResult', '❌ Connection failed', true);
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Run Force Update';
+                spin.style.display = 'none';
             }
         }
 
@@ -1295,28 +1374,29 @@ function renderToolsPage(time, sha) {
             const page = document.getElementById('rebuildPage').value.trim();
             const name = document.getElementById('rebuildName').value.trim();
             const league = document.getElementById('rebuildLeague').value.trim();
-            const result = document.getElementById('rebuildResult');
+            
             if (!slug || !page) {
-                result.style.display = 'block';
-                result.textContent = '⚠️ Slug and Overview Page are required';
+                showResult('rebuildResult', '⚠️ Slug and Page are mandatory', true);
                 return;
             }
-            const btn = e.currentTarget;
+
+            const btn = document.getElementById('btnRebuild');
+            const spin = document.getElementById('spinRebuild');
+            
             btn.disabled = true;
-            btn.textContent = 'Running...';
-            result.style.display = 'none';
+            spin.style.display = 'inline-block';
+            document.getElementById('rebuildResult').style.display = 'none';
+
             try {
-                const params = new URLSearchParams({ slug, page, ...(name && { name }), ...(league && { league }) });
+                const params = new URLSearchParams({ slug, page, name, league });
                 const res = await fetch('/tools/rebuild?' + params, { method: 'POST' });
-                result.style.display = 'block';
-                if (res.ok) result.textContent = '✅ ' + await res.text();
-                else result.textContent = '⚠️ Server error: ' + res.status;
+                if (res.ok) showResult('rebuildResult', '✅ ' + await res.text());
+                else showResult('rebuildResult', '⚠️ Rebuild failed: ' + res.status, true);
             } catch(e) {
-                result.style.display = 'block';
-                result.textContent = '❌ Network error';
+                showResult('rebuildResult', '❌ Network error', true);
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Run Rebuild';
+                spin.style.display = 'none';
             }
         }
     </script>
