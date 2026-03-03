@@ -240,40 +240,44 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
 
 async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilter = null) {
     const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
+    const inClause = pages.map(p => `'${p}'`).join(", ");
     let all = [];
-    for (const overviewPage of pages) {
-        let offset = 0; const limit = 100;
-        while(true) {
-            let whereClause = `OverviewPage LIKE '${overviewPage}%'`;
-            if (dateFilter) {
-                whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
-            }
+    let offset = 0;
+    const limit = 100;
 
-            const params = new URLSearchParams({
-                action: "cargoquery", format: "json", tables: "MatchSchedule",
-                fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
-                where: whereClause, 
-                limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
-            });
+    while (true) {
+        let whereClause = pages.length === 1
+            ? `OverviewPage = '${pages[0]}'`
+            : `OverviewPage IN (${inClause})`;
 
-            try {
-                const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
-                const batch = batchRaw.map(i => i.title);
-                logger.success(`📦 Received: ${slug} Got ${batch.length} matches`);
-                
-                if (!batch.length) break;
-                
-                all = all.concat(batch);
-                offset += batch.length;
-                
-                if (dateFilter) break; 
-                if (batch.length < limit) break;
-                
-                await new Promise(res => setTimeout(res, 2000)); 
-            } catch(e) {
-                logger.error(`💥 Pagination: ${slug} (Offset: ${offset}) -> ${e.message}`);
-                throw new Error(`Batch Fail`);
-            }
+        if (dateFilter) {
+            whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
+        }
+
+        const params = new URLSearchParams({
+            action: "cargoquery", format: "json", tables: "MatchSchedule",
+            fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
+            where: whereClause,
+            limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
+        });
+
+        try {
+            const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
+            const batch = batchRaw.map(i => i.title);
+            logger.success(`📦 Received: ${slug} Got ${batch.length} matches`);
+
+            if (!batch.length) break;
+
+            all = all.concat(batch);
+            offset += batch.length;
+
+            if (dateFilter) break;
+            if (batch.length < limit) break;
+
+            await new Promise(res => setTimeout(res, 2000));
+        } catch (e) {
+            logger.error(`💥 Pagination: ${slug} (Offset: ${offset}) -> ${e.message}`);
+            throw new Error(`Batch Fail`);
         }
     }
     return all;
