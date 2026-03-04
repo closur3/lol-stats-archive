@@ -418,7 +418,15 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             nextMode = nextStreak >= 2 ? "slow" : "fast"; 
         }
         
-        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode, startTs: earliestPendingTs !== Infinity ? earliestPendingTs : 0 };
+        // 赋予每个联赛专属的 Emoji 状态
+        let emoji = "";
+        if (nextStreak === 0 && nextMode === "fast") emoji = "🎮";
+        else if (nextStreak === 0 && nextMode === "slow") emoji = "⏳";
+        else if (nextStreak === 1) emoji = "👀";
+        else if (matchesToday === 0) emoji = "💤";
+        else emoji = "✔️";
+
+        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode, startTs: earliestPendingTs !== Infinity ? earliestPendingTs : 0, emoji: emoji };
     });
 
     let scheduleMap = {};
@@ -430,26 +438,8 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         });
     });
 
-    let statusText = "";
-    const metaValues = Object.values(tournMeta);
-    const boxStyle = "display:inline-flex; align-items:center; justify-content:center; gap:5px; font-weight:600; font-size:12px; padding: 4px 10px; border-radius: 20px; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;";
-    const iconStyle = "font-size: 14px; line-height: 1; display: block; transform: translateY(-1px);"; 
-
-    if (metaValues.some(m => m.streak === 0 && m.mode === "fast")) {
-        statusText = `<div style="${boxStyle} color:#10b981;"><span style="${iconStyle}">🎮</span><span>ONGOING</span></div>`;
-    } else if (metaValues.some(m => m.streak === 0 && m.mode === "slow")) {
-        statusText = `<div style="${boxStyle} color:#4961c4;"><span style="${iconStyle}">⏳</span><span>WAITING</span></div>`;
-    } else if (metaValues.some(m => m.streak === 1)) {
-        statusText = `<div style="${boxStyle} color:#737373;"><span style="${iconStyle}">👀</span><span>VERIFYING</span></div>`;
-    } else {
-        if (totalMatchesToday === 0) {
-            statusText = `<div style="${boxStyle} color:#64748b;"><span style="${iconStyle}">💤</span><span>OFF-DAY</span></div>`;
-        } else {
-            statusText = `<div style="${boxStyle} color:#94a3b8;"><span style="${iconStyle}">✔️</span><span>FINISHED</span></div>`;
-        }
-    }
-
-    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText, scheduleMap, tournMeta };
+    // 返回空的 statusText，原先的全局状态废弃
+    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText: "", scheduleMap, tournMeta };
 }
 
 // --- 6. Markdown 生成器 ---
@@ -728,7 +718,7 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
 }
 
-function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
+function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false, tournMeta = {}) {
     globalStats = globalStats || {};
     timeData = timeData || {};
     scheduleMap = scheduleMap || {};
@@ -813,12 +803,17 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             timeTableHtml += "</tbody></table>";
         }
 
+        // 仅在主页显示 Emoji
+        const emojiStr = (!isArchive && tournMeta[tourn.slug] && tournMeta[tourn.slug].emoji) 
+            ? `<span style="font-size:17px; margin-right:6px; line-height:1; display:inline-block; transform:translateY(1px);">${tournMeta[tourn.slug].emoji}</span>` 
+            : "";
         const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name || tourn.slug}</a>`;
+        
         if (isArchive) {
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">${tableBody}${timeTableHtml}</div></details>`;
         } else {
-            tablesHtml += `<div class="wrapper"><div class="table-title"><div>${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
+            tablesHtml += `<div class="wrapper"><div class="table-title"><div style="display:flex; align-items:center;">${emojiStr}${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
         }
     });
     
@@ -1083,6 +1078,7 @@ async function runUpdate(env, force=false) {
         globalStats: analysis.globalStats, timeGrid: analysis.timeGrid,
         debugInfo: analysis.debugInfo, maxDateTs: analysis.maxDateTs,
         statusText: analysis.statusText, scheduleMap: analysis.scheduleMap,
+        tournMeta: analysis.tournMeta, // <-- 新增，将 Emoji 保存进缓存
         updateTime: utils.getNow(), runtimeConfig,
         rawMatches: cache.rawMatches, updateTimestamps: cache.updateTimestamps
     };
@@ -1091,7 +1087,7 @@ async function runUpdate(env, force=false) {
     try {
         const homeFragment = renderContentOnly(
             analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-            runtimeConfig, cache.updateTimestamps, false
+            runtimeConfig, cache.updateTimestamps, false, analysis.tournMeta // <-- 新增第7个参数
         );
         const fullPage = renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home");
         await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
@@ -1517,9 +1513,9 @@ export default {
                     const homeFragment = renderContentOnly(
                         cache.globalStats, cache.timeGrid, cache.scheduleMap,
                         cache.runtimeConfig || { TOURNAMENTS: [] },
-                        cache.updateTimestamps, false
+                        cache.updateTimestamps, false, cache.tournMeta || {} // <-- 传入缓存的 tournMeta
                     );
-                    const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
+                    const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText || "", "home");
                     await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
 
                     const archiveHTML = await generateArchiveStaticHTML(env, cache);
