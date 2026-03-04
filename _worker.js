@@ -805,15 +805,15 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
 
         // 仅在主页显示 Emoji
         const emojiStr = (!isArchive && tournMeta[tourn.slug] && tournMeta[tourn.slug].emoji) 
-            ? `<span style="font-size:17px; margin-right:6px; line-height:1; display:inline-block; transform:translateY(1px);">${tournMeta[tourn.slug].emoji}</span>` 
+            ? `<span style="font-size: 16px; line-height: 1; display: block; transform: translateY(-1px);">${tournMeta[tourn.slug].emoji}</span>` 
             : "";
-        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name || tourn.slug}</a>`;
+        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tournMeta[tourn.slug].name || tourn.slug}</a>`;
         
         if (isArchive) {
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">${tableBody}${timeTableHtml}</div></details>`;
         } else {
-            tablesHtml += `<div class="wrapper"><div class="table-title"><div style="display:flex; align-items:center;">${emojiStr}${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
+            tablesHtml += `<div class="wrapper"><div class="table-title"><div style="display:flex; align-items:center; gap: 6px;">${emojiStr}${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
         }
     });
     
