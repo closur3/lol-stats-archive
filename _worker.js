@@ -1,10 +1,8 @@
 // ====================================================
-// 🥇 Worker V44.1.0: Full Site SSG & UI/UX Polish
+// 🥇 Worker V44.2.0: SSG Stability & Null-Safety
 // 更新日志:
-// 1. 全站静态化: Archive 页面脱离动态渲染，全面接入 SSG 架构，保存至 ARCHIVE_STATIC_HTML。
-// 2. 联动刷新: runUpdate、runCustomRebuild 和 /refresh-ui 均会自动触发 Archive HTML 的重新生成。
-// 3. 极致性能: 主页和归档页现均实现 O(1) 复杂度响应，彻底根除 CPU 超时风险。
-// 4. Tools 体验升级: 引入 Toast 优雅弹窗替代 alert，修复移动端 Tools 页面截断与无法滑动的 Bug。
+// 1. 容错升级: 为 renderContentOnly 和 generateArchiveStaticHTML 添加深度空值防御，防止残缺 KV 数据导致 500 崩溃。
+// 2. 异常捕获: /refresh-ui 增加 try-catch 拦截，遇到错误时会直接在前端 Toast 输出具体报错信息。
 // ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
@@ -303,7 +301,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         return res;
     };
 
-    runtimeConfig.TOURNAMENTS.forEach((tourn, tournIdx) => {
+    (runtimeConfig.TOURNAMENTS || []).forEach((tourn, tournIdx) => {
         const rawMatches = allRawMatches[tourn.slug] || [];
         const stats = {};
         let processed = 0, skipped = 0;
@@ -731,8 +729,13 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
 }
 
 function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false) {
-    if (!scheduleMap) scheduleMap = {};
-    if (!updateTimestamps) updateTimestamps = {};
+    globalStats = globalStats || {};
+    timeData = timeData || {};
+    scheduleMap = scheduleMap || {};
+    updateTimestamps = updateTimestamps || {};
+    runtimeConfig = runtimeConfig || { TOURNAMENTS: [] };
+    if (!runtimeConfig.TOURNAMENTS) runtimeConfig.TOURNAMENTS = [];
+
     const injectedData = `<script>window.g_stats = Object.assign(window.g_stats || {}, ${JSON.stringify(globalStats)});</script>`;
     const mkSpine = (val, sep) => {
         if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
@@ -754,7 +757,9 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     let tablesHtml = "";
 
     runtimeConfig.TOURNAMENTS.forEach((tourn, idx) => {
-        const stats = utils.sortTeams(globalStats[tourn.slug]);
+        if (!tourn || !tourn.slug) return;
+        const rawStats = globalStats[tourn.slug] || {};
+        const stats = utils.sortTeams(rawStats);
         const tableId = `t_${tourn.slug.replace(/-/g, '_')}`;
         const lastTs = updateTimestamps[tourn.slug];
         const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
@@ -808,7 +813,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             timeTableHtml += "</tbody></table>";
         }
 
-        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name}</a>`;
+        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name || tourn.slug}</a>`;
         if (isArchive) {
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">${tableBody}${timeTableHtml}</div></details>`;
@@ -861,36 +866,47 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
 }
 
 async function generateArchiveStaticHTML(env, cacheMain = null) {
-    const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
-    if (!allKeys.keys.length) {
-        return renderPageShell("LoL Archive", `<div class="arch-content" style="text-align:center; padding: 40px; color: #94a3b8; font-weight: bold;">No archive data available.</div>`, "", "archive");
+    try {
+        const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
+        
+        // 【核心修复】：过滤掉生成的静态 HTML 键值，只处理真正的 JSON 数据
+        const dataKeys = allKeys.keys.filter(k => k.name !== "ARCHIVE_STATIC_HTML");
+        
+        if (!dataKeys.length) {
+            return renderPageShell("LoL Archive", `<div class="arch-content" style="text-align:center; padding: 40px; color: #94a3b8; font-weight: bold;">No archive data available.</div>`, "", "archive");
+        }
+
+        if (!cacheMain) {
+            cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" }) || {};
+        }
+        const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
+
+        // 现在映射的是安全过滤后的 dataKeys
+        const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
+        const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
+
+        validSnapshots.sort((a, b) => {
+            const tsA = (a.updateTimestamps && a.tourn) ? (a.updateTimestamps[a.tourn.slug] || 0) : 0;
+            const tsB = (b.updateTimestamps && b.tourn) ? (b.updateTimestamps[b.tourn.slug] || 0) : 0;
+            return tsB - tsA;
+        });
+
+        const combined = validSnapshots.map(snap => {
+            const miniConfig = { TEAM_MAP: teamMap, TOURNAMENTS: [snap.tourn] };
+            const analysis = runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches || [] }, {}, miniConfig);
+            const statsObj = analysis.globalStats[snap.tourn.slug] || {};
+            const timeObj = analysis.timeGrid[snap.tourn.slug] || {};
+            return renderContentOnly(
+                { [snap.tourn.slug]: statsObj },
+                { [snap.tourn.slug]: timeObj },
+                {}, miniConfig, snap.updateTimestamps || {}, true
+            );
+        }).join("");
+        
+        return renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "", "archive");
+    } catch (e) {
+        return renderPageShell("LoL Archive Error", `<div style="padding: 20px; color: red; text-align: center; font-weight: bold;">Error generating archive: ${e.message}</div>`, "", "archive");
     }
-
-    if (!cacheMain) {
-        cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-    }
-    const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
-
-    const rawSnapshots = await Promise.all(allKeys.keys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-    const validSnapshots = rawSnapshots.filter(Boolean);
-
-    validSnapshots.sort((a, b) => {
-        const tsA = (a.updateTimestamps && a.tourn) ? (a.updateTimestamps[a.tourn.slug] || 0) : 0;
-        const tsB = (b.updateTimestamps && b.tourn) ? (b.updateTimestamps[b.tourn.slug] || 0) : 0;
-        return tsB - tsA;
-    });
-
-    const combined = validSnapshots.map(snap => {
-        const miniConfig = { TEAM_MAP: teamMap, TOURNAMENTS: [snap.tourn] };
-        const analysis = runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches }, {}, miniConfig);
-        return renderContentOnly(
-            { [snap.tourn.slug]: analysis.globalStats[snap.tourn.slug] },
-            { [snap.tourn.slug]: analysis.timeGrid[snap.tourn.slug] },
-            {}, { TOURNAMENTS: [snap.tourn] }, snap.updateTimestamps, true
-        );
-    }).join("");
-    
-    return renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "", "archive");
 }
 
 // --- 8. 主控 & Tasks ---
@@ -1072,12 +1088,16 @@ async function runUpdate(env, force=false) {
     };
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify(newCacheData));
 
-    const homeFragment = renderContentOnly(
-        analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-        runtimeConfig, cache.updateTimestamps, false
-    );
-    const fullPage = renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home");
-    await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+    try {
+        const homeFragment = renderContentOnly(
+            analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
+            runtimeConfig, cache.updateTimestamps, false
+        );
+        const fullPage = renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home");
+        await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+    } catch (e) {
+        l.error(`❌ Home SSG Error: ${e.message}`);
+    }
 
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const slug = tourn.slug;
@@ -1191,7 +1211,7 @@ function renderToolsPage(time, sha) {
             
             /* Toast Notifications */
             #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 90%; max-width: 320px; }
-            .toast { background: #334155; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); opacity: 0; transform: translateY(-20px); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); text-align: center; }
+            .toast { background: #334155; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); opacity: 0; transform: translateY(-20px); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); text-align: center; word-break: break-word; }
             .toast.show { opacity: 1; transform: translateY(0); }
             .toast.error { background: #ef4444; }
             .toast.success { background: #10b981; }
@@ -1292,7 +1312,7 @@ function renderToolsPage(time, sha) {
                 setTimeout(() => {
                     toast.classList.remove('show');
                     setTimeout(() => toast.remove(), 300);
-                }, 1500);
+                }, 3000); // 增加停留时间方便看清长错误
             }
 
             function unlockTools() {
@@ -1333,9 +1353,10 @@ function renderToolsPage(time, sha) {
                     if (checkAuthError(res.status)) return;
                     if (res.ok) { 
                         showToast("✅ Task completed successfully!"); 
-                        setTimeout(() => window.location.href = '/logs', 1200);
+                        setTimeout(() => window.location.href = '/', 1200);
                     } else {
-                        showToast("⚠️ Server error: " + res.status, "error");
+                        const errText = await res.text();
+                        showToast("⚠️ Server Error: " + errText, "error");
                     }
                 } catch (e) {
                     showToast("❌ Network connection failed", "error");
@@ -1469,14 +1490,18 @@ export default {
                 const authHeader = request.headers.get("Authorization");
                 if (expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`)) return new Response("Unauthorized", { status: 401 });
 
-                const l = await runUpdate(env, true);
-                const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-                const newLogs = l.export();
-                let combinedLogs = [...newLogs, ...oldLogs];
-                if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-                await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
-                
-                return new Response("OK", { status: 200 });
+                try {
+                    const l = await runUpdate(env, true);
+                    const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+                    const newLogs = l.export();
+                    let combinedLogs = [...newLogs, ...oldLogs];
+                    if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+                    await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+                    
+                    return new Response("OK", { status: 200 });
+                } catch (e) {
+                    return new Response(`Worker Error: ${e.message}`, { status: 500 });
+                }
             }
 
             case "/refresh-ui": {
@@ -1485,21 +1510,25 @@ export default {
                 const authHeader = request.headers.get("Authorization");
                 if (expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`)) return new Response("Unauthorized", { status: 401 });
 
-                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                if (!cache || !cache.globalStats) return new Response("No cache data available. Run Force Update first.", { status: 400 });
+                try {
+                    const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                    if (!cache || !cache.globalStats) return new Response("No cache data available. Run Refresh API first.", { status: 400 });
 
-                const homeFragment = renderContentOnly(
-                    cache.globalStats, cache.timeGrid, cache.scheduleMap,
-                    cache.runtimeConfig || { TOURNAMENTS: [] },
-                    cache.updateTimestamps, false
-                );
-                const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
-                await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+                    const homeFragment = renderContentOnly(
+                        cache.globalStats, cache.timeGrid, cache.scheduleMap,
+                        cache.runtimeConfig || { TOURNAMENTS: [] },
+                        cache.updateTimestamps, false
+                    );
+                    const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
+                    await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
 
-                const archiveHTML = await generateArchiveStaticHTML(env, cache);
-                await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                    const archiveHTML = await generateArchiveStaticHTML(env, cache);
+                    await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
 
-                return new Response("OK", { status: 200 });
+                    return new Response("OK", { status: 200 });
+                } catch (err) {
+                    return new Response(`Render Error: ${err.message}`, { status: 500 });
+                }
             }
             
             case "/rebuild-archive": {
@@ -1560,7 +1589,7 @@ export default {
                 if (html) {
                     return new Response(html, { headers: { "content-type": "text/html;charset=utf-8" } });
                 }
-                return new Response("Initializing... Please wait for the first background update or <a href='/tools'>run a Force Update</a>.", { headers: { "content-type": "text/html" } });
+                return new Response("Initializing... Please wait for the first background update or <a href='/tools'>run a Refresh API</a>.", { headers: { "content-type": "text/html" } });
             }
 
             case "/favicon.ico":
