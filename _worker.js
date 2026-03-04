@@ -1,9 +1,10 @@
 // ====================================================
-// 🥇 Worker V44.0.0: Full Site SSG (Static Site Generation)
+// 🥇 Worker V44.1.0: Full Site SSG & UI/UX Polish
 // 更新日志:
 // 1. 全站静态化: Archive 页面脱离动态渲染，全面接入 SSG 架构，保存至 ARCHIVE_STATIC_HTML。
 // 2. 联动刷新: runUpdate、runCustomRebuild 和 /refresh-ui 均会自动触发 Archive HTML 的重新生成。
 // 3. 极致性能: 主页和归档页现均实现 O(1) 复杂度响应，彻底根除 CPU 超时风险。
+// 4. Tools 体验升级: 引入 Toast 优雅弹窗替代 alert，修复移动端 Tools 页面截断与无法滑动的 Bug。
 // ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
@@ -859,7 +860,6 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     return `${tablesHtml} ${scheduleHtml} ${injectedData}`;
 }
 
-// --- NEW: Archive SSG Generator ---
 async function generateArchiveStaticHTML(env, cacheMain = null) {
     const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
     if (!allKeys.keys.length) {
@@ -892,7 +892,6 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
     
     return renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "", "archive");
 }
-// ----------------------------------
 
 // --- 8. 主控 & Tasks ---
 class Logger {
@@ -1073,14 +1072,12 @@ async function runUpdate(env, force=false) {
     };
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify(newCacheData));
 
-    // --- SSG Hook for Home Page ---
     const homeFragment = renderContentOnly(
         analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
         runtimeConfig, cache.updateTimestamps, false
     );
     const fullPage = renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home");
     await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
-    // ------------------------------
 
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const slug = tourn.slug;
@@ -1089,10 +1086,8 @@ async function runUpdate(env, force=false) {
         await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
     }
     
-    // --- SSG Hook for Archive Page ---
     const archiveHTML = await generateArchiveStaticHTML(env, newCacheData);
     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
-    // ---------------------------------
 
     await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
     
@@ -1131,10 +1126,8 @@ async function runCustomRebuild(env, payload) {
             await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
             l.success(`♻️ Rebuilt: ${payload.slug} Saved ${matches.length} matches`);
             
-            // --- SSG Hook for Archive Page ---
             const archiveHTML = await generateArchiveStaticHTML(env);
             await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
-            // ---------------------------------
         } else {
             l.error(`⚠️ Breaker: ${payload.slug} No matches found. Archive not saved.`);
             throw new Error("No matches found from Fandom API");
@@ -1159,16 +1152,16 @@ function renderToolsPage(time, sha) {
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🧰</text></svg>">
         <style>
             ${COMMON_STYLE}
-            body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; }
-            .container { flex: 1; overflow-y: auto; overflow-x: hidden; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 25px; -webkit-overflow-scrolling: touch; }
+            body { min-height: 100dvh; display: flex; flex-direction: column; margin: 0; }
+            .container { flex: 1; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
             
             .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
             .table-title { padding: 15px 20px; font-weight: 700; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; box-sizing: border-box; }
             .section-body { padding: 25px 20px; box-sizing: border-box; }
             
-            .flex-row { display: flex; justify-content: space-between; align-items: center; }
+            .flex-row { display: flex; justify-content: space-between; align-items: center; gap: 15px; }
             
-            .primary-btn { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; }
+            .primary-btn { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
             .primary-btn:hover { background: #1d4ed8; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
             
             .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
@@ -1180,6 +1173,8 @@ function renderToolsPage(time, sha) {
             
             @media (max-width: 600px) {
                 .form-grid { grid-template-columns: 1fr; gap: 12px; }
+                .flex-row { flex-direction: column; align-items: stretch; text-align: left; }
+                .primary-btn { width: 100%; }
             }
 
             .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
@@ -1193,9 +1188,17 @@ function renderToolsPage(time, sha) {
             .auth-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; color: #0f172a; }
             .auth-subtitle { color: #64748b; font-size: 13px; margin-bottom: 25px; line-height: 1.4; }
             .auth-btn { width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
+            
+            /* Toast Notifications */
+            #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 90%; max-width: 320px; }
+            .toast { background: #334155; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); opacity: 0; transform: translateY(-20px); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); text-align: center; }
+            .toast.show { opacity: 1; transform: translateY(0); }
+            .toast.error { background: #ef4444; }
+            .toast.success { background: #10b981; }
         </style>
     </head>
     <body>
+        <div id="toast-container"></div>
         <div id="auth-overlay">
             <div class="auth-card">
                 <div style="font-size: 32px; margin-bottom: 12px;">🔐</div>
@@ -1225,7 +1228,7 @@ function renderToolsPage(time, sha) {
                         <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px;">Local UI Refresh</div>
                         <div style="font-size: 13px; color: #64748b;">Regenerate static HTML using existing cached data. No API calls.</div>
                     </div>
-                    <button class="primary-btn" id="btn-refresh" style="flex-shrink:0;" onclick="runTask('/refresh-ui', 'btn-refresh')">Refresh HTML</button>
+                    <button class="primary-btn" id="btn-refresh" onclick="runTask('/refresh-ui', 'btn-refresh')">Refresh HTML</button>
                 </div>
             </div>
 
@@ -1236,7 +1239,7 @@ function renderToolsPage(time, sha) {
                         <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px;">Force Update</div>
                         <div style="font-size: 13px; color: #64748b;">Trigger a full manual sync for all active tournaments.</div>
                     </div>
-                    <button class="primary-btn" id="btn-force" style="flex-shrink:0;" onclick="runTask('/force', 'btn-force')">Refresh API</button>
+                    <button class="primary-btn" id="btn-force" onclick="runTask('/force', 'btn-force')">Refresh API</button>
                 </div>
             </div>
             
@@ -1278,6 +1281,20 @@ function renderToolsPage(time, sha) {
             let adminToken = sessionStorage.getItem('admin_pwd') || "";
             if (adminToken) document.getElementById('auth-overlay').style.display = 'none';
 
+            function showToast(msg, type = 'success') {
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.className = 'toast ' + type;
+                toast.innerText = msg;
+                container.appendChild(toast);
+                void toast.offsetWidth; // trigger reflow
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, 1500);
+            }
+
             function unlockTools() {
                 const pwd = document.getElementById('auth-pwd').value.trim();
                 if (pwd) {
@@ -1289,7 +1306,7 @@ function renderToolsPage(time, sha) {
 
             function checkAuthError(status) {
                 if (status === 401) {
-                    alert("❌ Session expired or incorrect password.");
+                    showToast("Session expired or incorrect password.", "error");
                     sessionStorage.removeItem('admin_pwd');
                     adminToken = "";
                     document.getElementById('auth-pwd').value = "";
@@ -1314,10 +1331,14 @@ function renderToolsPage(time, sha) {
                     });
                     
                     if (checkAuthError(res.status)) return;
-                    if (res.ok) { alert("✅ Task completed successfully! Check Logs or view the pages."); window.location.href = '/logs'; }
-                    else alert("⚠️ Server error: " + res.status);
+                    if (res.ok) { 
+                        showToast("✅ Task completed successfully!"); 
+                        setTimeout(() => window.location.href = '/logs', 1200);
+                    } else {
+                        showToast("⚠️ Server error: " + res.status, "error");
+                    }
                 } catch (e) {
-                    alert("❌ Network connection failed");
+                    showToast("❌ Network connection failed", "error");
                 } finally {
                     btn.innerHTML = originalText;
                     btn.style.pointerEvents = 'auto';
@@ -1333,7 +1354,7 @@ function renderToolsPage(time, sha) {
                 const league = document.getElementById('rb-league').value.trim();
 
                 if (!slug || !name || !overview || !league) {
-                    alert("⚠️ Please fill in all 4 fields.");
+                    showToast("⚠️ Please fill in all 4 fields.", "error");
                     return;
                 }
 
@@ -1354,13 +1375,15 @@ function renderToolsPage(time, sha) {
                     });
                     
                     if (checkAuthError(res.status)) return;
-                    if (res.ok) { alert("✅ Archive reconstructed successfully! Redirecting to Archive."); window.location.href = '/archive'; }
-                    else {
+                    if (res.ok) { 
+                        showToast("✅ Archive reconstructed!"); 
+                        setTimeout(() => window.location.href = '/archive', 1200);
+                    } else {
                         const errText = await res.text();
-                        alert("⚠️ Server error: " + errText);
+                        showToast("⚠️ Error: " + errText, "error");
                     }
                 } catch (e) {
-                    alert("❌ Network connection failed");
+                    showToast("❌ Network connection failed", "error");
                 } finally {
                     btn.innerHTML = originalText;
                     btn.style.pointerEvents = 'auto';
@@ -1465,7 +1488,6 @@ export default {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache || !cache.globalStats) return new Response("No cache data available. Run Force Update first.", { status: 400 });
 
-                // Update Home
                 const homeFragment = renderContentOnly(
                     cache.globalStats, cache.timeGrid, cache.scheduleMap,
                     cache.runtimeConfig || { TOURNAMENTS: [] },
@@ -1474,7 +1496,6 @@ export default {
                 const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
                 await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
 
-                // Update Archive
                 const archiveHTML = await generateArchiveStaticHTML(env, cache);
                 await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
 
@@ -1526,7 +1547,6 @@ export default {
                 return new Response(renderLogPage(logs, time, sha), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
             
-            // --- SSG Request Intercept ---
             case "/archive": {
                 const html = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
                 if (html) {
