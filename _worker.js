@@ -1,10 +1,9 @@
 // ====================================================
-// 🥇 Worker V42.7.0: Flawless UI & Scroll Fix
+// 🥇 Worker V43.0.0: SSG Architecture & UI Refresh
 // 更新日志:
-// 1. 滚动条修复: 引入全局 box-sizing: border-box，解决 Tools 页横向溢出 Bug。
-// 2. 标签格式化: 移除全大写样式，恢复首字母大写的自然阅读习惯。
-// 3. 提示词净化: 移除冗余的 e.g.，直接展示标准格式范例。
-// 4. 底层清理: 从页面外壳渲染中彻底清除 UI_VERSION 的残留挂载点。
+// 1. 静态化重构 (SSG): runUpdate 抓取完毕后预渲染 HTML 并存入 KV，访问首页 0 CPU 消耗秒开。
+// 2. 本地刷新 (Local UI Refresh): Tools 新增 UI Refresh，直接读取 KV 缓存重新生成 HTML，免发 API 请求。
+// 3. 移动端滑动修复: 为 .wrapper 引入 -webkit-overflow-scrolling: touch 启用 iOS 原生顺滑滚动。
 // ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
@@ -517,7 +516,7 @@ const COMMON_STYLE = `
 const PYTHON_STYLE = `
     ${COMMON_STYLE}
     .container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 0 15px 40px 15px; }
-    .wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; padding-bottom: 0; display: flex; flex-direction: column; }
+    .wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; padding-bottom: 0; display: flex; flex-direction: column; }
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list { -ms-overflow-style: none; scrollbar-width: none; }
     table { width: 100%; min-width: 1000px; border-collapse: separate; border-spacing: 0; font-size: 14px; table-layout: fixed; margin: 0; border: none; }
@@ -581,7 +580,7 @@ const PYTHON_STYLE = `
     .modal-content { background-color: #f8fafc; margin: 10% auto; padding: 18px 20px; border: 1px solid #cbd5e1; width: 360px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: fadeIn 0.2s; }
     #modalTitle { text-align: left; margin: 0 -20px 12px -20px; padding: 0 20px 12px 22px; border-bottom: 1.5px solid #cbd5e1; font-size: 18px; font-weight: 800; color: #1e293b; white-space: nowrap; }
     
-    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+    .match-list { margin-top: 15px; max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 2px; }
     .match-item { display: flex; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; padding: 7px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; min-height: 40px; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .col-date { width: 50px; flex-shrink: 0; font-size: 13px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
@@ -1038,6 +1037,15 @@ async function runUpdate(env, force=false) {
         rawMatches: cache.rawMatches, updateTimestamps: cache.updateTimestamps
     }));
 
+    // --- NEW: Static Site Generation (SSG) Hook ---
+    const homeFragment = renderContentOnly(
+        analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
+        runtimeConfig, cache.updateTimestamps, false
+    );
+    const fullPage = renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home");
+    await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+    // ----------------------------------------------
+
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const slug = tourn.slug;
         if (!analysis.globalStats[slug]) continue;
@@ -1165,6 +1173,17 @@ function renderToolsPage(time, sha) {
         
         <div class="container">
             <div class="wrapper">
+                <div class="table-title">🎨 UI Customization</div>
+                <div class="section-body flex-row" style="padding-top: 20px; padding-bottom: 20px;">
+                    <div>
+                        <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px;">Local UI Refresh</div>
+                        <div style="font-size: 13px; color: #64748b;">Regenerate static HTML using existing cached data. No API calls.</div>
+                    </div>
+                    <button class="primary-btn" id="btn-refresh" style="flex-shrink:0;" onclick="runTask('/refresh-ui', 'btn-refresh')">Refresh HTML</button>
+                </div>
+            </div>
+
+            <div class="wrapper">
                 <div class="table-title">⚡ Synchronization</div>
                 <div class="section-body flex-row" style="padding-top: 20px; padding-bottom: 20px;">
                     <div>
@@ -1249,7 +1268,7 @@ function renderToolsPage(time, sha) {
                     });
                     
                     if (checkAuthError(res.status)) return;
-                    if (res.ok) { alert("✅ Task completed successfully! Redirecting to Logs."); window.location.href = '/logs'; }
+                    if (res.ok) { alert("✅ Task completed successfully! Check Logs or view the Home Page."); window.location.href = '/logs'; }
                     else alert("⚠️ Server error: " + res.status);
                 } catch (e) {
                     alert("❌ Network connection failed");
@@ -1390,6 +1409,28 @@ export default {
                 
                 return new Response("OK", { status: 200 });
             }
+
+            // --- NEW: Local UI Refresh Route ---
+            case "/refresh-ui": {
+                if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+                const expectedSecret = env.ADMIN_SECRET;
+                const authHeader = request.headers.get("Authorization");
+                if (expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`)) return new Response("Unauthorized", { status: 401 });
+
+                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                if (!cache || !cache.globalStats) return new Response("No cache data available. Run Force Update first.", { status: 400 });
+
+                const homeFragment = renderContentOnly(
+                    cache.globalStats, cache.timeGrid, cache.scheduleMap,
+                    cache.runtimeConfig || { TOURNAMENTS: [] },
+                    cache.updateTimestamps, false
+                );
+                const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
+                await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+
+                return new Response("OK", { status: 200 });
+            }
+            // -----------------------------------
             
             case "/rebuild-archive": {
                 if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
@@ -1465,18 +1506,15 @@ export default {
                 
                 return new Response(renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "", "archive"), { headers: { "content-type": "text/html;charset=utf-8" } });
 
+            // --- CHANGED: Read from SSG Cache ---
             case "/": {
-                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                if (!cache) return new Response("Initializing... <a href='/logs'>Check Logs</a>", { headers: { "content-type": "text/html" } });
-
-                const homeFragment = renderContentOnly(
-                    cache.globalStats, cache.timeGrid, cache.scheduleMap,
-                    cache.runtimeConfig || { TOURNAMENTS: [] },
-                    cache.updateTimestamps, false
-                );
-                const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
-                return new Response(fullPage, { headers: { "content-type": "text/html;charset=utf-8" } });
+                const html = await env.LOL_KV.get("HOME_STATIC_HTML");
+                if (html) {
+                    return new Response(html, { headers: { "content-type": "text/html;charset=utf-8" } });
+                }
+                return new Response("Initializing... Please wait for the first background update or <a href='/tools'>run a Force Update</a>.", { headers: { "content-type": "text/html" } });
             }
+            // -----------------------------------
 
             case "/favicon.ico":
                 return new Response(null, { status: 204 });
