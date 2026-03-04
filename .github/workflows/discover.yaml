@@ -47,6 +47,12 @@ jobs:
           WHITELIST = []
           BLACKLIST = ["Opening"]
 
+          # 名字聚合替换字典（模糊匹配）
+          NAME_MAPPING = {
+              "Rounds 1-2": "Rounds 1-4",
+              "Rounds 3-4": "Rounds 1-4",
+          }
+
           CARGO_FIELDS = [
               "Name", "OverviewPage", "DateStart", "Date", "Region", "Year", "IsPlayoffs", "League"
           ]
@@ -96,6 +102,15 @@ jobs:
 
           def log(level, msg, color=BLACK):
               print(f"{color}[{level}] {msg}{RESET}", flush=True)
+
+          def apply_name_mapping(name):
+              """模糊替换：name 中包含 key 片段则替换为 value，其余部分保留。"""
+              for k, v in NAME_MAPPING.items():
+                  if k.lower() in name.lower():
+                      # 大小写不敏感替换
+                      pattern = re.compile(re.escape(k), re.IGNORECASE)
+                      return pattern.sub(v, name)
+              return None  # 未命中
 
           def run_sniff():
               old_slugs = set()
@@ -218,18 +233,34 @@ jobs:
                       log("WARN", f"日期异常 | 跳过赛事 | 赛事: {name} | 报错: {e}", YELLOW)
                       continue
 
+                  # ── 名字聚合替换（模糊匹配，ov 原值不动）──────────────────────
+                  mapped_name = apply_name_mapping(name)
+                  if mapped_name:
+                      log("INFO", f"名字聚合 | 模糊替换命中 | '{name}' → '{mapped_name}' | OVP: {ov}", PURPLE)
+                      name = mapped_name
+                  # ──────────────────────────────────────────────────────────────
+
                   ev = {"ov": ov, "year": y, "name": name, "region": region, "start": s_dt, "end": e_dt, "league_full": league_full}
                   if t.get("IsPlayoffs") == "1" and region != "International":
                       log("INFO", f"初步准入 | 校验通过 | 赛事已进入季后赛待匹配池 | 赛事: {name}", PURPLE)
                       playoff_events.append(ev)
                   else:
-                      key = f"INTL_{name}" if region == "International" else f"{ov}_{y}"
+                      # 命中替换规则时用统一后的 name 做 key，确保多条数据落入同一抽屉
+                      if mapped_name:
+                          key = f"INTL_{name}" if region == "International" else f"{name}_{y}"
+                      else:
+                          key = f"INTL_{name}" if region == "International" else f"{ov}_{y}"
+
                       if key not in main_events:
                           log("INFO", f"初步准入 | 校验通过 | 赛事已加入主赛聚合列表 | 赛事: {name}", PURPLE)
                           main_events[key] = ev
+                          main_events[key]["extra_ovs"] = [ov]  # 第一条 ov 直接入列，统一用 extra_ovs 管理
                       else:
+                          log("INFO", f"名字聚合 | 合并入已有抽屉 | 追加 OVP: {ov} | Key: {key}", PURPLE)
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
-                          main_events[key]["end"] = max(main_events[key]["end"], e_dt)
+                          main_events[key]["end"]   = max(main_events[key]["end"],   e_dt)
+                          if ov not in main_events[key]["extra_ovs"]:
+                              main_events[key]["extra_ovs"].append(ov)
 
               log("INFO", "-" * 85)
               log("INFO", "启动季后赛数据关联匹配模块...")
@@ -276,7 +307,7 @@ jobs:
                       "slug": slug,
                       "name": lp_name,
                       "league": league_short,
-                      "overview_page": [v["ov"]] + v.get("extra_ovs", []),
+                      "overview_page": v.get("extra_ovs", [v["ov"]]),
                       "start_date": str(v["start"]),
                       "end_date": str(v["end"])
                   })
