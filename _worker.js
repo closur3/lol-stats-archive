@@ -807,7 +807,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         const emojiStr = (!isArchive && tournMeta[tourn.slug] && tournMeta[tourn.slug].emoji) 
             ? `<span style="font-size: 16px; line-height: 1; display: block; transform: translateY(-1px);">${tournMeta[tourn.slug].emoji}</span>` 
             : "";
-        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tournMeta[tourn.slug].name || tourn.slug}</a>`;
+        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name || tourn.slug}</a>`;
         
         if (isArchive) {
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
