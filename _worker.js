@@ -1,9 +1,9 @@
 // ====================================================
-// 🥇 Worker V43.0.0: SSG Architecture & UI Refresh
+// 🥇 Worker V44.0.0: Full Site SSG (Static Site Generation)
 // 更新日志:
-// 1. 静态化重构 (SSG): runUpdate 抓取完毕后预渲染 HTML 并存入 KV，访问首页 0 CPU 消耗秒开。
-// 2. 本地刷新 (Local UI Refresh): Tools 新增 UI Refresh，直接读取 KV 缓存重新生成 HTML，免发 API 请求。
-// 3. 移动端滑动修复: 为 .wrapper 引入 -webkit-overflow-scrolling: touch 启用 iOS 原生顺滑滚动。
+// 1. 全站静态化: Archive 页面脱离动态渲染，全面接入 SSG 架构，保存至 ARCHIVE_STATIC_HTML。
+// 2. 联动刷新: runUpdate、runCustomRebuild 和 /refresh-ui 均会自动触发 Archive HTML 的重新生成。
+// 3. 极致性能: 主页和归档页现均实现 O(1) 复杂度响应，彻底根除 CPU 超时风险。
 // ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
@@ -859,6 +859,41 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     return `${tablesHtml} ${scheduleHtml} ${injectedData}`;
 }
 
+// --- NEW: Archive SSG Generator ---
+async function generateArchiveStaticHTML(env, cacheMain = null) {
+    const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
+    if (!allKeys.keys.length) {
+        return renderPageShell("LoL Archive", `<div class="arch-content" style="text-align:center; padding: 40px; color: #94a3b8; font-weight: bold;">No archive data available.</div>`, "", "archive");
+    }
+
+    if (!cacheMain) {
+        cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+    }
+    const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
+
+    const rawSnapshots = await Promise.all(allKeys.keys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
+    const validSnapshots = rawSnapshots.filter(Boolean);
+
+    validSnapshots.sort((a, b) => {
+        const tsA = (a.updateTimestamps && a.tourn) ? (a.updateTimestamps[a.tourn.slug] || 0) : 0;
+        const tsB = (b.updateTimestamps && b.tourn) ? (b.updateTimestamps[b.tourn.slug] || 0) : 0;
+        return tsB - tsA;
+    });
+
+    const combined = validSnapshots.map(snap => {
+        const miniConfig = { TEAM_MAP: teamMap, TOURNAMENTS: [snap.tourn] };
+        const analysis = runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches }, {}, miniConfig);
+        return renderContentOnly(
+            { [snap.tourn.slug]: analysis.globalStats[snap.tourn.slug] },
+            { [snap.tourn.slug]: analysis.timeGrid[snap.tourn.slug] },
+            {}, { TOURNAMENTS: [snap.tourn] }, snap.updateTimestamps, true
+        );
+    }).join("");
+    
+    return renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "", "archive");
+}
+// ----------------------------------
+
 // --- 8. 主控 & Tasks ---
 class Logger {
     constructor() { this.l=[]; }
@@ -1029,22 +1064,23 @@ async function runUpdate(env, force=false) {
         else if (oldMode === "slow" && newMode === "fast") l.info(`⚡ FastMode: ${slug} Activating FAST mode`);
     });
     
-    await env.LOL_KV.put("CACHE_DATA", JSON.stringify({ 
+    const newCacheData = { 
         globalStats: analysis.globalStats, timeGrid: analysis.timeGrid,
         debugInfo: analysis.debugInfo, maxDateTs: analysis.maxDateTs,
         statusText: analysis.statusText, scheduleMap: analysis.scheduleMap,
         updateTime: utils.getNow(), runtimeConfig,
         rawMatches: cache.rawMatches, updateTimestamps: cache.updateTimestamps
-    }));
+    };
+    await env.LOL_KV.put("CACHE_DATA", JSON.stringify(newCacheData));
 
-    // --- NEW: Static Site Generation (SSG) Hook ---
+    // --- SSG Hook for Home Page ---
     const homeFragment = renderContentOnly(
         analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
         runtimeConfig, cache.updateTimestamps, false
     );
     const fullPage = renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home");
     await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
-    // ----------------------------------------------
+    // ------------------------------
 
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const slug = tourn.slug;
@@ -1052,6 +1088,11 @@ async function runUpdate(env, force=false) {
         const snapshot = { tourn: tourn, rawMatches: cache.rawMatches[slug] || [], updateTimestamps: { [slug]: cache.updateTimestamps[slug] } };
         await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
     }
+    
+    // --- SSG Hook for Archive Page ---
+    const archiveHTML = await generateArchiveStaticHTML(env, newCacheData);
+    await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+    // ---------------------------------
 
     await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
     
@@ -1089,6 +1130,11 @@ async function runCustomRebuild(env, payload) {
             
             await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
             l.success(`♻️ Rebuilt: ${payload.slug} Saved ${matches.length} matches`);
+            
+            // --- SSG Hook for Archive Page ---
+            const archiveHTML = await generateArchiveStaticHTML(env);
+            await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+            // ---------------------------------
         } else {
             l.error(`⚠️ Breaker: ${payload.slug} No matches found. Archive not saved.`);
             throw new Error("No matches found from Fandom API");
@@ -1190,7 +1236,7 @@ function renderToolsPage(time, sha) {
                         <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px;">Force Update</div>
                         <div style="font-size: 13px; color: #64748b;">Trigger a full manual sync for all active tournaments.</div>
                     </div>
-                    <button class="primary-btn" id="btn-force" style="flex-shrink:0;" onclick="runTask('/force', 'btn-force')">Run Now</button>
+                    <button class="primary-btn" id="btn-force" style="flex-shrink:0;" onclick="runTask('/force', 'btn-force')">Refresh API</button>
                 </div>
             </div>
             
@@ -1268,7 +1314,7 @@ function renderToolsPage(time, sha) {
                     });
                     
                     if (checkAuthError(res.status)) return;
-                    if (res.ok) { alert("✅ Task completed successfully! Check Logs or view the Home Page."); window.location.href = '/logs'; }
+                    if (res.ok) { alert("✅ Task completed successfully! Check Logs or view the pages."); window.location.href = '/logs'; }
                     else alert("⚠️ Server error: " + res.status);
                 } catch (e) {
                     alert("❌ Network connection failed");
@@ -1410,7 +1456,6 @@ export default {
                 return new Response("OK", { status: 200 });
             }
 
-            // --- NEW: Local UI Refresh Route ---
             case "/refresh-ui": {
                 if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
                 const expectedSecret = env.ADMIN_SECRET;
@@ -1420,6 +1465,7 @@ export default {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
                 if (!cache || !cache.globalStats) return new Response("No cache data available. Run Force Update first.", { status: 400 });
 
+                // Update Home
                 const homeFragment = renderContentOnly(
                     cache.globalStats, cache.timeGrid, cache.scheduleMap,
                     cache.runtimeConfig || { TOURNAMENTS: [] },
@@ -1428,9 +1474,12 @@ export default {
                 const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText, "home");
                 await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
 
+                // Update Archive
+                const archiveHTML = await generateArchiveStaticHTML(env, cache);
+                await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+
                 return new Response("OK", { status: 200 });
             }
-            // -----------------------------------
             
             case "/rebuild-archive": {
                 if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
@@ -1477,36 +1526,15 @@ export default {
                 return new Response(renderLogPage(logs, time, sha), { headers: { "content-type": "text/html;charset=utf-8" } });
             }
             
-            case "/archive":
-                const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
-                if (!allKeys.keys.length) return new Response("No archive data available.", { headers: { "content-type": "text/html" } });
+            // --- SSG Request Intercept ---
+            case "/archive": {
+                const html = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
+                if (html) {
+                    return new Response(html, { headers: { "content-type": "text/html;charset=utf-8" } });
+                }
+                return new Response("Archive initializing... Please <a href='/tools'>run a Local UI Refresh</a> or wait for the next background update.", { headers: { "content-type": "text/html" } });
+            }
 
-                const cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
-
-                const rawSnapshots = await Promise.all(allKeys.keys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-                const validSnapshots = rawSnapshots.filter(Boolean);
-
-
-                validSnapshots.sort((a, b) => {
-                    const tsA = (a.updateTimestamps && a.tourn) ? (a.updateTimestamps[a.tourn.slug] || 0) : 0;
-                    const tsB = (b.updateTimestamps && b.tourn) ? (b.updateTimestamps[b.tourn.slug] || 0) : 0;
-                    return tsB - tsA;
-                });
-
-                const combined = validSnapshots.map(snap => {
-                    const miniConfig = { TEAM_MAP: teamMap, TOURNAMENTS: [snap.tourn] };
-                    const analysis = runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches }, {}, miniConfig);
-                    return renderContentOnly(
-                        { [snap.tourn.slug]: analysis.globalStats[snap.tourn.slug] },
-                        { [snap.tourn.slug]: analysis.timeGrid[snap.tourn.slug] },
-                        {}, { TOURNAMENTS: [snap.tourn] }, snap.updateTimestamps, true
-                    );
-                }).join("");
-                
-                return new Response(renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "", "archive"), { headers: { "content-type": "text/html;charset=utf-8" } });
-
-            // --- CHANGED: Read from SSG Cache ---
             case "/": {
                 const html = await env.LOL_KV.get("HOME_STATIC_HTML");
                 if (html) {
@@ -1514,7 +1542,6 @@ export default {
                 }
                 return new Response("Initializing... Please wait for the first background update or <a href='/tools'>run a Force Update</a>.", { headers: { "content-type": "text/html" } });
             }
-            // -----------------------------------
 
             case "/favicon.ico":
                 return new Response(null, { status: 204 });
