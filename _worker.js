@@ -925,7 +925,7 @@ async function runUpdate(env, force=false) {
     const SLOW_THRESHOLD = 56 * 60 * 1000;        
     const UPDATE_ROUNDS = 1;
 
-    let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"}) || { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
+    let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
     const meta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, tournaments: {} };
     
     let runtimeConfig = null;
@@ -933,173 +933,231 @@ async function runUpdate(env, force=false) {
         const teams = await gh.fetchJson(env, "mapping.json");
         const tourns = await gh.fetchJson(env, "tour.json");
         if (teams && tourns) runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
-    } catch (e) {}
+    } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
 
-    if (!runtimeConfig) { 
-        l.error(`🔴 [ERR!] | ❌ Config(Fail)`); 
-        return l; 
-    }
+    if (!runtimeConfig) { l.error("🛑 CONFIG ERROR: Failed to load or parse json."); return l; }
+    if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
+    if (!cache.rawMatches) cache.rawMatches = {}; 
+    if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    let candidates = [];
+    let needsNetworkUpdate = false, candidates = [], waitings = [];
     const dayNow = utils.toCST(NOW).getUTCDate();
-    const totalLeagues = runtimeConfig.TOURNAMENTS.length;
 
     runtimeConfig.TOURNAMENTS.forEach(tourn => {
         const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
+        const elapsedMins = Math.floor(elapsed / 60000);
         const dayLast = utils.toCST(lastTs).getUTCDate();
         const isNewDay = dayNow !== dayLast;
         
         const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
+        const currentMode = tMeta.mode;
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
-        const threshold = (tMeta.mode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
+        const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
         if (force || elapsed >= threshold || isNewDay) {
-            candidates.push({ slug: tourn.slug, overview_page: tourn.overview_page, isNewDay, mode: tMeta.mode });
-        }
+            if (isNewDay) l.info(`🌅 NewDay: ${tourn.slug} Force daily check triggered`);
+            candidates.push({ 
+                slug: tourn.slug, overview_page: tourn.overview_page, elapsed: elapsed, 
+                label: `${tourn.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
+                isNewDay: isNewDay, mode: currentMode 
+            });
+            needsNetworkUpdate = true;
+        } else waitings.push(`${tourn.league} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
     });
 
-    const authContext = candidates.length > 0 ? await loginToFandom(env, l) : null;
-    const batch = candidates.slice(0, Math.ceil(totalLeagues / UPDATE_ROUNDS));
-    
-    // --- 执行抓取 (保持静默) ---
-    const results = [];
-    const past48h = new Date(NOW - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const next48h = new Date(NOW + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    if (waitings.length > 0) l.info(`❄️ Cooldown: ${waitings.join(" | ")}`);
+    if (!needsNetworkUpdate || candidates.length === 0) return l;
 
+    const authContext = await loginToFandom(env, l);
+    if (authContext?.isAnonymous) { } 
+    else if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously"); 
+    else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
+
+    candidates.sort((a, b) => b.elapsed - a.elapsed);
+    const totalLeagues = runtimeConfig.TOURNAMENTS.length;
+    const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
+    const batch = candidates.slice(0, batchSize);
+    
+    const pastDateObj = new Date(NOW - 48 * 60 * 60 * 1000); 
+    const futureDateObj = new Date(NOW + 48 * 60 * 60 * 1000); 
+    const deltaStartUTC = pastDateObj.toISOString().slice(0, 10); 
+    const deltaEndUTC = futureDateObj.toISOString().slice(0, 10); 
+
+    const results = [];
     for (const c of batch) {
         try {
             const oldData = cache.rawMatches[c.slug] || [];
             const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
-            const dateQuery = isFullFetch ? null : { start: past48h, end: next48h };
+            const dateQuery = isFullFetch ? null : { start: deltaStartUTC, end: deltaEndUTC };
+
+            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.label} Fetching ${deltaStartUTC} to ${deltaEndUTC}`);
+            else l.info(`📡 FullSync: ${c.label} Fetching entire matches`);
 
             const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
             results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
-        } catch (err) { 
-            results.push({ status: 'rejected', slug: c.slug, err: err }); 
+        } catch (err) {
+            results.push({ status: 'rejected', slug: c.slug, err: err });
         }
         if (c !== batch[batch.length - 1]) await new Promise(res => setTimeout(res, 2000));
     }
 
-    // --- 结果处理与分析 ---
-    let mutations = []; // 格式: { slug, type, count }
-    let breakers = [], apiErrors = [], failedSlugs = new Set();
+    let successCount = 0, failureCount = 0; 
+    const failedSlugs = new Set(); 
     
     results.forEach(res => {
-        const slug = res.slug;
         if (res.status === 'fulfilled') {
+            const slug = res.slug;
             const newData = res.data || [];
             const oldData = cache.rawMatches[slug] || [];
             
             if (res.isDelta) {
                 if (newData.length > 0) {
                     const matchMap = new Map();
-                    const getUniqueKey = (m) => `${m.OverviewPage}_${m.N_MatchInPage || m["N MatchInPage"] || m.DateTime_UTC}`;
+                    const getUniqueKey = (m) => {
+                        const page = m.OverviewPage || "Unknown";
+                        const n = m.N_MatchInPage || m["N MatchInPage"];
+                        if (n) return `${page}_${n}`;
+                        const t_utc = m.DateTime_UTC || m["DateTime UTC"];
+                        const t1 = m.Team1 || m["Team 1"];
+                        const t2 = m.Team2 || m["Team 2"];
+                        return `${page}_${t_utc}_${t1}_${t2}`;
+                    };
+
                     oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
-                    
-                    let changes = 0;
+
+                    let changesCount = 0;
                     newData.forEach(m => {
                         const key = getUniqueKey(m);
-                        if (!matchMap.has(key) || JSON.stringify(matchMap.get(key)) !== JSON.stringify(m)) {
-                            matchMap.set(key, m); changes++;
+                        const oldM = matchMap.get(key);
+                        if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
+                            matchMap.set(key, m);
+                            changesCount++;
                         }
                     });
 
-                    if (changes > 0) {
-                        cache.rawMatches[slug] = Array.from(matchMap.values()).sort((a,b) => (a.DateTime_UTC||"").localeCompare(b.DateTime_UTC||""));
-                        mutations.push({ slug, type: 'delta', count: changes });
-                    }
-                }
+                    if (changesCount > 0) {
+                        const mergedList = Array.from(matchMap.values());
+                        mergedList.sort((a, b) => {
+                            const tA = a.DateTime_UTC || "9999-99-99";
+                            const tB = b.DateTime_UTC || "9999-99-99";
+                            return tA.localeCompare(tB);
+                        });
+                        cache.rawMatches[slug] = mergedList;
+                        l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches (Total: ${mergedList.length})`);
+                    } else l.info(`💤 Identical: ${slug} Data not changed`);
+                } else l.info(`💤 OffDay: ${slug} No matches for today`);
+
             } else {
-                if (!force && oldData.length > 10 && newData.length < oldData.length * 0.85) {
-                    breakers.push(slug); failedSlugs.add(slug);
+                if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
+                    l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
+                    failureCount++; failedSlugs.add(slug); return; 
                 } else {
-                    if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-                        cache.rawMatches[slug] = newData;
-                        mutations.push({ slug, type: 'full', count: newData.length });
-                    }
+                    cache.rawMatches[slug] = newData;
+                    l.success(`💾 Overwrote: ${slug} Overwrote ${newData.length} matches`);
                 }
             }
             cache.updateTimestamps[slug] = NOW;
+            successCount++;
         } else {
-            apiErrors.push(slug); failedSlugs.add(slug);
+            failureCount++;
+            failedSlugs.add(res.slug);
         }
     });
+
+    const activeSlugs = new Set(runtimeConfig.TOURNAMENTS.map(t => t.slug));
+    for (const slug of Object.keys(cache.rawMatches)) if (!activeSlugs.has(slug)) delete cache.rawMatches[slug];
+    for (const slug of Object.keys(cache.updateTimestamps)) if (!activeSlugs.has(slug)) delete cache.updateTimestamps[slug];
 
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
-    // --- 聚合日志细节 ---
-    let syncDetails = [], coolDetails = [], idleDetails = [], modeSwitches = [];
-    
-    runtimeConfig.TOURNAMENTS.forEach(t => {
-        const name = t.name || t.slug.toUpperCase();
-        const lastTs = cache.updateTimestamps[t.slug] || 0;
-        const xm = Math.floor((NOW - lastTs) / 60000);
-        const tMeta = analysis.tournMeta[t.slug] || { mode: "fast" };
-        const modeIcon = tMeta.mode === "slow" ? "🐌" : "⚡";
-        
-        const isInBatch = batch.some(b => b.slug === t.slug);
-        const mutation = mutations.find(m => m.slug === t.slug);
-
-        if (!isInBatch) {
-            coolDetails.push(`${name}(${modeIcon}${xm}m)`);
-        } else if (mutation) {
-            const sym = mutation.type === 'delta' ? '+' : '*';
-            syncDetails.push(`${name} ${sym}${mutation.count} (${modeIcon}${xm}m)`);
-        } else if (!failedSlugs.has(t.slug)) {
-            const count = (cache.rawMatches[t.slug] || []).length;
-            idleDetails.push(`${name} *${count} (${modeIcon}${xm}m)`);
-        }
-    });
-
     Object.keys(analysis.tournMeta).forEach(slug => {
-        const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
-        const name = t ? (t.name || slug.toUpperCase()) : slug;
-        if (oldTournMeta[slug]?.mode !== analysis.tournMeta[slug].mode) {
-            modeSwitches.push(`${name}(${analysis.tournMeta[slug].mode === "slow" ? "🐌" : "⚡"})`);
-        }
+        const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
+        const newMode = analysis.tournMeta[slug].mode;
+        if (oldMode === "fast" && newMode === "slow") l.success(`💤 SlowMode: ${slug} Entering SLOW mode`);
+        else if (oldMode === "slow" && newMode === "fast") l.info(`⚡ FastMode: ${slug} Activating FAST mode`);
     });
-
-    // --- 组装终极输出 ---
-    let trafficLight, action, content;
-    const isAnon = (!authContext || authContext.isAnonymous);
-
-    if (batch.length === 0) {
-        trafficLight = "🔵"; action = "[COOL]";
-        content = `❄️ ${coolDetails.join(", ")}`;
-    } else if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
-        trafficLight = "⚪"; action = "[IDLE]";
-        content = `🔍 ${idleDetails.join(", ")} | 🟰 Identical`;
-    } else {
-        const hasErr = apiErrors.length > 0 || breakers.length > 0;
-        trafficLight = hasErr ? "🔴" : "🟢";
-        action = hasErr ? "[ERR!]" : "[SYNC]";
-        
-        let parts = [];
-        if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
-        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
-        if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")} (Drop)`);
-        if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")} (Fail)`);
-        content = parts.join(" | ");
-    }
-
-    const finalLog = `${trafficLight} ${action} | ${isAnon ? "👻 " : ""}${content}`;
-    if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
-
-    // --- 数据持久化 ---
+    
     const newCacheData = { 
-        ...analysis, updateTime: utils.getNow(), runtimeConfig,
+        globalStats: analysis.globalStats, timeGrid: analysis.timeGrid,
+        debugInfo: analysis.debugInfo, maxDateTs: analysis.maxDateTs,
+        statusText: analysis.statusText, scheduleMap: analysis.scheduleMap,
+        tournMeta: analysis.tournMeta, // <-- 新增，将 Emoji 保存进缓存
+        updateTime: utils.getNow(), runtimeConfig,
         rawMatches: cache.rawMatches, updateTimestamps: cache.updateTimestamps
     };
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify(newCacheData));
+
+    try {
+        const homeFragment = renderContentOnly(
+            analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
+            runtimeConfig, cache.updateTimestamps, false, analysis.tournMeta // <-- 新增第7个参数
+        );
+        const fullPage = renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home");
+        await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+    } catch (e) {
+        l.error(`❌ Home SSG Error: ${e.message}`);
+    }
+
+    for (const tourn of runtimeConfig.TOURNAMENTS) {
+        const slug = tourn.slug;
+        if (!analysis.globalStats[slug]) continue;
+        const snapshot = { tourn: tourn, rawMatches: cache.rawMatches[slug] || [], updateTimestamps: { [slug]: cache.updateTimestamps[slug] } };
+        await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
+    }
+    
+    const archiveHTML = await generateArchiveStaticHTML(env, newCacheData);
+    await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+
     await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
     
-    try {
-        const homeFragment = renderContentOnly(analysis.globalStats, analysis.timeGrid, analysis.scheduleMap, runtimeConfig, cache.updateTimestamps, false, analysis.tournMeta);
-        await env.LOL_KV.put("HOME_STATIC_HTML", renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home"));
-    } catch (e) {}
+    if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Ignored: ${failureCount} · Total Parsed: ${analysis.grandTotal}`);
+    else l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
+    return l;
+}
 
+async function runCustomRebuild(env, payload) {
+    const l = new Logger();
+    l.info(`🚀 Rebuild: ${payload.slug} Starting custom archive rebuild`);
+    
+    const authContext = await loginToFandom(env, l);
+    if (authContext?.isAnonymous) { } 
+    else if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously"); 
+    else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
+
+    try {
+        l.info(`📡 FullSync: ${payload.slug} Fetching matches from ${payload.overview_page}`);
+        const matches = await fetchAllMatches(payload.slug, payload.overview_page, l, authContext, null);
+        
+        if (matches && matches.length > 0) {
+            const tourn = {
+                slug: payload.slug,
+                name: payload.name,
+                overview_page: payload.overview_page,
+                league: payload.league
+            };
+            
+            const snapshot = {
+                tourn: tourn,
+                rawMatches: matches,
+                updateTimestamps: { [payload.slug]: Date.now() }
+            };
+            
+            await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
+            l.success(`♻️ Rebuilt: ${payload.slug} Saved ${matches.length} matches`);
+            
+            const archiveHTML = await generateArchiveStaticHTML(env);
+            await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+        } else {
+            l.error(`⚠️ Breaker: ${payload.slug} No matches found. Archive not saved.`);
+            throw new Error("No matches found from Fandom API");
+        }
+    } catch (e) {
+        l.error(`❌ Failed: ${payload.slug} -> ${e.message}`);
+        throw e;
+    }
+    
     return l;
 }
 
