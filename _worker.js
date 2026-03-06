@@ -1447,8 +1447,9 @@ function renderLogPage(logs, time, sha) {
         let lvlClass = "lvl-inf";
         if(l.l === "ERROR") lvlClass = "lvl-err";
         if(l.l === "SUCCESS") lvlClass = "lvl-ok";
-        // 这里的 log-msg 类现在应用了等宽字体
-        return `<li class="log-entry"><span class="log-time">${l.t}</span><span class="log-level ${lvlClass}">${l.l}</span><span class="log-msg">${l.m}</span></li>`;
+        
+        // 核心改动：使用 <code> 标签包裹时间和日志内容，触发字体渲染脚本的代码块保护机制
+        return `<li class="log-entry"><code class="log-time">${l.t}</code><span class="log-level ${lvlClass}">${l.l}</span><code class="log-msg">${l.m}</code></li>`;
     }).join("");
     const shortSha = (sha || "").slice(0, 7) || "unknown";
 
@@ -1467,24 +1468,34 @@ function renderLogPage(logs, time, sha) {
         .log-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; list-style: none; margin: 0; padding: 0; }
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 20px; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
-        .log-time { color: #94a3b8; font-size: 13px; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-        .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 4px 0; border-radius: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; }
+        
+        /* 核心防御机制：为 code 标签绑定等宽字体并强制提权 */
+        code.log-time, code.log-msg {
+            font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace !important;
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+            letter-spacing: 0; /* 防止脚本拉宽间距 */
+        }
+        
+        .log-time { color: #94a3b8; font-size: 13px; white-space: nowrap; }
+        .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 4px 0; border-radius: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
         .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
         .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
         
-        /* 核心改进：等宽字体锁定 */
-        .log-msg { 
+        code.log-msg { 
             color: #334155; 
             word-break: break-all; 
             line-height: 1.6; 
             font-weight: 600;
-            font-family: ui-monospace, SFMono-Regular, "Cascadia Code", "Source Code Pro", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            white-space: pre-wrap; /* 保证空格不被合并，维持对齐 */
+            white-space: pre-wrap; /* 保护物理空格 */
+            display: block;
         }
         
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
-        .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; color: #94a3b8; font-size: 11px; font-family: ui-monospace, monospace; }
+        .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; color: #94a3b8; font-size: 11px; font-family: monospace; }
         @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 4px; padding: 12px 15px; } .log-time { font-size: 11px; text-align: left; } .log-level { display: inline-block; width: auto; padding: 2px 8px; } }
     </style>
 </head>
@@ -1498,7 +1509,7 @@ function renderLogPage(logs, time, sha) {
     </header>
     <div class="container" style="padding: 0; width: calc(100% - 30px);">
         <ul class="log-list">${entries}</ul>
-        ${logs.length === 0 ? `<div class="empty-logs">No logs found for today.</div>` : ''}
+        ${logs.length === 0 ? \`<div class="empty-logs">No logs found for today.</div>\` : ''}
     </div>
     <div class="build-footer">deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a></div>
 </body>
