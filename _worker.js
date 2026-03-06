@@ -1447,6 +1447,7 @@ function renderLogPage(logs, time, sha) {
         let lvlClass = "lvl-inf";
         if(l.l === "ERROR") lvlClass = "lvl-err";
         if(l.l === "SUCCESS") lvlClass = "lvl-ok";
+        // 这里的 log-msg 类现在应用了等宽字体
         return `<li class="log-entry"><span class="log-time">${l.t}</span><span class="log-level ${lvlClass}">${l.l}</span><span class="log-msg">${l.m}</span></li>`;
     }).join("");
     const shortSha = (sha || "").slice(0, 7) || "unknown";
@@ -1462,22 +1463,29 @@ function renderLogPage(logs, time, sha) {
         ${COMMON_STYLE}
         body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; padding: 0; }
         .main-header { flex-shrink: 0; margin-bottom: 20px; }
-        .container { flex: 1; min-height: 0; display: flex; flex-direction: column; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; overflow: hidden; transform: translateZ(0); -webkit-mask-image: -webkit-radial-gradient(white, black); }
+        .container { flex: 1; min-height: 0; display: flex; flex-direction: column; max-width: 1000px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; overflow: hidden; transform: translateZ(0); }
         .log-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; list-style: none; margin: 0; padding: 0; }
-        .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 25px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 15px; align-items: center; }
+        .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 20px; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
-        .log-time { color: #64748b; font-size: 15px; white-space: nowrap; letter-spacing: -0.5px; text-align: right; font-variant-numeric: tabular-nums; }
-        .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 6px 0; border-radius: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; }
+        .log-time { color: #94a3b8; font-size: 13px; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 4px 0; border-radius: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; }
         .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
         .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
         .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
-        .log-msg { color: #334155; word-break: break-word; line-height: 1.5; font-weight: 500; }
+        
+        /* 核心改进：等宽字体锁定 */
+        .log-msg { 
+            color: #334155; 
+            word-break: break-all; 
+            line-height: 1.6; 
+            font-weight: 600;
+            font-family: ui-monospace, SFMono-Regular, "Cascadia Code", "Source Code Pro", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            white-space: pre-wrap; /* 保证空格不被合并，维持对齐 */
+        }
+        
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
-        .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-        .build-footer b { color: #64748b; }
-        .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
-        .build-footer a:hover { opacity: 1; text-decoration: underline; }
-        @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 8px; padding: 15px; } .log-time { font-size: 12px; opacity: 0.7; text-align: left; } .log-level { display: inline-block; width: auto; padding: 3px 10px; } }
+        .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; color: #94a3b8; font-size: 11px; font-family: ui-monospace, monospace; }
+        @media (max-width: 600px) { .log-entry { grid-template-columns: 1fr; gap: 4px; padding: 12px 15px; } .log-time { font-size: 11px; text-align: left; } .log-level { display: inline-block; width: auto; padding: 2px 8px; } }
     </style>
 </head>
 <body>
