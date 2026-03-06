@@ -1509,7 +1509,7 @@ function renderLogPage(logs, time, sha) {
     </header>
     <div class="container" style="padding: 0; width: calc(100% - 30px);">
         <ul class="log-list">${entries}</ul>
-        ${logs.length === 0 ? \`<div class="empty-logs">No logs found for today.</div>\` : ''}
+        ${logs.length === 0 ? '<div class="empty-logs">No logs found for today.</div>' : ''}
     </div>
     <div class="build-footer">deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a></div>
 </body>
