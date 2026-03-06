@@ -1,8 +1,11 @@
 // ====================================================
-// 🥇 Worker V44.2.0: SSG Stability & Null-Safety
+// 🥇 Worker V46.0: Ultimate Probe Logging & SSG Stability
 // 更新日志:
-// 1. 容错升级: 为 renderContentOnly 和 generateArchiveStaticHTML 添加深度空值防御，防止残缺 KV 数据导致 500 崩溃。
-// 2. 异常捕获: /refresh-ui 增加 try-catch 拦截，遇到错误时会直接在前端 Toast 输出具体报错信息。
+// 1. 探针级日志: 实现 [SYNC]/[IDLE]/[COOL]/[ERR!] 极致单行账本输出。
+// 2. 语义化符号: + (增量), * (全量/存量), 🟰 (查重), ❄️ (冷却)。
+// 3. 静默化抓取: 彻底移除抓取过程的碎片化Log，确保输出绝对纯净。
+// 4. 名称对齐: 日志中严格优先显示 League 名称。
+// 5. 容错保留: 完美继承原有的 SSG 容错与缓存防御机制。
 // ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
@@ -126,16 +129,14 @@ const gh = {
     }
 };
 
-// --- 3. 认证逻辑 ---
-async function loginToFandom(env, logger) {
+// --- 3. 认证逻辑 (静默探针版) ---
+async function loginToFandom(env) {
     const user = env.FANDOM_USER;
     if (user && user.trim().toLowerCase() === "anonymous") {
-        logger.info("👻 Anonymous: Login Skipped by Config");
         return { isAnonymous: true };
     }
     const pass = env.FANDOM_PASS;
     if (!user || !pass) {
-        logger.error("🛑 AUTH MISSING: 'FANDOM_USER' or 'FANDOM_PASS' not set.");
         return null;
     }
     const API = "https://lol.fandom.com/api.php";
@@ -167,16 +168,15 @@ async function loginToFandom(env, logger) {
             const finalCookie = `${step1Cookie}; ${step2Cookie}`;
             return { cookie: finalCookie, username: loginData.login.lgusername };
         } else {
-            throw new Error(`Login Failed: ${loginData.login ? loginData.login.reason : JSON.stringify(loginData)}`);
+            throw new Error(`Login Failed`);
         }
     } catch (e) {
-        logger.error(`❌ Auth Error: ${e.message}`);
         return null;
     }
 }
 
-// --- 4. 抓取逻辑 ---
-async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
+// --- 4. 抓取逻辑 (静默探针版) ---
+async function fetchWithRetry(url, authContext = null, maxRetries = 3) {
     let attempt = 1;
     const headers = { 
         "User-Agent": BOT_UA, "Accept": "application/json", "Accept-Encoding": "gzip, deflate, br" 
@@ -189,11 +189,11 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             if (r.status === 429 || r.status === 503) {
                 const retryAfter = r.headers.get("Retry-After");
                 const waitSecs = retryAfter ? parseInt(retryAfter) : 30;
-                throw new Error(`HTTP ${r.status}. Server asked to wait ${waitSecs}s`);
+                throw new Error(`Wait ${waitSecs}s`);
             }
             
             const rawBody = await r.text();
-            if (!r.ok) throw new Error(`HTTP ${r.status}: ${rawBody.slice(0, 150)}...`);
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
             
             let data;
             try { data = JSON.parse(rawBody); } catch (e) { throw new Error(`JSON Parse Fail`); }
@@ -201,22 +201,20 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
             if (data.error) {
                 if (data.error.code === "maxlag") {
                     const retryAfter = r.headers.get("Retry-After") || 5; 
-                    throw new Error(`Maxlag Exceeded. Server asked to wait ${retryAfter}s`);
+                    throw new Error(`Wait ${retryAfter}s`);
                 }
-                throw new Error(`API Error [${data.error.code}]: ${data.error.info}`);
+                throw new Error(`API Error [${data.error.code}]`);
             }
             if (!data.cargoquery) throw new Error(`Structure Error`);
             return data.cargoquery; 
         } catch (e) {
             let waitTimeMs = 15000 * Math.pow(2, attempt - 1); 
-            const match = e.message.match(/wait (\d+)s/);
+            const match = e.message.match(/Wait (\d+)s/);
             if (match) waitTimeMs = parseInt(match[1]) * 1000;
 
             if (attempt >= maxRetries) {
-                logger.error(`❌ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Max retries exceeded`);
                 throw e;
             } else {
-                logger.error(`⚠️ Fetch Failed (Attempt ${attempt}/${maxRetries}): ${e.message} -> Retrying in ${waitTimeMs/1000}s...`);                
                 await new Promise(res => setTimeout(res, waitTimeMs));
             }
             attempt++;
@@ -224,7 +222,7 @@ async function fetchWithRetry(url, logger, authContext = null, maxRetries = 3) {
     }
 }
 
-async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilter = null) {
+async function fetchAllMatches(slug, sourceInput, authContext, dateFilter = null) {
     const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
     const inClause = pages.map(p => `'${p}'`).join(", ");
     let all = [];
@@ -247,24 +245,18 @@ async function fetchAllMatches(slug, sourceInput, logger, authContext, dateFilte
             limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
         });
 
-        try {
-            const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, logger, authContext);
-            const batch = batchRaw.map(i => i.title);
-            logger.success(`📦 Received: ${slug} Got ${batch.length} matches`);
+        const batchRaw = await fetchWithRetry(`https://lol.fandom.com/api.php?${params}`, authContext);
+        const batch = batchRaw.map(i => i.title);
 
-            if (!batch.length) break;
+        if (!batch.length) break;
 
-            all = all.concat(batch);
-            offset += batch.length;
+        all = all.concat(batch);
+        offset += batch.length;
 
-            if (dateFilter) break;
-            if (batch.length < limit) break;
+        if (dateFilter) break;
+        if (batch.length < limit) break;
 
-            await new Promise(res => setTimeout(res, 2000));
-        } catch (e) {
-            logger.error(`💥 Pagination: ${slug} (Offset: ${offset}) -> ${e.message}`);
-            throw new Error(`Batch Fail`);
-        }
+        await new Promise(res => setTimeout(res, 2000));
     }
     return all;
 }
@@ -909,10 +901,9 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
     }
 }
 
-// --- 8. 主控 & Tasks ---
+// --- 8. 主控 & Tasks (V46.0 探针聚合版) ---
 class Logger {
     constructor() { this.l=[]; }
-    info(m) { this.l.push({t:utils.getNow().short, l:'INFO', m}); } 
     error(m) { this.l.push({t:utils.getNow().short, l:'ERROR', m}); }
     success(m) { this.l.push({t:utils.getNow().short, l:'SUCCESS', m}); }
     export() { return this.l; }
@@ -933,14 +924,18 @@ async function runUpdate(env, force=false) {
         const teams = await gh.fetchJson(env, "mapping.json");
         const tourns = await gh.fetchJson(env, "tour.json");
         if (teams && tourns) runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
-    } catch (e) { l.error(`❌ Config Error: ${e.message}`); }
+    } catch (e) {}
 
-    if (!runtimeConfig) { l.error("🛑 CONFIG ERROR: Failed to load or parse json."); return l; }
+    if (!runtimeConfig) { 
+        l.error(`🔴 [ERR!] | ❌ Config(Fail)`); 
+        return l; 
+    }
+
     if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    let needsNetworkUpdate = false, candidates = [], waitings = [];
+    let candidates = [], coolDetails = [];
     const dayNow = utils.toCST(NOW).getUTCDate();
 
     runtimeConfig.TOURNAMENTS.forEach(tourn => {
@@ -955,28 +950,27 @@ async function runUpdate(env, force=false) {
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
         const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
+        const dName = tourn.league || tourn.name || tourn.slug.toUpperCase();
+        const modeIcon = currentMode === "slow" ? "🐌" : "⚡";
+
         if (force || elapsed >= threshold || isNewDay) {
-            if (isNewDay) l.info(`🌅 NewDay: ${tourn.slug} Force daily check triggered`);
             candidates.push({ 
-                slug: tourn.slug, overview_page: tourn.overview_page, elapsed: elapsed, 
-                label: `${tourn.slug} (${elapsedMins}m, ${currentMode.toUpperCase()})`,
-                isNewDay: isNewDay, mode: currentMode 
+                slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
+                xm: elapsedMins, isNewDay: isNewDay, mode: currentMode 
             });
-            needsNetworkUpdate = true;
-        } else waitings.push(`${tourn.league} (${elapsedMins}m, ${currentMode.toUpperCase()})`);
+        } else {
+            coolDetails.push(`${dName}(${modeIcon}${elapsedMins}m)`);
+        }
     });
 
-    if (waitings.length > 0) l.info(`❄️ Cooldown: ${waitings.join(" | ")}`);
-    if (!needsNetworkUpdate || candidates.length === 0) return l;
+    if (candidates.length === 0) { 
+        l.success(`🔵 [COOL] | ❄️ ${coolDetails.join(", ")}`);
+        return l; 
+    }
 
-    const authContext = await loginToFandom(env, l);
-    if (authContext?.isAnonymous) { } 
-    else if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously"); 
-    else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
+    const authContext = await loginToFandom(env);
 
-    candidates.sort((a, b) => b.elapsed - a.elapsed);
-    const totalLeagues = runtimeConfig.TOURNAMENTS.length;
-    const batchSize = Math.ceil(totalLeagues / UPDATE_ROUNDS);
+    const batchSize = Math.ceil(candidates.length / UPDATE_ROUNDS);
     const batch = candidates.slice(0, batchSize);
     
     const pastDateObj = new Date(NOW - 48 * 60 * 60 * 1000); 
@@ -991,10 +985,7 @@ async function runUpdate(env, force=false) {
             const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
             const dateQuery = isFullFetch ? null : { start: deltaStartUTC, end: deltaEndUTC };
 
-            if (!isFullFetch) l.info(`🛰️ DeltaSync: ${c.label} Fetching ${deltaStartUTC} to ${deltaEndUTC}`);
-            else l.info(`📡 FullSync: ${c.label} Fetching entire matches`);
-
-            const data = await fetchAllMatches(c.slug, c.overview_page, l, authContext, dateQuery);
+            const data = await fetchAllMatches(c.slug, c.overview_page, authContext, dateQuery);
             results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
         } catch (err) {
             results.push({ status: 'rejected', slug: c.slug, err: err });
@@ -1002,10 +993,17 @@ async function runUpdate(env, force=false) {
         if (c !== batch[batch.length - 1]) await new Promise(res => setTimeout(res, 2000));
     }
 
-    let successCount = 0, failureCount = 0; 
-    const failedSlugs = new Set(); 
+    const failedSlugs = new Set();
+    const syncDetails = [];
+    const idleDetails = [];
+    const breakers = [];
+    const apiErrors = [];
     
     results.forEach(res => {
+        const c = batch.find(b => b.slug === res.slug);
+        const dName = c.league;
+        const mIcon = c.mode === "slow" ? "🐌" : "⚡";
+
         if (res.status === 'fulfilled') {
             const slug = res.slug;
             const newData = res.data || [];
@@ -1044,23 +1042,29 @@ async function runUpdate(env, force=false) {
                             return tA.localeCompare(tB);
                         });
                         cache.rawMatches[slug] = mergedList;
-                        l.success(`♻️ Merged: ${slug} Updated ${changesCount} matches (Total: ${mergedList.length})`);
-                    } else l.info(`💤 Identical: ${slug} Data not changed`);
-                } else l.info(`💤 OffDay: ${slug} No matches for today`);
-
+                        syncDetails.push(`${dName} +${changesCount} (${mIcon}${c.xm}m)`);
+                    } else {
+                        idleDetails.push(`${dName} *${oldData.length} (${mIcon}${c.xm}m)`);
+                    }
+                } else {
+                    idleDetails.push(`${dName} *${oldData.length} (${mIcon}${c.xm}m)`);
+                }
             } else {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
-                    l.error(`🛡️ Breaker: ${slug} Dropped from ${oldData.length} to ${newData.length}`);
-                    failureCount++; failedSlugs.add(slug); return; 
+                    breakers.push(`${dName}(Drop)`);
+                    failedSlugs.add(slug);
                 } else {
                     cache.rawMatches[slug] = newData;
-                    l.success(`💾 Overwrote: ${slug} Overwrote ${newData.length} matches`);
+                    if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
+                        syncDetails.push(`${dName} *${newData.length} (${mIcon}${c.xm}m)`);
+                    } else {
+                        idleDetails.push(`${dName} *${newData.length} (${mIcon}${c.xm}m)`);
+                    }
                 }
             }
             cache.updateTimestamps[slug] = NOW;
-            successCount++;
         } else {
-            failureCount++;
+            apiErrors.push(`${dName}(Fail)`);
             failedSlugs.add(res.slug);
         }
     });
@@ -1072,18 +1076,47 @@ async function runUpdate(env, force=false) {
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
+    const modeSwitches = [];
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
         const newMode = analysis.tournMeta[slug].mode;
-        if (oldMode === "fast" && newMode === "slow") l.success(`💤 SlowMode: ${slug} Entering SLOW mode`);
-        else if (oldMode === "slow" && newMode === "fast") l.info(`⚡ FastMode: ${slug} Activating FAST mode`);
+        if (oldMode !== newMode) {
+            const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
+            const dName = t ? (t.league || t.name || slug.toUpperCase()) : slug;
+            modeSwitches.push(`${dName}(${newMode === "slow" ? "🐌" : "⚡"})`);
+        }
     });
     
+    // --- 终极日志输出 ---
+    const isAnon = (!authContext || authContext.isAnonymous);
+    const authPrefix = isAnon ? "👻 " : "";
+    let trafficLight, action, content;
+    
+    if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
+        trafficLight = "⚪"; action = "[IDLE]";
+        content = `🔍 ${idleDetails.join(", ")} | 🟰 Identical`;
+    } else {
+        const hasErr = apiErrors.length > 0 || breakers.length > 0;
+        trafficLight = hasErr ? "🔴" : "🟢";
+        action = hasErr ? "[ERR!]" : "[SYNC]";
+        
+        let parts = [];
+        if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
+        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
+        if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
+        if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
+        content = parts.join(" | ");
+    }
+
+    const finalLog = `${trafficLight} ${action} | ${authPrefix}${content}`;
+    if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
+
+
     const newCacheData = { 
         globalStats: analysis.globalStats, timeGrid: analysis.timeGrid,
         debugInfo: analysis.debugInfo, maxDateTs: analysis.maxDateTs,
         statusText: analysis.statusText, scheduleMap: analysis.scheduleMap,
-        tournMeta: analysis.tournMeta, // <-- 新增，将 Emoji 保存进缓存
+        tournMeta: analysis.tournMeta,
         updateTime: utils.getNow(), runtimeConfig,
         rawMatches: cache.rawMatches, updateTimestamps: cache.updateTimestamps
     };
@@ -1092,13 +1125,11 @@ async function runUpdate(env, force=false) {
     try {
         const homeFragment = renderContentOnly(
             analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-            runtimeConfig, cache.updateTimestamps, false, analysis.tournMeta // <-- 新增第7个参数
+            runtimeConfig, cache.updateTimestamps, false, analysis.tournMeta 
         );
         const fullPage = renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home");
         await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
-    } catch (e) {
-        l.error(`❌ Home SSG Error: ${e.message}`);
-    }
+    } catch (e) {}
 
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const slug = tourn.slug;
@@ -1112,23 +1143,16 @@ async function runUpdate(env, force=false) {
 
     await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
     
-    if (failureCount > 0) l.error(`🚨 Partial: Success ${successCount}/${batch.length} · Ignored: ${failureCount} · Total Parsed: ${analysis.grandTotal}`);
-    else l.success(`🎉 Complete: Success ${successCount}/${batch.length} · Total Parsed: ${analysis.grandTotal}`);
     return l;
 }
 
 async function runCustomRebuild(env, payload) {
     const l = new Logger();
-    l.info(`🚀 Rebuild: ${payload.slug} Starting custom archive rebuild`);
     
-    const authContext = await loginToFandom(env, l);
-    if (authContext?.isAnonymous) { } 
-    else if (!authContext) l.info("⚠️ Auth Failed. Proceeding anonymously"); 
-    else l.success(`🔐 Authenticated: ${authContext.username || 'User'}`);
+    const authContext = await loginToFandom(env);
 
     try {
-        l.info(`📡 FullSync: ${payload.slug} Fetching matches from ${payload.overview_page}`);
-        const matches = await fetchAllMatches(payload.slug, payload.overview_page, l, authContext, null);
+        const matches = await fetchAllMatches(payload.slug, payload.overview_page, authContext, null);
         
         if (matches && matches.length > 0) {
             const tourn = {
@@ -1145,16 +1169,16 @@ async function runCustomRebuild(env, payload) {
             };
             
             await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
-            l.success(`♻️ Rebuilt: ${payload.slug} Saved ${matches.length} matches`);
+            l.success(`🟢 [SYNC] | 🔄 ${payload.league} *${matches.length} | ⚙️ Rebuild Archive`);
             
             const archiveHTML = await generateArchiveStaticHTML(env);
             await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
         } else {
-            l.error(`⚠️ Breaker: ${payload.slug} No matches found. Archive not saved.`);
+            l.error(`🔴 [ERR!] | 🚧 ${payload.league}(Drop) | ❌ No matches found for rebuild`);
             throw new Error("No matches found from Fandom API");
         }
     } catch (e) {
-        l.error(`❌ Failed: ${payload.slug} -> ${e.message}`);
+        l.error(`🔴 [ERR!] | ❌ ${payload.league}(Fail) | ${e.message}`);
         throw e;
     }
     
@@ -1518,7 +1542,7 @@ export default {
                     const homeFragment = renderContentOnly(
                         cache.globalStats, cache.timeGrid, cache.scheduleMap,
                         cache.runtimeConfig || { TOURNAMENTS: [] },
-                        cache.updateTimestamps, false, cache.tournMeta || {} // <-- 传入缓存的 tournMeta
+                        cache.updateTimestamps, false, cache.tournMeta || {} 
                     );
                     const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText || "", "home");
                     await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
