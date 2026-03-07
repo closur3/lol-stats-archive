@@ -594,7 +594,6 @@ const PYTHON_STYLE = `
 const BUILD_FOOTER_STYLE = `
     .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .build-footer code { font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace !important; background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; color: inherit; }
-    .build-footer b { color: #64748b; }
     .build-footer a { color: inherit; text-decoration: none; opacity: 0.9; }
     .build-footer a:hover { opacity: 1; text-decoration: underline; }
 `;
@@ -733,7 +732,7 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
 
 function renderBuildFooter(time, sha) {
     const shortSha = (sha || "").slice(0, 7) || "unknown";
-    return `<div class="build-footer"><code>deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a></code></div>`;
+    return `<div class="build-footer"><code>deployed: ${time || "N/A"}</code> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank"><code>@${shortSha}</code></a></div>`;
 }
 
 function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false, tournMeta = {}) {
