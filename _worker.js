@@ -750,6 +750,18 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     const STYLE_RATE_HINT = 'style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px"';
     const STYLE_SPINE_BOLD = 'style="font-weight:700"';
     const STYLE_SPINE_SEP = 'style="opacity:0.4;"';
+    const STYLE_DEBUG_LABEL = 'style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px"';
+    const STYLE_EMOJI = 'style="font-size: 16px; line-height: 1; display: block; transform: translateY(-1px);"';
+    const STYLE_ARCHIVE_INNER = 'style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;"';
+    const STYLE_TITLE_ROW = 'style="display:flex; align-items:center; gap: 6px;"';
+    const STYLE_SCH_HEADER = 'style="background:#f8fafc;color:#334155"';
+    const STYLE_SCH_COUNT = 'style="font-size:11px;opacity:0.6"';
+    const STYLE_SCORE_SEP = 'style="opacity:0.4; margin:0 1px;"';
+    const STYLE_VS_TEXT = 'style="color:#94a3b8;font-size:13px;font-weight:700;margin:0 2px;"';
+    const STYLE_SCH_GROUP_HEADER = 'style="background:#f8fafc"';
+    const STYLE_SCH_GROUP_ROW = 'style="width:100%; padding:0 10px; box-sizing:border-box"';
+    const STYLE_SCH_GROUP_NAME = 'style="font-weight:800"';
+    const STYLE_SCH_GROUP_BLOCK = 'style="font-weight:800; opacity:0.7"';
     const mkSpine = (val, sep) => {
         if(!val || val === "-") return `<span ${STYLE_TEXT_MUTED}>-</span>`;
         const parts = val.split(sep);
@@ -776,7 +788,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         const tableId = `t_${tourn.slug.replace(/-/g, '_')}`;
         const lastTs = updateTimestamps[tourn.slug];
         const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
-        const debugLabel = `<span style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px">${timeStr}</span>`;
+        const debugLabel = `<span ${STYLE_DEBUG_LABEL}>${timeStr}</span>`;
 
         const rows = stats.map(s => {
             const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
@@ -818,7 +830,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                     else {
                         const r = c.full/c.total;
                         const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}<span style="opacity:0.7; margin:0 1px;">/</span>${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
+                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}<span ${STYLE_SCORE_SEP}>/</span>${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
                     }
                 }
                 timeTableHtml += "</tr>";
@@ -828,15 +840,15 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
 
         // 仅在主页显示 Emoji
         const emojiStr = (!isArchive && tournMeta[tourn.slug] && tournMeta[tourn.slug].emoji) 
-            ? `<span style="font-size: 16px; line-height: 1; display: block; transform: translateY(-1px);">${tournMeta[tourn.slug].emoji}</span>` 
+            ? `<span ${STYLE_EMOJI}>${tournMeta[tourn.slug].emoji}</span>` 
             : "";
         const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name || tourn.slug}</a>`;
         
         if (isArchive) {
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
-            tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;">${tableBody}${timeTableHtml}</div></details>`;
+            tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" ${STYLE_ARCHIVE_INNER}>${tableBody}${timeTableHtml}</div></details>`;
         } else {
-            tablesHtml += `<div class="wrapper"><div class="table-title"><div style="display:flex; align-items:center; gap: 6px;">${emojiStr}${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
+            tablesHtml += `<div class="wrapper"><div class="table-title"><div ${STYLE_TITLE_ROW}>${emojiStr}${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
         }
     });
     
@@ -850,25 +862,25 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                 const matches = scheduleMap[d];
                 const dateObj = new Date(d + "T00:00:00Z");
                 const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dateObj.getUTCDay()];
-                let cardHtml = `<div class="sch-card"><div class="sch-header" style="background:#f8fafc;color:#334155"><span>📅 ${d.slice(5)} ${dayName}</span><span style="font-size:11px;opacity:0.6">${matches.length} Matches</span></div><div class="sch-body">`;
+                let cardHtml = `<div class="sch-card"><div class="sch-header" ${STYLE_SCH_HEADER}><span>📅 ${d.slice(5)} ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
                 let lastGroupKey = "";
                 matches.forEach(m => {
                     const blockName = m.blockName || "";
                     const groupKey = `${m.league}_${blockName}`;
                     if (groupKey !== lastGroupKey) {
-                        cardHtml += `<div class="sch-group-header" style="background:#f8fafc"><div class="spine-row" style="width:100%; padding:0 10px; box-sizing:border-box"><span class="spine-l" style="font-weight:800">${m.league}</span><span class="spine-sep">/</span><span class="spine-r" style="font-weight:800; opacity:0.7">${blockName || "REGULAR"}</span></div></div>`;
+                        cardHtml += `<div class="sch-group-header" ${STYLE_SCH_GROUP_HEADER}><div class="spine-row" ${STYLE_SCH_GROUP_ROW}><span class="spine-l" ${STYLE_SCH_GROUP_NAME}>${m.league}</span><span class="spine-sep">/</span><span class="spine-r" ${STYLE_SCH_GROUP_BLOCK}>${blockName || "REGULAR"}</span></div></div>`;
                         lastGroupKey = groupKey;
                     }
                     const boLabel = m.bo ? `BO${m.bo}` : ''; const isBo5 = m.bo === 5; const boClass = isBo5 ? "sch-pill gold" : "sch-pill";
                     const isTbd1 = m.t1 === "TBD", isTbd2 = m.t2 === "TBD";
                     const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.slug}', '${m.t1}')"`, t2Click = isTbd2 ? "" : `onclick="openTeam('${m.slug}', '${m.t2}')"`;
                     const r1 = getRateHtml(m.t1, m.slug, m.bo), r2 = getRateHtml(m.t2, m.slug, m.bo);
-                    let midContent = `<span style="color:#94a3b8;font-size:13px;font-weight:700;margin:0 2px;">vs</span>`;
+                    let midContent = `<span ${STYLE_VS_TEXT}>vs</span>`;
                     if (m.is_finished) {
                         const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8", s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
-                        midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span style="opacity:0.4; margin:0 1px;">-</span><span style="${s2Style}">${m.s2}</span></span>`;
+                        midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span ${STYLE_SCORE_SEP}>-</span><span style="${s2Style}">${m.s2}</span></span>`;
                     } else if (m.is_live) {
-                        midContent = `<span class="sch-live-score">${m.s1}<span style="opacity:0.4; margin:0 1px;">-</span>${m.s2}</span>`;
+                        midContent = `<span class="sch-live-score">${m.s1}<span ${STYLE_SCORE_SEP}>-</span>${m.s2}</span>`;
                     }
 
                     const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
@@ -1410,7 +1422,9 @@ function renderToolsPage(time, sha) {
             );
             const TOAST_DURATION_MS = 3000;
             const REDIRECT_DELAY_MS = 1200;
+            const AUTH_ERROR_MSG = "Session expired or incorrect password.";
             const NETWORK_ERROR_MSG = "❌ Network connection failed";
+            const REBUILD_REQUIRED_MSG = "⚠️ Please fill in all 4 fields.";
             let adminToken = sessionStorage.getItem("admin_pwd") || "";
             if (adminToken) authOverlay.style.display = "none";
 
@@ -1457,7 +1471,7 @@ function renderToolsPage(time, sha) {
 
             function checkAuthError(status) {
                 if (status === 401) {
-                    showToast("Session expired or incorrect password.", "error");
+                    showToast(AUTH_ERROR_MSG, "error");
                     clearAuth();
                     return true;
                 }
@@ -1526,7 +1540,7 @@ function renderToolsPage(time, sha) {
                 const payload = getRebuildPayload();
 
                 if (!payload.slug || !payload.name || !payload.overview || !payload.league) {
-                    showToast("⚠️ Please fill in all 4 fields.", "error");
+                    showToast(REBUILD_REQUIRED_MSG, "error");
                     return;
                 }
 
