@@ -1478,86 +1478,23 @@ function renderLogPage(logs, time, sha) {
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 20px; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
         
-        code.log-time, code.log-msg {
-            font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace !important;
-            background: transparent;
-            border: none;
-            padding: 0;
-            margin: 0;
-            letter-spacing: 0; 
-        }
-        
-        .log-time { 
-            color: #64748b; 
-            font-size: 13px; 
-            white-space: nowrap; 
-            font-weight: 600; 
-        }
-        .log-level { 
-            font-weight: 800; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            width: 100%; 
-            padding: 4px 0; 
-            border-radius: 4px; 
-            font-size: 11px; 
-            text-transform: uppercase; 
-            letter-spacing: 0.5px; 
-            line-height: 1; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
-        }
-        .lvl-inf { 
-            background: #eff6ff; 
-            color: #1e40af; 
-            border: 1px solid #dbeafe; 
-        }
-        .lvl-ok { 
-            background: #f0fdf4; 
-            color: #15803d; 
-            border: 1px solid #dcfce7; 
-        }
-        .lvl-err { 
-            background: #fef2f2; 
-            color: #b91c1c; 
-            border: 1px solid #fee2e2; 
-        }
-        
-        code.log-msg { 
-            color: #334155; 
-            word-break: break-all; 
-            line-height: 1.6; 
-            font-weight: 600;
-            white-space: pre-wrap; 
-            display: block;
-        }
+        code.log-time, code.log-msg { font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace !important; background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; }
+        .log-time { color: #64748b; font-size: 14px; white-space: nowrap; font-weight: 600; }
+        .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 4px 0; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
+        .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+        .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+        code.log-msg { color: #334155; word-break: break-all; line-height: 1.6; font-weight: 600; white-space: pre-wrap; display: block; font-size: 14px; }
         
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
         .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; color: #94a3b8; font-size: 11px; font-family: monospace; }
         
-        /* 移动端优化：Time 和 Level 同行显示，Message 换行显示 */
+        /* 移动端优化：Time 和 Level 同行显示，Message 换行显示，双端字体均已加大 */
         @media (max-width: 600px) { 
-            .log-entry { 
-                display: flex; 
-                flex-wrap: wrap; 
-                align-items: center; 
-                gap: 6px 10px; 
-                padding: 12px 15px; 
-            } 
-            .log-time { 
-                font-size: 11px; 
-            } 
-            .log-level { 
-                display: inline-flex; 
-                width: auto; 
-                padding: 3px 8px; 
-                font-size: 10px; 
-            }
-            code.log-msg {
-                width: 100%;
-                margin-top: 2px;
-                font-size: 13px;
-            }
+            .log-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 15px; } 
+            .log-time { font-size: 12px; } 
+            .log-level { display: inline-flex; width: auto; padding: 3px 8px; font-size: 11px; } 
+            code.log-msg { width: 100%; margin-top: 2px; font-size: 14px; } 
         }
     </style>
 </head>
