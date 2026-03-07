@@ -596,8 +596,8 @@ const BUILD_FOOTER_STYLE = `
     .build-footer code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace !important; background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; color: inherit; }
     .build-footer .footer-label { font-weight: 500; }
     .build-footer .footer-time, .build-footer .footer-sha { color: #64748b; font-weight: 700; }
-    .build-footer a { color: inherit; text-decoration: none; opacity: 0.9; }
-    .build-footer a:hover { opacity: 1; text-decoration: underline; }
+    .build-footer a { color: inherit; text-decoration: none; opacity: 1; transition: filter 0.2s ease; }
+    .build-footer a:hover { filter: brightness(1.08); text-decoration: underline; }
 `;
 const PYTHON_JS = `
     <script>
