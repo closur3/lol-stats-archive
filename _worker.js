@@ -746,11 +746,15 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     if (!runtimeConfig.TOURNAMENTS) runtimeConfig.TOURNAMENTS = [];
 
     const injectedData = `<script>window.g_stats = Object.assign(window.g_stats || {}, ${JSON.stringify(globalStats)});</script>`;
+    const STYLE_TEXT_MUTED = 'style="color:#cbd5e1"';
+    const STYLE_RATE_HINT = 'style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px"';
+    const STYLE_SPINE_BOLD = 'style="font-weight:700"';
+    const STYLE_SPINE_SEP = 'style="opacity:0.4;"';
     const mkSpine = (val, sep) => {
-        if(!val || val === "-") return `<span style="color:#cbd5e1">-</span>`;
+        if(!val || val === "-") return `<span ${STYLE_TEXT_MUTED}>-</span>`;
         const parts = val.split(sep);
         if(parts.length !== 2) return val;
-        return `<div class="spine-row"><span class="spine-l" style="font-weight:700">${parts[0]}</span><span class="spine-sep" style="opacity:0.4;">${sep}</span><span class="spine-r" style="font-weight:700">${parts[1]}</span></div>`;
+        return `<div class="spine-row"><span class="spine-l" ${STYLE_SPINE_BOLD}>${parts[0]}</span><span class="spine-sep" ${STYLE_SPINE_SEP}>${sep}</span><span class="spine-r" ${STYLE_SPINE_BOLD}>${parts[1]}</span></div>`;
     };
     const getRateHtml = (teamName, slug, bo) => {
         const stats = globalStats[slug];
@@ -760,7 +764,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
         else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
         if(r === null) return "";
-        return `<span style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px">(${Math.round(r*100)}%)</span>`;
+        return `<span ${STYLE_RATE_HINT}>(${Math.round(r*100)}%)</span>`;
     };
 
     let tablesHtml = "";
@@ -1322,9 +1326,11 @@ function renderToolsPage(time, sha) {
             /* Clean Glass Auth Overlay */
             #auth-overlay { position: fixed; inset: 0; background: rgba(241,245,249,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999; }
             .auth-card { background: #fff; padding: 35px 30px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); width: 340px; text-align: center; box-sizing: border-box; border: 1px solid #e2e8f0; }
+            .auth-icon { font-size: 32px; margin-bottom: 12px; }
             .auth-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; color: #0f172a; }
             .auth-subtitle { color: #64748b; font-size: 13px; margin-bottom: 25px; line-height: 1.4; }
             .auth-btn { width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
+            .auth-input { text-align: center; font-family: monospace; letter-spacing: 2px; margin-bottom: 20px; padding: 12px; }
             
             /* Toast 通知 */
             #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; width: auto; max-width: 92vw; }
@@ -1338,10 +1344,10 @@ function renderToolsPage(time, sha) {
         <div id="toast-container"></div>
         <div id="auth-overlay">
             <div class="auth-card">
-                <div style="font-size: 32px; margin-bottom: 12px;">🔐</div>
+                <div class="auth-icon">🔐</div>
                 <div class="auth-title">Admin Authentication</div>
                 <div class="auth-subtitle">Please verify your identity to access tools.</div>
-                <input type="password" id="auth-pwd" class="form-input" style="text-align:center; font-family:monospace; letter-spacing:2px; margin-bottom:20px; padding:12px;" placeholder="Password" onkeypress="if(event.key==='Enter') unlockTools()">
+                <input type="password" id="auth-pwd" class="form-input auth-input" placeholder="Password" onkeypress="if(event.key==='Enter') unlockTools()">
                 <button class="primary-btn auth-btn" onclick="unlockTools()">Unlock</button>
             </div>
         </div>
@@ -1395,39 +1401,64 @@ function renderToolsPage(time, sha) {
         ${buildFooter}
         
         <script>
-            let adminToken = sessionStorage.getItem('admin_pwd') || "";
-            if (adminToken) document.getElementById('auth-overlay').style.display = 'none';
+            const authOverlay = document.getElementById("auth-overlay");
+            const authPwdInput = document.getElementById("auth-pwd");
+            const toastContainer = document.getElementById("toast-container");
+            const rebuildInputIds = ["slug", "name", "overview", "league"];
+            const rebuildInputs = Object.fromEntries(
+                rebuildInputIds.map((key) => [key, document.getElementById("rb-" + key)])
+            );
+            const TOAST_DURATION_MS = 3000;
+            const REDIRECT_DELAY_MS = 1200;
+            const NETWORK_ERROR_MSG = "❌ Network connection failed";
+            let adminToken = sessionStorage.getItem("admin_pwd") || "";
+            if (adminToken) authOverlay.style.display = "none";
+
+            function setAuthOverlayVisible(visible) {
+                authOverlay.style.display = visible ? "flex" : "none";
+            }
+
+            function clearAuth() {
+                sessionStorage.removeItem("admin_pwd");
+                adminToken = "";
+                authPwdInput.value = "";
+                setAuthOverlayVisible(true);
+            }
+            function getRebuildPayload() {
+                return {
+                    slug: rebuildInputs.slug.value.trim(),
+                    name: rebuildInputs.name.value.trim(),
+                    overview: rebuildInputs.overview.value.trim(),
+                    league: rebuildInputs.league.value.trim()
+                };
+            }
 
             function showToast(msg, type = 'success') {
-                const container = document.getElementById('toast-container');
                 const toast = document.createElement('div');
                 toast.className = 'toast ' + type;
                 toast.innerText = msg;
-                container.appendChild(toast);
+                toastContainer.appendChild(toast);
                 void toast.offsetWidth; // trigger reflow
                 toast.classList.add('show');
                 setTimeout(() => {
                     toast.classList.remove('show');
                     setTimeout(() => toast.remove(), 300);
-                }, 3000); // 增加停留时间方便看清长错误
+                }, TOAST_DURATION_MS); // 增加停留时间方便看清长错误
             }
 
             function unlockTools() {
-                const pwd = document.getElementById('auth-pwd').value.trim();
+                const pwd = authPwdInput.value.trim();
                 if (pwd) {
                     adminToken = pwd;
                     sessionStorage.setItem('admin_pwd', pwd);
-                    document.getElementById('auth-overlay').style.display = 'none';
+                    setAuthOverlayVisible(false);
                 }
             }
 
             function checkAuthError(status) {
                 if (status === 401) {
                     showToast("Session expired or incorrect password.", "error");
-                    sessionStorage.removeItem('admin_pwd');
-                    adminToken = "";
-                    document.getElementById('auth-pwd').value = "";
-                    document.getElementById('auth-overlay').style.display = 'flex';
+                    clearAuth();
                     return true;
                 }
                 return false;
@@ -1435,7 +1466,7 @@ function renderToolsPage(time, sha) {
 
             function requireAuth() {
                 if (adminToken) return true;
-                document.getElementById('auth-overlay').style.display = 'flex';
+                setAuthOverlayVisible(true);
                 return false;
             }
 
@@ -1468,7 +1499,7 @@ function renderToolsPage(time, sha) {
                 if (checkAuthError(res.status)) return;
                 if (res.ok) {
                     showToast(okMsg);
-                    setTimeout(() => window.location.href = redirectTo, 1200);
+                    setTimeout(() => window.location.href = redirectTo, REDIRECT_DELAY_MS);
                     return;
                 }
                 const errText = await res.text();
@@ -1484,7 +1515,7 @@ function renderToolsPage(time, sha) {
                     const res = await sendAuthorizedPost(endpoint);
                     await handleTaskResponse(res, "✅ Task completed successfully!", "/");
                 } catch (e) {
-                    showToast("❌ Network connection failed", "error");
+                    showToast(NETWORK_ERROR_MSG, "error");
                 } finally {
                     restoreBtn();
                 }
@@ -1492,12 +1523,9 @@ function renderToolsPage(time, sha) {
 
             async function submitRebuild() {
                 if (!requireAuth()) return;
-                const slug = document.getElementById('rb-slug').value.trim();
-                const name = document.getElementById('rb-name').value.trim();
-                const overview = document.getElementById('rb-overview').value.trim();
-                const league = document.getElementById('rb-league').value.trim();
+                const payload = getRebuildPayload();
 
-                if (!slug || !name || !overview || !league) {
+                if (!payload.slug || !payload.name || !payload.overview || !payload.league) {
                     showToast("⚠️ Please fill in all 4 fields.", "error");
                     return;
                 }
@@ -1506,11 +1534,11 @@ function renderToolsPage(time, sha) {
                 const restoreBtn = setButtonBusy(btn, '⏳ Rebuilding...');
 
                 try {
-                    const body = JSON.stringify({ slug, name, overview_page: overview, league });
+                    const body = JSON.stringify({ slug: payload.slug, name: payload.name, overview_page: payload.overview, league: payload.league });
                     const res = await sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, body);
                     await handleTaskResponse(res, "✅ Archive reconstructed!", "/archive", "⚠️ Error: ");
                 } catch (e) {
-                    showToast("❌ Network connection failed", "error");
+                    showToast(NETWORK_ERROR_MSG, "error");
                 } finally {
                     restoreBtn();
                 }
