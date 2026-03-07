@@ -931,6 +931,43 @@ class Logger {
     export() { return this.l; }
 }
 
+async function appendLogs(env, logger, onlyWhenNonEmpty = false) {
+    const newLogs = logger.export();
+    if (onlyWhenNonEmpty && newLogs.length === 0) return;
+    const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+    let combinedLogs = [...newLogs, ...oldLogs];
+    if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+    await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+}
+
+function isUnauthorized(request, env) {
+    const expectedSecret = env.ADMIN_SECRET;
+    const authHeader = request.headers.get("Authorization");
+    return Boolean(expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`));
+}
+
+function htmlResponse(body, status = 200) {
+    return new Response(body, { status, headers: { "content-type": "text/html;charset=utf-8" } });
+}
+function jsonResponse(data, status = 200) {
+    return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
+}
+
+function textResponse(body, status = 200) {
+    return new Response(body, { status });
+}
+
+function okResponse() {
+    return textResponse("OK", 200);
+}
+
+function unauthorizedResponse() {
+    return textResponse("Unauthorized", 401);
+}
+
+function methodNotAllowedResponse() {
+    return textResponse("Method Not Allowed", 405);
+}
 async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
@@ -1530,40 +1567,32 @@ export default {
         switch (url.pathname) {
             case "/backup": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                if (!cache || !cache.globalStats) return new Response(JSON.stringify({ error: "No data" }), { status: 503 });
+                if (!cache || !cache.globalStats) return jsonResponse({ error: "No data" }, 503);
                 const payload = {};
                 for (const tourn of cache.runtimeConfig.TOURNAMENTS) if (cache.globalStats[tourn.slug]) payload[`markdown/${tourn.slug}.md`] = generateMarkdown(tourn, cache.globalStats[tourn.slug], cache.timeGrid);
-                return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
+                return jsonResponse(payload);
             }
 
             case "/force": {
-                const expectedSecret = env.ADMIN_SECRET;
-                const authHeader = request.headers.get("Authorization");
-                if (expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`)) return new Response("Unauthorized", { status: 401 });
+                if (isUnauthorized(request, env)) return unauthorizedResponse();
 
                 try {
                     const l = await runUpdate(env, true);
-                    const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-                    const newLogs = l.export();
-                    let combinedLogs = [...newLogs, ...oldLogs];
-                    if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-                    await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+                    await appendLogs(env, l);
                     
-                    return new Response("OK", { status: 200 });
+                    return okResponse();
                 } catch (e) {
-                    return new Response(`Worker Error: ${e.message}`, { status: 500 });
+                    return textResponse(`Worker Error: ${e.message}`, 500);
                 }
             }
 
             case "/refresh-ui": {
-                if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
-                const expectedSecret = env.ADMIN_SECRET;
-                const authHeader = request.headers.get("Authorization");
-                if (expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`)) return new Response("Unauthorized", { status: 401 });
+                if (request.method !== "POST") return methodNotAllowedResponse();
+                if (isUnauthorized(request, env)) return unauthorizedResponse();
 
                 try {
                     const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
-                    if (!cache || !cache.globalStats) return new Response("No cache data available. Run Refresh API first.", { status: 400 });
+                    if (!cache || !cache.globalStats) return textResponse("No cache data available. Run Refresh API first.", 400);
 
                     const homeFragment = renderContentOnly(
                         cache.globalStats, cache.timeGrid, cache.scheduleMap,
@@ -1576,88 +1605,76 @@ export default {
                     const archiveHTML = await generateArchiveStaticHTML(env, cache);
                     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
 
-                    return new Response("OK", { status: 200 });
+                    return okResponse();
                 } catch (err) {
-                    return new Response(`Render Error: ${err.message}`, { status: 500 });
+                    return textResponse(`Render Error: ${err.message}`, 500);
                 }
             }
             
             case "/rebuild-archive": {
-                if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+                if (request.method !== "POST") return methodNotAllowedResponse();
                 
-                const expectedSecret = env.ADMIN_SECRET;
-                const authHeader = request.headers.get("Authorization");
-                if (expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`)) return new Response("Unauthorized", { status: 401 });
+                if (isUnauthorized(request, env)) return unauthorizedResponse();
 
                 let payload;
                 try {
                     payload = await request.json();
                 } catch (e) {
-                    return new Response("Invalid JSON payload", { status: 400 });
+                    return textResponse("Invalid JSON payload", 400);
                 }
 
                 if (!payload.slug || !payload.name || !payload.overview_page || !payload.league) {
-                    return new Response("Missing required fields. Please provide slug, name, overview_page, and league.", { status: 400 });
+                    return textResponse("Missing required fields. Please provide slug, name, overview_page, and league.", 400);
                 }
 
                 try {
                     const l = await runCustomRebuild(env, payload);
-                    const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-                    const newLogs = l.export();
-                    let combinedLogs = [...newLogs, ...oldLogs];
-                    if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-                    await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+                    await appendLogs(env, l);
                     
-                    return new Response("OK", { status: 200 });
+                    return okResponse();
                 } catch (err) {
-                    return new Response(err.message || "Internal Server Error", { status: 500 });
+                    return textResponse(err.message || "Internal Server Error", 500);
                 }
             }
 
             case "/tools": {
                 const time = env.GITHUB_TIME;
                 const sha = env.GITHUB_SHA;
-                return new Response(renderToolsPage(time, sha), { headers: { "content-type": "text/html;charset=utf-8" } });
+                return htmlResponse(renderToolsPage(time, sha));
             }
 
             case "/logs": {
                 const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
                 const time = env.GITHUB_TIME;
                 const sha = env.GITHUB_SHA;
-                return new Response(renderLogPage(logs, time, sha), { headers: { "content-type": "text/html;charset=utf-8" } });
+                return htmlResponse(renderLogPage(logs, time, sha));
             }
             
             case "/archive": {
                 const html = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
                 if (html) {
-                    return new Response(html, { headers: { "content-type": "text/html;charset=utf-8" } });
+                    return htmlResponse(html);
                 }
-                return new Response("Archive initializing... Please <a href='/tools'>run a Local UI Refresh</a> or wait for the next background update.", { headers: { "content-type": "text/html" } });
+                return htmlResponse("Archive initializing... Please <a href='/tools'>run a Local UI Refresh</a> or wait for the next background update.");
             }
 
             case "/": {
                 const html = await env.LOL_KV.get("HOME_STATIC_HTML");
                 if (html) {
-                    return new Response(html, { headers: { "content-type": "text/html;charset=utf-8" } });
+                    return htmlResponse(html);
                 }
-                return new Response("Initializing... Please wait for the first background update or <a href='/tools'>run a Refresh API</a>.", { headers: { "content-type": "text/html" } });
+                return htmlResponse("Initializing... Please wait for the first background update or <a href='/tools'>run a Refresh API</a>.");
             }
 
             case "/favicon.ico":
                 return new Response(null, { status: 204 });
 
-            default: return new Response("404 Not Found", { status: 404 });
+            default: return textResponse("404 Not Found", 404);
         }
     },
 
     async scheduled(event, env, ctx) {
         const l = await runUpdate(env, false);
-        const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-        const newLogs = l.export();
-        if (newLogs.length > 0) {
-            let combinedLogs = [...newLogs, ...oldLogs];
-            if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-            await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
-        }
+        await appendLogs(env, l, true);
     }
 };
