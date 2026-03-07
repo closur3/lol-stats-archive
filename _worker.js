@@ -1,12 +1,3 @@
-// ====================================================
-// 🥇 Worker V46.0: Ultimate Probe Logging & SSG Stability
-// 更新日志:
-// 1. 探针级日志: 实现 [SYNC]/[IDLE]/[COOL]/[ERR!] 极致单行账本输出。
-// 2. 语义化符号: + (增量), * (全量/存量), 🟰 (查重), ❄️ (冷却)。
-// 3. 静默化抓取: 彻底移除抓取过程的碎片化Log，确保输出绝对纯净。
-// 4. 名称对齐: 日志中严格优先显示 League 名称。
-// 5. 容错保留: 完美继承原有的 SSG 容错与缓存防御机制。
-// ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 const GITHUB_COMMIT_BASE = "https://github.com/closur3/lol-stats-archive/commit/";
