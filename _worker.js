@@ -968,6 +968,23 @@ function unauthorizedResponse() {
 function methodNotAllowedResponse() {
     return textResponse("Method Not Allowed", 405);
 }
+
+async function executeTaskWithLogs(env, taskRunner, errorPrefix = "") {
+    try {
+        const logger = await taskRunner();
+        await appendLogs(env, logger);
+        return okResponse();
+    } catch (err) {
+        const prefix = errorPrefix ? `${errorPrefix}: ` : "";
+        return textResponse(`${prefix}${err.message}`, 500);
+    }
+}
+
+async function respondCachedHtml(env, key, fallback) {
+    const html = await env.LOL_KV.get(key);
+    if (html) return htmlResponse(html);
+    return htmlResponse(fallback);
+}
 async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
@@ -1563,6 +1580,8 @@ function renderLogPage(logs, time, sha) {
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
+        const time = env.GITHUB_TIME;
+        const sha = env.GITHUB_SHA;
 
         switch (url.pathname) {
             case "/backup": {
@@ -1575,15 +1594,7 @@ export default {
 
             case "/force": {
                 if (isUnauthorized(request, env)) return unauthorizedResponse();
-
-                try {
-                    const l = await runUpdate(env, true);
-                    await appendLogs(env, l);
-                    
-                    return okResponse();
-                } catch (e) {
-                    return textResponse(`Worker Error: ${e.message}`, 500);
-                }
+                return executeTaskWithLogs(env, () => runUpdate(env, true), "Worker Error");
             }
 
             case "/refresh-ui": {
@@ -1613,7 +1624,6 @@ export default {
             
             case "/rebuild-archive": {
                 if (request.method !== "POST") return methodNotAllowedResponse();
-                
                 if (isUnauthorized(request, env)) return unauthorizedResponse();
 
                 let payload;
@@ -1627,43 +1637,32 @@ export default {
                     return textResponse("Missing required fields. Please provide slug, name, overview_page, and league.", 400);
                 }
 
-                try {
-                    const l = await runCustomRebuild(env, payload);
-                    await appendLogs(env, l);
-                    
-                    return okResponse();
-                } catch (err) {
-                    return textResponse(err.message || "Internal Server Error", 500);
-                }
+                return executeTaskWithLogs(env, () => runCustomRebuild(env, payload));
             }
 
             case "/tools": {
-                const time = env.GITHUB_TIME;
-                const sha = env.GITHUB_SHA;
                 return htmlResponse(renderToolsPage(time, sha));
             }
 
             case "/logs": {
                 const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
-                const time = env.GITHUB_TIME;
-                const sha = env.GITHUB_SHA;
                 return htmlResponse(renderLogPage(logs, time, sha));
             }
             
             case "/archive": {
-                const html = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
-                if (html) {
-                    return htmlResponse(html);
-                }
-                return htmlResponse("Archive initializing... Please <a href='/tools'>run a Local UI Refresh</a> or wait for the next background update.");
+                return respondCachedHtml(
+                    env,
+                    "ARCHIVE_STATIC_HTML",
+                    "Archive initializing... Please <a href='/tools'>run a Local UI Refresh</a> or wait for the next background update."
+                );
             }
 
             case "/": {
-                const html = await env.LOL_KV.get("HOME_STATIC_HTML");
-                if (html) {
-                    return htmlResponse(html);
-                }
-                return htmlResponse("Initializing... Please wait for the first background update or <a href='/tools'>run a Refresh API</a>.");
+                return respondCachedHtml(
+                    env,
+                    "HOME_STATIC_HTML",
+                    "Initializing... Please wait for the first background update or <a href='/tools'>run a Refresh API</a>."
+                );
             }
 
             case "/favicon.ico":
