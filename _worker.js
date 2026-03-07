@@ -1432,23 +1432,42 @@ function renderToolsPage(time, sha) {
                 return false;
             }
 
-            async function runTask(endpoint, btnId) {
-                if (!adminToken) { document.getElementById('auth-overlay').style.display = 'flex'; return; }
-                const btn = document.getElementById(btnId);
+            function requireAuth() {
+                if (adminToken) return true;
+                document.getElementById('auth-overlay').style.display = 'flex';
+                return false;
+            }
+
+            function getAuthHeaders(extra = {}) {
+                return { 'Authorization': 'Bearer ' + adminToken, ...extra };
+            }
+
+            function setButtonBusy(btn, busyText) {
                 const originalText = btn.innerHTML;
-                btn.innerHTML = '⏳ Processing...';
+                btn.innerHTML = busyText;
                 btn.style.pointerEvents = 'none';
                 btn.style.opacity = '0.7';
+                return () => {
+                    btn.innerHTML = originalText;
+                    btn.style.pointerEvents = 'auto';
+                    btn.style.opacity = '1';
+                };
+            }
+
+            async function runTask(endpoint, btnId) {
+                if (!requireAuth()) return;
+                const btn = document.getElementById(btnId);
+                const restoreBtn = setButtonBusy(btn, '⏳ Processing...');
 
                 try {
                     const res = await fetch(endpoint, {
                         method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + adminToken }
+                        headers: getAuthHeaders()
                     });
-                    
+
                     if (checkAuthError(res.status)) return;
-                    if (res.ok) { 
-                        showToast("✅ Task completed successfully!"); 
+                    if (res.ok) {
+                        showToast("✅ Task completed successfully!");
                         setTimeout(() => window.location.href = '/', 1200);
                     } else {
                         const errText = await res.text();
@@ -1457,14 +1476,12 @@ function renderToolsPage(time, sha) {
                 } catch (e) {
                     showToast("❌ Network connection failed", "error");
                 } finally {
-                    btn.innerHTML = originalText;
-                    btn.style.pointerEvents = 'auto';
-                    btn.style.opacity = '1';
+                    restoreBtn();
                 }
             }
 
             async function submitRebuild() {
-                if (!adminToken) { document.getElementById('auth-overlay').style.display = 'flex'; return; }
+                if (!requireAuth()) return;
                 const slug = document.getElementById('rb-slug').value.trim();
                 const name = document.getElementById('rb-name').value.trim();
                 const overview = document.getElementById('rb-overview').value.trim();
@@ -1476,24 +1493,18 @@ function renderToolsPage(time, sha) {
                 }
 
                 const btn = document.getElementById('btn-rebuild');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '⏳ Rebuilding...';
-                btn.style.pointerEvents = 'none';
-                btn.style.opacity = '0.7';
+                const restoreBtn = setButtonBusy(btn, '⏳ Rebuilding...');
 
                 try {
                     const res = await fetch('/rebuild-archive', {
                         method: 'POST',
-                        headers: { 
-                            'Authorization': 'Bearer ' + adminToken,
-                            'Content-Type': 'application/json'
-                        },
+                        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                         body: JSON.stringify({ slug, name, overview_page: overview, league })
                     });
-                    
+
                     if (checkAuthError(res.status)) return;
-                    if (res.ok) { 
-                        showToast("✅ Archive reconstructed!"); 
+                    if (res.ok) {
+                        showToast("✅ Archive reconstructed!");
                         setTimeout(() => window.location.href = '/archive', 1200);
                     } else {
                         const errText = await res.text();
@@ -1502,9 +1513,7 @@ function renderToolsPage(time, sha) {
                 } catch (e) {
                     showToast("❌ Network connection failed", "error");
                 } finally {
-                    btn.innerHTML = originalText;
-                    btn.style.pointerEvents = 'auto';
-                    btn.style.opacity = '1';
+                    restoreBtn();
                 }
             }
         </script>
@@ -1677,4 +1686,5 @@ export default {
         await appendLogs(env, l, true);
     }
 };
+
 
