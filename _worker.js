@@ -1,4 +1,4 @@
-// ====================================================
+﻿// ====================================================
 // 🥇 Worker V46.0: Ultimate Probe Logging & SSG Stability
 // 更新日志:
 // 1. 探针级日志: 实现 [SYNC]/[IDLE]/[COOL]/[ERR!] 极致单行账本输出。
@@ -593,7 +593,7 @@ const PYTHON_STYLE = `
 
 const BUILD_FOOTER_STYLE = `
     .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    .build-footer code { font: inherit; color: inherit; background: none; padding: 0; }
+    .build-footer code { font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace !important; background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; color: inherit; }
     .build-footer b { color: #64748b; }
     .build-footer a { color: inherit; text-decoration: none; opacity: 0.9; }
     .build-footer a:hover { opacity: 1; text-decoration: underline; }
