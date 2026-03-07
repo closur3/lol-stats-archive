@@ -591,6 +591,12 @@ const PYTHON_STYLE = `
     }
 `;
 
+const BUILD_FOOTER_STYLE = `
+    .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .build-footer b { color: #64748b; }
+    .build-footer a { color: inherit; text-decoration: none; opacity: 0.9; }
+    .build-footer a:hover { opacity: 1; text-decoration: underline; }
+`;
 const PYTHON_JS = `
     <script>
     const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
@@ -721,7 +727,12 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
         ? `<a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a>` 
         : "";
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}<div class="footer">${statusText}</div></div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}</div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
+}
+
+function renderBuildFooter(time, sha) {
+    const shortSha = (sha || "").slice(0, 7) || "unknown";
+    return `<div class="build-footer">deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a></div>`;
 }
 
 function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false, tournMeta = {}) {
@@ -1196,7 +1207,7 @@ async function runCustomRebuild(env, payload) {
 
 // --- 9. 独立页面渲染 ---
 function renderToolsPage(time, sha) {
-    const shortSha = (sha || "").slice(0, 7) || "unknown";
+    const buildFooter = renderBuildFooter(time, sha);
     return `<!DOCTYPE html>
     <html>
     <head>
@@ -1231,10 +1242,7 @@ function renderToolsPage(time, sha) {
                 .primary-btn { width: 100%; }
             }
 
-            .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-            .build-footer b { color: #64748b; }
-            .build-footer a { color: inherit; text-decoration: none; opacity: 0.8; }
-            .build-footer a:hover { opacity: 1; text-decoration: underline; }
+            ${BUILD_FOOTER_STYLE}
             
             /* Clean Glass Auth Overlay */
             #auth-overlay { position: fixed; inset: 0; background: rgba(241,245,249,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999; }
@@ -1327,9 +1335,7 @@ function renderToolsPage(time, sha) {
                 </div>
             </div>
         </div>
-        <div class="build-footer">
-            deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a>
-        </div>
+        ${buildFooter}
         
         <script>
             let adminToken = sessionStorage.getItem('admin_pwd') || "";
@@ -1460,7 +1466,7 @@ function renderLogPage(logs, time, sha) {
         // 核心改动：使用 <code> 标签包裹时间和日志内容，触发字体渲染脚本的代码块保护机制
         return `<li class="log-entry"><code class="log-time">${l.t}</code><span class="log-level ${lvlClass}">${l.l}</span><code class="log-msg">${l.m}</code></li>`;
     }).join("");
-    const shortSha = (sha || "").slice(0, 7) || "unknown";
+    const buildFooter = renderBuildFooter(time, sha);
 
     return `<!DOCTYPE html>
 <html>
@@ -1487,7 +1493,7 @@ function renderLogPage(logs, time, sha) {
         code.log-msg { color: #334155; word-break: break-all; line-height: 1.6; font-weight: 600; white-space: pre-wrap; display: block; font-size: 14px; }
         
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
-        .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; color: #94a3b8; font-size: 11px; font-family: monospace; }
+        ${BUILD_FOOTER_STYLE}
         
         /* 移动端优化：Time 和 Level 同行显示，Message 换行显示，双端字体均已加大 */
         @media (max-width: 600px) { 
@@ -1510,7 +1516,7 @@ function renderLogPage(logs, time, sha) {
         <ul class="log-list">${entries}</ul>
         ${logs.length === 0 ? '<div class="empty-logs">No logs found for today.</div>' : ''}
     </div>
-    <div class="build-footer">deployed: <b>${time || "N/A"}</b> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank">@${shortSha}</a></div>
+    ${buildFooter}
 </body>
 </html>`;
 }
