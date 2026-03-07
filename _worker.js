@@ -1523,7 +1523,7 @@ function renderLogPage(logs, time, sha) {
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 20px; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
         
-        code.log-time, code.log-msg { font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace !important; background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; }
+        code.log-time, code.log-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace !important; background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; }
         .log-time { color: #64748b; font-size: 13px; white-space: nowrap; font-weight: 600; }
         .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 4px 0; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
