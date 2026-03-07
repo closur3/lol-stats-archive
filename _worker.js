@@ -9,6 +9,7 @@
 // ====================================================
 
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
+const GITHUB_COMMIT_BASE = "https://github.com/closur3/lol-stats-archive/commit/";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
@@ -735,7 +736,7 @@ function renderActionBtn(href, icon, text) {
     return `<a href="${href}" class="action-btn"><span class="btn-icon">${icon}</span> <span class="btn-text">${text}</span></a>`;
 }
 
-function renderPageShell(title, bodyContent, statusText = "", navMode = "home") {
+function renderPageShell(title, bodyContent, _statusText = "", navMode = "home") {
     let navBtn = "";
     const logoIcon = navMode === "archive" ? "📦" : "🥇";
     if (navMode === "home") navBtn = renderActionBtn("/archive", "📦", "Archive");
@@ -750,7 +751,7 @@ function renderPageShell(title, bodyContent, statusText = "", navMode = "home") 
 
 function renderBuildFooter(time, sha) {
     const shortSha = (sha || "").slice(0, 7) || "unknown";
-    return `<div class="build-footer"><code class="footer-label">deployed:</code> <code class="footer-time">${time || "N/A"}</code> <a href="https://github.com/closur3/lol-stats-archive/commit/${sha}" target="_blank"><code class="footer-sha">@${shortSha}</code></a></div>`;
+    return `<div class="build-footer"><code class="footer-label">deployed:</code> <code class="footer-time">${time || "N/A"}</code> <a href="${GITHUB_COMMIT_BASE}${sha}" target="_blank"><code class="footer-sha">@${shortSha}</code></a></div>`;
 }
 
 function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false, tournMeta = {}) {
@@ -762,7 +763,9 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     if (!runtimeConfig.TOURNAMENTS) runtimeConfig.TOURNAMENTS = [];
 
     const injectedData = `<script>window.g_stats = Object.assign(window.g_stats || {}, ${JSON.stringify(globalStats)});</script>`;
-    const STYLE_TEXT_MUTED = 'style="color:#cbd5e1"';
+    const STYLE_MUTED_DASH = 'style="color:#cbd5e1"';
+    const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const TIME_TABLE_COLUMNS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"];
     const STYLE_RATE_HINT = 'style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px"';
     const STYLE_SPINE_BOLD = 'style="font-weight:700"';
     const STYLE_SPINE_SEP = 'style="opacity:0.4;"';
@@ -778,21 +781,105 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     const STYLE_SCH_GROUP_ROW = 'style="width:100%; padding:0 10px; box-sizing:border-box"';
     const STYLE_SCH_GROUP_NAME = 'style="font-weight:800"';
     const STYLE_SCH_GROUP_BLOCK = 'style="font-weight:800; opacity:0.7"';
+    const STYLE_SCH_MID_CELL = 'style="display:flex;justify-content:center;align-items:center;width:40px;transition:background 0.2s;"';
+    const STYLE_TBD_TEAM = 'style="color:#9ca3af"';
+
     const mkSpine = (val, sep) => {
-        if(!val || val === "-") return `<span ${STYLE_TEXT_MUTED}>-</span>`;
+        if (!val || val === "-") return `<span ${STYLE_MUTED_DASH}>-</span>`;
         const parts = val.split(sep);
-        if(parts.length !== 2) return val;
+        if (parts.length !== 2) return val;
         return `<div class="spine-row"><span class="spine-l" ${STYLE_SPINE_BOLD}>${parts[0]}</span><span class="spine-sep" ${STYLE_SPINE_SEP}>${sep}</span><span class="spine-r" ${STYLE_SPINE_BOLD}>${parts[1]}</span></div>`;
     };
+
     const getRateHtml = (teamName, slug, bo) => {
         const stats = globalStats[slug];
-        if(!stats || !stats[teamName]) return "";
+        if (!stats || !stats[teamName]) return "";
         const s = stats[teamName];
         let r = null;
-        if(bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
-        else if(bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
-        if(r === null) return "";
-        return `<span ${STYLE_RATE_HINT}>(${Math.round(r*100)}%)</span>`;
+        if (bo === 5) r = utils.rate(s.bo5_f, s.bo5_t);
+        else if (bo === 3) r = utils.rate(s.bo3_f, s.bo3_t);
+        if (r === null) return "";
+        return `<span ${STYLE_RATE_HINT}>(${Math.round(r * 100)}%)</span>`;
+    };
+
+    const buildTeamRow = (s, slug) => {
+        const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
+        const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
+        const bo3Txt = s.bo3_t ? mkSpine(`${s.bo3_f}/${s.bo3_t}`, '/') : "-";
+        const bo5Txt = s.bo5_t ? mkSpine(`${s.bo5_f}/${s.bo5_t}`, '/') : "-";
+        const serTxt = s.s_t ? mkSpine(`${s.s_w}-${s.s_t - s.s_w}`, '-') : "-";
+        const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t - s.g_w}`, '-') : "-";
+        const strk = s.strk_w > 0
+            ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>`
+            : (s.strk_l > 0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
+        const last = s.last ? utils.fmtDate(s.last) : "-";
+        const lastColor = utils.colorDate(s.last);
+
+        const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
+        const cls = (base, count) => count > 0 ? `${base} team-clickable` : base;
+        const clk = (name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${name}', '${type}')"` : "";
+        const statStyle = (count) => `style="background:${count === 0 ? emptyBg : 'transparent'};color:${count === 0 ? emptyCol : 'inherit'}"`;
+        const pctStyle = (rate, strong = false) => `style="background:${utils.color(rate, strong)};color:${rate !== null ? 'white' : emptyCol};font-weight:bold"`;
+        const lastStyle = `style="background:${!s.last ? emptyBg : 'transparent'};color:${!s.last ? emptyCol : lastColor};font-weight:700"`;
+        const streakEmpty = s.strk_w === 0 && s.strk_l === 0;
+        const streakStyle = `style="background:${streakEmpty ? emptyBg : 'transparent'};color:${streakEmpty ? emptyCol : 'inherit'}"`;
+
+        return `<tr><td class="team-col team-clickable" onclick="openTeam('${slug}', '${s.name}')">${s.name}</td><td class="${cls('col-bo3', s.bo3_t)}" ${clk(s.name, 'bo3', s.bo3_t)} ${statStyle(s.bo3_t)}>${bo3Txt}</td><td class="col-bo3-pct" ${pctStyle(bo3R, true)}>${utils.pct(bo3R)}</td><td class="${cls('col-bo5', s.bo5_t)}" ${clk(s.name, 'bo5', s.bo5_t)} ${statStyle(s.bo5_t)}>${bo5Txt}</td><td class="col-bo5-pct" ${pctStyle(bo5R, true)}>${utils.pct(bo5R)}</td><td class="${cls('col-series', s.s_t)}" ${clk(s.name, 'series', s.s_t)} ${statStyle(s.s_t)}>${serTxt}</td><td class="col-series-wr" ${pctStyle(winR)}>${utils.pct(winR)}</td><td class="col-game" ${statStyle(s.g_t)}>${gamTxt}</td><td class="col-game-wr" ${pctStyle(gameR)}>${utils.pct(gameR)}</td><td class="col-streak" ${streakStyle}>${strk}</td><td class="col-last" ${lastStyle}>${last}</td></tr>`;
+    };
+
+    const buildTimeTable = (regionGrid) => {
+        const hours = Object.keys(regionGrid).filter(k => k !== "Total" && !isNaN(k)).map(Number).sort((a, b) => a - b);
+        if (hours.length === 0 && !regionGrid["Total"]) return "";
+
+        let html = `<div style="border-top: 1px solid #f1f5f9; width:100%;"></div><table style="font-variant-numeric:tabular-nums; border-top:none;"><thead><tr style="border-bottom:none;"><th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
+        TIME_TABLE_COLUMNS.forEach(d => { html += `<th style="cursor:default; pointer-events:none;">${d}</th>`; });
+        html += "</tr></thead><tbody>";
+
+        [...hours, "Total"].forEach(h => {
+            if (!regionGrid[h]) return;
+            const isTotal = h === "Total";
+            const label = isTotal ? "Total" : `${h}:00`;
+            html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col" style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
+
+            for (let w = 0; w < 8; w++) {
+                const c = regionGrid[h][w] || { total: 0 };
+                if (c.total === 0) {
+                    html += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
+                } else {
+                    const r = c.full / c.total;
+                    const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                    html += `<td style='background:${utils.color(r, true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}<span ${STYLE_SCORE_SEP}>/</span>${c.total}</span><span class="t-pct">(${Math.round(r * 100)}%)</span></div></td>`;
+                }
+            }
+
+            html += "</tr>";
+        });
+
+        html += "</tbody></table>";
+        return html;
+    };
+
+    const buildScheduleRow = (m) => {
+        const boLabel = m.bo ? `BO${m.bo}` : "";
+        const boClass = m.bo === 5 ? "sch-pill gold" : "sch-pill";
+        const isTbd1 = m.t1 === "TBD", isTbd2 = m.t2 === "TBD";
+        const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.slug}', '${m.t1}')"`;
+        const t2Click = isTbd2 ? "" : `onclick="openTeam('${m.slug}', '${m.t2}')"`;
+        const r1 = getRateHtml(m.t1, m.slug, m.bo), r2 = getRateHtml(m.t2, m.slug, m.bo);
+
+        let midContent = `<span ${STYLE_VS_TEXT}>vs</span>`;
+        if (m.is_finished) {
+            const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8";
+            const s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
+            midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span ${STYLE_SCORE_SEP}>-</span><span style="${s2Style}">${m.s2}</span></span>`;
+        } else if (m.is_live) {
+            midContent = `<span class="sch-live-score">${m.s1}<span ${STYLE_SCORE_SEP}>-</span>${m.s2}</span>`;
+        }
+
+        const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
+        const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.slug}', '${m.t1}', '${m.t2}')"` : "";
+
+        return `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${t1Click} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${r1}${m.t1}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${t2Click} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
     };
 
     let tablesHtml = "";
@@ -806,60 +893,18 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
         const debugLabel = `<span ${STYLE_DEBUG_LABEL}>${timeStr}</span>`;
 
-        const rows = stats.map(s => {
-            const bo3R = utils.rate(s.bo3_f, s.bo3_t), bo5R = utils.rate(s.bo5_f, s.bo5_t);
-            const winR = utils.rate(s.s_w, s.s_t), gameR = utils.rate(s.g_w, s.g_t);
-            const bo3Txt = s.bo3_t ? mkSpine(`${s.bo3_f}/${s.bo3_t}`, '/') : "-";
-            const bo5Txt = s.bo5_t ? mkSpine(`${s.bo5_f}/${s.bo5_t}`, '/') : "-";
-            const serTxt = s.s_t ? mkSpine(`${s.s_w}-${s.s_t-s.s_w}`, '-') : "-";
-            const gamTxt = s.g_t ? mkSpine(`${s.g_w}-${s.g_t-s.g_w}`, '-') : "-";
-            const strk = s.strk_w > 0 ? `<span class='badge' style='background:#10b981'>${s.strk_w}W</span>` : (s.strk_l>0 ? `<span class='badge' style='background:#f43f5e'>${s.strk_l}L</span>` : "-");
-            const last = s.last ? utils.fmtDate(s.last).slice(0) : "-";
-            const lastColor = utils.colorDate(s.last);
-            const emptyBg = '#f1f5f9', emptyCol = '#cbd5e1';
-            const cls = (base, count) => count > 0 ? `${base} team-clickable` : base;
-            const clk = (slug, name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${name}', '${type}')"` : "";
-            
-            return `<tr><td class="team-col team-clickable" onclick="openTeam('${tourn.slug}', '${s.name}')">${s.name}</td><td class="${cls('col-bo3', s.bo3_t)}" ${clk(tourn.slug, s.name, 'bo3', s.bo3_t)} style="background:${s.bo3_t===0?emptyBg:'transparent'};color:${s.bo3_t===0?emptyCol:'inherit'}">${bo3Txt}</td><td class="col-bo3-pct" style="background:${utils.color(bo3R,true)};color:${bo3R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo3R)}</td><td class="${cls('col-bo5', s.bo5_t)}" ${clk(tourn.slug, s.name, 'bo5', s.bo5_t)} style="background:${s.bo5_t===0?emptyBg:'transparent'};color:${s.bo5_t===0?emptyCol:'inherit'}">${bo5Txt}</td><td class="col-bo5-pct" style="background:${utils.color(bo5R,true)};color:${bo5R!==null?'white':emptyCol};font-weight:bold">${utils.pct(bo5R)}</td><td class="${cls('col-series', s.s_t)}" ${clk(tourn.slug, s.name, 'series', s.s_t)} style="background:${s.s_t===0?emptyBg:'transparent'};color:${s.s_t===0?emptyCol:'inherit'}">${serTxt}</td><td class="col-series-wr" style="background:${utils.color(winR)};color:${winR!==null?'white':emptyCol};font-weight:bold">${utils.pct(winR)}</td><td class="col-game" style="background:${s.g_t===0?emptyBg:'transparent'};color:${s.g_t===0?emptyCol:'inherit'}">${gamTxt}</td><td class="col-game-wr" style="background:${utils.color(gameR)};color:${gameR!==null?'white':emptyCol};font-weight:bold">${utils.pct(gameR)}</td><td class="col-streak" style="background:${s.strk_w===0&&s.strk_l===0?emptyBg:'transparent'};color:${s.strk_w===0&&s.strk_l===0?emptyCol:'inherit'}">${strk}</td><td class="col-last" style="background:${!s.last?emptyBg:'transparent'};color:${!s.last?emptyCol:lastColor};font-weight:700">${last}</td></tr>`;
-        }).join("");
-
+        const rows = stats.map(s => buildTeamRow(s, tourn.slug)).join("");
         const mainPage = Array.isArray(tourn.overview_page) ? tourn.overview_page[0] : tourn.overview_page;
         const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
-        
-        let timeTableHtml = "";
-        const regionGrid = timeData[tourn.slug] || {};
-        const hours = Object.keys(regionGrid).filter(k => k !== "Total" && !isNaN(k)).map(Number).sort((a,b) => a - b);
-        
-        if (hours.length > 0 || regionGrid["Total"]) {
-            timeTableHtml += `<div style="border-top: 1px solid #f1f5f9; width:100%;"></div><table style="font-variant-numeric:tabular-nums; border-top:none;"><thead><tr style="border-bottom:none;"><th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
-            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"].forEach(d => { timeTableHtml += `<th style="cursor:default; pointer-events:none;">${d}</th>`; });
-            timeTableHtml += "</tr></thead><tbody>";
-            
-            [...hours, "Total"].forEach(h => {
-                if (!regionGrid[h]) return;
-                const isTotal = h === "Total";
-                const label = isTotal ? "Total" : `${h}:00`;
-                timeTableHtml += `<tr style="${isTotal?'font-weight:bold; background:#f8fafc;':''}"><td class="team-col" style="${isTotal?'background:#f1f5f9;':''}">${label}</td>`;
-                for(let w=0; w<8; w++) {
-                    const c = regionGrid[h][w] || {total:0};
-                    if(c.total===0) timeTableHtml += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
-                    else {
-                        const r = c.full/c.total;
-                        const matches = JSON.stringify(c.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                        timeTableHtml += `<td style='background:${utils.color(r,true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${w}, ${matches})'><div class="t-cell"><span class="t-val">${c.full}<span ${STYLE_SCORE_SEP}>/</span>${c.total}</span><span class="t-pct">(${Math.round(r*100)}%)</span></div></td>`;
-                    }
-                }
-                timeTableHtml += "</tr>";
-            });
-            timeTableHtml += "</tbody></table>";
-        }
 
-        // 仅在主页显示 Emoji
-        const emojiStr = (!isArchive && tournMeta[tourn.slug] && tournMeta[tourn.slug].emoji) 
-            ? `<span ${STYLE_EMOJI}>${tournMeta[tourn.slug].emoji}</span>` 
+        const regionGrid = timeData[tourn.slug] || {};
+        const timeTableHtml = buildTimeTable(regionGrid);
+
+        const emojiStr = (!isArchive && tournMeta[tourn.slug] && tournMeta[tourn.slug].emoji)
+            ? `<span ${STYLE_EMOJI}>${tournMeta[tourn.slug].emoji}</span>`
             : "";
         const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name || tourn.slug}</a>`;
-        
+
         if (isArchive) {
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" ${STYLE_ARCHIVE_INNER}>${tableBody}${timeTableHtml}</div></details>`;
@@ -867,19 +912,21 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             tablesHtml += `<div class="wrapper"><div class="table-title"><div ${STYLE_TITLE_ROW}>${emojiStr}${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
         }
     });
-    
+
     let scheduleHtml = "";
     if (!isArchive) {
         const dates = Object.keys(scheduleMap).sort();
-        if (dates.length === 0) scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
-        else {
+        if (dates.length === 0) {
+            scheduleHtml = `<div class="sch-empty">💤 NO FUTURE MATCHES SCHEDULED</div>`;
+        } else {
             scheduleHtml = `<div class="sch-container">`;
             dates.forEach(d => {
                 const matches = scheduleMap[d];
                 const dateObj = new Date(d + "T00:00:00Z");
-                const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dateObj.getUTCDay()];
+                const dayName = WEEKDAY_NAMES[dateObj.getUTCDay()];
                 let cardHtml = `<div class="sch-card"><div class="sch-header" ${STYLE_SCH_HEADER}><span>📅 ${d.slice(5)} ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
                 let lastGroupKey = "";
+
                 matches.forEach(m => {
                     const blockName = m.blockName || "";
                     const groupKey = `${m.league}_${blockName}`;
@@ -887,27 +934,16 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                         cardHtml += `<div class="sch-group-header" ${STYLE_SCH_GROUP_HEADER}><div class="spine-row" ${STYLE_SCH_GROUP_ROW}><span class="spine-l" ${STYLE_SCH_GROUP_NAME}>${m.league}</span><span class="spine-sep">/</span><span class="spine-r" ${STYLE_SCH_GROUP_BLOCK}>${blockName || "REGULAR"}</span></div></div>`;
                         lastGroupKey = groupKey;
                     }
-                    const boLabel = m.bo ? `BO${m.bo}` : ''; const isBo5 = m.bo === 5; const boClass = isBo5 ? "sch-pill gold" : "sch-pill";
-                    const isTbd1 = m.t1 === "TBD", isTbd2 = m.t2 === "TBD";
-                    const t1Click = isTbd1 ? "" : `onclick="openTeam('${m.slug}', '${m.t1}')"`, t2Click = isTbd2 ? "" : `onclick="openTeam('${m.slug}', '${m.t2}')"`;
-                    const r1 = getRateHtml(m.t1, m.slug, m.bo), r2 = getRateHtml(m.t2, m.slug, m.bo);
-                    let midContent = `<span ${STYLE_VS_TEXT}>vs</span>`;
-                    if (m.is_finished) {
-                        const s1Style = m.s1 > m.s2 ? "color:#0f172a" : "color:#94a3b8", s2Style = m.s2 > m.s1 ? "color:#0f172a" : "color:#94a3b8";
-                        midContent = `<span class="sch-fin-score"><span style="${s1Style}">${m.s1}</span><span ${STYLE_SCORE_SEP}>-</span><span style="${s2Style}">${m.s2}</span></span>`;
-                    } else if (m.is_live) {
-                        midContent = `<span class="sch-live-score">${m.s1}<span ${STYLE_SCORE_SEP}>-</span>${m.s2}</span>`;
-                    }
+                    cardHtml += buildScheduleRow(m);
+                });
 
-                    const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
-                    const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${m.slug}', '${m.t1}', '${m.t2}')"` : "";
-                    cardHtml += `<div class="sch-row"><span class="sch-time">${m.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1?"spine-l":"spine-l clickable"}" ${t1Click} style="${isTbd1?'color:#9ca3af':''}">${r1}${m.t1}</span><span class="${h2hClass}" ${h2hClick} style="display:flex;justify-content:center;align-items:center;width:40px;transition:background 0.2s;">${midContent}</span><span class="${isTbd2?"spine-r":"spine-r clickable"}" ${t2Click} style="${isTbd2?'color:#9ca3af':''}">${m.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;               });
                 cardHtml += `</div></div>`;
                 scheduleHtml += cardHtml;
             });
             scheduleHtml += `</div>`;
         }
     }
+
     return `${tablesHtml} ${scheduleHtml} ${injectedData}`;
 }
 
