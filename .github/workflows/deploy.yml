@@ -29,3 +29,14 @@ jobs:
         env:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_TIME: ${{ env.CURRENT_TIME }}
+
+      - name: Auto Refresh UI
+        env:
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+        run: |
+          sleep 2
+          
+          echo "Triggering /refresh-ui endpoint..."
+          curl -X POST https://lol-stats.closur3.workers.dev/refresh-ui \
+               -H "Authorization: Bearer $ADMIN_SECRET" \
+               -w "\nHTTP Status: %{http_code}\n"
