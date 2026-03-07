@@ -1264,6 +1264,18 @@ async function runCustomRebuild(env, payload) {
 // --- 9. 独立页面渲染 ---
 function renderToolsPage(time, sha) {
     const buildFooter = renderBuildFooter(time, sha);
+    const renderTaskCard = (panelTitle, actionTitle, actionDesc, btnId, endpoint, btnText) => `
+            <div class="wrapper">
+                <div class="table-title">${panelTitle}</div>
+                <div class="section-body section-body-compact flex-row">
+                    <div>
+                        <div class="tool-info-title">${actionTitle}</div>
+                        <div class="tool-info-desc">${actionDesc}</div>
+                    </div>
+                    <button class="primary-btn" id="${btnId}" onclick="runTask('${endpoint}', '${btnId}')">${btnText}</button>
+                </div>
+            </div>`;
+
     return `<!DOCTYPE html>
     <html>
     <head>
@@ -1279,8 +1291,15 @@ function renderToolsPage(time, sha) {
             .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
             .table-title { padding: 15px 20px; font-weight: 700; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; box-sizing: border-box; }
             .section-body { padding: 25px 20px; box-sizing: border-box; }
+            .section-body-compact { padding-top: 20px; padding-bottom: 20px; }
+
             
             .flex-row { display: flex; justify-content: space-between; align-items: center; gap: 15px; }
+            .tool-info-title { font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+            .tool-info-desc { font-size: 13px; color: #64748b; }
+            .tool-info-desc-spaced { margin-bottom: 20px; }
+            .actions-row-end { display: flex; justify-content: flex-end; }
+
             
             .primary-btn { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
             .primary-btn:hover { background: #1d4ed8; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
@@ -1339,33 +1358,15 @@ function renderToolsPage(time, sha) {
         </header>
         
         <div class="container">
-            <div class="wrapper">
-                <div class="table-title">🎨 UI Customization</div>
-                <div class="section-body flex-row" style="padding-top: 20px; padding-bottom: 20px;">
-                    <div>
-                        <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px;">Local UI Refresh</div>
-                        <div style="font-size: 13px; color: #64748b;">Regenerate static HTML using existing cached data. No API calls.</div>
-                    </div>
-                    <button class="primary-btn" id="btn-refresh" onclick="runTask('/refresh-ui', 'btn-refresh')">Refresh HTML</button>
-                </div>
-            </div>
+            ${renderTaskCard("🎨 UI Customization", "Local UI Refresh", "Regenerate static HTML using existing cached data. No API calls.", "btn-refresh", "/refresh-ui", "Refresh HTML")}
 
-            <div class="wrapper">
-                <div class="table-title">⚡ Synchronization</div>
-                <div class="section-body flex-row" style="padding-top: 20px; padding-bottom: 20px;">
-                    <div>
-                        <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px;">Force Update</div>
-                        <div style="font-size: 13px; color: #64748b;">Trigger a full manual sync for all active tournaments.</div>
-                    </div>
-                    <button class="primary-btn" id="btn-force" onclick="runTask('/force', 'btn-force')">Refresh API</button>
-                </div>
-            </div>
-            
+            ${renderTaskCard("⚡ Synchronization", "Force Update", "Trigger a full manual sync for all active tournaments.", "btn-force", "/force", "Refresh API")}
+
             <div class="wrapper">
                 <div class="table-title">📦 Archive Management</div>
                 <div class="section-body">
-                    <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px;">Rebuild Archive</div>
-                    <div style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Manually reconstruct a deleted tournament by providing its Fandom details.</div>
+                    <div class="tool-info-title">Rebuild Archive</div>
+                    <div class="tool-info-desc tool-info-desc-spaced">Manually reconstruct a deleted tournament by providing its Fandom details.</div>
                     
                     <div class="form-grid">
                         <div class="form-group">
@@ -1385,7 +1386,7 @@ function renderToolsPage(time, sha) {
                             <input type="text" id="rb-league" placeholder="LPL" class="form-input">
                         </div>
                     </div>
-                    <div style="display: flex; justify-content: flex-end;">
+                    <div class="actions-row-end">
                         <button class="primary-btn" id="btn-rebuild" onclick="submitRebuild()">Rebuild</button>
                     </div>
                 </div>
@@ -1454,25 +1455,34 @@ function renderToolsPage(time, sha) {
                 };
             }
 
+            async function sendAuthorizedPost(url, extraHeaders = {}, body) {
+                const options = {
+                    method: 'POST',
+                    headers: getAuthHeaders(extraHeaders)
+                };
+                if (body !== undefined) options.body = body;
+                return fetch(url, options);
+            }
+
+            async function handleTaskResponse(res, okMsg, redirectTo, errPrefix = "⚠️ Server Error: ") {
+                if (checkAuthError(res.status)) return;
+                if (res.ok) {
+                    showToast(okMsg);
+                    setTimeout(() => window.location.href = redirectTo, 1200);
+                    return;
+                }
+                const errText = await res.text();
+                showToast(errPrefix + errText, "error");
+            }
+
             async function runTask(endpoint, btnId) {
                 if (!requireAuth()) return;
                 const btn = document.getElementById(btnId);
                 const restoreBtn = setButtonBusy(btn, '⏳ Processing...');
 
                 try {
-                    const res = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: getAuthHeaders()
-                    });
-
-                    if (checkAuthError(res.status)) return;
-                    if (res.ok) {
-                        showToast("✅ Task completed successfully!");
-                        setTimeout(() => window.location.href = '/', 1200);
-                    } else {
-                        const errText = await res.text();
-                        showToast("⚠️ Server Error: " + errText, "error");
-                    }
+                    const res = await sendAuthorizedPost(endpoint);
+                    await handleTaskResponse(res, "✅ Task completed successfully!", "/");
                 } catch (e) {
                     showToast("❌ Network connection failed", "error");
                 } finally {
@@ -1496,20 +1506,9 @@ function renderToolsPage(time, sha) {
                 const restoreBtn = setButtonBusy(btn, '⏳ Rebuilding...');
 
                 try {
-                    const res = await fetch('/rebuild-archive', {
-                        method: 'POST',
-                        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-                        body: JSON.stringify({ slug, name, overview_page: overview, league })
-                    });
-
-                    if (checkAuthError(res.status)) return;
-                    if (res.ok) {
-                        showToast("✅ Archive reconstructed!");
-                        setTimeout(() => window.location.href = '/archive', 1200);
-                    } else {
-                        const errText = await res.text();
-                        showToast("⚠️ Error: " + errText, "error");
-                    }
+                    const body = JSON.stringify({ slug, name, overview_page: overview, league });
+                    const res = await sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, body);
+                    await handleTaskResponse(res, "✅ Archive reconstructed!", "/archive", "⚠️ Error: ");
                 } catch (e) {
                     showToast("❌ Network connection failed", "error");
                 } finally {
@@ -1523,11 +1522,9 @@ function renderToolsPage(time, sha) {
 
 function renderLogPage(logs, time, sha) {
     if (!Array.isArray(logs)) logs = [];
+    const logLevelClassMap = { ERROR: "lvl-err", SUCCESS: "lvl-ok" };
     const entries = logs.map(l => {
-        let lvlClass = "lvl-inf";
-        if(l.l === "ERROR") lvlClass = "lvl-err";
-        if(l.l === "SUCCESS") lvlClass = "lvl-ok";
-        
+        const lvlClass = logLevelClassMap[l.l] || "lvl-inf";
         // 核心改动：使用 <code> 标签包裹时间和日志内容，触发字体渲染脚本的代码块保护机制
         return `<li class="log-entry"><code class="log-time">${l.t}</code><span class="log-level ${lvlClass}">${l.l}</span><code class="log-msg">${l.m}</code></li>`;
     }).join("");
@@ -1686,5 +1683,3 @@ export default {
         await appendLogs(env, l, true);
     }
 };
-
-
