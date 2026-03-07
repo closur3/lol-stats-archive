@@ -554,6 +554,8 @@ const PYTHON_STYLE = `
     .sch-live-score { color: #10b981; font-size: 13px; }
     .sch-fin-score { color: #334155; font-size: 13px; }
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; }
+    .arch-empty-msg { text-align: center; padding: 40px; color: #94a3b8; font-weight: 700; }
+    .arch-error-msg { padding: 20px; color: #dc2626; text-align: center; font-weight: 700; }
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     
@@ -603,6 +605,16 @@ const PYTHON_JS = `
     <script>
     const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
     const RES_MAP = { 'W': '✔', 'L': '❌', 'LIV': '🔵', 'N': '🕒' };
+    const STYLE_DATE_TIME = 'style="font-weight:700;color:#475569"';
+    const STYLE_SCORE_DASH = 'style="opacity:0.4;margin:0 1px"';
+    const STYLE_TEAM_LEFT_PAD = 'style="padding-right:5px;"';
+    const STYLE_TEAM_RIGHT_PAD = 'style="padding-left:5px;"';
+    const STYLE_SCORE_WRAP = 'style="width:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center"';
+    const STYLE_MODAL_EMPTY = 'style="text-align:center;color:#999;padding:20px"';
+    const STYLE_BO_SMALL = 'style="font-size:9px; padding:2px 4px;"';
+    const STYLE_H2H_SUMMARY = 'style="color:#94a3b8;font-size:14px"';
+    const STYLE_H2H_DASH = 'style="margin:0 1px"';
+    const STYLE_MUTED_DASH = 'style="color:#cbd5e1"';
     
     function doSort(c, id) {
         const t = document.getElementById(id), b = t.tBodies[0], r = Array.from(b.rows), k = 'data-sort-dir-' + c, cur = t.getAttribute(k);
@@ -634,20 +646,20 @@ const PYTHON_JS = `
 
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
         const dateParts = (date || '').split(' ');
-        const dateHtml = dateParts.length === 2 ? dateParts[0] + '<br><span style="font-weight:700;color:#475569">' + dateParts[1] + '</span>' : (date || '');
+        const dateHtml = dateParts.length === 2 ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + '>' + dateParts[1] + '</span>' : (date || '');
         let scoreContent = '', scoreClass = 'score-text';
         if (resStatus === 'LIV') scoreClass += ' live';
         if (resStatus === 'N') { scoreContent = '<span class="score-text vs">VS</span>'; } 
-        else { const fmtScore = (score || '').toString().replace('-', '<span style="opacity:0.4;margin:0 1px">-</span>'); scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>'; }
+        else { const fmtScore = (score || '').toString().replace('-', '<span ' + STYLE_SCORE_DASH + '>-</span>'); scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>'; }
         const boxClass = isFull ? 'score-box is-full' : 'score-box';
         const t1Color = team1 === 'TBD' ? 'color:#9ca3af;' : '', t2Color = team2 === 'TBD' ? 'color:#9ca3af;' : '';
 
-        return '<div class="match-item"><div class="col-date">' + dateHtml + '</div><div class="modal-divider"></div><div class="col-vs-area"><div class="spine-row"><span class="spine-l" style="padding-right:5px;' + t1Color + '">' + team1 + '</span><div style="width:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center"><div class="' + boxClass + '">' + scoreContent + '</div></div><span class="spine-r" style="padding-left:5px;' + t2Color + '">' + team2 + '</span></div></div><div class="modal-divider"></div><div class="col-res">' + resTag + '</div></div>';
+        return '<div class="match-item"><div class="col-date">' + dateHtml + '</div><div class="modal-divider"></div><div class="col-vs-area"><div class="spine-row"><span class="spine-l" ' + STYLE_TEAM_LEFT_PAD + t1Color + '">' + team1 + '</span><div ' + STYLE_SCORE_WRAP + '><div class="' + boxClass + '">' + scoreContent + '</div></div><span class="spine-r" ' + STYLE_TEAM_RIGHT_PAD + t2Color + '">' + team2 + '</span></div></div><div class="modal-divider"></div><div class="col-res">' + resTag + '</div></div>';
     }
 
     function renderListHTML(htmlArr) {
         const l=document.getElementById('modalList');
-        if(!htmlArr || htmlArr.length===0) l.innerHTML="<div style='text-align:center;color:#999;padding:20px'>No matches found</div>";
+        if(!htmlArr || htmlArr.length===0) l.innerHTML="<div " + STYLE_MODAL_EMPTY + ">No matches found</div>";
         else l.innerHTML = htmlArr.join("");
     }
 
@@ -656,10 +668,10 @@ const PYTHON_JS = `
         document.getElementById('modalTitle').innerText=t+" - "+ds[d];
         const sortedMatches = [...m].sort((a, b) => b.d.localeCompare(a.d));
         const listHtml = sortedMatches.map(item => {
-            let boTag = '<span style="color:#cbd5e1">-</span>';
-            if (item.bo === 5) boTag = '<span class="sch-pill gold" style="font-size:9px; padding:2px 4px;">BO5</span>';
-            else if (item.bo === 3) boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO3</span>';
-            else if (item.bo === 1) boTag = '<span class="sch-pill" style="font-size:9px; padding:2px 4px;">BO1</span>';
+            let boTag = '<span ' + STYLE_MUTED_DASH + '>-</span>';
+            if (item.bo === 5) boTag = '<span class="sch-pill gold" ' + STYLE_BO_SMALL + '>BO5</span>';
+            else if (item.bo === 3) boTag = '<span class="sch-pill" ' + STYLE_BO_SMALL + '>BO3</span>';
+            else if (item.bo === 1) boTag = '<span class="sch-pill" ' + STYLE_BO_SMALL + '>BO1</span>';
             return renderMatchItem('dist', item.d, boTag, item.t1, item.t2, item.f, item.s);
         });
         renderListHTML(listHtml);
@@ -703,7 +715,7 @@ const PYTHON_JS = `
         const h2hHistory = (data.history || []).filter(h => h.vs === t2);
         let t1Wins = 0, t2Wins = 0;
         h2hHistory.forEach(h => { if(h.res === 'W') t1Wins++; else if(h.res === 'L') t2Wins++; });
-        const summary = h2hHistory.length > 0 ? ' <span style="color:#94a3b8;font-size:14px">(' + t1Wins + '<span style="margin:0 1px">-</span>' + t2Wins + ')</span>' : "";
+        const summary = h2hHistory.length > 0 ? ' <span ' + STYLE_H2H_SUMMARY + '>(' + t1Wins + '<span ' + STYLE_H2H_DASH + '>-</span>' + t2Wins + ')</span>' : "";
         document.getElementById('modalTitle').innerHTML = t1 + " vs " + t2 + summary;
         const listHtml = h2hHistory.map(h => {
             const icon = RES_MAP[h.res] || RES_MAP['N'];
@@ -719,17 +731,21 @@ const PYTHON_JS = `
     </script>
 `;
 
+function renderActionBtn(href, icon, text) {
+    return `<a href="${href}" class="action-btn"><span class="btn-icon">${icon}</span> <span class="btn-text">${text}</span></a>`;
+}
+
 function renderPageShell(title, bodyContent, statusText = "", navMode = "home") {
     let navBtn = "";
     const logoIcon = navMode === "archive" ? "📦" : "🥇";
-    if (navMode === "home") navBtn = `<a href="/archive" class="action-btn"><span class="btn-icon">📦</span> <span class="btn-text">Archive</span></a>`;
-    else if (navMode === "archive") navBtn = `<a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>`;
+    if (navMode === "home") navBtn = renderActionBtn("/archive", "📦", "Archive");
+    else if (navMode === "archive") navBtn = renderActionBtn("/", "🏠", "Home");
 
-    const toolsBtn = (navMode !== "home" && navMode !== "archive") 
-        ? `<a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a>` 
+    const toolsBtn = (navMode !== "home" && navMode !== "archive")
+        ? renderActionBtn("/tools", "🧰", "Tools")
         : "";
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}<a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a></div></header><div class="container">${bodyContent}</div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}${renderActionBtn("/logs", "📜", "Logs")}</div></header><div class="container">${bodyContent}</div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${PYTHON_JS}</body></html>`;
 }
 
 function renderBuildFooter(time, sha) {
@@ -781,7 +797,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
 
     let tablesHtml = "";
 
-    runtimeConfig.TOURNAMENTS.forEach((tourn, idx) => {
+    runtimeConfig.TOURNAMENTS.forEach((tourn) => {
         if (!tourn || !tourn.slug) return;
         const rawStats = globalStats[tourn.slug] || {};
         const stats = utils.sortTeams(rawStats);
@@ -903,7 +919,7 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         const dataKeys = allKeys.keys.filter(k => k.name !== "ARCHIVE_STATIC_HTML");
         
         if (!dataKeys.length) {
-            return renderPageShell("LoL Archive", `<div class="arch-content" style="text-align:center; padding: 40px; color: #94a3b8; font-weight: bold;">No archive data available.</div>`, "", "archive");
+            return renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "", "archive");
         }
 
         if (!cacheMain) {
@@ -935,7 +951,7 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         
         return renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "", "archive");
     } catch (e) {
-        return renderPageShell("LoL Archive Error", `<div style="padding: 20px; color: red; text-align: center; font-weight: bold;">Error generating archive: ${e.message}</div>`, "", "archive");
+        return renderPageShell("LoL Archive Error", `<div class="arch-error-msg">Error generating archive: ${e.message}</div>`, "", "archive");
     }
 }
 
@@ -1370,8 +1386,8 @@ function renderToolsPage(time, sha) {
                 <h1 class="header-title">Tools</h1>
             </div>
             <div class="header-right">
-                <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
-                <a href="/logs" class="action-btn"><span class="btn-icon">📜</span> <span class="btn-text">Logs</span></a>
+                ${renderActionBtn("/", "🏠", "Home")}
+                ${renderActionBtn("/logs", "📜", "Logs")}
             </div>
         </header>
         
@@ -1597,6 +1613,7 @@ function renderLogPage(logs, time, sha) {
         code.log-msg { color: #334155; word-break: break-all; line-height: 1.6; font-weight: 600; white-space: pre-wrap; display: block; font-size: 14px; }
         
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
+        .logs-container-tight { padding: 0; width: calc(100% - 30px); }
         ${BUILD_FOOTER_STYLE}
         
         /* 移动端优化：Time 和 Level 同行显示，Message 换行显示，双端字体均已加大 */
@@ -1612,11 +1629,11 @@ function renderLogPage(logs, time, sha) {
     <header class="main-header">
         <div class="header-left"><span class="header-logo">📜</span><h1 class="header-title">Logs</h1></div>
         <div class="header-right">
-            <a href="/" class="action-btn"><span class="btn-icon">🏠</span> <span class="btn-text">Home</span></a>
-            <a href="/tools" class="action-btn"><span class="btn-icon">🧰</span> <span class="btn-text">Tools</span></a>
+            ${renderActionBtn("/", "🏠", "Home")}
+            ${renderActionBtn("/tools", "🧰", "Tools")}
         </div>
     </header>
-    <div class="container" style="padding: 0; width: calc(100% - 30px);">
+    <div class="container logs-container-tight">
         <ul class="log-list">${entries}</ul>
         ${logs.length === 0 ? '<div class="empty-logs">No logs found for today.</div>' : ''}
     </div>
@@ -1725,3 +1742,4 @@ export default {
         await appendLogs(env, l, true);
     }
 };
+
