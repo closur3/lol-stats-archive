@@ -1307,13 +1307,12 @@ function renderToolsPage(time, sha) {
             .auth-subtitle { color: #64748b; font-size: 13px; margin-bottom: 25px; line-height: 1.4; }
             .auth-btn { width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
             
-            /* Toast Notifications */
-            #toast-container { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: min(92vw, 360px); }
-            .toast { position: relative; color: #f8fafc; padding: 12px 14px 12px 16px; border-radius: 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.2px; box-shadow: 0 12px 28px -12px rgba(15,23,42,0.45); border: 1px solid rgba(255,255,255,0.18); opacity: 0; transform: translateY(-14px) scale(0.98); transition: all 0.28s cubic-bezier(0.22, 1, 0.36, 1); text-align: left; word-break: break-word; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-            .toast.show { opacity: 1; transform: translateY(0) scale(1); }
-            .toast::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 12px 0 0 12px; background: rgba(255,255,255,0.65); }
-            .toast.error { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); }
-            .toast.success { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
+            /* Toast 通知 */
+            #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: min(92vw, 380px); }
+            .toast { color: #1e293b; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); border: 1px solid #d9ecff; padding: 12px 15px; border-radius: 14px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 24px -16px rgba(14,116,144,0.45), 0 2px 8px rgba(148,163,184,0.22); opacity: 0; transform: translateY(-12px); transition: all 0.24s ease; text-align: left; word-break: break-word; }
+            .toast.show { opacity: 1; transform: translateY(0); }
+            .toast.success { background: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 100%); border-color: #86efac; color: #166534; }
+            .toast.error { background: linear-gradient(180deg, #fff7ed 0%, #fff1f2 100%); border-color: #fdba74; color: #9a3412; }
         </style>
     </head>
     <body>
@@ -1678,3 +1677,4 @@ export default {
         await appendLogs(env, l, true);
     }
 };
+
