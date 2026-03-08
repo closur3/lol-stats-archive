@@ -572,15 +572,19 @@ const PYTHON_STYLE = `
 
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 650px) {
-        .table-title, summary.arch-sum { flex-wrap: wrap; gap: 8px; }
+        .table-title, summary.arch-sum { 
+            flex-wrap: wrap; 
+            gap: 0;          /* 标题和统计区域紧挨 */
+            padding: 12px 15px; /* 统一容器内边距 */
+        }
         .title-right-area { 
             width: 100%; 
-            justify-content: flex-start;
-            padding: 8px 0; 
+            justify-content: flex-start; /* 居左显示 */
+            padding: 10px 0;    /* 这里控制统计标签的上下对称间隔 */
             border-top: 1px dashed #e2e8f0; 
-            margin-top: 2px; 
+            margin-top: 8px;    /* 离上方标题的距离 */
         }
-        .league-summary { font-size: 11px; padding: 3px 8px; }
+        .league-summary { font-size: 11px; padding: 4px 8px; }
     }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     
@@ -943,11 +947,11 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name || tourn.slug}</a>`;
 
         if (isArchive) {
-            const headerRight = `<div class="title-right-area" style="justify-content: flex-end;">${leagueSummaryHtml}</div>`;
+            const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
             const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${headerRight}`;
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" ${STYLE_ARCHIVE_INNER}>${tableBody}${timeTableHtml}</div></details>`;
         } else {
-            const headerRight = `<div class="title-right-area" style="justify-content: flex-end;">${leagueSummaryHtml}</div>`;
+            const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
             tablesHtml += `<div class="wrapper"><div class="table-title"><div ${STYLE_TITLE_ROW}>${emojiStr}${titleLink}</div> ${headerRight}</div>${tableBody}${timeTableHtml}</div>`;
         }
     });
