@@ -212,18 +212,21 @@ jobs:
               for item in all_data:
                   t = item["title"]
                   name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
+                  
+                  # 优雅提取：保留原值用于逻辑，抽离 disp_league 用于日志展示
                   league_full = t.get("League", "")
+                  disp_league = league_full or "null"
 
                   if t.get("IsQualifier") == "1":
-                      log("INFO", f"全局拦截 | 判定为预选赛 (Qualifier) | 赛事: {name} | 联赛: {league_full}", BLACK)
+                      log("INFO", f"全局拦截 | 判定为预选赛 (Qualifier) | 赛事: {name} | 联赛: {disp_league}", BLACK)
                       continue
                   hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
                   if hit_black:
-                      log("INFO", f"全局拦截 | 命中黑名单关键词 ({hit_black}) | 赛事: {name} | 联赛: {league_full}", BLACK)
+                      log("INFO", f"全局拦截 | 命中黑名单关键词 ({hit_black}) | 赛事: {name} | 联赛: {disp_league}", BLACK)
                       continue
                   hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
                   if ALLOWED_REGIONS and region not in ALLOWED_REGIONS and not hit_white:
-                      log("INFO", f"全局拦截 | Region ({region}) 不在目标列表且未命中白名单 | 赛事: {name} | 联赛: {league_full}", BLACK)
+                      log("INFO", f"全局拦截 | Region ({region}) 不在目标列表且未命中白名单 | 赛事: {name} | 联赛: {disp_league}", BLACK)
                       continue
 
                   try:
@@ -242,19 +245,18 @@ jobs:
 
                   ev = {"ov": ov, "year": y, "name": name, "region": region, "start": s_dt, "end": e_dt, "league_full": league_full}
                   if t.get("IsPlayoffs") == "1" and region != "International":
-                      log("INFO", f"初步准入 | 赛事已进入季后赛匹配池 | 赛事: {name} | 联赛: {league_full}", PURPLE)
+                      log("INFO", f"初步准入 | 赛事已进入季后赛匹配池 | 赛事: {name} | 联赛: {disp_league}", PURPLE)
                       playoff_events.append(ev)
                   else:
-                      # 命中替换规则时用统一后的 name 做 key，确保多条数据落入同一抽屉
                       if mapped_name:
                           key = f"INTL_{name}" if region == "International" else f"{name}_{y}"
                       else:
                           key = f"INTL_{name}" if region == "International" else f"{ov}_{y}"
 
                       if key not in main_events:
-                          log("INFO", f"初步准入 | 赛事已加入主赛聚合列表 | 赛事: {name} | 联赛: {league_full}", PURPLE)
+                          log("INFO", f"初步准入 | 赛事已加入主赛聚合列表 | 赛事: {name} | 联赛: {disp_league}", PURPLE)
                           main_events[key] = ev
-                          main_events[key]["extra_ovs"] = [ov]  # 第一条 ov 直接入列，统一用 extra_ovs 管理
+                          main_events[key]["extra_ovs"] = [ov]
                       else:
                           log("INFO", f"名字聚合 | 合并入已有抽屉 | 追加 OVP: {ov} | Key: {key}", PURPLE)
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
@@ -274,28 +276,31 @@ jobs:
                       if p["ov"] not in main_events[m_key].setdefault("extra_ovs", []):
                           main_events[m_key]["extra_ovs"].append(p["ov"])
                   else:
-                      log("WARN", f"独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']} | 联赛: {p.get('league_full', '')}", PURPLE)
+                      p_disp_league = p.get('league_full') or "null"
+                      log("WARN", f"独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']} | 联赛: {p_disp_league}", PURPLE)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
               log("INFO", "-" * 100)
               log("INFO", "启动生命周期终审模块...")
               final_output = []
               for v in main_events.values():
+                  original_league = v.get("league_full", "")
+                  disp_league = original_league or "null"
+                  
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
                       diff_days = (v["start"] - today_dt).days
-                      log("INFO", f"周期拦截 | 距离开赛 {diff_days:>3} 天 (阈值 {PREHEAT_DAYS} 天) | 赛事: {v['name']} | 联赛: {v.get('league_full', '')}", YELLOW)
+                      log("INFO", f"周期拦截 | 距离开赛 {diff_days:>3} 天 (阈值 {PREHEAT_DAYS} 天) | 赛事: {v['name']} | 联赛: {disp_league}", YELLOW)
                       continue
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       diff_days = (today_dt - v["end"]).days
-                      log("INFO", f"周期拦截 | 已经结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天) | 赛事: {v['name']} | 联赛: {v.get('league_full', '')}", YELLOW)
+                      log("INFO", f"周期拦截 | 已经结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天) | 赛事: {v['name']} | 联赛: {disp_league}", YELLOW)
                       continue
 
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                      log("INFO", f"周期放行 | 赛事已结束但仍在宽限期内 | 赛事: {v['name']} | 联赛: {v.get('league_full', '')}")
+                      log("INFO", f"周期放行 | 赛事已结束但仍在宽限期内 | 赛事: {v['name']} | 联赛: {disp_league}")
 
-                  # 联赛简写映射逻辑 (依赖外置 mapping.json，包含即替换)
-                  original_league = v.get("league_full", "")
-                  league_short = original_league  # 默认输出原名
+                  # 联赛简写映射逻辑
+                  league_short = original_league
 
                   for k, map_val in LEAGUE_MAPPING.items():
                       if k in original_league:
@@ -303,13 +308,13 @@ jobs:
                           break
                   
                   if not league_short:
-                      # 兜底：如果 API 连 league_full 都没给（为空），用赛事名兜底避免产出空值
+                      # 兜底：无联赛信息时用赛事名兜底
                       league_short = v["name"]
 
                   lp_name = v["name"]
                   slug = lp_name.lower().replace(" ", "-")
 
-                  log("INFO", f"确认准入 | 赛事: {lp_name} | 联赛: {original_league} -> {league_short}", GREEN)
+                  log("INFO", f"确认准入 | 赛事: {lp_name} | 联赛: {disp_league} -> {league_short}", GREEN)
 
                   final_output.append({
                       "slug": slug,
