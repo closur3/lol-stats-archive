@@ -1,9 +1,9 @@
 name: Sync Metadata (Teams & Leagues)
 
 on:
-  workflow_dispatch: # 允许你在 GitHub 网页端手动点击运行
+  workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 0' # 每周日 UTC 00:00 自动运行一次 (频率无需太高)
+    - cron: '0 0 * * 0' # 每周日运行一次
 
 jobs:
   sync-metadata:
@@ -26,85 +26,112 @@ jobs:
       - name: Fetch and Map Data
         env:
           PYTHONUNBUFFERED: "1"
+          FANDOM_BOT_USERNAME: ${{ secrets.FANDOM_BOT_USERNAME }}
+          FANDOM_BOT_PASSWORD: ${{ secrets.FANDOM_BOT_PASSWORD }}
         shell: python
         run: |
           import requests
           import json
           import time
+          import os
+          import sys
 
-          # ==================== 工具函数：分页抓取 ====================
-          def fetch_cargo_table(table, fields, limit=500):
+          # ==================== 工具函数：带登录态的 Session ====================
+          def make_session(url, bot_user, bot_pass):
+              session = requests.Session()
+              # 使用你指定的专属 UA
+              session.headers.update({"User-Agent": "LoLStatsWorker/2026 (User:HsuX)"})
+
+              if not (bot_user and bot_pass):
+                  print("[WARN] 未检测到凭证，以匿名身份抓取")
+                  return session
+
+              try:
+                  token_res = session.get(url, params={
+                      "action": "query", "meta": "tokens", "type": "login", "format": "json"
+                  }, timeout=15).json()
+                  login_token = token_res.get("query", {}).get("tokens", {}).get("logintoken")
+
+                  if login_token:
+                      login_res = session.post(url, data={
+                          "action": "login", "lgname": bot_user, "lgpassword": bot_pass,
+                          "lgtoken": login_token, "format": "json"
+                      }, timeout=15).json()
+
+                      if login_res.get("login", {}).get("result") == "Success":
+                          print(f"[INFO] Fandom API 身份认证成功 | 用户: {bot_user}")
+                      else:
+                          print(f"[WARN] 身份认证失败，匿名模式继续 | 详情: {login_res}")
+              except Exception as e:
+                  print(f"[WARN] 登录异常: {e}")
+
+              return session
+
+          def fetch_cargo_table(session, table, fields, limit=500):
               url = "https://lol.fandom.com/api.php"
               all_data = []
               offset = 0
-              session = requests.Session()
-              session.headers.update({"User-Agent": "LoLMetadataSync/1.0"})
               
-              print(f"开始抓取表格: {table}...")
+              print(f"[INFO] 开始抓取表格: {table}...")
               
               while True:
                   params = {
-                      "action": "cargoquery",
-                      "format": "json",
-                      "tables": table,
-                      "fields": fields,
-                      "limit": str(limit),
-                      "offset": str(offset)
+                      "action": "cargoquery", "format": "json",
+                      "tables": table, "fields": fields,
+                      "limit": str(limit), "offset": str(offset)
                   }
                   
-                  try:
-                      resp = session.get(url, params=params, timeout=20)
-                      resp.raise_for_status()
-                      data = resp.json().get("cargoquery", [])
-                  except Exception as e:
-                      print(f"网络请求失败 (offset={offset}): {e}")
-                      break
+                  page_data = []
+                  for attempt in range(1, 4):
+                      try:
+                          resp = session.get(url, params=params, timeout=30)
+                          resp.raise_for_status()
+                          resp_json = resp.json()
+                          if "error" in resp_json:
+                              print(f"[WARN] API受限: {resp_json['error']} | 重试 {attempt}/3")
+                              time.sleep(10 * attempt)
+                              continue
+                          page_data = resp_json.get("cargoquery", [])
+                          break
+                      except Exception as e:
+                          print(f"[WARN] 请求异常: {e} | 重试 {attempt}/3")
+                          time.sleep(10 * attempt)
 
-                  if not data:
+                  if not page_data:
                       break
                   
-                  # 提取 title 内的数据
-                  clean_data = [item["title"] for item in data]
-                  all_data.extend(clean_data)
-                  print(f"已抓取 {table} 数据: {len(all_data)} 条")
+                  all_data.extend([item["title"] for item in page_data])
+                  print(f"[INFO] {table} 累计: {len(all_data)} 条")
                   
-                  if len(data) < limit:
+                  if len(page_data) < limit:
                       break
                       
                   offset += limit
-                  time.sleep(1) # 礼貌延迟
+                  time.sleep(1)
                   
               return all_data
 
-          # ==================== 1. 生成 Leagues 字典 ====================
-          leagues_raw = fetch_cargo_table("Leagues", "League, League_Short=LeagueShort")
-          league_map = {}
-          for item in leagues_raw:
-              league_full = item.get("League")
-              league_short = item.get("LeagueShort")
-              if league_full:
-                  # 如果没有简写，用全称兜底
-                  league_map[league_full] = league_short or league_full 
+          # ==================== 主逻辑 ====================
+          url = "https://lol.fandom.com/api.php"
+          session = make_session(url, os.environ.get("FANDOM_BOT_USERNAME"), os.environ.get("FANDOM_BOT_PASSWORD"))
 
+          # 1. 同步 Leagues
+          leagues_raw = fetch_cargo_table(session, "Leagues", "League, League_Short=LeagueShort")
+          league_map = {item["League"]: (item.get("LeagueShort") or item["League"]) for item in leagues_raw if item.get("League")}
+          
           with open("leagues.json", "w", encoding="utf-8") as f:
               json.dump(league_map, f, indent=2, ensure_ascii=False)
-          print(f"成功生成 leagues.json，包含 {len(league_map)} 个联赛映射。")
 
-          # ==================== 2. 生成 Teams 字典 ====================
-          # Fandom 中队伍可能过万，只拉取有用的字段
-          teams_raw = fetch_cargo_table("Teams", "FullName, Short")
-          team_map = {}
-          for item in teams_raw:
-              team_full = item.get("FullName")
-              team_short = item.get("Short")
-              if team_full:
-                  team_map[team_full] = team_short or team_full
-
+          # 2. 同步 Teams (注意：Fandom Teams 表很大，全量抓取需要一点时间)
+          teams_raw = fetch_cargo_table(session, "Teams", "FullName, Short")
+          team_map = {item["FullName"]: (item.get("Short") or item["FullName"]) for item in teams_raw if item.get("FullName")}
+          
           with open("teams.json", "w", encoding="utf-8") as f:
               json.dump(team_map, f, indent=2, ensure_ascii=False)
-          print(f"成功生成 teams.json，包含 {len(team_map)} 个队伍映射。")
 
-      - name: Commit and Push Metadata
+          print(f"[DONE] 同步完成: Leagues({len(league_map)}) | Teams({len(team_map)})")
+
+      - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "🗂️ Sync metadata: leagues.json & teams.json"
