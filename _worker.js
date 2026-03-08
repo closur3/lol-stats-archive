@@ -575,8 +575,8 @@ const PYTHON_STYLE = `
         .table-title, summary.arch-sum { flex-wrap: wrap; gap: 8px; }
         .title-right-area { 
             width: 100%; 
-            justify-content: flex-end;
-            padding-top: 6px; 
+            justify-content: flex-start;
+            padding: 8px 0; 
             border-top: 1px dashed #e2e8f0; 
             margin-top: 2px; 
         }
@@ -1395,7 +1395,7 @@ function renderToolsPage(time, sha) {
             body { min-height: 100dvh; display: flex; flex-direction: column; margin: 0; }
             .container { flex: 1; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
             
-            .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
+            .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
             .table-title { padding: 15px 20px; font-weight: 700; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; box-sizing: border-box; }
             .section-body { padding: 25px 20px; box-sizing: border-box; }
             .section-body-compact { padding-top: 20px; padding-bottom: 20px; }
