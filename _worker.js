@@ -1522,7 +1522,6 @@ function renderToolsPage(time, sha, existingArchives = []) {
             <div class="wrapper">
                 <div class="table-title">📦 Manual Archive</div>
                 <div class="section-body">
-                    <div class="tool-info-title">Rebuild Archive</div>
                     <div class="tool-info-desc tool-info-desc-spaced">Manually reconstruct a deleted tournament by providing its Fandom details.</div>
                     
                     <div class="form-grid">
