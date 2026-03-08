@@ -1,9 +1,9 @@
-name: Sync Metadata (Teams & Leagues)
+name: Sync Metadata (Test Mode)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 允许手动触发测试
   schedule:
-    - cron: '0 0 * * 0' # 每周日运行一次
+    - cron: '0 0 * * 0'
 
 jobs:
   sync-metadata:
@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Fetch and Map Data
+      - name: Run Targeted Sync
         env:
           PYTHONUNBUFFERED: "1"
           FANDOM_BOT_USERNAME: ${{ secrets.FANDOM_BOT_USERNAME }}
@@ -32,107 +32,94 @@ jobs:
         run: |
           import requests
           import json
-          import time
           import os
-          import sys
 
-          # ==================== 工具函数：带登录态的 Session ====================
-          def make_session(url, bot_user, bot_pass):
+          # ── 配置区 ──────────────────────────────────────
+          URL = "https://lol.fandom.com/api.php"
+          UA = "LoLStatsWorker/2026 (User:HsuX)"
+          
+          # ── 工具函数 ────────────────────────────────────
+          def make_session(bot_user, bot_pass):
               session = requests.Session()
-              # 使用你指定的专属 UA
-              session.headers.update({"User-Agent": "LoLStatsWorker/2026 (User:HsuX)"})
-
-              if not (bot_user and bot_pass):
-                  print("[WARN] 未检测到凭证，以匿名身份抓取")
-                  return session
-
-              try:
-                  token_res = session.get(url, params={
-                      "action": "query", "meta": "tokens", "type": "login", "format": "json"
-                  }, timeout=15).json()
-                  login_token = token_res.get("query", {}).get("tokens", {}).get("logintoken")
-
-                  if login_token:
-                      login_res = session.post(url, data={
-                          "action": "login", "lgname": bot_user, "lgpassword": bot_pass,
-                          "lgtoken": login_token, "format": "json"
-                      }, timeout=15).json()
-
-                      if login_res.get("login", {}).get("result") == "Success":
-                          print(f"[INFO] Fandom API 身份认证成功 | 用户: {bot_user}")
-                      else:
-                          print(f"[WARN] 身份认证失败，匿名模式继续 | 详情: {login_res}")
-              except Exception as e:
-                  print(f"[WARN] 登录异常: {e}")
-
+              session.headers.update({"User-Agent": UA})
+              if bot_user and bot_pass:
+                  try:
+                      # 获取登录 Token
+                      res = session.get(URL, params={
+                          "action": "query", "meta": "tokens", "type": "login", "format": "json"
+                      }).json()
+                      token = res.get("query", {}).get("tokens", {}).get("logintoken")
+                      
+                      if token:
+                          # 执行登录
+                          login = session.post(URL, data={
+                              "action": "login", "lgname": bot_user, 
+                              "lgpassword": bot_pass, "lgtoken": token, "format": "json"
+                          }).json()
+                          if login.get("login", {}).get("result") == "Success":
+                              print(f"✅ [AUTH] 登录成功: {bot_user}")
+                          else:
+                              print(f"⚠️ [AUTH] 登录失败: {login.get('login', {}).get('reason', 'Unknown')}")
+                  except Exception as e:
+                      print(f"❌ [AUTH] 登录异常: {e}")
               return session
 
-          def fetch_cargo_table(session, table, fields, limit=500):
-              url = "https://lol.fandom.com/api.php"
-              all_data = []
-              offset = 0
+          # ── 主流程 ──────────────────────────────────────
+          session = make_session(os.environ.get("FANDOM_BOT_USERNAME"), os.environ.get("FANDOM_BOT_PASSWORD"))
+
+          # 1. 测试 Teams (China + 有简写 + 活跃)
+          # 增加 limit=100，关闭分页，确保一次性通过
+          team_where = "Region='China' AND Short IS NOT NULL AND (IsDisbanded='0' OR IsDisbanded IS NULL)"
+          team_params = {
+              "action": "cargoquery",
+              "format": "json",
+              "tables": "Teams",
+              "fields": "FullName, Short",
+              "where": team_where,
+              "limit": "100"
+          }
+
+          print(f"🚀 [FETCH] 正在请求 Teams... 过滤条件: {team_where}")
+          try:
+              resp = session.get(URL, params=team_params, timeout=30).json()
+              if "error" in resp:
+                  print(f"❌ [ERROR] API返回错误: {resp['error']}")
+              else:
+                  raw_teams = resp.get("cargoquery", [])
+                  team_map = {item["title"]["FullName"]: item["title"]["Short"] for item in raw_teams if "title" in item}
+                  
+                  with open("teams.json", "w", encoding="utf-8") as f:
+                      json.dump(team_map, f, indent=2, ensure_ascii=False)
+                  print(f"✨ [SUCCESS] 战队同步完成: 获得 {len(team_map)} 条数据")
+                  if team_map:
+                      print(f"📝 数据样例: {list(team_map.items())[:5]}")
+          except Exception as e:
+              print(f"❌ [FATAL] Teams 请求失败: {e}")
+
+          # 2. 测试 Leagues (China)
+          league_params = {
+              "action": "cargoquery",
+              "format": "json",
+              "tables": "Leagues",
+              "fields": "League, League_Short=LeagueShort",
+              "where": "Region='China'",
+              "limit": "50"
+          }
+
+          print(f"🚀 [FETCH] 正在请求 Leagues...")
+          try:
+              resp_lg = session.get(URL, params=league_params, timeout=30).json()
+              raw_leagues = resp_lg.get("cargoquery", [])
+              league_map = {item["title"]["League"]: item["title"]["LeagueShort"] for item in raw_leagues if "title" in item}
               
-              print(f"[INFO] 开始抓取表格: {table}...")
-              
-              while True:
-                  params = {
-                      "action": "cargoquery", "format": "json",
-                      "tables": table, "fields": fields,
-                      "limit": str(limit), "offset": str(offset)
-                  }
-                  
-                  page_data = []
-                  for attempt in range(1, 4):
-                      try:
-                          resp = session.get(url, params=params, timeout=30)
-                          resp.raise_for_status()
-                          resp_json = resp.json()
-                          if "error" in resp_json:
-                              print(f"[WARN] API受限: {resp_json['error']} | 重试 {attempt}/3")
-                              time.sleep(10 * attempt)
-                              continue
-                          page_data = resp_json.get("cargoquery", [])
-                          break
-                      except Exception as e:
-                          print(f"[WARN] 请求异常: {e} | 重试 {attempt}/3")
-                          time.sleep(10 * attempt)
-
-                  if not page_data:
-                      break
-                  
-                  all_data.extend([item["title"] for item in page_data])
-                  print(f"[INFO] {table} 累计: {len(all_data)} 条")
-                  
-                  if len(page_data) < limit:
-                      break
-                      
-                  offset += limit
-                  time.sleep(1)
-                  
-              return all_data
-
-          # ==================== 主逻辑 ====================
-          url = "https://lol.fandom.com/api.php"
-          session = make_session(url, os.environ.get("FANDOM_BOT_USERNAME"), os.environ.get("FANDOM_BOT_PASSWORD"))
-
-          # 1. 同步 Leagues
-          leagues_raw = fetch_cargo_table(session, "Leagues", "League, League_Short=LeagueShort")
-          league_map = {item["League"]: (item.get("LeagueShort") or item["League"]) for item in leagues_raw if item.get("League")}
-          
-          with open("leagues.json", "w", encoding="utf-8") as f:
-              json.dump(league_map, f, indent=2, ensure_ascii=False)
-
-          # 2. 同步 Teams (注意：Fandom Teams 表很大，全量抓取需要一点时间)
-          teams_raw = fetch_cargo_table(session, "Teams", "FullName, Short")
-          team_map = {item["FullName"]: (item.get("Short") or item["FullName"]) for item in teams_raw if item.get("FullName")}
-          
-          with open("teams.json", "w", encoding="utf-8") as f:
-              json.dump(team_map, f, indent=2, ensure_ascii=False)
-
-          print(f"[DONE] 同步完成: Leagues({len(league_map)}) | Teams({len(team_map)})")
+              with open("leagues.json", "w", encoding="utf-8") as f:
+                  json.dump(league_map, f, indent=2, ensure_ascii=False)
+              print(f"✨ [SUCCESS] 联赛同步完成: 获得 {len(league_map)} 条数据")
+          except Exception as e:
+              print(f"❌ [FATAL] Leagues 请求失败: {e}")
 
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🗂️ Sync metadata: leagues.json & teams.json"
+          commit_message: "🧪 Sync metadata (Test Mode): China Only"
           file_pattern: "*.json"
