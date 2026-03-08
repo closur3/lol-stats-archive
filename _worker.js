@@ -565,7 +565,7 @@ const PYTHON_STYLE = `
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; }
     .arch-empty-msg { text-align: center; padding: 40px; color: #94a3b8; font-weight: 700; }
     .arch-error-msg { padding: 20px; color: #dc2626; text-align: center; font-weight: 700; }
-    
+
     .league-summary { font-size:12px; color:#64748b; font-weight:700; background:#f8fafc; padding:4px 10px; border-radius:6px; border:1px solid #e2e8f0; display:inline-flex; align-items:center; white-space:nowrap; }
     .summary-sep { opacity:0.3; margin:0 8px; font-weight:400; }
     .title-right-area { display:flex; align-items:center; gap:12px; }
@@ -575,20 +575,17 @@ const PYTHON_STYLE = `
         .table-title, summary.arch-sum { 
             flex-wrap: wrap; 
             gap: 0; 
-            padding: 12px 15px 0 15px; /* 底部设为0，由子元素控制间距 */
+            padding: 12px 15px 0 15px; 
         }
         .title-right-area { 
             width: 100%; 
-            justify-content: flex-start !important; /* 强制居左 */
-            padding: 10px 0;    /* 上下各10px，确保绝对对称 */
+            justify-content: flex-start !important; 
+            padding: 10px 0; 
             border-top: 1px dashed #e2e8f0; 
-            margin-top: 8px;    /* 与标题文字的间距 */
+            margin-top: 8px; 
             display: flex;
         }
-        .league-summary { 
-            font-size: 11px; 
-            padding: 3px 8px; 
-        }
+        .league-summary { font-size: 11px; padding: 3px 8px; }
     }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     
@@ -1284,25 +1281,22 @@ async function runUpdate(env, force=false) {
     let trafficLight, action, content;
     
     if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
-        // [IDLE] 状态：没有数据变动也没有报错
         trafficLight = "⚪"; action = "[IDLE]";
         
-        // 👇 动态拼接 IDLE 日志，只要有模式切换就强行显示
         let parts = [];
         if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
-        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`); // 核心修复：在这里追加模式切换
+        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         parts.push(`🟰 Identical`);
         
         content = parts.join(" | ");
     } else {
-        // [SYNC] 或 [ERR!] 状态
         const hasErr = apiErrors.length > 0 || breakers.length > 0;
         trafficLight = hasErr ? "🔴" : "🟢";
         action = hasErr ? "[ERR!]" : "[SYNC]";
         
         let parts = [];
         if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
-        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`); // 依然保留在 SYNC/ERR 中显示
+        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
         if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
         
@@ -1413,7 +1407,7 @@ function renderToolsPage(time, sha) {
             body { min-height: 100dvh; display: flex; flex-direction: column; margin: 0; }
             .container { flex: 1; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
             
-            .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
+            .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
             .table-title { padding: 15px 20px; font-weight: 700; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; box-sizing: border-box; }
             .section-body { padding: 25px 20px; box-sizing: border-box; }
             .section-body-compact { padding-top: 20px; padding-bottom: 20px; }
