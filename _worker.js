@@ -1284,18 +1284,28 @@ async function runUpdate(env, force=false) {
     let trafficLight, action, content;
     
     if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
+        // [IDLE] 状态：没有数据变动也没有报错
         trafficLight = "⚪"; action = "[IDLE]";
-        content = `🔍 ${idleDetails.join(", ")} | 🟰 Identical`;
+        
+        // 👇 动态拼接 IDLE 日志，只要有模式切换就强行显示
+        let parts = [];
+        if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
+        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`); // 核心修复：在这里追加模式切换
+        parts.push(`🟰 Identical`);
+        
+        content = parts.join(" | ");
     } else {
+        // [SYNC] 或 [ERR!] 状态
         const hasErr = apiErrors.length > 0 || breakers.length > 0;
         trafficLight = hasErr ? "🔴" : "🟢";
         action = hasErr ? "[ERR!]" : "[SYNC]";
         
         let parts = [];
         if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
-        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
+        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`); // 依然保留在 SYNC/ERR 中显示
         if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
         if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
+        
         content = parts.join(" | ");
     }
 
