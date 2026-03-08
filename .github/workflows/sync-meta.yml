@@ -34,7 +34,7 @@ jobs:
 
           URL = "https://lol.fandom.com/api.php"
           UA = "LoLStatsWorker/2026 (User:HsuX)"
-          
+
           def make_session(bot_user, bot_pass):
               session = requests.Session()
               session.headers.update({"User-Agent": UA})
@@ -51,48 +51,47 @@ jobs:
 
           session = make_session(os.environ.get("FANDOM_BOT_USERNAME"), os.environ.get("FANDOM_BOT_PASSWORD"))
 
-          # 1. Teams 同步 - 极简 WHERE 逻辑
-          # 仅通过 Region 过滤，避免数据库进行复杂的 NULL 检查
-          team_params = {
-              "action": "cargoquery", "format": "json", "tables": "Teams",
-              "fields": "Name,Short",
-              "where": "Region='China'",
-              "limit": "200"
-          }
+          # 1. Teams 同步 - 手动拼接 URL 避免单引号被编码
+          team_url = f"{URL}?action=cargoquery&format=json&tables=Teams&fields=Name,Short&where=Region='China'&limit=200"
 
           print(f"🚀 [FETCH] 正在获取中国赛区战队...")
           try:
-              resp = session.get(URL, params=team_params, timeout=30).json()
+              resp = session.get(team_url, timeout=30).json()
               if "error" in resp:
                   print(f"❌ [ERROR] Teams API 报错: {resp['error']}")
               else:
                   raw_teams = resp.get("cargoquery", [])
-                  # 核心：在内存中过滤掉没有简写或全称的数据
                   team_map = {}
                   for item in raw_teams:
                       t = item.get("title", {})
-                      n, s = t.get("FullName"), t.get("Short")
-                      if n and s: team_map[n] = s
-                  
+                      n, s = t.get("Name"), t.get("Short")
+                      if n and s:
+                          team_map[n] = s
+
                   with open("teams.json", "w", encoding="utf-8") as f:
                       json.dump(team_map, f, indent=2, ensure_ascii=False)
                   print(f"✨ [SUCCESS] 战队同步完成: 获得 {len(team_map)} 条有效映射")
           except Exception as e: print(f"❌ [FATAL] Teams 请求失败: {e}")
 
-          # 2. Leagues 同步 - 保持原有成功逻辑
-          league_params = {
-              "action": "cargoquery", "format": "json", "tables": "Leagues",
-              "fields": "League, League_Short=LeagueShort",
-              "where": "Region='China'", "limit": "50"
-          }
+          # 2. Leagues 同步 - 同样手动拼接 URL
+          league_url = f"{URL}?action=cargoquery&format=json&tables=Leagues&fields=League,League_Short=LeagueShort&where=Region='China'&limit=50"
 
           print(f"🚀 [FETCH] 正在获取中国赛区联赛...")
           try:
-              resp_lg = session.get(URL, params=league_params).json()
-              lg_map = {i["title"]["League"]: i["title"]["LeagueShort"] for i in resp_lg.get("cargoquery", []) if i.get("title")}
-              with open("leagues.json", "w", encoding="utf-8") as f:
-                  json.dump(lg_map, f, indent=2, ensure_ascii=False)
-              print(f"✨ [SUCCESS] 联赛同步完成: {len(lg_map)} 条")
+              resp_lg = session.get(league_url, timeout=30).json()
+              if "error" in resp_lg:
+                  print(f"❌ [ERROR] Leagues API 报错: {resp_lg['error']}")
+              else:
+                  lg_map = {}
+                  for i in resp_lg.get("cargoquery", []):
+                      t = i.get("title", {})
+                      lg, short = t.get("League"), t.get("LeagueShort")
+                      if lg and short:
+                          lg_map[lg] = short
+
+                  with open("leagues.json", "w", encoding="utf-8") as f:
+                      json.dump(lg_map, f, indent=2, ensure_ascii=False)
+                  print(f"✨ [SUCCESS] 联赛同步完成: {len(lg_map)} 条")
           except Exception as e: print(f"❌ [FATAL] Leagues 请求失败: {e}")
 
       - name: Commit and Push
