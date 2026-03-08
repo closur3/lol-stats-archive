@@ -1437,11 +1437,10 @@ function renderToolsPage(time, sha, existingArchives = []) {
             .form-input:focus { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); outline: none; }
             .form-input::placeholder { color: #94a3b8; }
             
-            /* 新增：Quick Rebuild 列表样式 */
-            .qr-list-container { max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #f8fafc; margin-bottom: 15px; }
-            .qr-label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; margin-bottom: 4px; border: 1px solid transparent; }
+            /* 修改后的代码：使用 Grid 布局实现一行两个 */
+            .qr-list-container { max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #f8fafc; margin-bottom: 15px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .qr-label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; background: transparent; }
             .qr-label:hover { background: #fff; border-color: #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-            .qr-label:last-child { margin-bottom: 0; }
             .form-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb; margin: 0; flex-shrink: 0; }
             .qr-name { font-weight: 700; color: #1e293b; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .qr-league { font-size: 12px; font-weight: 700; color: #fff; background: #94a3b8; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
@@ -1453,6 +1452,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 .flex-row { flex-direction: column; align-items: stretch; text-align: left; }
                 .primary-btn, .secondary-btn { width: 100%; }
                 .actions-row-end { flex-direction: column; }
+                .qr-list-container { grid-template-columns: 1fr; }
             }
 
             ${BUILD_FOOTER_STYLE}
