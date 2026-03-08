@@ -2,8 +2,6 @@
 
 **Fullrate**: BO3: **27/55** (49%) | BO5: **5/19** (26%)
 
-<div align="right">Updated: 2026-03-08 19:57:12</div>
-
 | TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | TT | 1/6 | 17% | 0/1 | 0% | 0-7 | 0% | 1-15 | 6% | 7L | 26-02-10 14:00 |
