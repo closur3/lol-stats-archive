@@ -267,7 +267,7 @@ jobs:
               for p in playoff_events:
                   m_key = next((k for k, m in main_events.items() if m["region"] != "International" and m["year"] == p["year"] and (m["name"] in p["name"] or p["ov"].startswith(m["ov"]))), None)
                   if m_key:
-                      log("INFO", f"赛程合并 | 规则延期 | 主赛名称: {main_events[m_key]['name']} | 关联季后赛: {p['name']}")
+                      log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[m_key]['name']} | 关联季后赛: {p['name']}")
                       main_events[m_key]["end"] = max(main_events[m_key]["end"], p["end"])
                       if p["ov"] not in main_events[m_key].setdefault("extra_ovs", []):
                           main_events[m_key]["extra_ovs"].append(p["ov"])
@@ -314,7 +314,7 @@ jobs:
                   lp_name = v["name"]
                   slug = lp_name.lower().replace(" ", "-")
 
-                  log("INFO", f"确认准入 | 数据落库 | 主赛名称: {lp_name} | 联赛简写: {league_short}", GREEN)
+                  log("INFO", f"确认准入 | 数据落库 | 赛事: {lp_name} (简写: {league_short})", GREEN)
 
                   final_output.append({
                       "slug": slug,
