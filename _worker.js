@@ -278,7 +278,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         } else {
             const match = teamMapEntries.find(e => upper.includes(e.k));
             if (match) res = match.v;
-            else res = raw.replace(/(Esports|Gaming|Academy|Team|Club)/gi, "").trim();
+            else res = raw;
         }
         nameCache.set(raw, res);
         return res;
