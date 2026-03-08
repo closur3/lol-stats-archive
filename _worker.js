@@ -574,17 +574,21 @@ const PYTHON_STYLE = `
     @media (max-width: 650px) {
         .table-title, summary.arch-sum { 
             flex-wrap: wrap; 
-            gap: 0;          /* 标题和统计区域紧挨 */
-            padding: 12px 15px; /* 统一容器内边距 */
+            gap: 0; 
+            padding: 12px 15px 0 15px; /* 底部设为0，由子元素控制间距 */
         }
         .title-right-area { 
             width: 100%; 
-            justify-content: flex-start; /* 居左显示 */
-            padding: 10px 0;    /* 这里控制统计标签的上下对称间隔 */
+            justify-content: flex-start !important; /* 强制居左 */
+            padding: 10px 0;    /* 上下各10px，确保绝对对称 */
             border-top: 1px dashed #e2e8f0; 
-            margin-top: 8px;    /* 离上方标题的距离 */
+            margin-top: 8px;    /* 与标题文字的间距 */
+            display: flex;
         }
-        .league-summary { font-size: 11px; padding: 4px 8px; }
+        .league-summary { 
+            font-size: 11px; 
+            padding: 3px 8px; 
+        }
     }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     
