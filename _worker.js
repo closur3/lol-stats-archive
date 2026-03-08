@@ -1,4 +1,3 @@
-
 const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 const GITHUB_COMMIT_BASE = "https://github.com/closur3/lol-stats-archive/commit/";
 
@@ -429,8 +428,26 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 // --- 6. Markdown 生成器 ---
 function generateMarkdown(tourn, stats, timeGrid) {
     const UPDATED_TIME = utils.getNow().full;
-    let md = `# ${tourn.name}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
     const sorted = utils.sortTeams(stats);
+
+    // 计算联赛总打满量
+    let t_bo3_f = 0, t_bo3_t = 0, t_bo5_f = 0, t_bo5_t = 0;
+    sorted.forEach(s => {
+        t_bo3_f += s.bo3_f || 0; t_bo3_t += s.bo3_t || 0;
+        t_bo5_f += s.bo5_f || 0; t_bo5_t += s.bo5_t || 0;
+    });
+    // 比赛双向记录，总数需除以 2
+    t_bo3_f /= 2; t_bo3_t /= 2; t_bo5_f /= 2; t_bo5_t /= 2;
+
+    let summaryMd = "";
+    if (t_bo3_t > 0 || t_bo5_t > 0) {
+        let parts = [];
+        if (t_bo3_t > 0) parts.push(`BO3: **${t_bo3_f}/${t_bo3_t}** (${utils.pct(utils.rate(t_bo3_f, t_bo3_t))})`);
+        if (t_bo5_t > 0) parts.push(`BO5: **${t_bo5_f}/${t_bo5_t}** (${utils.pct(utils.rate(t_bo5_f, t_bo5_t))})`);
+        summaryMd = `> 🏆 **League Total Full Rate** - ${parts.join(" | ")}\n\n`;
+    }
+
+    let md = `# ${tourn.name}\n\nUpdated: ${UPDATED_TIME} (CST)\n\n---\n\n## 📊 Statistics\n\n${summaryMd}| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     if (sorted.length === 0) {
         md += "| - | - | - | - | - | - | - | - | - | - | - |\n";
@@ -548,7 +565,23 @@ const PYTHON_STYLE = `
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700; }
     .arch-empty-msg { text-align: center; padding: 40px; color: #94a3b8; font-weight: 700; }
     .arch-error-msg { padding: 20px; color: #dc2626; text-align: center; font-weight: 700; }
+    
+    .league-summary { font-size:12px; color:#64748b; font-weight:700; background:#f8fafc; padding:4px 10px; border-radius:6px; border:1px solid #e2e8f0; display:inline-flex; align-items:center; white-space:nowrap; }
+    .summary-sep { opacity:0.3; margin:0 8px; font-weight:400; }
+    .title-right-area { display:flex; align-items:center; gap:12px; }
+
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 650px) {
+        .table-title, summary.arch-sum { flex-wrap: wrap; gap: 8px; }
+        .title-right-area { 
+            width: 100%; 
+            justify-content: flex-end;
+            padding-top: 6px; 
+            border-top: 1px dashed #e2e8f0; 
+            margin-top: 2px; 
+        }
+        .league-summary { font-size: 11px; padding: 3px 8px; }
+    }
     @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
     
     @keyframes modalShow { 0% { opacity: 0; transform: translate(-50%, -45%) scale(0.98); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
@@ -760,7 +793,6 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     const STYLE_RATE_HINT = 'style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px"';
     const STYLE_SPINE_BOLD = 'style="font-weight:700"';
     const STYLE_SPINE_SEP = 'style="opacity:0.4;"';
-    const STYLE_DEBUG_LABEL = 'style="font-size:11px;color:#64748b;font-weight:600;margin-left:10px"';
     const STYLE_EMOJI = 'style="font-size: 16px; line-height: 1; display: block; transform: translateY(-1px);"';
     const STYLE_ARCHIVE_INNER = 'style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;"';
     const STYLE_TITLE_ROW = 'style="display:flex; align-items:center; gap: 6px;"';
@@ -880,9 +912,23 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         const rawStats = globalStats[tourn.slug] || {};
         const stats = utils.sortTeams(rawStats);
         const tableId = `t_${tourn.slug.replace(/-/g, '_')}`;
-        const lastTs = updateTimestamps[tourn.slug];
-        const timeStr = lastTs ? utils.fmtDate(lastTs) : "(Pending)";
-        const debugLabel = `<span ${STYLE_DEBUG_LABEL}>${timeStr}</span>`;
+
+        // 计算联赛总打满量
+        let t_bo3_f = 0, t_bo3_t = 0, t_bo5_f = 0, t_bo5_t = 0;
+        stats.forEach(s => {
+            t_bo3_f += s.bo3_f || 0; t_bo3_t += s.bo3_t || 0;
+            t_bo5_f += s.bo5_f || 0; t_bo5_t += s.bo5_t || 0;
+        });
+        t_bo3_f /= 2; t_bo3_t /= 2; t_bo5_f /= 2; t_bo5_t /= 2;
+
+        let leagueSummaryHtml = "";
+        if (t_bo3_t > 0 || t_bo5_t > 0) {
+            let parts = [];
+            if (t_bo3_t > 0) parts.push(`BO3: ${t_bo3_f}/${t_bo3_t} <span style="opacity:0.7;font-weight:400;">(${utils.pct(utils.rate(t_bo3_f, t_bo3_t))})</span>`);
+            if (t_bo5_t > 0) parts.push(`BO5: ${t_bo5_f}/${t_bo5_t} <span style="opacity:0.7;font-weight:400;">(${utils.pct(utils.rate(t_bo5_f, t_bo5_t))})</span>`);
+            
+            leagueSummaryHtml = `<div class="league-summary">${parts.join(" <span class='summary-sep'>|</span> ")}</div>`;
+        }
 
         const rows = stats.map(s => buildTeamRow(s, tourn.slug)).join("");
         const mainPage = Array.isArray(tourn.overview_page) ? tourn.overview_page[0] : tourn.overview_page;
@@ -897,10 +943,12 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name || tourn.slug}</a>`;
 
         if (isArchive) {
-            const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${debugLabel}`;
+            const headerRight = `<div class="title-right-area" style="justify-content: flex-end;">${leagueSummaryHtml}</div>`;
+            const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${headerRight}`;
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" ${STYLE_ARCHIVE_INNER}>${tableBody}${timeTableHtml}</div></details>`;
         } else {
-            tablesHtml += `<div class="wrapper"><div class="table-title"><div ${STYLE_TITLE_ROW}>${emojiStr}${titleLink}</div> ${debugLabel}</div>${tableBody}${timeTableHtml}</div>`;
+            const headerRight = `<div class="title-right-area" style="justify-content: flex-end;">${leagueSummaryHtml}</div>`;
+            tablesHtml += `<div class="wrapper"><div class="table-title"><div ${STYLE_TITLE_ROW}>${emojiStr}${titleLink}</div> ${headerRight}</div>${tableBody}${timeTableHtml}</div>`;
         }
     });
 
@@ -1769,4 +1817,3 @@ export default {
         await appendLogs(env, l, true);
     }
 };
-
