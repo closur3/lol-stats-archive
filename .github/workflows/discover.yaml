@@ -346,7 +346,7 @@ jobs:
                       pass
 
               merged = {**base_dict, **{item["slug"]: item for item in final_output}}
-              unique_res = sorted(merged.values(), key=lambda x: x["slug"])
+              unique_res = sorted(merged.values(), key=lambda x: x["start_date"], reverse=True)
 
               with open(TARGET_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
