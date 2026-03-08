@@ -19,7 +19,7 @@
 | JDG | 6/10 | 60% | 3/4 | 75% | 8-6 | 57% | 24-20 | 55% | 1W | 26-03-07 17:00 |
 | LGD | 5/6 | 83% | - | - | 2-4 | 33% | 8-9 | 47% | 2L | 26-02-02 17:00 |
 
-## &nbsp;
+## 
 📅 **Time Slot Distribution**
 
 | Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |
