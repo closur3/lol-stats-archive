@@ -444,10 +444,10 @@ function generateMarkdown(tourn, stats, timeGrid) {
         let parts = [];
         if (t_bo3_t > 0) parts.push(`BO3: **${t_bo3_f}/${t_bo3_t}** (${utils.pct(utils.rate(t_bo3_f, t_bo3_t))})`);
         if (t_bo5_t > 0) parts.push(`BO5: **${t_bo5_f}/${t_bo5_t}** (${utils.pct(utils.rate(t_bo5_f, t_bo5_t))})`);
-        fullRateStr = `🏆 **FullRate**: ${parts.join(" & ")} | `;
+        fullRateStr = `**Fullrate**: ${parts.join(" | ")}\n\n`;
     }
 
-    let md = `# ${tourn.name}\n\n> ${fullRateStr}🕒 **Updated**: ${UPDATED_TIME}\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    let md = `# ${tourn.name}\n\n${fullRateStr}<div align="right">Updated: ${UPDATED_TIME}</div>\n\n| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     if (sorted.length === 0) {
         md += "| - | - | - | - | - | - | - | - | - | - | - |\n";
