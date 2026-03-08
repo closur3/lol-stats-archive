@@ -3,7 +3,7 @@ name: Discover Tournaments
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 15 * * *' 
+    - cron: '0 15 * * *'
 
 jobs:
   discover:
@@ -39,7 +39,6 @@ jobs:
 
           now = datetime.now()
           today_dt = now.date()
-
           TARGET_FILE = os.environ.get("TARGET_FILENAME")
 
           # ==================== 配置区 ====================
@@ -47,7 +46,6 @@ jobs:
           WHITELIST = []
           BLACKLIST = ["Opening"]
 
-          # 名字聚合替换字典（模糊匹配）
           NAME_MAPPING = {
               "Rounds 1-2": "Rounds 1-4",
               "Rounds 3-4": "Rounds 1-4",
@@ -62,13 +60,55 @@ jobs:
               "IsQualifier": "0",
               "Region": ["International", "China", "Korea"],
           }
-          CARGO_WHERE_RAW = [
-              "DateStart IS NOT NULL",
-          ]
+          CARGO_WHERE_RAW = ["DateStart IS NOT NULL"]
           CARGO_ORDER_BY = "DateStart ASC"
           # ================================================
 
-          def build_where(where_dict, raw=None):
+          # ── 颜色常量 ──────────────────────────────────────
+          RESET, RED, GREEN, YELLOW, PURPLE, BLACK = (
+              "\033[0m", "\033[91m", "\033[92m", "\033[93m", "\033[95m", "\033[30m"
+          )
+
+          # ==================== 工具函数 ====================
+
+          def fmt_league(s: str) -> str:
+              """将空字符串/None 统一展示为 'null'。"""
+              return s or "null"
+
+          def parse_date(s: str):
+              """将 'YYYY-MM-DD' 字符串解析为 date 对象。"""
+              return datetime.strptime(s, "%Y-%m-%d").date()
+
+          def load_json(path: str, default=None):
+              """安全读取 JSON 文件，失败时返回 default。"""
+              if not os.path.exists(path):
+                  return default
+              try:
+                  with open(path, "r", encoding="utf-8") as f:
+                      return json.load(f)
+              except Exception as e:
+                  log("WARN", f"读取 {path} 异常: {e}", YELLOW)
+                  return default
+
+          def add_extra_ov(ev: dict, ov: str) -> None:
+              """向赛事字典的 extra_ovs 列表去重追加 ov。"""
+              if ov not in ev.setdefault("extra_ovs", []):
+                  ev["extra_ovs"].append(ov)
+
+          def log(level: str, msg: str, color=BLACK) -> None:
+              print(f"{color}[{level}] {msg}{RESET}", flush=True)
+
+          def log_sep() -> None:
+              log("INFO", "=" * 100)
+
+          def log_div() -> None:
+              log("INFO", "-" * 100)
+
+          def log_block(reason: str, name: str, league: str) -> None:
+              """统一格式的全局拦截日志。"""
+              log("INFO", f"全局拦截 | {reason} | 赛事: {name} | 联赛: {fmt_league(league)}", BLACK)
+
+          def build_where(where_dict: dict, raw=None) -> str:
               parts = []
               for k, v in where_dict.items():
                   if isinstance(v, list):
@@ -83,97 +123,52 @@ jobs:
                   parts.extend(raw)
               return " AND ".join(parts)
 
-          # 从 CARGO_WHERE 提取允许的 Region 集合，供 Python 层过滤逻辑复用
-          ALLOWED_REGIONS = set()
-          if "Region" in CARGO_WHERE and CARGO_WHERE["Region"] is not None:
-              raw = CARGO_WHERE["Region"]
-              ALLOWED_REGIONS = {str(r) for r in (raw if isinstance(raw, list) else [raw])}
-
-          # 字典外置：读取本地 mapping.json 作为联赛映射字典
-          LEAGUE_MAPPING = {}
-          if os.path.exists("mapping.json"):
-              try:
-                  with open("mapping.json", "r", encoding="utf-8") as f:
-                      LEAGUE_MAPPING = json.load(f)
-              except Exception as e:
-                  print(f"读取 mapping.json 异常: {e}", flush=True)
-
-          RESET, RED, GREEN, YELLOW, PURPLE, BLACK = "\033[0m", "\033[91m", "\033[92m", "\033[93m", "\033[95m", "\033[30m"
-
-          def log(level, msg, color=BLACK):
-              print(f"{color}[{level}] {msg}{RESET}", flush=True)
-
-          def apply_name_mapping(name):
-              """模糊替换：name 中包含 key 片段则替换为 value，其余部分保留。"""
+          def apply_name_mapping(name: str):
+              """模糊替换：name 中包含 key 片段则替换为 value，未命中返回 None。"""
               for k, v in NAME_MAPPING.items():
                   if k.lower() in name.lower():
-                      # 大小写不敏感替换
-                      pattern = re.compile(re.escape(k), re.IGNORECASE)
-                      return pattern.sub(v, name)
-              return None  # 未命中
+                      return re.compile(re.escape(k), re.IGNORECASE).sub(v, name)
+              return None
 
-          def run_sniff():
-              old_slugs = set()
-              if os.path.exists(TARGET_FILE):
-                  try:
-                      with open(TARGET_FILE, "r", encoding="utf-8") as f:
-                          old_data = json.load(f)
-                          old_slugs = {item.get("slug") for item in old_data if item.get("slug")}
-                  except: pass
-
-              log("INFO", "=" * 100)
-              log("INFO", f"系统初始化完成 (日期: {today_dt}) | 开始抓取赛事目录")
-              log("INFO", "=" * 100)
-
-              url = "https://lol.fandom.com/api.php"
-
+          def make_session(url: str, bot_user: str, bot_pass: str) -> requests.Session:
+              """创建并登录 Fandom API Session，登录失败时退化为匿名模式。"""
               session = requests.Session()
               session.headers.update({"User-Agent": "LoLStatsWorker/2026 (User:HsuX)"})
 
-              bot_user = os.environ.get("FANDOM_BOT_USERNAME")
-              bot_pass = os.environ.get("FANDOM_BOT_PASSWORD")
-
-              if bot_user and bot_pass:
-                  try:
-                      token_res = session.get(url, params={
-                          "action": "query", "meta": "tokens", "type": "login", "format": "json"
-                      }, timeout=15).json()
-                      login_token = token_res.get("query", {}).get("tokens", {}).get("logintoken")
-
-                      if login_token:
-                          login_res = session.post(url, data={
-                              "action": "login",
-                              "lgname": bot_user,
-                              "lgpassword": bot_pass,
-                              "lgtoken": login_token,
-                              "format": "json"
-                          }, timeout=15).json()
-
-                          if login_res.get("login", {}).get("result") == "Success":
-                              log("INFO", f"Fandom API 身份认证成功 | 用户: {bot_user}", GREEN)
-                          else:
-                              log("WARN", f"身份认证失败，将以匿名身份继续 | 详情: {login_res}", YELLOW)
-                  except Exception as e:
-                      log("WARN", f"登录环节发生网络或解析异常: {e}", YELLOW)
-              else:
+              if not (bot_user and bot_pass):
                   log("WARN", "未检测到凭证(FANDOM_BOT_USERNAME/PASSWORD)，以匿名身份抓取", YELLOW)
+                  return session
 
-              all_data = []
-              offset = 0
-              limit = 100
-              MAX_ATTEMPTS = 5
+              try:
+                  token_res = session.get(url, params={
+                      "action": "query", "meta": "tokens", "type": "login", "format": "json"
+                  }, timeout=15).json()
+                  login_token = token_res.get("query", {}).get("tokens", {}).get("logintoken")
 
+                  if login_token:
+                      login_res = session.post(url, data={
+                          "action": "login", "lgname": bot_user, "lgpassword": bot_pass,
+                          "lgtoken": login_token, "format": "json"
+                      }, timeout=15).json()
+
+                      if login_res.get("login", {}).get("result") == "Success":
+                          log("INFO", f"Fandom API 身份认证成功 | 用户: {bot_user}", GREEN)
+                      else:
+                          log("WARN", f"身份认证失败，将以匿名身份继续 | 详情: {login_res}", YELLOW)
+              except Exception as e:
+                  log("WARN", f"登录环节发生网络或解析异常: {e}", YELLOW)
+
+              return session
+
+          def fetch_cargo(session: requests.Session, url: str, base_params: dict) -> list:
+              """执行分页抓取，返回所有 cargoquery 条目；首屏失败时退出进程。"""
+              all_data, offset, limit, MAX_ATTEMPTS = [], 0, 100, 5
               log("INFO", "开始执行分页抓取机制...")
 
               while True:
-                  params = {
-                      "action": "cargoquery", "format": "json", "tables": "Tournaments",
-                      "fields": ", ".join(CARGO_FIELDS),
-                      "where": build_where(CARGO_WHERE, CARGO_WHERE_RAW),
-                      "order_by": CARGO_ORDER_BY, "limit": str(limit), "offset": str(offset)
-                  }
-
+                  params = {**base_params, "limit": str(limit), "offset": str(offset)}
                   page_data = []
+
                   for attempt in range(1, MAX_ATTEMPTS + 1):
                       try:
                           resp = session.get(url, params=params, timeout=30)
@@ -181,19 +176,18 @@ jobs:
                           resp_json = resp.json()
                           if "error" in resp_json:
                               log("WARN", f"API受限 | 重试 {attempt}/{MAX_ATTEMPTS} | 详情: {resp_json['error']}", YELLOW)
-                              time.sleep(15 * attempt); continue
+                              time.sleep(15 * attempt)
+                              continue
                           page_data = resp_json.get("cargoquery", [])
                           break
                       except Exception as e:
-                          st = 15 * attempt
                           log("WARN", f"网络异常 | 重试 {attempt}/{MAX_ATTEMPTS} | 详情: {e}", YELLOW)
-                          time.sleep(st)
-
-                  if not page_data and offset == 0:
-                      log("WARN", "任务中止 | 首屏即未获取到任何数据。", RED)
-                      sys.exit(1)
+                          time.sleep(15 * attempt)
 
                   if not page_data:
+                      if offset == 0:
+                          log("WARN", "任务中止 | 首屏即未获取到任何数据。", RED)
+                          sys.exit(1)
                       break
 
                   all_data.extend(page_data)
@@ -205,146 +199,154 @@ jobs:
                   offset += limit
                   time.sleep(1)
 
+              return all_data
+
+          # ==================== 主流程 ====================
+
+          def run_sniff():
+              old_slugs = {item.get("slug") for item in (load_json(TARGET_FILE, []) or []) if item.get("slug")}
+
+              log_sep()
+              log("INFO", f"系统初始化完成 (日期: {today_dt}) | 开始抓取赛事目录")
+              log_sep()
+
+              LEAGUE_MAPPING = load_json("mapping.json", {})
+
+              ALLOWED_REGIONS = set()
+              if "Region" in CARGO_WHERE and CARGO_WHERE["Region"] is not None:
+                  raw = CARGO_WHERE["Region"]
+                  ALLOWED_REGIONS = {str(r) for r in (raw if isinstance(raw, list) else [raw])}
+
+              url = "https://lol.fandom.com/api.php"
+              session = make_session(url, os.environ.get("FANDOM_BOT_USERNAME"), os.environ.get("FANDOM_BOT_PASSWORD"))
+
+              cargo_base = {
+                  "action": "cargoquery", "format": "json", "tables": "Tournaments",
+                  "fields": ", ".join(CARGO_FIELDS),
+                  "where": build_where(CARGO_WHERE, CARGO_WHERE_RAW),
+                  "order_by": CARGO_ORDER_BY,
+              }
+              all_data = fetch_cargo(session, url, cargo_base)
+
               main_events, playoff_events = {}, []
               log("INFO", f"数据同步成功 | 原始数据共计 {len(all_data)} 条")
-              log("INFO", "-" * 100)
+              log_div()
 
               for item in all_data:
                   t = item["title"]
-                  name, ov, region, y = t.get("Name", ""), t.get("OverviewPage", ""), t.get("Region", ""), t.get("Year", "")
-                  
-                  # 优雅提取：保留原值用于逻辑，抽离 disp_league 用于日志展示
+                  name = t.get("Name", "")
+                  ov = t.get("OverviewPage", "")
+                  region = t.get("Region", "")
+                  y = t.get("Year", "")
                   league_full = t.get("League", "")
-                  disp_league = league_full or "null"
 
                   if t.get("IsQualifier") == "1":
-                      log("INFO", f"全局拦截 | 判定为预选赛 (Qualifier) | 赛事: {name} | 联赛: {disp_league}", BLACK)
+                      log_block("判定为预选赛 (Qualifier)", name, league_full)
                       continue
                   hit_black = next((k for k in BLACKLIST if k.lower() in name.lower()), None)
                   if hit_black:
-                      log("INFO", f"全局拦截 | 命中黑名单关键词 ({hit_black}) | 赛事: {name} | 联赛: {disp_league}", BLACK)
+                      log_block(f"命中黑名单关键词 ({hit_black})", name, league_full)
                       continue
                   hit_white = next((k for k in WHITELIST if k.upper() in ov.upper()), None)
                   if ALLOWED_REGIONS and region not in ALLOWED_REGIONS and not hit_white:
-                      log("INFO", f"全局拦截 | Region ({region}) 不在目标列表且未命中白名单 | 赛事: {name} | 联赛: {disp_league}", BLACK)
+                      log_block(f"Region ({region}) 不在目标列表且未命中白名单", name, league_full)
                       continue
 
                   try:
-                      s_dt = datetime.strptime(t["DateStart"], '%Y-%m-%d').date()
-                      e_dt = datetime.strptime(t.get("Date") or t["DateStart"], '%Y-%m-%d').date()
+                      s_dt = parse_date(t["DateStart"])
+                      e_dt = parse_date(t.get("Date") or t["DateStart"])
                   except Exception as e:
                       log("WARN", f"日期异常 | 跳过赛事 | 赛事: {name} | 报错: {e}", YELLOW)
                       continue
 
-                  # ── 名字聚合替换（模糊匹配，ov 原值不动）──────────────────────
                   mapped_name = apply_name_mapping(name)
                   if mapped_name:
                       log("INFO", f"名字聚合 | 模糊替换命中 | '{name}' → '{mapped_name}' | OVP: {ov}", PURPLE)
                       name = mapped_name
-                  # ──────────────────────────────────────────────────────────────
 
                   ev = {"ov": ov, "year": y, "name": name, "region": region, "start": s_dt, "end": e_dt, "league_full": league_full}
+
                   if t.get("IsPlayoffs") == "1" and region != "International":
-                      log("INFO", f"初步准入 | 赛事已进入季后赛匹配池 | 赛事: {name} | 联赛: {disp_league}", PURPLE)
+                      log("INFO", f"初步准入 | 赛事已进入季后赛匹配池 | 赛事: {name} | 联赛: {fmt_league(league_full)}", PURPLE)
                       playoff_events.append(ev)
                   else:
-                      if mapped_name:
-                          key = f"INTL_{name}" if region == "International" else f"{name}_{y}"
-                      else:
-                          key = f"INTL_{name}" if region == "International" else f"{ov}_{y}"
-
+                      key = f"INTL_{name}" if region == "International" else (f"{name}_{y}" if mapped_name else f"{ov}_{y}")
                       if key not in main_events:
-                          log("INFO", f"初步准入 | 赛事已加入主赛聚合列表 | 赛事: {name} | 联赛: {disp_league}", PURPLE)
-                          main_events[key] = ev
-                          main_events[key]["extra_ovs"] = [ov]
+                          log("INFO", f"初步准入 | 赛事已加入主赛聚合列表 | 赛事: {name} | 联赛: {fmt_league(league_full)}", PURPLE)
+                          main_events[key] = {**ev, "extra_ovs": [ov]}
                       else:
                           log("INFO", f"名字聚合 | 合并入已有抽屉 | 追加 OVP: {ov} | Key: {key}", PURPLE)
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
                           main_events[key]["end"]   = max(main_events[key]["end"],   e_dt)
-                          if ov not in main_events[key]["extra_ovs"]:
-                              main_events[key]["extra_ovs"].append(ov)
+                          add_extra_ov(main_events[key], ov)
 
-              log("INFO", "-" * 100)
+              log_div()
               log("INFO", "启动季后赛数据关联匹配模块...")
+
               for p in playoff_events:
-                  m_key = next((k for k, m in main_events.items() if m["region"] != "International" and m["year"] == p["year"] and (m["name"] in p["name"] or p["ov"].startswith(m["ov"]))), None)
+                  m_key = next((
+                      k for k, m in main_events.items()
+                      if m["region"] != "International"
+                      and m["year"] == p["year"]
+                      and (m["name"] in p["name"] or p["ov"].startswith(m["ov"]))
+                  ), None)
+
                   if m_key:
                       old_end = main_events[m_key]["end"]
                       new_end = max(old_end, p["end"])
                       log("INFO", f"赛程合并 | 主赛: {main_events[m_key]['name']} | 关联季后赛: {p['name']} | 结束日期: {old_end} -> {new_end}")
                       main_events[m_key]["end"] = new_end
-                      if p["ov"] not in main_events[m_key].setdefault("extra_ovs", []):
-                          main_events[m_key]["extra_ovs"].append(p["ov"])
+                      add_extra_ov(main_events[m_key], p["ov"])
                   else:
-                      p_disp_league = p.get('league_full') or "null"
-                      log("WARN", f"独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']} | 联赛: {p_disp_league}", PURPLE)
+                      log("WARN", f"独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']} | 联赛: {fmt_league(p.get('league_full', ''))}", PURPLE)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
-              log("INFO", "-" * 100)
+              log_div()
               log("INFO", "启动生命周期终审模块...")
+
               final_output = []
               for v in main_events.values():
                   original_league = v.get("league_full", "")
-                  disp_league = original_league or "null"
-                  
+
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
                       diff_days = (v["start"] - today_dt).days
-                      log("INFO", f"周期拦截 | 距离开赛 {diff_days:>3} 天 (阈值 {PREHEAT_DAYS} 天) | 赛事: {v['name']} | 联赛: {disp_league}", YELLOW)
+                      log("INFO", f"周期拦截 | 距离开赛 {diff_days:>3} 天 (阈值 {PREHEAT_DAYS} 天) | 赛事: {v['name']} | 联赛: {fmt_league(original_league)}", YELLOW)
                       continue
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       diff_days = (today_dt - v["end"]).days
-                      log("INFO", f"周期拦截 | 已经结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天) | 赛事: {v['name']} | 联赛: {disp_league}", YELLOW)
+                      log("INFO", f"周期拦截 | 已经结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天) | 赛事: {v['name']} | 联赛: {fmt_league(original_league)}", YELLOW)
                       continue
-
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
-                      log("INFO", f"周期放行 | 赛事已结束但仍在宽限期内 | 赛事: {v['name']} | 联赛: {disp_league}")
+                      log("INFO", f"周期放行 | 赛事已结束但仍在宽限期内 | 赛事: {v['name']} | 联赛: {fmt_league(original_league)}")
 
-                  # 联赛简写映射逻辑
-                  league_short = original_league
-
-                  for k, map_val in LEAGUE_MAPPING.items():
-                      if k in original_league:
-                          league_short = str(map_val)
-                          break
-                  
-                  if not league_short:
-                      # 兜底：无联赛信息时用赛事名兜底
-                      league_short = v["name"]
+                  league_short = next(
+                      (str(map_val) for k, map_val in LEAGUE_MAPPING.items() if k in original_league),
+                      original_league or v["name"]
+                  )
 
                   lp_name = v["name"]
-                  slug = lp_name.lower().replace(" ", "-")
-
-                  log("INFO", f"确认准入 | 赛事: {lp_name} | 联赛: {disp_league} -> {league_short}", GREEN)
+                  log("INFO", f"确认准入 | 赛事: {lp_name} | 联赛: {fmt_league(original_league)} -> {league_short}", GREEN)
 
                   final_output.append({
-                      "slug": slug,
+                      "slug": lp_name.lower().replace(" ", "-"),
                       "name": lp_name,
                       "league": league_short,
                       "overview_page": v.get("extra_ovs", [v["ov"]]),
                       "start_date": str(v["start"]),
-                      "end_date": str(v["end"])
+                      "end_date": str(v["end"]),
                   })
 
-              # 读取本地已有数据，将未过期的条目作为基底保留
+              # 合并本地缓存（新数据优先）
               base_dict = {}
-              if os.path.exists(TARGET_FILE):
+              for item in (load_json(TARGET_FILE, []) or []):
                   try:
-                      with open(TARGET_FILE, "r", encoding="utf-8") as f:
-                          existing = json.load(f)
-                      for item in existing:
-                          try:
-                              e_dt = datetime.strptime(item["end_date"], "%Y-%m-%d").date()
-                              if today_dt <= (e_dt + timedelta(days=EXPIRE_DAYS)):
-                                  base_dict[item["slug"]] = item
-                          except:
-                              pass
-                  except Exception as e:
-                      log("WARN", f"读取本地缓存异常: {e}", YELLOW)
+                      if today_dt <= (parse_date(item["end_date"]) + timedelta(days=EXPIRE_DAYS)):
+                          base_dict[item["slug"]] = item
+                  except Exception:
+                      pass
 
-              # 用本次 API 新数据覆盖基底（新数据优先），end_date 决定淘汰
-              unique_dict = {item["slug"]: item for item in final_output}
-              merged = {**base_dict, **unique_dict}
-              unique_res = sorted(merged.values(), key=lambda x: x['slug'])
+              merged = {**base_dict, **{item["slug"]: item for item in final_output}}
+              unique_res = sorted(merged.values(), key=lambda x: x["slug"])
 
               with open(TARGET_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
@@ -360,7 +362,8 @@ jobs:
                   commit_msg = "🔄 Data Sync: no changes"
 
               if "GITHUB_OUTPUT" in os.environ:
-                  with open(os.environ["GITHUB_OUTPUT"], "a") as f: f.write(f"commit_msg={commit_msg}\n")
+                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                      f.write(f"commit_msg={commit_msg}\n")
 
           if __name__ == "__main__":
               run_sniff()
