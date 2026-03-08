@@ -1504,21 +1504,21 @@ function renderToolsPage(time, sha, existingArchives = []) {
             ${renderTaskCard("⚡ Synchronization", "Force Update", "Trigger a full manual sync for all active tournaments.", "btn-force", "/force", "Refresh API")}
 
             <div class="wrapper">
-                <div class="table-title">⚡ Quick Rebuild Existing Archives</div>
+                <div class="table-title">🗃️ Quick Rebuild</div>
                 <div class="section-body">
                     <div class="tool-info-desc tool-info-desc-spaced">Select existing archives below to quickly refresh their data from Fandom.</div>
                     <div class="qr-list-container">
                         ${archiveListHtml}
                     </div>
                     <div class="actions-row-end" style="gap: 12px; margin-top: 15px;">
-                        <button class="secondary-btn" onclick="toggleSelectAllArchives()">Select All / None</button>
-                        <button class="primary-btn" id="btn-quick-rebuild" onclick="rebuildSelected()">Rebuild Selected</button>
+                        <button class="secondary-btn" onclick="toggleSelectAllArchives()">Select All</button>
+                        <button class="primary-btn" id="btn-quick-rebuild" onclick="rebuildSelected()">Rebuild</button>
                     </div>
                 </div>
             </div>
 
             <div class="wrapper">
-                <div class="table-title">📦 Manual Archive Management</div>
+                <div class="table-title">📦 Manual Archive</div>
                 <div class="section-body">
                     <div class="tool-info-title">Rebuild Archive</div>
                     <div class="tool-info-desc tool-info-desc-spaced">Manually reconstruct a deleted tournament by providing its Fandom details.</div>
