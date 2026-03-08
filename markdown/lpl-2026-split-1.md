@@ -1,10 +1,12 @@
 # LPL 2026 Split 1
 
-Updated: 2026-03-08 08:59:04 (CST)
+Updated: 2026-03-08 18:55:16 (CST)
 
 ---
 
 ## 📊 Statistics
+
+> 🏆 **League Total Full Rate** - BO3: **27/55** (49%) | BO5: **5/19** (26%)
 
 | TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
