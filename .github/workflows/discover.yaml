@@ -89,14 +89,14 @@ jobs:
               raw = CARGO_WHERE["Region"]
               ALLOWED_REGIONS = {str(r) for r in (raw if isinstance(raw, list) else [raw])}
 
-          # 字典外置：读取本地 teams.json 作为联赛映射字典
+          # 字典外置：读取本地 mapping.json 作为联赛映射字典
           LEAGUE_MAPPING = {}
-          if os.path.exists("teams.json"):
+          if os.path.exists("mapping.json"):
               try:
-                  with open("teams.json", "r", encoding="utf-8") as f:
+                  with open("mapping.json", "r", encoding="utf-8") as f:
                       LEAGUE_MAPPING = json.load(f)
               except Exception as e:
-                  print(f"读取 teams.json 异常: {e}", flush=True)
+                  print(f"读取 mapping.json 异常: {e}", flush=True)
 
           RESET, RED, GREEN, YELLOW, PURPLE, BLACK = "\033[0m", "\033[91m", "\033[92m", "\033[93m", "\033[95m", "\033[30m"
 
@@ -291,12 +291,18 @@ jobs:
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       log("INFO", f"周期放行 | 宽限期内 | 赛事已结束但仍在宽限期内 | 赛事: {v['name']}")
 
-                  # 联赛简写映射逻辑 (依赖外置 teams.json)
-                  mapped = LEAGUE_MAPPING.get(v.get("league_full", ""))
-                  if mapped:
-                      league_short = str(mapped).upper()
-                  else:
-                      league_short = "INTL" if v["region"] == "International" else v["ov"].split('/')[0].upper()
+                  # 联赛简写映射逻辑 (依赖外置 mapping.json，包含即替换)
+                  original_league = v.get("league_full", "")
+                  league_short = original_league  # 默认输出原名
+
+                  for k, map_val in LEAGUE_MAPPING.items():
+                      if k in original_league:
+                          league_short = str(map_val)
+                          break
+                  
+                  # 兜底：如果 API 连 league_full 都没给（为空），用赛事名兜底避免产出空值
+                  if not league_short:
+                      league_short = v["name"]
 
                   lp_name = v["name"]
                   slug = lp_name.lower().replace(" ", "-")
