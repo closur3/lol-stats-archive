@@ -55,7 +55,7 @@ jobs:
           # 仅通过 Region 过滤，避免数据库进行复杂的 NULL 检查
           team_params = {
               "action": "cargoquery", "format": "json", "tables": "Teams",
-              "fields": "Name, Short",
+              "fields": "Name,Short",
               "where": "Region='China'",
               "limit": "200"
           }
