@@ -294,20 +294,27 @@ jobs:
                   # 联赛简写映射逻辑 (依赖外置 mapping.json，包含即替换)
                   original_league = v.get("league_full", "")
                   league_short = original_league  # 默认输出原名
+                  mapping_hit = False
 
                   for k, map_val in LEAGUE_MAPPING.items():
                       if k in original_league:
                           league_short = str(map_val)
+                          mapping_hit = True
                           break
                   
-                  # 兜底：如果 API 连 league_full 都没给（为空），用赛事名兜底避免产出空值
                   if not league_short:
+                      # 兜底：如果 API 连 league_full 都没给（为空），用赛事名兜底避免产出空值
                       league_short = v["name"]
+                      log("INFO", f"简写映射 | 赛名兜底 | '{league_short}'", BLACK)
+                  elif mapping_hit:
+                      log("INFO", f"简写映射 | 命中字典 | '{original_league}' → '{league_short}'", PURPLE)
+                  else:
+                      log("INFO", f"简写映射 | 原名输出 | '{original_league}'", BLACK)
 
                   lp_name = v["name"]
                   slug = lp_name.lower().replace(" ", "-")
 
-                  log("INFO", f"确认准入 | 数据落库 | Slug: {slug} | 赛事: {lp_name}", GREEN)
+                  log("INFO", f"确认准入 | 数据落库 | 赛事: {lp_name} | 联赛: {league_short} | Slug: {slug}", GREEN)
 
                   final_output.append({
                       "slug": slug,
