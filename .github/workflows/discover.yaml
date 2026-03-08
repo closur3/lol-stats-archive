@@ -121,9 +121,9 @@ jobs:
                           old_slugs = {item.get("slug") for item in old_data if item.get("slug")}
                   except: pass
 
-              log("INFO", "=" * 85)
+              log("INFO", "=" * 100)
               log("INFO", f"系统初始化完成 (日期: {today_dt}) | 开始抓取赛事目录")
-              log("INFO", "=" * 85)
+              log("INFO", "=" * 100)
 
               url = "https://lol.fandom.com/api.php"
 
@@ -207,7 +207,7 @@ jobs:
 
               main_events, playoff_events = {}, []
               log("INFO", f"数据同步成功 | 原始数据共计 {len(all_data)} 条")
-              log("INFO", "-" * 85)
+              log("INFO", "-" * 100)
 
               for item in all_data:
                   t = item["title"]
@@ -262,7 +262,7 @@ jobs:
                           if ov not in main_events[key]["extra_ovs"]:
                               main_events[key]["extra_ovs"].append(ov)
 
-              log("INFO", "-" * 85)
+              log("INFO", "-" * 100)
               log("INFO", "启动季后赛数据关联匹配模块...")
               for p in playoff_events:
                   m_key = next((k for k, m in main_events.items() if m["region"] != "International" and m["year"] == p["year"] and (m["name"] in p["name"] or p["ov"].startswith(m["ov"]))), None)
@@ -277,7 +277,7 @@ jobs:
                       log("WARN", f"独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']} | 联赛: {p.get('league_full', '')}", PURPLE)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
-              log("INFO", "-" * 85)
+              log("INFO", "-" * 100)
               log("INFO", "启动生命周期终审模块...")
               final_output = []
               for v in main_events.values():
