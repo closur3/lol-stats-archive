@@ -1,6 +1,6 @@
 # LPL 2026 Split 1
 
-**Fullrate**: BO3: **27/55** (49%) | BO5: **5/19** (26%)
+📊 **Fullrate**: BO3: **27/55** (49%) | BO5: **5/19** (26%)
 
 | TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -19,7 +19,8 @@
 | JDG | 6/10 | 60% | 3/4 | 75% | 8-6 | 57% | 24-20 | 55% | 1W | 26-03-07 17:00 |
 | LGD | 5/6 | 83% | - | - | 2-4 | 33% | 8-9 | 47% | 2L | 26-02-02 17:00 |
 
-## 📅 Time Slot Distribution
+## &nbsp;
+📅 **Time Slot Distribution**
 
 | Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
