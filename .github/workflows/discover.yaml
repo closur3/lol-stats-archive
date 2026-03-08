@@ -242,7 +242,7 @@ jobs:
 
                   ev = {"ov": ov, "year": y, "name": name, "region": region, "start": s_dt, "end": e_dt, "league_full": league_full}
                   if t.get("IsPlayoffs") == "1" and region != "International":
-                      log("INFO", f"初步准入 | 赛事已进入季后赛待匹配池 | 赛事: {name} | 联赛: {league_full}", PURPLE)
+                      log("INFO", f"初步准入 | 赛事已进入季后赛匹配池 | 赛事: {name} | 联赛: {league_full}", PURPLE)
                       playoff_events.append(ev)
                   else:
                       # 命中替换规则时用统一后的 name 做 key，确保多条数据落入同一抽屉
@@ -269,12 +269,12 @@ jobs:
                   if m_key:
                       old_end = main_events[m_key]["end"]
                       new_end = max(old_end, p["end"])
-                      log("INFO", f"赛程合并 | 主赛: {main_events[m_key]['name']} | 关联季后赛: {p['name']} | 结束日期: {old_end} -> {new_end} | 联赛: {main_events[m_key].get('league_full', '')}")
+                      log("INFO", f"赛程合并 | 主赛: {main_events[m_key]['name']} | 关联季后赛: {p['name']} | 结束日期: {old_end} -> {new_end}")
                       main_events[m_key]["end"] = new_end
                       if p["ov"] not in main_events[m_key].setdefault("extra_ovs", []):
                           main_events[m_key]["extra_ovs"].append(p["ov"])
                   else:
-                      log("WARN", f"独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']} | 联赛: {p.get('league_full', '')}", PURPLE)
+                      log("WARN", f"独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']}", PURPLE)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
               log("INFO", "-" * 85)
@@ -309,7 +309,7 @@ jobs:
                   lp_name = v["name"]
                   slug = lp_name.lower().replace(" ", "-")
 
-                  log("INFO", f"确认准入 | 数据落库 | 赛事: {lp_name} | 联赛: {original_league} -> {league_short}", GREEN)
+                  log("INFO", f"确认准入 | 赛事: {lp_name} | 联赛: {original_league} -> {league_short}", GREEN)
 
                   final_output.append({
                       "slug": slug,
