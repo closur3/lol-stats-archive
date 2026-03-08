@@ -1,5 +1,15 @@
 [
     {
+        "slug": "first-stand-2026",
+        "name": "First Stand 2026",
+        "league": "FST",
+        "overview_page": [
+            "2026 First Stand"
+        ],
+        "start_date": "2026-03-16",
+        "end_date": "2026-03-22"
+    },
+    {
         "slug": "lpl-2026-split-1",
         "name": "LPL 2026 Split 1",
         "league": "LPL",
