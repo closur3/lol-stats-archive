@@ -307,7 +307,7 @@ jobs:
                   lp_name = v["name"]
                   slug = lp_name.lower().replace(" ", "-")
 
-                  log("INFO", f"确认准入 | 数据落库 | 赛事: {lp_name} | 简写映射: '{original_league}' -> '{league_short}'", GREEN)
+                  log("INFO", f"确认准入 | 数据落库 | 赛事: {lp_name} | 简写: {original_league} -> {league_short}", GREEN)
 
                   final_output.append({
                       "slug": slug,
