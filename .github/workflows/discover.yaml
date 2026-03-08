@@ -267,7 +267,7 @@ jobs:
               for p in playoff_events:
                   m_key = next((k for k, m in main_events.items() if m["region"] != "International" and m["year"] == p["year"] and (m["name"] in p["name"] or p["ov"].startswith(m["ov"]))), None)
                   if m_key:
-                      log("INFO", f"赛程合并 | 规则延期 | 主赛: {main_events[m_key]['name']} | 关联季后赛: {p['name']}")
+                      log("INFO", f"赛程合并 | 规则延期 | 主赛名称: {main_events[m_key]['name']} | 关联季后赛: {p['name']}")
                       main_events[m_key]["end"] = max(main_events[m_key]["end"], p["end"])
                       if p["ov"] not in main_events[m_key].setdefault("extra_ovs", []):
                           main_events[m_key]["extra_ovs"].append(p["ov"])
@@ -281,11 +281,11 @@ jobs:
               for v in main_events.values():
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
                       diff_days = (v["start"] - today_dt).days
-                      log("INFO", f"周期拦截 | 尚未预热 | 距开赛 {diff_days:>3} 天 (阈值 {PREHEAT_DAYS} 天) | 赛事: {v['name']}", YELLOW)
+                      log("INFO", f"周期拦截 | 尚未预热 | 距离开赛 {diff_days:>3} 天 (阈值 {PREHEAT_DAYS} 天) | 赛事: {v['name']}", YELLOW)
                       continue
                   if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
                       diff_days = (today_dt - v["end"]).days
-                      log("INFO", f"周期拦截 | 赛事过期 | 已结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天) | 赛事: {v['name']}", YELLOW)
+                      log("INFO", f"周期拦截 | 赛事过期 | 已经结束 {diff_days:>3} 天 (阈值 {EXPIRE_DAYS} 天) | 赛事: {v['name']}", YELLOW)
                       continue
 
                   if v["end"] < today_dt <= (v["end"] + timedelta(days=EXPIRE_DAYS)):
@@ -307,14 +307,14 @@ jobs:
                       league_short = v["name"]
                       log("INFO", f"简写映射 | 赛名兜底 | '{league_short}'", BLACK)
                   elif mapping_hit:
-                      log("INFO", f"简写映射 | 命中字典 | '{original_league}' → '{league_short}'", PURPLE)
+                      log("INFO", f"简写映射 | 命中字典 | '{original_league}' -> '{league_short}'", PURPLE)
                   else:
                       log("INFO", f"简写映射 | 原名输出 | '{original_league}'", BLACK)
 
                   lp_name = v["name"]
                   slug = lp_name.lower().replace(" ", "-")
 
-                  log("INFO", f"确认准入 | 数据落库 | 赛事: {lp_name} | 联赛: {league_short} | Slug: {slug}", GREEN)
+                  log("INFO", f"确认准入 | 数据落库 | 主赛名称: {lp_name} | 联赛简写: {league_short}", GREEN)
 
                   final_output.append({
                       "slug": slug,
