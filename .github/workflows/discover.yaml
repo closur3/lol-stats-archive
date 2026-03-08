@@ -274,7 +274,7 @@ jobs:
                       if p["ov"] not in main_events[m_key].setdefault("extra_ovs", []):
                           main_events[m_key]["extra_ovs"].append(p["ov"])
                   else:
-                      log("WARN", f"独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']}", PURPLE)
+                      log("WARN", f"独立保留 | 未发现关联主赛的季后赛 | 赛事: {p['name']} | 联赛: {p.get('league_full', '')}", PURPLE)
                       main_events[f"{p['ov']}_{p['year']}_PO"] = p
 
               log("INFO", "-" * 85)
