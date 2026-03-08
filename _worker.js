@@ -927,6 +927,8 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         });
         t_bo3_f /= 2; t_bo3_t /= 2; t_bo5_f /= 2; t_bo5_t /= 2;
 
+        if (t_bo3_t === 0 && t_bo5_t === 0) return;
+
         let leagueSummaryHtml = "";
         if (t_bo3_t > 0 || t_bo5_t > 0) {
             let parts = [];
@@ -936,8 +938,8 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
             leagueSummaryHtml = `<div class="league-summary">${parts.join(" <span class='summary-sep'>|</span> ")}</div>`;
         }
 
-        const rows = stats.map(s => buildTeamRow(s, tourn.slug)).join("");
         const mainPage = Array.isArray(tourn.overview_page) ? tourn.overview_page[0] : tourn.overview_page;
+        const rows = stats.map(s => buildTeamRow(s, tourn.slug)).join("");
         const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
 
         const regionGrid = timeData[tourn.slug] || {};
