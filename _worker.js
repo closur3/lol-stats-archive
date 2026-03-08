@@ -506,7 +506,7 @@ const COMMON_STYLE = `
 const PYTHON_STYLE = `
     ${COMMON_STYLE}
     .container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 0 15px 40px 15px; }
-    .wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; padding-bottom: 0; display: flex; flex-direction: column; }
+    .wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; box-sizing: border-box; display: flex; flex-direction: column; }
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list { -ms-overflow-style: none; scrollbar-width: none; }
     table { width: 100%; min-width: 1000px; border-collapse: separate; border-spacing: 0; font-size: 14px; table-layout: fixed; margin: 0; border: none; }
@@ -995,7 +995,6 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
     try {
         const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
         
-        // 【核心修复】：过滤掉生成的静态 HTML 键值，只处理真正的 JSON 数据
         const dataKeys = allKeys.keys.filter(k => k.name !== "ARCHIVE_STATIC_HTML");
         
         if (!dataKeys.length) {
@@ -1007,7 +1006,6 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         }
         const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
 
-        // 现在映射的是安全过滤后的 dataKeys
         const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
         const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
@@ -1381,7 +1379,8 @@ async function runCustomRebuild(env, payload) {
 }
 
 // --- 9. 独立页面渲染 ---
-function renderToolsPage(time, sha) {
+// 修改：增加了 existingArchives 参数接收数据库中已有的归档
+function renderToolsPage(time, sha, existingArchives = []) {
     const buildFooter = renderBuildFooter(time, sha);
     const renderTaskCard = (panelTitle, actionTitle, actionDesc, btnId, endpoint, btnText) => `
             <div class="wrapper">
@@ -1394,6 +1393,16 @@ function renderToolsPage(time, sha) {
                     <button class="primary-btn" id="${btnId}" onclick="runTask('${endpoint}', '${btnId}')">${btnText}</button>
                 </div>
             </div>`;
+
+    // 构建复选框列表
+    let archiveListHtml = existingArchives.map(t => `
+        <label class="qr-label">
+            <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview="${t.overview_page}" data-league="${t.league}">
+            <span class="qr-league">${t.league || 'UNKN'}</span>
+            <span class="qr-name">${t.name}</span>
+        </label>
+    `).join("");
+    if (!archiveListHtml) archiveListHtml = "<div class='tool-info-desc' style='text-align:center; padding: 20px 0;'>No existing archives found.</div>";
 
     return `<!DOCTYPE html>
     <html>
@@ -1412,14 +1421,12 @@ function renderToolsPage(time, sha) {
             .section-body { padding: 25px 20px; box-sizing: border-box; }
             .section-body-compact { padding-top: 20px; padding-bottom: 20px; }
 
-            
             .flex-row { display: flex; justify-content: space-between; align-items: center; gap: 15px; }
             .tool-info-title { font-weight: 700; color: #0f172a; margin-bottom: 4px; }
             .tool-info-desc { font-size: 13px; color: #64748b; }
             .tool-info-desc-spaced { margin-bottom: 20px; }
             .actions-row-end { display: flex; justify-content: flex-end; }
 
-            
             .primary-btn { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
             .primary-btn:hover { background: #1d4ed8; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
             
@@ -1430,10 +1437,22 @@ function renderToolsPage(time, sha) {
             .form-input:focus { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); outline: none; }
             .form-input::placeholder { color: #94a3b8; }
             
+            /* 新增：Quick Rebuild 列表样式 */
+            .qr-list-container { max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #f8fafc; margin-bottom: 15px; }
+            .qr-label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; margin-bottom: 4px; border: 1px solid transparent; }
+            .qr-label:hover { background: #fff; border-color: #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+            .qr-label:last-child { margin-bottom: 0; }
+            .form-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb; margin: 0; flex-shrink: 0; }
+            .qr-name { font-weight: 700; color: #1e293b; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .qr-league { font-size: 12px; font-weight: 700; color: #fff; background: #94a3b8; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+            .secondary-btn { background: #fff; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
+            .secondary-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+
             @media (max-width: 600px) {
                 .form-grid { grid-template-columns: 1fr; gap: 12px; }
                 .flex-row { flex-direction: column; align-items: stretch; text-align: left; }
-                .primary-btn { width: 100%; }
+                .primary-btn, .secondary-btn { width: 100%; }
+                .actions-row-end { flex-direction: column; }
             }
 
             ${BUILD_FOOTER_STYLE}
@@ -1484,7 +1503,21 @@ function renderToolsPage(time, sha) {
             ${renderTaskCard("⚡ Synchronization", "Force Update", "Trigger a full manual sync for all active tournaments.", "btn-force", "/force", "Refresh API")}
 
             <div class="wrapper">
-                <div class="table-title">📦 Archive Management</div>
+                <div class="table-title">⚡ Quick Rebuild Existing Archives</div>
+                <div class="section-body">
+                    <div class="tool-info-desc tool-info-desc-spaced">Select existing archives below to quickly refresh their data from Fandom.</div>
+                    <div class="qr-list-container">
+                        ${archiveListHtml}
+                    </div>
+                    <div class="actions-row-end" style="gap: 12px; margin-top: 15px;">
+                        <button class="secondary-btn" onclick="toggleSelectAllArchives()">Select All / None</button>
+                        <button class="primary-btn" id="btn-quick-rebuild" onclick="rebuildSelected()">Rebuild Selected</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="wrapper">
+                <div class="table-title">📦 Manual Archive Management</div>
                 <div class="section-body">
                     <div class="tool-info-title">Rebuild Archive</div>
                     <div class="tool-info-desc tool-info-desc-spaced">Manually reconstruct a deleted tournament by providing its Fandom details.</div>
@@ -1524,7 +1557,7 @@ function renderToolsPage(time, sha) {
                 rebuildInputIds.map((key) => [key, document.getElementById("rb-" + key)])
             );
             const TOAST_DURATION_MS = 3000;
-            const REDIRECT_DELAY_MS = 1200;
+            const REDIRECT_DELAY_MS = 1500;
             const AUTH_ERROR_MSG = "Session expired or incorrect password.";
             const NETWORK_ERROR_MSG = "❌ Network connection failed";
             const REBUILD_REQUIRED_MSG = "⚠️ Please fill in all 4 fields.";
@@ -1555,12 +1588,12 @@ function renderToolsPage(time, sha) {
                 toast.className = 'toast ' + type;
                 toast.innerText = msg;
                 toastContainer.appendChild(toast);
-                void toast.offsetWidth; // trigger reflow
+                void toast.offsetWidth; 
                 toast.classList.add('show');
                 setTimeout(() => {
                     toast.classList.remove('show');
                     setTimeout(() => toast.remove(), 300);
-                }, TOAST_DURATION_MS); // 增加停留时间方便看清长错误
+                }, TOAST_DURATION_MS); 
             }
 
             function unlockTools() {
@@ -1660,6 +1693,68 @@ function renderToolsPage(time, sha) {
                     restoreBtn();
                 }
             }
+
+            // 新增：快速重构的全选逻辑
+            function toggleSelectAllArchives() {
+                const checkboxes = document.querySelectorAll('.qr-chk');
+                const allChecked = Array.from(checkboxes).every(c => c.checked);
+                checkboxes.forEach(c => c.checked = !allChecked);
+            }
+
+            // 新增：批量循环发送重构请求
+            async function rebuildSelected() {
+                if (!requireAuth()) return;
+                const checkboxes = document.querySelectorAll('.qr-chk:checked');
+                if (checkboxes.length === 0) {
+                    showToast("⚠️ Please select at least one archive.", "error");
+                    return;
+                }
+
+                const btn = document.getElementById('btn-quick-rebuild');
+                const restoreBtn = setButtonBusy(btn, '⏳ Rebuilding...');
+
+                let successCount = 0;
+                let failCount = 0;
+
+                for (const chk of checkboxes) {
+                    const payload = {
+                        slug: chk.value,
+                        name: chk.getAttribute('data-name'),
+                        overview_page: chk.getAttribute('data-overview'),
+                        league: chk.getAttribute('data-league')
+                    };
+                    
+                    try {
+                        showToast("⏳ Fetching: " + payload.name, "success");
+                        const res = await sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload));
+                        
+                        if (checkAuthError(res.status)) {
+                            restoreBtn();
+                            return;
+                        }
+                        
+                        if (res.ok) {
+                            successCount++;
+                            showToast("✅ Completed: " + payload.name, "success");
+                        } else {
+                            failCount++;
+                            const errText = await res.text();
+                            showToast("⚠️ Error (" + payload.name + "): " + errText, "error");
+                        }
+                    } catch (e) {
+                        failCount++;
+                        showToast("❌ Network Error: " + payload.name, "error");
+                    }
+                }
+
+                restoreBtn();
+                if (failCount === 0 && successCount > 0) {
+                    showToast("🎉 All selected archives rebuilt successfully!", "success");
+                    setTimeout(() => window.location.href = "/archive", REDIRECT_DELAY_MS);
+                } else if (failCount > 0) {
+                    showToast("⚠️ Finished with " + failCount + " errors.", "error");
+                }
+            }
         </script>
     </body>
     </html>`;
@@ -1670,7 +1765,6 @@ function renderLogPage(logs, time, sha) {
     const logLevelClassMap = { ERROR: "lvl-err", SUCCESS: "lvl-ok" };
     const entries = logs.map(l => {
         const lvlClass = logLevelClassMap[l.l] || "lvl-inf";
-        // 核心改动：使用 <code> 标签包裹时间和日志内容，触发字体渲染脚本的代码块保护机制
         return `<li class="log-entry"><code class="log-time">${l.t}</code><span class="log-level ${lvlClass}">${l.l}</span><code class="log-msg">${l.m}</code></li>`;
     }).join("");
     const buildFooter = renderBuildFooter(time, sha);
@@ -1703,7 +1797,6 @@ function renderLogPage(logs, time, sha) {
         .logs-container-tight { padding: 0; width: calc(100% - 30px); }
         ${BUILD_FOOTER_STYLE}
         
-        /* 移动端优化：Time 和 Level 同行显示，Message 换行显示，双端字体均已加大 */
         @media (max-width: 600px) { 
             .log-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 15px; } 
             .log-time { font-size: 12px; } 
@@ -1793,7 +1886,19 @@ export default {
             }
 
             case "/tools": {
-                return htmlResponse(renderToolsPage(time, sha));
+                // 读取现有归档，生成重构列表
+                let existingArchives = [];
+                try {
+                    const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
+                    const dataKeys = allKeys.keys.filter(k => k.name !== "ARCHIVE_STATIC_HTML");
+                    const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
+                    // 提取出有效的 tournament 基础信息
+                    existingArchives = rawSnapshots.filter(s => s && s.tourn).map(s => s.tourn);
+                } catch(e) {
+                    console.error("Error fetching archives for tools page", e);
+                }
+                
+                return htmlResponse(renderToolsPage(time, sha, existingArchives));
             }
 
             case "/logs": {
