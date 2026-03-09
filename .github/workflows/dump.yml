@@ -4,12 +4,6 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
-    inputs:
-      force_update:
-        description: '是否强制更新所有文件 (忽略内容对比)'
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   dump:
@@ -25,24 +19,15 @@ jobs:
         id: process_data
         env:
           WORKER_URL: "https://lol-stats.closur3.workers.dev/backup"
-          FORCE_UPDATE: ${{ github.event.inputs.force_update }}
         run: |
           import requests
           import os
-          import re
-          from datetime import datetime
 
           url = os.environ.get("WORKER_URL")
-          force_update = os.environ.get("FORCE_UPDATE") == "true"
           
           if not url:
               print("❌ 错误: WORKER_URL 环境变量未设置")
               exit(1)
-
-          if force_update:
-              print("⚠️  检测到【强制更新】模式：将跳过对比，直接覆盖所有文件")
-
-          TIME_PATTERN = re.compile(r"^Updated:.*\(CST\)$", re.MULTILINE)
 
           print(f"🚀 开始抓取: {url}")
 
@@ -62,34 +47,23 @@ jobs:
               for file_path, raw_template in data.items():
                   os.makedirs(os.path.dirname(file_path), exist_ok=True)
                   
-                  clean_new = TIME_PATTERN.sub("", raw_template).strip()
-                  
-                  should_write = False
-                  
                   if not os.path.exists(file_path):
                       print(f"✨ [新建] {file_path}")
-                      should_write = True
                       created_files.append(file_path)
-                  elif force_update:
-                      print(f"🔄 [强制] {file_path}")
-                      should_write = True
-                      updated_files.append(file_path)
                   else:
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
-                      clean_old = TIME_PATTERN.sub("", old_content).strip()
                       
-                      if clean_old != clean_new:
+                      if old_content != raw_template:
                           print(f"⚡ [更新] {file_path}: 检测到比赛数据或排名变动")
-                          should_write = True
                           updated_files.append(file_path)
                       else:
-                          print(f"💤 [跳过] {file_path}: 数据与本地一致 (仅时间戳不同)")
+                          print(f"💤 [跳过] {file_path}: 数据与本地一致")
+                          continue
 
-                  if should_write:
-                      with open(file_path, "w", encoding="utf-8") as f:
-                          f.write(raw_template)
-                      changes_count += 1
+                  with open(file_path, "w", encoding="utf-8") as f:
+                      f.write(raw_template)
+                  changes_count += 1
               
               print(f"\n✅ 处理完成。共更新/新建 {changes_count} 个文件。")
 
