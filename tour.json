@@ -2,7 +2,7 @@
     {
         "slug": "first-stand-2026",
         "name": "First Stand 2026",
-        "league": "First Stand",
+        "league": "FST",
         "overview_page": [
             "2026 First Stand"
         ],
@@ -12,7 +12,7 @@
     {
         "slug": "lpl-2026-split-1",
         "name": "LPL 2026 Split 1",
-        "league": "Tencent LoL Pro League",
+        "league": "LPL",
         "overview_page": [
             "LPL/2026 Season/Split 1",
             "LPL/2026 Season/Split 1 Playoffs"
