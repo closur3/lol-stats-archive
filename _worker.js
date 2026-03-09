@@ -1110,7 +1110,7 @@ async function runUpdate(env, force=false) {
     
     let runtimeConfig = null;
     try {
-        const teams = await gh.fetchJson(env, "mapping.json");
+        const teams = await gh.fetchJson(env, "teams.json");
         const tourns = await gh.fetchJson(env, "tour.json");
         if (teams && tourns) runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
     } catch (e) {}
