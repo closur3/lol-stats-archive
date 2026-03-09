@@ -1198,37 +1198,12 @@ async function runUpdate(env, force=false) {
     const breakers = [];
     const apiErrors = [];
     
-    // 先计算每个联赛更新后的 slowWeight
-    batch.forEach(c => {
-        const result = results.find(r => r.slug === c.slug);
-        if (!result || result.status !== 'fulfilled') return;
-        
-        let newWeight = c.slowWeight;
-        const isIdle = idleDetails.some(d => d.includes(c.league));
-        const isSync = syncDetails.some(d => d.includes(c.league));
-        
-        if (isIdle) {
-            if (newWeight < SLOW_MAX_MULTIPLIER) newWeight++;
-        } else if (isSync) {
-            newWeight = 1;
-        }
-        
-        c.slowWeight = newWeight;
-    });
-    
-    // 计算日志（使用更新后的 slowWeight）
+    // 先用旧的 slowWeight 计算倒计时，填充 idleDetails/syncDetails
     results.forEach(res => {
         const c = batch.find(b => b.slug === res.slug);
         const dName = c.league;
         const mIcon = c.mode === "slow" ? "🐌" : "⚡";
-        
-        // 使用更新后的 slowWeight 重新计算阈值和倒计时
-        let threshold = FAST_THRESHOLD;
-        if (c.mode === "slow" && c.slowWeight) {
-            const slowDelay = SLOW_THRESHOLD * c.slowWeight;
-            threshold = Math.min(slowDelay, SLOW_THRESHOLD * SLOW_MAX_MULTIPLIER);
-        }
-        const remainingMins = Math.max(0, Math.floor(threshold / 60000) - c.xm);
+        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
 
         if (res.status === 'fulfilled') {
             const slug = res.slug;
@@ -1302,6 +1277,54 @@ async function runUpdate(env, force=false) {
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
+    // 根据 idleDetails/syncDetails 更新 slowWeight
+    batch.forEach(c => {
+        const isIdle = idleDetails.some(d => d.includes(c.league));
+        const isSync = syncDetails.some(d => d.includes(c.league));
+        
+        if (isIdle) {
+            if (c.slowWeight < SLOW_MAX_MULTIPLIER) c.slowWeight++;
+        } else if (isSync) {
+            c.slowWeight = 1;
+        }
+    });
+    
+    // 用更新后的 slowWeight 重新计算倒计时
+    const syncDetails2 = [];
+    const idleDetails2 = [];
+    results.forEach(res => {
+        const c = batch.find(b => b.slug === res.slug);
+        const dName = c.league;
+        const mIcon = c.mode === "slow" ? "🐌" : "⚡";
+        
+        let threshold = FAST_THRESHOLD;
+        if (c.mode === "slow" && c.slowWeight) {
+            const slowDelay = SLOW_THRESHOLD * c.slowWeight;
+            threshold = Math.min(slowDelay, SLOW_THRESHOLD * SLOW_MAX_MULTIPLIER);
+        }
+        const remainingMins = Math.max(0, Math.floor(threshold / 60000) - c.xm);
+
+        if (res.status === 'fulfilled') {
+            const slug = res.slug;
+            const newData = res.data || [];
+            const oldData = cache.rawMatches[slug] || [];
+            
+            if (res.isDelta) {
+                if (newData.length > 0) {
+                    syncDetails2.push(`${dName} +${newData.length - oldData.length} (${mIcon}${remainingMins}m)`);
+                } else {
+                    idleDetails2.push(`${dName} *${oldData.length} (${mIcon}${remainingMins}m)`);
+                }
+            } else {
+                if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
+                    syncDetails2.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
+                } else {
+                    idleDetails2.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
+                }
+            }
+        }
+    });
+    
     const modeSwitches = [];
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
@@ -1318,11 +1341,11 @@ async function runUpdate(env, force=false) {
     const authPrefix = isAnon ? "👻 " : "";
     let trafficLight, action, content;
     
-    if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
+    if (syncDetails2.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
         trafficLight = "⚪"; action = "[IDLE]";
         
         let parts = [];
-        if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
+        if (idleDetails2.length > 0) parts.push(`🔍 ${idleDetails2.join(", ")}`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         parts.push(`🟰 Identical`);
         
@@ -1333,7 +1356,7 @@ async function runUpdate(env, force=false) {
         action = hasErr ? "[ERR!]" : "[SYNC]";
         
         let parts = [];
-        if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
+        if (syncDetails2.length > 0) parts.push(`🔄 ${syncDetails2.join(", ")}`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
         if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
@@ -1344,26 +1367,15 @@ async function runUpdate(env, force=false) {
     const finalLog = `${trafficLight} ${action} | ${authPrefix}${content}`;
     if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
 
-    // 根据 IDLE/SYNC 结果更新并保存 slowWeight 到 meta
+    // 保存 slowWeight 到 meta
     batch.forEach(c => {
-        let newWeight = c.slowWeight;
-        
-        const isIdle = idleDetails.some(d => d.includes(c.league));
-        const isSync = syncDetails.some(d => d.includes(c.league));
-        
-        if (isIdle) {
-            if (newWeight < SLOW_MAX_MULTIPLIER) newWeight++;
-        } else if (isSync) {
-            newWeight = 1;
-        }
-        
         if (!meta.tournaments) meta.tournaments = {};
         if (!meta.tournaments[c.slug]) meta.tournaments[c.slug] = {};
         
         const existing = analysis.tournMeta[c.slug] || {};
         meta.tournaments[c.slug] = {
             ...existing,
-            slowWeight: newWeight
+            slowWeight: c.slowWeight
         };
     });
 
