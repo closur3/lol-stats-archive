@@ -1343,15 +1343,26 @@ async function runUpdate(env, force=false) {
     const finalLog = `${trafficLight} ${action} | ${authPrefix}${content}`;
     if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
 
-    // 保存 slowWeight 到 meta
+    // 根据 IDLE/SYNC 结果更新并保存 slowWeight 到 meta
     batch.forEach(c => {
+        let newWeight = c.slowWeight;
+        
+        const isIdle = idleDetails.some(d => d.includes(c.league));
+        const isSync = syncDetails.some(d => d.includes(c.league));
+        
+        if (isIdle) {
+            if (newWeight < SLOW_MAX_MULTIPLIER) newWeight++;
+        } else if (isSync) {
+            newWeight = 1;
+        }
+        
         if (!meta.tournaments) meta.tournaments = {};
         if (!meta.tournaments[c.slug]) meta.tournaments[c.slug] = {};
         
         const existing = analysis.tournMeta[c.slug] || {};
         meta.tournaments[c.slug] = {
             ...existing,
-            slowWeight: c.slowWeight
+            slowWeight: newWeight
         };
     });
 
