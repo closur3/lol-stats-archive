@@ -1207,6 +1207,7 @@ async function runUpdate(env, force=false) {
         const c = batch.find(b => b.slug === res.slug);
         const dName = c.league;
         const mIcon = c.mode === "slow" ? "🐌" : "⚡";
+        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
 
         if (res.status === 'fulfilled') {
             const slug = res.slug;
@@ -1246,14 +1247,11 @@ async function runUpdate(env, force=false) {
                             return tA.localeCompare(tB);
                         });
                         cache.rawMatches[slug] = mergedList;
-                        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
                         syncDetails.push(`${dName} +${changesCount} (${mIcon}${remainingMins}m)`);
                     } else {
-                        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
                         idleDetails.push(`${dName} *${oldData.length} (${mIcon}${remainingMins}m)`);
                     }
                 } else {
-                    const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
                     idleDetails.push(`${dName} *${oldData.length} (${mIcon}${remainingMins}m)`);
                 }
             } else {
@@ -1263,10 +1261,8 @@ async function runUpdate(env, force=false) {
                 } else {
                     cache.rawMatches[slug] = newData;
                     if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-                        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
                         syncDetails.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
                     } else {
-                        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
                         idleDetails.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
                     }
                 }
