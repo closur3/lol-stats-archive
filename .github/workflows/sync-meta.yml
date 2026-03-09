@@ -1,4 +1,4 @@
-name: Sync Metadata (Targeted Fix)
+name: Sync Metadata
 
 on:
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run Focused Sync
+      - name: Run Sync
         env:
           PYTHONUNBUFFERED: "1"
           FANDOM_BOT_USERNAME: ${{ secrets.FANDOM_BOT_USERNAME }}
@@ -33,69 +33,82 @@ jobs:
           import requests, json, os
 
           URL = "https://lol.fandom.com/api.php"
-          UA = "LoLStatsWorker/2026 (User:HsuX)"
+          UA  = "LoLStatsWorker/2026 (User:HsuX)"
 
           def make_session(bot_user, bot_pass):
               session = requests.Session()
               session.headers.update({"User-Agent": UA})
               if bot_user and bot_pass:
                   try:
-                      res = session.get(URL, params={"action":"query","meta":"tokens","type":"login","format":"json"}).json()
+                      res = session.get(URL, params={
+                          "action": "query", "meta": "tokens",
+                          "type": "login", "format": "json"
+                      }, timeout=15).json()
                       token = res.get("query", {}).get("tokens", {}).get("logintoken")
                       if token:
-                          login = session.post(URL, data={"action":"login","lgname":bot_user,"lgpassword":bot_pass,"lgtoken":token,"format":"json"}).json()
+                          login = session.post(URL, data={
+                              "action": "login", "lgname": bot_user,
+                              "lgpassword": bot_pass, "lgtoken": token, "format": "json"
+                          }, timeout=15).json()
                           if login.get("login", {}).get("result") == "Success":
-                              print(f"✅ [AUTH] 登录成功")
-                  except Exception as e: print(f"❌ [AUTH] 异常: {e}")
+                              print("✅ [AUTH] 登录成功")
+                          else:
+                              print(f"⚠️  [AUTH] 登录失败: {login}")
+                  except Exception as e:
+                      print(f"❌ [AUTH] 异常: {e}")
               return session
 
-          session = make_session(os.environ.get("FANDOM_BOT_USERNAME"), os.environ.get("FANDOM_BOT_PASSWORD"))
+          def fetch_all(session, url, limit=500):
+              """分页拉取，返回所有 cargoquery 条目。"""
+              results, offset = [], 0
+              while True:
+                  resp = session.get(f"{url}&limit={limit}&offset={offset}", timeout=30).json()
+                  if "error" in resp:
+                      print(f"❌ [ERROR] {resp['error']}")
+                      break
+                  page = resp.get("cargoquery", [])
+                  results.extend(page)
+                  print(f"  offset={offset} 获取 {len(page)} 条，累计 {len(results)} 条")
+                  if len(page) < limit:
+                      break
+                  offset += limit
+              return results
 
-          # 1. Teams 同步 - 手动拼接 URL 避免单引号被编码
-          team_url = f"{URL}?action=cargoquery&format=json&tables=Teams&fields=Name,Short&where=Region='China'&limit=200"
+          session = make_session(
+              os.environ.get("FANDOM_BOT_USERNAME"),
+              os.environ.get("FANDOM_BOT_PASSWORD")
+          )
 
-          print(f"🚀 [FETCH] 正在获取中国赛区战队...")
-          try:
-              resp = session.get(team_url, timeout=30).json()
-              if "error" in resp:
-                  print(f"❌ [ERROR] Teams API 报错: {resp['error']}")
-              else:
-                  raw_teams = resp.get("cargoquery", [])
-                  team_map = {}
-                  for item in raw_teams:
-                      t = item.get("title", {})
-                      n, s = t.get("Name"), t.get("Short")
-                      if n and s:
-                          team_map[n] = s
+          # ── 1. Teams ──────────────────────────────────────────────────────────
+          print("🚀 [TEAMS] 开始同步...")
+          team_url = f"{URL}?action=cargoquery&format=json&tables=Teams&fields=Name,Short&where=IsDisbanded='0'"
+          rows = fetch_all(session, team_url)
+          team_map = {}
+          for item in rows:
+              t = item.get("title", {})
+              n, s = t.get("Name"), t.get("Short")
+              if n and s:
+                  team_map[n] = s
+          with open("teams.json", "w", encoding="utf-8") as f:
+              json.dump(team_map, f, indent=2, ensure_ascii=False)
+          print(f"✨ [TEAMS] 完成，共 {len(team_map)} 条\n")
 
-                  with open("teams.json", "w", encoding="utf-8") as f:
-                      json.dump(team_map, f, indent=2, ensure_ascii=False)
-                  print(f"✨ [SUCCESS] 战队同步完成: 获得 {len(team_map)} 条有效映射")
-          except Exception as e: print(f"❌ [FATAL] Teams 请求失败: {e}")
-
-          # 2. Leagues 同步 - 同样手动拼接 URL
-          league_url = f"{URL}?action=cargoquery&format=json&tables=Leagues&fields=League,League_Short=LeagueShort&where=Region='China'&limit=50"
-
-          print(f"🚀 [FETCH] 正在获取中国赛区联赛...")
-          try:
-              resp_lg = session.get(league_url, timeout=30).json()
-              if "error" in resp_lg:
-                  print(f"❌ [ERROR] Leagues API 报错: {resp_lg['error']}")
-              else:
-                  lg_map = {}
-                  for i in resp_lg.get("cargoquery", []):
-                      t = i.get("title", {})
-                      lg, short = t.get("League"), t.get("LeagueShort")
-                      if lg and short:
-                          lg_map[lg] = short
-
-                  with open("leagues.json", "w", encoding="utf-8") as f:
-                      json.dump(lg_map, f, indent=2, ensure_ascii=False)
-                  print(f"✨ [SUCCESS] 联赛同步完成: {len(lg_map)} 条")
-          except Exception as e: print(f"❌ [FATAL] Leagues 请求失败: {e}")
+          # ── 2. Leagues ────────────────────────────────────────────────────────
+          print("🚀 [LEAGUES] 开始同步...")
+          league_url = f"{URL}?action=cargoquery&format=json&tables=Leagues&fields=League,League_Short"
+          rows = fetch_all(session, league_url)
+          league_map = {}
+          for item in rows:
+              t = item.get("title", {})
+              lg, short = t.get("League"), t.get("League Short")
+              if lg and short:
+                  league_map[lg] = short
+          with open("leagues.json", "w", encoding="utf-8") as f:
+              json.dump(league_map, f, indent=2, ensure_ascii=False)
+          print(f"✨ [LEAGUES] 完成，共 {len(league_map)} 条")
 
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "📦 Sync metadata: Focused China"
+          commit_message: "📦 Sync metadata: teams & leagues"
           file_pattern: "*.json"
