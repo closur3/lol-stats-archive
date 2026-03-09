@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run Sync
+      - name: Sync Metadata
         id: process_data
         env:
           PYTHONUNBUFFERED: "1"

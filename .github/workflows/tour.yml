@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Sync Tournament Data
+      - name: Discover Tournaments
         id: process_data
         env:
           PYTHONUNBUFFERED: "1"

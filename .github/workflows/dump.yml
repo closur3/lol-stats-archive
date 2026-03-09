@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Fetch and Smart Update
+      - name: Backup Stats
         id: process_data
         env:
           WORKER_URL: "https://lol-stats.closur3.workers.dev/backup"

@@ -30,7 +30,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_TIME: ${{ env.CURRENT_TIME }}
 
-      - name: Auto Refresh UI
+      - name: Refresh UI
         env:
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
         run: |
