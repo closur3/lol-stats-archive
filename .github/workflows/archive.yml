@@ -2,7 +2,6 @@ name: Archive Stats
 
 on:
   schedule:
-    # 每天北京时间上午 8:00 运行一次 (UTC 0:00)
     - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
@@ -32,9 +31,7 @@ jobs:
           import re
           from datetime import datetime
 
-          # --- 1. 获取配置 ---
           url = os.environ.get("WORKER_URL")
-          # GitHub Action 传递的布尔值在环境变量中是字符串 "true"/"false"
           force_update = os.environ.get("FORCE_UPDATE") == "true"
           
           if not url:
@@ -44,9 +41,6 @@ jobs:
           if force_update:
               print("⚠️  检测到【强制更新】模式：将跳过对比，直接覆盖所有文件")
 
-          # --- 2. 指纹识别配置 (用于对比数据是否真的变动) ---
-          # 匹配模式：Updated: 2026-xx-xx xx:xx:xx (CST)
-          # 我们在对比新旧文件时会暂时剔除这一行，从而只关注比分和排名数据
           TIME_PATTERN = re.compile(r"^Updated:.*\(CST\)$", re.MULTILINE)
 
           print(f"🚀 开始抓取: {url}")
@@ -63,15 +57,12 @@ jobs:
               changes_count = 0
 
               for file_path, raw_template in data.items():
-                  # 确保目录存在 (tournament/)
                   os.makedirs(os.path.dirname(file_path), exist_ok=True)
                   
-                  # A. 提取新数据的“指纹” (切掉时间戳行)
                   clean_new = TIME_PATTERN.sub("", raw_template).strip()
                   
                   should_write = False
                   
-                  # B. 判断逻辑
                   if not os.path.exists(file_path):
                       print(f"✨ [新建] {file_path}")
                       should_write = True
@@ -79,7 +70,6 @@ jobs:
                       print(f"🔄 [强制] {file_path}")
                       should_write = True
                   else:
-                      # 读取本地旧文件并提取指纹进行比对
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
                       clean_old = TIME_PATTERN.sub("", old_content).strip()
@@ -90,10 +80,7 @@ jobs:
                       else:
                           print(f"💤 [跳过] {file_path}: 数据与本地一致 (仅时间戳不同)")
 
-                  # === 3. 写入逻辑 (1:1 静态复制) ===
                   if should_write:
-                      # 【方案1 核心修复】：直接写入原始 raw_template
-                      # Worker 已经把时间戳填好了，不需要 Python 二次加工
                       with open(file_path, "w", encoding="utf-8") as f:
                           f.write(raw_template)
                       changes_count += 1
