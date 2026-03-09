@@ -110,5 +110,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "📦 Sync metadata: teams & leagues"
+          commit_message: "📥 Meta: teams & leagues"
           file_pattern: "*.json"
