@@ -1277,15 +1277,17 @@ async function runUpdate(env, force=false) {
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
-    // 根据 idleDetails/syncDetails 更新 slowWeight
+    // 根据 idleDetails/syncDetails 更新 slowWeight，并重置时间戳
     batch.forEach(c => {
         const isIdle = idleDetails.some(d => d.includes(c.league));
         const isSync = syncDetails.some(d => d.includes(c.league));
         
         if (isIdle) {
             if (c.slowWeight < SLOW_MAX_MULTIPLIER) c.slowWeight++;
+            cache.updateTimestamps[c.slug] = NOW;
         } else if (isSync) {
             c.slowWeight = 1;
+            cache.updateTimestamps[c.slug] = NOW;
         }
     });
     
