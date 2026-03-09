@@ -1198,12 +1198,10 @@ async function runUpdate(env, force=false) {
     const breakers = [];
     const apiErrors = [];
     
-    // 先用旧的 slowWeight 计算倒计时，填充 idleDetails/syncDetails
+    // 先填充 idleDetails/syncDetails（只存联赛名，用于判断）
     results.forEach(res => {
         const c = batch.find(b => b.slug === res.slug);
         const dName = c.league;
-        const mIcon = c.mode === "slow" ? "🐌" : "⚡";
-        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
 
         if (res.status === 'fulfilled') {
             const slug = res.slug;
@@ -1243,12 +1241,12 @@ async function runUpdate(env, force=false) {
                             return tA.localeCompare(tB);
                         });
                         cache.rawMatches[slug] = mergedList;
-                        syncDetails.push(`${dName} +${changesCount} (${mIcon}${remainingMins}m)`);
+                        syncDetails.push(dName);
                     } else {
-                        idleDetails.push(`${dName} *${oldData.length} (${mIcon}${remainingMins}m)`);
+                        idleDetails.push(dName);
                     }
                 } else {
-                    idleDetails.push(`${dName} *${oldData.length} (${mIcon}${remainingMins}m)`);
+                    idleDetails.push(dName);
                 }
             } else {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
@@ -1257,9 +1255,9 @@ async function runUpdate(env, force=false) {
                 } else {
                     cache.rawMatches[slug] = newData;
                     if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-                        syncDetails.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
+                        syncDetails.push(dName);
                     } else {
-                        idleDetails.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
+                        idleDetails.push(dName);
                     }
                 }
             }
