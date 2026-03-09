@@ -24,6 +24,7 @@ jobs:
         run: pip install requests
 
       - name: Run Sync
+        id: process_data
         env:
           PYTHONUNBUFFERED: "1"
           FANDOM_BOT_USERNAME: ${{ secrets.FANDOM_BOT_USERNAME }}
@@ -79,6 +80,19 @@ jobs:
               os.environ.get("FANDOM_BOT_PASSWORD")
           )
 
+          old_teams = {}
+          old_leagues = {}
+          try:
+              with open("teams.json", "r", encoding="utf-8") as f:
+                  old_teams = json.load(f)
+          except:
+              pass
+          try:
+              with open("leagues.json", "r", encoding="utf-8") as f:
+                  old_leagues = json.load(f)
+          except:
+              pass
+
           # ── 1. Teams ──────────────────────────────────────────────────────────
           print("🚀 [TEAMS] 开始同步...")
           team_url = f"{URL}?action=cargoquery&format=json&tables=Teams&fields=Name,Short&where=IsDisbanded='0'"
@@ -107,8 +121,26 @@ jobs:
               json.dump(league_map, f, indent=2, ensure_ascii=False)
           print(f"✨ [LEAGUES] 完成，共 {len(league_map)} 条")
 
+          diff_teams = len(team_map) - len(old_teams)
+          diff_leagues = len(league_map) - len(old_leagues)
+          
+          diff = []
+          if diff_teams != 0:
+              diff.append(f"teams {diff_teams:+d}")
+          if diff_leagues != 0:
+              diff.append(f"leagues {diff_leagues:+d}")
+          
+          if diff:
+              commit_msg = f"📋 Meta: {' | '.join(diff)}"
+          else:
+              commit_msg = "🔄 Meta: no changes"
+
+          if "GITHUB_OUTPUT" in os.environ:
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"commit_msg={commit_msg}\n")
+
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "📥 Meta: teams & leagues"
+          commit_message: "${{ steps.process_data.outputs.commit_msg }}"
           file_pattern: "*.json"

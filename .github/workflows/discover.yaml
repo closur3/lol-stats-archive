@@ -352,12 +352,12 @@ jobs:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
 
               new_s = {item["slug"] for item in unique_res}
-              diff = [f"➕ {s}" for s in sorted(new_s - old_slugs)] + [f"➖ {s}" for s in sorted(old_slugs - new_s)]
+              diff = [f"+ {s}" for s in sorted(new_s - old_slugs)] + [f"- {s}" for s in sorted(old_slugs - new_s)]
 
               if len(diff) > 5:
-                  commit_msg = f"📊 Tour: 新增 {len(new_s - old_slugs)} 项, 移除 {len(old_slugs - new_s)} 项"
+                  commit_msg = f"🎯 Tour: +{len(new_s - old_slugs)}, -{len(old_slugs - new_s)}"
               elif diff:
-                  commit_msg = f"📊 Tour: {' | '.join(diff)}"
+                  commit_msg = f"🎯 Tour: {' | '.join(diff)}"
               else:
                   commit_msg = "🔄 Tour: no changes"
 

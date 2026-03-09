@@ -22,6 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Fetch and Smart Update
+        id: process_data
         env:
           WORKER_URL: "https://lol-stats.closur3.workers.dev/backup"
           FORCE_UPDATE: ${{ github.event.inputs.force_update }}
@@ -55,6 +56,8 @@ jobs:
                   exit(1)
 
               changes_count = 0
+              created_files = []
+              updated_files = []
 
               for file_path, raw_template in data.items():
                   os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -66,9 +69,11 @@ jobs:
                   if not os.path.exists(file_path):
                       print(f"✨ [新建] {file_path}")
                       should_write = True
+                      created_files.append(file_path)
                   elif force_update:
                       print(f"🔄 [强制] {file_path}")
                       should_write = True
+                      updated_files.append(file_path)
                   else:
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
@@ -77,6 +82,7 @@ jobs:
                       if clean_old != clean_new:
                           print(f"⚡ [更新] {file_path}: 检测到比赛数据或排名变动")
                           should_write = True
+                          updated_files.append(file_path)
                       else:
                           print(f"💤 [跳过] {file_path}: 数据与本地一致 (仅时间戳不同)")
 
@@ -87,6 +93,19 @@ jobs:
               
               print(f"\n✅ 处理完成。共更新/新建 {changes_count} 个文件。")
 
+              diff = [f"+ {os.path.basename(f)}" for f in created_files] + [f"~ {os.path.basename(f)}" for f in updated_files]
+              
+              if len(diff) > 5:
+                  commit_msg = f"📁 Archive: +{len(created_files)}, ~{len(updated_files)}"
+              elif diff:
+                  commit_msg = f"📁 Archive: {' | '.join(diff)}"
+              else:
+                  commit_msg = "🔄 Archive: no changes"
+
+              if "GITHUB_OUTPUT" in os.environ:
+                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                      f.write(f"commit_msg={commit_msg}\n")
+
           except Exception as e:
               print(f"❌ 脚本执行发生错误: {e}")
               exit(1)
@@ -95,5 +114,5 @@ jobs:
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🗃️ Auto: Archive stats"
+          commit_message: "${{ steps.process_data.outputs.commit_msg }}"
           file_pattern: 'markdown/*.md'
