@@ -1277,17 +1277,15 @@ async function runUpdate(env, force=false) {
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
-    // 根据 idleDetails/syncDetails 更新 slowWeight，并重置时间戳
+    // 根据 idleDetails/syncDetails 更新 slowWeight
     batch.forEach(c => {
         const isIdle = idleDetails.some(d => d.includes(c.league));
         const isSync = syncDetails.some(d => d.includes(c.league));
         
         if (isIdle) {
             if (c.slowWeight < SLOW_MAX_MULTIPLIER) c.slowWeight++;
-            cache.updateTimestamps[c.slug] = NOW;
         } else if (isSync) {
             c.slowWeight = 1;
-            cache.updateTimestamps[c.slug] = NOW;
         }
     });
     
@@ -1304,7 +1302,12 @@ async function runUpdate(env, force=false) {
             const slowDelay = SLOW_THRESHOLD * c.slowWeight;
             threshold = Math.min(slowDelay, SLOW_THRESHOLD * SLOW_MAX_MULTIPLIER);
         }
-        const remainingMins = Math.max(0, Math.floor(threshold / 60000) - c.xm);
+        
+        // 检查这个联赛是否触发了
+        const isTriggered = idleDetails.some(d => d.includes(c.league)) || syncDetails.some(d => d.includes(c.league));
+        const remainingMins = isTriggered 
+            ? Math.floor(threshold / 60000) 
+            : Math.max(0, Math.floor(threshold / 60000) - c.xm);
 
         if (res.status === 'fulfilled') {
             const slug = res.slug;
