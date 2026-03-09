@@ -10,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      TARGET_FILENAME: 'tour.json'
 
     steps:
       - name: Checkout repo
@@ -39,7 +37,7 @@ jobs:
 
           now = datetime.now()
           today_dt = now.date()
-          TARGET_FILE = os.environ.get("TARGET_FILENAME")
+          TARGET_FILE = "tour.json"
 
           # ==================== 配置区 ====================
           PREHEAT_DAYS, EXPIRE_DAYS = 7, 1
@@ -369,7 +367,9 @@ jobs:
               run_sniff()
 
       - name: Commit and Push
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "${{ steps.process_data.outputs.commit_msg }}"
-          file_pattern: ${{ env.TARGET_FILENAME }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add tour.json
+          git commit -m "${{ steps.process_data.outputs.commit_msg }}"
+          git push
