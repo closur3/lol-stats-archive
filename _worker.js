@@ -1109,8 +1109,6 @@ async function runUpdate(env, force=false) {
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
     const meta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, tournaments: {} };
     
-    let slowWeight = parseInt(await env.LOL_KV.get("SLOW_WEIGHT") || "1");
-    
     let runtimeConfig = null;
     try {
         const teams = await gh.fetchJson(env, "teams.json");
@@ -1137,7 +1135,11 @@ async function runUpdate(env, force=false) {
         const dayLast = utils.toCST(lastTs).getUTCDate();
         const isNewDay = dayNow !== dayLast;
         
-        const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
+        let tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0, slowWeight: 1 };
+        let slowWeight = tMeta.slowWeight || 1;
+        
+        if (isNewDay) slowWeight = 1;
+        
         const currentMode = tMeta.mode;
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
         let threshold = FAST_THRESHOLD;
@@ -1152,7 +1154,7 @@ async function runUpdate(env, force=false) {
         if (force || elapsed >= threshold || isNewDay) {
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
-                xm: elapsedMins, threshold: threshold, isNewDay: isNewDay, mode: currentMode 
+                xm: elapsedMins, threshold: threshold, isNewDay: isNewDay, mode: currentMode, slowWeight: slowWeight 
             });
         } else {
             const remainingMins = Math.max(0, Math.floor(threshold / 60000) - elapsedMins);
@@ -1163,6 +1165,10 @@ async function runUpdate(env, force=false) {
     if (candidates.length === 0) { 
         l.success(`⚪ [COOL] | ❄️ ${coolDetails.join(", ")}`);
         return l; 
+    }
+
+    if (needResetWeight) {
+        slowWeight = 1;
     }
 
     const authContext = await loginToFandom(env);
@@ -1316,15 +1322,30 @@ async function runUpdate(env, force=false) {
     const finalLog = `${trafficLight} ${action} | ${authPrefix}${content}`;
     if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
 
-    if (trafficLight === "⚪") {
-        if (slowWeight < SLOW_MAX_MULTIPLIER) {
-            slowWeight++;
+    // 更新每个联赛的 slowWeight
+    batch.forEach(c => {
+        const result = results.find(r => r.slug === c.slug);
+        if (!result || result.status !== 'fulfilled') return;
+        
+        let newWeight = c.slowWeight;
+        const isIdle = (trafficLight === "⚪" && idleDetails.some(d => d.includes(c.league)));
+        
+        if (isIdle) {
+            if (newWeight < SLOW_MAX_MULTIPLIER) newWeight++;
+        } else if (trafficLight === "🟢") {
+            newWeight = 1;
         }
-        await env.LOL_KV.put("SLOW_WEIGHT", slowWeight.toString());
-    } else if (trafficLight === "🟢") {
-        slowWeight = 1;
-        await env.LOL_KV.put("SLOW_WEIGHT", "1");
-    }
+        
+        if (!meta.tournaments) meta.tournaments = {};
+        if (!meta.tournaments[c.slug]) meta.tournaments[c.slug] = {};
+        
+        // 保留原有的 mode, streak, startTs, emoji
+        const existing = analysis.tournMeta[c.slug] || {};
+        meta.tournaments[c.slug] = {
+            ...existing,
+            slowWeight: newWeight
+        };
+    });
 
 
     const newCacheData = { 
@@ -1356,7 +1377,7 @@ async function runUpdate(env, force=false) {
     const archiveHTML = await generateArchiveStaticHTML(env, newCacheData);
     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
 
-    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
+    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: meta.tournaments }));
     
     return l;
 }
