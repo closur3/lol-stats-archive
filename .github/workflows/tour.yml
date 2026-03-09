@@ -1,4 +1,4 @@
-name: Tour
+name: "Tour: Discover Tournaments"
 
 on:
   workflow_dispatch:
