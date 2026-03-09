@@ -1159,7 +1159,7 @@ async function runUpdate(env, force=false) {
         if (force || elapsed >= threshold || isNewDay) {
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
-                xm: elapsedMins, isNewDay: isNewDay, mode: currentMode 
+                xm: elapsedMins, threshold: threshold, isNewDay: isNewDay, mode: currentMode 
             });
         } else {
             const remainingMins = Math.max(0, Math.floor(threshold / 60000) - elapsedMins);
@@ -1246,12 +1246,15 @@ async function runUpdate(env, force=false) {
                             return tA.localeCompare(tB);
                         });
                         cache.rawMatches[slug] = mergedList;
-                        syncDetails.push(`${dName} +${changesCount} (${mIcon}${c.xm}m)`);
+                        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
+                        syncDetails.push(`${dName} +${changesCount} (${mIcon}${remainingMins}m)`);
                     } else {
-                        idleDetails.push(`${dName} *${oldData.length} (${mIcon}${c.xm}m)`);
+                        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
+                        idleDetails.push(`${dName} *${oldData.length} (${mIcon}${remainingMins}m)`);
                     }
                 } else {
-                    idleDetails.push(`${dName} *${oldData.length} (${mIcon}${c.xm}m)`);
+                    const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
+                    idleDetails.push(`${dName} *${oldData.length} (${mIcon}${remainingMins}m)`);
                 }
             } else {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
@@ -1260,9 +1263,11 @@ async function runUpdate(env, force=false) {
                 } else {
                     cache.rawMatches[slug] = newData;
                     if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-                        syncDetails.push(`${dName} *${newData.length} (${mIcon}${c.xm}m)`);
+                        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
+                        syncDetails.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
                     } else {
-                        idleDetails.push(`${dName} *${newData.length} (${mIcon}${c.xm}m)`);
+                        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
+                        idleDetails.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
                     }
                 }
             }
