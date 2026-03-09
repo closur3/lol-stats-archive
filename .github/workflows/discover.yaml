@@ -210,7 +210,7 @@ jobs:
               log("INFO", f"系统初始化完成 (日期: {today_dt}) | 开始抓取赛事目录")
               log_sep()
 
-              LEAGUE_MAPPING = load_json("mapping.json", {})
+              LEAGUE_MAPPING = load_json(" leagues.json", {})
 
               ALLOWED_REGIONS = set()
               if "Region" in CARGO_WHERE and CARGO_WHERE["Region"] is not None:
