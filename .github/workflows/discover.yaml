@@ -355,11 +355,11 @@ jobs:
               diff = [f"➕ {s}" for s in sorted(new_s - old_slugs)] + [f"➖ {s}" for s in sorted(old_slugs - new_s)]
 
               if len(diff) > 5:
-                  commit_msg = f"📊 Data Sync: 新增 {len(new_s - old_slugs)} 项, 移除 {len(old_slugs - new_s)} 项"
+                  commit_msg = f"📊 Tour: 新增 {len(new_s - old_slugs)} 项, 移除 {len(old_slugs - new_s)} 项"
               elif diff:
-                  commit_msg = f"📊 Data Sync: {' | '.join(diff)}"
+                  commit_msg = f"📊 Tour: {' | '.join(diff)}"
               else:
-                  commit_msg = "🔄 Data Sync: no changes"
+                  commit_msg = "🔄 Tour: no changes"
 
               if "GITHUB_OUTPUT" in os.environ:
                   with open(os.environ["GITHUB_OUTPUT"], "a") as f:
