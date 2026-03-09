@@ -8,16 +8,5 @@
         ],
         "start_date": "2026-03-16",
         "end_date": "2026-03-22"
-    },
-    {
-        "slug": "lpl-2026-split-1",
-        "name": "LPL 2026 Split 1",
-        "league": "LPL",
-        "overview_page": [
-            "LPL/2026 Season/Split 1",
-            "LPL/2026 Season/Split 1 Playoffs"
-        ],
-        "start_date": "2026-01-14",
-        "end_date": "2026-03-08"
     }
 ]
