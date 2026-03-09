@@ -1103,10 +1103,20 @@ async function runUpdate(env, force=false) {
     const NOW = Date.now();
     const FAST_THRESHOLD = 6 * 60 * 1000;         
     const SLOW_THRESHOLD = 56 * 60 * 1000;        
+    const SLOW_MAX_MULTIPLIER = 3;
     const UPDATE_ROUNDS = 1;
 
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
     const meta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, tournaments: {} };
+    
+    let slowWeight = parseInt(await env.LOL_KV.get("SLOW_WEIGHT") || "0");
+    const lastResetDate = await env.LOL_KV.get("SLOW_LAST_RESET");
+    const todayStr = utils.getNow().date;
+    if (lastResetDate !== todayStr) {
+        slowWeight = 0;
+        await env.LOL_KV.put("SLOW_WEIGHT", "0");
+        await env.LOL_KV.put("SLOW_LAST_RESET", todayStr);
+    }
     
     let runtimeConfig = null;
     try {
@@ -1137,7 +1147,11 @@ async function runUpdate(env, force=false) {
         const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
         const currentMode = tMeta.mode;
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
-        const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
+        let threshold = FAST_THRESHOLD;
+        if (currentMode === "slow" && !isStarted) {
+            const slowDelay = SLOW_THRESHOLD * (slowWeight + 1);
+            threshold = Math.min(slowDelay, SLOW_THRESHOLD * SLOW_MAX_MULTIPLIER);
+        }
         
         const dName = tourn.league || tourn.name || tourn.slug.toUpperCase();
         const modeIcon = currentMode === "slow" ? "🐌" : "⚡";
@@ -1148,7 +1162,8 @@ async function runUpdate(env, force=false) {
                 xm: elapsedMins, isNewDay: isNewDay, mode: currentMode 
             });
         } else {
-            coolDetails.push(`${dName}(${modeIcon}${elapsedMins}m)`);
+            const remainingMins = Math.max(0, Math.floor(threshold / 60000) - elapsedMins);
+            coolDetails.push(`${dName}(${modeIcon}${remainingMins}m)`);
         }
     });
 
@@ -1306,6 +1321,14 @@ async function runUpdate(env, force=false) {
 
     const finalLog = `${trafficLight} ${action} | ${authPrefix}${content}`;
     if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
+
+    if (trafficLight === "⚪") {
+        slowWeight++;
+        await env.LOL_KV.put("SLOW_WEIGHT", slowWeight.toString());
+    } else if (trafficLight === "🟢") {
+        slowWeight = 0;
+        await env.LOL_KV.put("SLOW_WEIGHT", "0");
+    }
 
 
     const newCacheData = { 
