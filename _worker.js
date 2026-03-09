@@ -1167,10 +1167,6 @@ async function runUpdate(env, force=false) {
         return l; 
     }
 
-    if (needResetWeight) {
-        slowWeight = 1;
-    }
-
     const authContext = await loginToFandom(env);
 
     const batchSize = Math.ceil(candidates.length / UPDATE_ROUNDS);
