@@ -1198,11 +1198,36 @@ async function runUpdate(env, force=false) {
     const breakers = [];
     const apiErrors = [];
     
+    // 先计算每个联赛更新后的 slowWeight
+    batch.forEach(c => {
+        const result = results.find(r => r.slug === c.slug);
+        if (!result || result.status !== 'fulfilled') return;
+        
+        let newWeight = c.slowWeight;
+        const isIdle = (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0 && idleDetails.some(d => d.includes(c.league)));
+        
+        if (isIdle) {
+            if (newWeight < SLOW_MAX_MULTIPLIER) newWeight++;
+        } else if (syncDetails.length > 0 && apiErrors.length === 0 && breakers.length === 0) {
+            newWeight = 1;
+        }
+        
+        c.slowWeight = newWeight;
+    });
+    
+    // 计算日志（使用更新后的 slowWeight）
     results.forEach(res => {
         const c = batch.find(b => b.slug === res.slug);
         const dName = c.league;
         const mIcon = c.mode === "slow" ? "🐌" : "⚡";
-        const remainingMins = Math.max(0, Math.floor(c.threshold / 60000) - c.xm);
+        
+        // 使用更新后的 slowWeight 重新计算阈值和倒计时
+        let threshold = FAST_THRESHOLD;
+        if (c.mode === "slow" && c.slowWeight) {
+            const slowDelay = SLOW_THRESHOLD * c.slowWeight;
+            threshold = Math.min(slowDelay, SLOW_THRESHOLD * SLOW_MAX_MULTIPLIER);
+        }
+        const remainingMins = Math.max(0, Math.floor(threshold / 60000) - c.xm);
 
         if (res.status === 'fulfilled') {
             const slug = res.slug;
@@ -1318,28 +1343,15 @@ async function runUpdate(env, force=false) {
     const finalLog = `${trafficLight} ${action} | ${authPrefix}${content}`;
     if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
 
-    // 更新每个联赛的 slowWeight
+    // 保存 slowWeight 到 meta
     batch.forEach(c => {
-        const result = results.find(r => r.slug === c.slug);
-        if (!result || result.status !== 'fulfilled') return;
-        
-        let newWeight = c.slowWeight;
-        const isIdle = (trafficLight === "⚪" && idleDetails.some(d => d.includes(c.league)));
-        
-        if (isIdle) {
-            if (newWeight < SLOW_MAX_MULTIPLIER) newWeight++;
-        } else if (trafficLight === "🟢") {
-            newWeight = 1;
-        }
-        
         if (!meta.tournaments) meta.tournaments = {};
         if (!meta.tournaments[c.slug]) meta.tournaments[c.slug] = {};
         
-        // 保留原有的 mode, streak, startTs, emoji
         const existing = analysis.tournMeta[c.slug] || {};
         meta.tournaments[c.slug] = {
             ...existing,
-            slowWeight: newWeight
+            slowWeight: c.slowWeight
         };
     });
 
