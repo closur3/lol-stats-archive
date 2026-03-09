@@ -1204,11 +1204,12 @@ async function runUpdate(env, force=false) {
         if (!result || result.status !== 'fulfilled') return;
         
         let newWeight = c.slowWeight;
-        const isIdle = (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0 && idleDetails.some(d => d.includes(c.league)));
+        const isIdle = idleDetails.some(d => d.includes(c.league));
+        const isSync = syncDetails.some(d => d.includes(c.league));
         
         if (isIdle) {
             if (newWeight < SLOW_MAX_MULTIPLIER) newWeight++;
-        } else if (syncDetails.length > 0 && apiErrors.length === 0 && breakers.length === 0) {
+        } else if (isSync) {
             newWeight = 1;
         }
         
