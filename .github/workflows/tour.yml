@@ -1,12 +1,7 @@
-name: Discover Tournaments
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 15 * * *'
+name: Tour
 
 jobs:
-  discover:
+  tour:
     runs-on: ubuntu-latest
     permissions:
       contents: write

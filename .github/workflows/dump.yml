@@ -1,4 +1,4 @@
-name: Archive Stats
+name: Dump
 
 on:
   schedule:
@@ -12,7 +12,7 @@ on:
         default: false
 
 jobs:
-  archive:
+  dump:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -96,11 +96,11 @@ jobs:
               diff = [f"+ {os.path.basename(f)}" for f in created_files] + [f"~ {os.path.basename(f)}" for f in updated_files]
               
               if len(diff) > 5:
-                  commit_msg = f"📁 Archive: +{len(created_files)}, ~{len(updated_files)}"
+                  commit_msg = f"📁 Dump: +{len(created_files)}, ~{len(updated_files)}"
               elif diff:
-                  commit_msg = f"📁 Archive: {' | '.join(diff)}"
+                  commit_msg = f"📁 Dump: {' | '.join(diff)}"
               else:
-                  commit_msg = "🔄 Archive: no changes"
+                  commit_msg = "🔄 Dump: no changes"
 
               if "GITHUB_OUTPUT" in os.environ:
                   with open(os.environ["GITHUB_OUTPUT"], "a") as f:

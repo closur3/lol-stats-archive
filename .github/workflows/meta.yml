@@ -1,12 +1,7 @@
-name: Sync Metadata
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * 0'
+name: Meta
 
 jobs:
-  sync-metadata:
+  meta:
     runs-on: ubuntu-latest
     permissions:
       contents: write
