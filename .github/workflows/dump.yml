@@ -89,4 +89,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "${{ steps.process_data.outputs.commit_msg }}"
-          file_pattern: markdown/
+          file_pattern: "markdown/*.md"
