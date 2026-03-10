@@ -916,7 +916,17 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     const sortedTournaments = [...runtimeConfig.TOURNAMENTS].sort((a, b) => {
         const dateA = a?.start_date ? new Date(a.start_date).getTime() : 0;
         const dateB = b?.start_date ? new Date(b.start_date).getTime() : 0;
-        return dateB - dateA;
+        
+        // 主要按 start_date 倒序
+        if (dateA !== dateB) return dateB - dateA;
+        
+        // 如果 start_date 相同，按 end_date 倒序
+        const endDateA = a?.end_date ? new Date(a.end_date).getTime() : 0;
+        const endDateB = b?.end_date ? new Date(b.end_date).getTime() : 0;
+        if (endDateA !== endDateB) return endDateB - endDateA;
+        
+        // 如果 end_date 也相同，按 slug 字母顺序（确保稳定性）
+        return (a.slug || '').localeCompare(b.slug || '');
     });
 
     sortedTournaments.forEach((tourn) => {
@@ -1021,7 +1031,17 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         validSnapshots.sort((a, b) => {
             const dateA = a.tourn?.start_date ? new Date(a.tourn.start_date).getTime() : 0;
             const dateB = b.tourn?.start_date ? new Date(b.tourn.start_date).getTime() : 0;
-            return dateB - dateA;
+            
+            // 主要按 start_date 倒序
+            if (dateA !== dateB) return dateB - dateA;
+            
+            // 如果 start_date 相同，按 end_date 倒序
+            const endDateA = a.tourn?.end_date ? new Date(a.tourn.end_date).getTime() : 0;
+            const endDateB = b.tourn?.end_date ? new Date(b.tourn.end_date).getTime() : 0;
+            if (endDateA !== endDateB) return endDateB - endDateA;
+            
+            // 如果 end_date 也相同，按 slug 字母顺序（确保稳定性）
+            return (a.tourn?.slug || '').localeCompare(b.tourn?.slug || '');
         });
 
         const combined = validSnapshots.map(snap => {
