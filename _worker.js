@@ -1413,7 +1413,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
     // 构建复选框列表
     let archiveListHtml = existingArchives.map(t => `
         <label class="qr-label">
-            <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview="${t.overview_page}" data-league="${t.league}">
+            <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview='${JSON.stringify(t.overview_page)}' data-league="${t.league}">
             <span class="qr-league">${t.league || 'UNKN'}</span>
             <span class="qr-name">${t.name}</span>
         </label>
@@ -1732,10 +1732,17 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 let failCount = 0;
 
                 for (const chk of checkboxes) {
+                    const overviewAttr = chk.getAttribute('data-overview');
+                    let overviewPage;
+                    try {
+                        overviewPage = JSON.parse(overviewAttr);
+                    } catch (e) {
+                        overviewPage = overviewAttr;
+                    }
                     const payload = {
                         slug: chk.value,
                         name: chk.getAttribute('data-name'),
-                        overview_page: chk.getAttribute('data-overview'),
+                        overview_page: overviewPage,
                         league: chk.getAttribute('data-league')
                     };
                     
