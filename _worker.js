@@ -1142,13 +1142,17 @@ async function runUpdate(env, force=false) {
         const dName = tourn.league || tourn.name || tourn.slug.toUpperCase();
         const modeIcon = currentMode === "slow" ? "🐌" : "⚡";
 
+        // Calculate countdown to next fetch (in minutes, rounded up)
+        const countdown = Math.max(0, threshold - elapsed);
+        const countdownMins = Math.ceil(countdown / 60000);
+
         if (force || elapsed >= threshold || isNewDay) {
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
-                xm: elapsedMins, isNewDay: isNewDay, mode: currentMode 
+                xm: countdownMins, isNewDay: isNewDay, mode: currentMode 
             });
         } else {
-            coolDetails.push(`${dName}(${modeIcon}${elapsedMins}m)`);
+            coolDetails.push(`${dName}(${modeIcon}${countdownMins}m)`);
         }
     });
 
@@ -1223,6 +1227,10 @@ async function runUpdate(env, force=false) {
                         }
                     });
 
+                    // Recalculate countdown after updating timestamp (will happen later)
+                    const thresholdAfterUpdate = c.mode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
+                    const countdownAfterUpdate = Math.ceil(thresholdAfterUpdate / 60000);
+                    
                     if (changesCount > 0) {
                         const mergedList = Array.from(matchMap.values());
                         mergedList.sort((a, b) => {
@@ -1231,12 +1239,14 @@ async function runUpdate(env, force=false) {
                             return tA.localeCompare(tB);
                         });
                         cache.rawMatches[slug] = mergedList;
-                        syncDetails.push(`${dName} +${changesCount} (${mIcon}${c.xm}m)`);
+                        syncDetails.push(`${dName} +${changesCount} (${mIcon}${countdownAfterUpdate}m)`);
                     } else {
-                        idleDetails.push(`${dName} *${oldData.length} (${mIcon}${c.xm}m)`);
+                        idleDetails.push(`${dName} *${oldData.length} (${mIcon}${countdownAfterUpdate}m)`);
                     }
                 } else {
-                    idleDetails.push(`${dName} *${oldData.length} (${mIcon}${c.xm}m)`);
+                    const thresholdAfterUpdate = c.mode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
+                    const countdownAfterUpdate = Math.ceil(thresholdAfterUpdate / 60000);
+                    idleDetails.push(`${dName} *${oldData.length} (${mIcon}${countdownAfterUpdate}m)`);
                 }
             } else {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
@@ -1244,10 +1254,13 @@ async function runUpdate(env, force=false) {
                     failedSlugs.add(slug);
                 } else {
                     cache.rawMatches[slug] = newData;
+                    // Recalculate countdown after updating timestamp
+                    const thresholdAfterUpdate = c.mode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
+                    const countdownAfterUpdate = Math.ceil(thresholdAfterUpdate / 60000);
                     if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-                        syncDetails.push(`${dName} *${newData.length} (${mIcon}${c.xm}m)`);
+                        syncDetails.push(`${dName} *${newData.length} (${mIcon}${countdownAfterUpdate}m)`);
                     } else {
-                        idleDetails.push(`${dName} *${newData.length} (${mIcon}${c.xm}m)`);
+                        idleDetails.push(`${dName} *${newData.length} (${mIcon}${countdownAfterUpdate}m)`);
                     }
                 }
             }
