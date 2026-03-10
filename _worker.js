@@ -913,23 +913,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
 
     let tablesHtml = "";
 
-    const sortedTournaments = [...runtimeConfig.TOURNAMENTS].sort((a, b) => {
-        const dateA = a?.start_date ? new Date(a.start_date).getTime() : 0;
-        const dateB = b?.start_date ? new Date(b.start_date).getTime() : 0;
-        
-        // 主要按 start_date 倒序
-        if (dateA !== dateB) return dateB - dateA;
-        
-        // 如果 start_date 相同，按 end_date 倒序
-        const endDateA = a?.end_date ? new Date(a.end_date).getTime() : 0;
-        const endDateB = b?.end_date ? new Date(b.end_date).getTime() : 0;
-        if (endDateA !== endDateB) return endDateB - endDateA;
-        
-        // 如果 end_date 也相同，按 slug 字母顺序（确保稳定性）
-        return (a.slug || '').localeCompare(b.slug || '');
-    });
-
-    sortedTournaments.forEach((tourn) => {
+    runtimeConfig.TOURNAMENTS.forEach((tourn) => {
         if (!tourn || !tourn.slug) return;
         const rawStats = globalStats[tourn.slug] || {};
         const stats = utils.sortTeams(rawStats);
@@ -1029,19 +1013,9 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
         validSnapshots.sort((a, b) => {
-            const dateA = a.tourn?.start_date ? new Date(a.tourn.start_date).getTime() : 0;
-            const dateB = b.tourn?.start_date ? new Date(b.tourn.start_date).getTime() : 0;
-            
-            // 主要按 start_date 倒序
-            if (dateA !== dateB) return dateB - dateA;
-            
-            // 如果 start_date 相同，按 end_date 倒序
-            const endDateA = a.tourn?.end_date ? new Date(a.tourn.end_date).getTime() : 0;
-            const endDateB = b.tourn?.end_date ? new Date(b.tourn.end_date).getTime() : 0;
-            if (endDateA !== endDateB) return endDateB - endDateA;
-            
-            // 如果 end_date 也相同，按 slug 字母顺序（确保稳定性）
-            return (a.tourn?.slug || '').localeCompare(b.tourn?.slug || '');
+            const tsA = (a.updateTimestamps && a.tourn) ? (a.updateTimestamps[a.tourn.slug] || 0) : 0;
+            const tsB = (b.updateTimestamps && b.tourn) ? (b.updateTimestamps[b.tourn.slug] || 0) : 0;
+            return tsB - tsA;
         });
 
         const combined = validSnapshots.map(snap => {
@@ -1384,40 +1358,19 @@ async function runUpdate(env, force=false) {
 async function runCustomRebuild(env, payload) {
     const l = new Logger();
     
-    const tourn = {
-        slug: payload.slug,
-        name: payload.name,
-        overview_page: payload.overview_page,
-        league: payload.league
-    };
-
-    if (payload.start_date) tourn.start_date = payload.start_date;
-    if (payload.end_date) tourn.end_date = payload.end_date;
-
-    const isManualArchive = payload.start_date && payload.end_date;
-
-    if (isManualArchive) {
-        const existingData = await env.LOL_KV.get(`ARCHIVE_${payload.slug}`, { type: "json" });
-        const snapshot = {
-            tourn: tourn,
-            rawMatches: existingData?.rawMatches || [],
-            updateTimestamps: { [payload.slug]: Date.now() }
-        };
-        
-        await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
-        l.success(`🟢 [SYNC] | 💾 ${payload.league} *Manual Archive Saved | ⚙️ Save Archive`);
-        
-        const archiveHTML = await generateArchiveStaticHTML(env);
-        await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
-        return l;
-    }
-
     const authContext = await loginToFandom(env);
 
     try {
         const matches = await fetchAllMatches(payload.slug, payload.overview_page, authContext, null);
         
         if (matches && matches.length > 0) {
+            const tourn = {
+                slug: payload.slug,
+                name: payload.name,
+                overview_page: payload.overview_page,
+                league: payload.league
+            };
+            
             const snapshot = {
                 tourn: tourn,
                 rawMatches: matches,
@@ -1460,10 +1413,9 @@ function renderToolsPage(time, sha, existingArchives = []) {
     // 构建复选框列表
     let archiveListHtml = existingArchives.map(t => `
         <label class="qr-label">
-            <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview='${JSON.stringify(t.overview_page)}' data-league="${t.league}" data-start_date="${t.start_date || ''}" data-end_date="${t.end_date || ''}">
+            <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview='${JSON.stringify(t.overview_page)}' data-league="${t.league}">
             <span class="qr-league">${t.league || 'UNKN'}</span>
             <span class="qr-name">${t.name}</span>
-            <button type="button" class="delete-btn" onclick="deleteArchive('${t.slug}', '${t.name}', event)" title="Delete Archive">✕</button>
         </label>
     `).join("");
     if (!archiveListHtml) archiveListHtml = "<div class='tool-info-desc' style='text-align:center; padding: 20px 0;'>No existing archives found.</div>";
@@ -1496,12 +1448,10 @@ function renderToolsPage(time, sha, existingArchives = []) {
             
             .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
             .form-group { display: flex; flex-direction: column; }
-            .form-group-full { grid-column: 1 / -1; }
             .tool-label { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px; padding-left: 2px; }
             .form-input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; color: #0f172a; box-sizing: border-box; transition: all 0.2s; background: #f8fafc; }
             .form-input:focus { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); outline: none; }
             .form-input::placeholder { color: #94a3b8; }
-            textarea.form-input { resize: vertical; min-height: 80px; }
             
             /* 修改后的代码：使用 Grid 布局实现一行两个 */
             .qr-list-container { max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #f8fafc; margin-bottom: 15px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1512,8 +1462,6 @@ function renderToolsPage(time, sha, existingArchives = []) {
             .qr-league { font-size: 12px; font-weight: 700; color: #fff; background: #94a3b8; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
             .secondary-btn { background: #fff; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
             .secondary-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
-            .delete-btn { background: #fee2e2; color: #dc2626; border: none; width: 24px; height: 24px; border-radius: 4px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: 0.2s; flex-shrink: 0; margin-left: auto; }
-            .delete-btn:hover { background: #fecaca; }
 
             @media (max-width: 600px) {
                 .form-grid { grid-template-columns: 1fr; gap: 12px; }
@@ -1587,7 +1535,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             <div class="wrapper">
                 <div class="table-title">📦 Manual Archive</div>
                 <div class="section-body">
-                    <div class="tool-info-desc tool-info-desc-spaced">Manually create an archive entry. Only stores key-value to KV, no data scraping.</div>
+                    <div class="tool-info-desc tool-info-desc-spaced">Manually reconstruct a deleted tournament by providing its Fandom details.</div>
                     
                     <div class="form-grid">
                         <div class="form-group">
@@ -1598,25 +1546,17 @@ function renderToolsPage(time, sha, existingArchives = []) {
                             <label class="tool-label">Name</label>
                             <input type="text" id="rb-name" placeholder="LPL 2026 Split 1" class="form-input">
                         </div>
-                        <div class="form-group form-group-full">
-                            <label class="tool-label">Overview Page (one per line)</label>
-                            <textarea id="rb-overview" placeholder="LPL/2026 Season/Split 1&#10;LPL/2026 Season/Split 1 Playoffs" class="form-input" rows="3"></textarea>
+                        <div class="form-group">
+                            <label class="tool-label">Overview Page</label>
+                            <input type="text" id="rb-overview" placeholder="LPL/2026 Season/Split 1" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">League</label>
                             <input type="text" id="rb-league" placeholder="LPL" class="form-input">
                         </div>
-                        <div class="form-group">
-                            <label class="tool-label">Start Date</label>
-                            <input type="text" id="rb-start_date" placeholder="2026-01-15" class="form-input">
-                        </div>
-                        <div class="form-group">
-                            <label class="tool-label">End Date</label>
-                            <input type="text" id="rb-end_date" placeholder="2026-04-20" class="form-input">
-                        </div>
                     </div>
                     <div class="actions-row-end">
-                        <button class="primary-btn" id="btn-rebuild" onclick="submitRebuild()">Save</button>
+                        <button class="primary-btn" id="btn-rebuild" onclick="submitRebuild()">Rebuild</button>
                     </div>
                 </div>
             </div>
@@ -1627,7 +1567,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             const authOverlay = document.getElementById("auth-overlay");
             const authPwdInput = document.getElementById("auth-pwd");
             const toastContainer = document.getElementById("toast-container");
-            const rebuildInputIds = ["slug", "name", "overview", "league", "start_date", "end_date"];
+            const rebuildInputIds = ["slug", "name", "overview", "league"];
             const rebuildInputs = Object.fromEntries(
                 rebuildInputIds.map((key) => [key, document.getElementById("rb-" + key)])
             );
@@ -1635,7 +1575,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             const REDIRECT_DELAY_MS = 1500;
             const AUTH_ERROR_MSG = "Session expired or incorrect password.";
             const NETWORK_ERROR_MSG = "❌ Network connection failed";
-            const REBUILD_REQUIRED_MSG = "⚠️ Please fill in slug, name, overview, league, start_date, and end_date.";
+            const REBUILD_REQUIRED_MSG = "⚠️ Please fill in all 4 fields.";
             let adminToken = sessionStorage.getItem("admin_pwd") || "";
             if (adminToken) authOverlay.style.display = "none";
 
@@ -1650,15 +1590,11 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 setAuthOverlayVisible(true);
             }
             function getRebuildPayload() {
-                const overviewRaw = rebuildInputs.overview.value.trim();
-                const overview_lines = overviewRaw.split('\n').map(s => s.trim()).filter(s => s);
                 return {
                     slug: rebuildInputs.slug.value.trim(),
                     name: rebuildInputs.name.value.trim(),
-                    overview: overview_lines.length > 0 ? overview_lines : overviewRaw,
-                    league: rebuildInputs.league.value.trim(),
-                    start_date: rebuildInputs.start_date.value.trim(),
-                    end_date: rebuildInputs.end_date.value.trim()
+                    overview: rebuildInputs.overview.value.trim(),
+                    league: rebuildInputs.league.value.trim()
                 };
             }
 
@@ -1754,18 +1690,18 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 if (!requireAuth()) return;
                 const payload = getRebuildPayload();
 
-                if (!payload.slug || !payload.name || !payload.overview || !payload.league || !payload.start_date || !payload.end_date) {
+                if (!payload.slug || !payload.name || !payload.overview || !payload.league) {
                     showToast(REBUILD_REQUIRED_MSG, "error");
                     return;
                 }
 
                 const btn = document.getElementById('btn-rebuild');
-                const restoreBtn = setButtonBusy(btn, '⏳ Saving...');
+                const restoreBtn = setButtonBusy(btn, '⏳ Rebuilding...');
 
                 try {
-                    const body = JSON.stringify({ slug: payload.slug, name: payload.name, overview_page: payload.overview, league: payload.league, start_date: payload.start_date, end_date: payload.end_date });
+                    const body = JSON.stringify({ slug: payload.slug, name: payload.name, overview_page: payload.overview, league: payload.league });
                     const res = await sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, body);
-                    await handleTaskResponse(res, "✅ Archive saved!", "/tools", "⚠️ Error: ");
+                    await handleTaskResponse(res, "✅ Archive reconstructed!", "/archive", "⚠️ Error: ");
                 } catch (e) {
                     showToast(NETWORK_ERROR_MSG, "error");
                 } finally {
@@ -1778,36 +1714,6 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 const checkboxes = document.querySelectorAll('.qr-chk');
                 const allChecked = Array.from(checkboxes).every(c => c.checked);
                 checkboxes.forEach(c => c.checked = !allChecked);
-            }
-
-            // 新增：删除存档
-            async function deleteArchive(slug, name, event) {
-                event.preventDefault();
-                event.stopPropagation();
-                if (!requireAuth()) return;
-                if (!confirm("Are you sure you want to delete archive: " + name + "?")) return;
-                
-                const btn = event.target;
-                const originalText = btn.innerText;
-                btn.innerText = "...";
-                btn.style.pointerEvents = 'none';
-                
-                try {
-                    const res = await sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug }));
-                    if (checkAuthError(res.status)) return;
-                    if (res.ok) {
-                        showToast("✅ Archive deleted: " + name, "success");
-                        setTimeout(() => window.location.reload(), REDIRECT_DELAY_MS);
-                    } else {
-                        const errText = await res.text();
-                        showToast("⚠️ Error: " + errText, "error");
-                    }
-                } catch (e) {
-                    showToast(NETWORK_ERROR_MSG, "error");
-                } finally {
-                    btn.innerText = originalText;
-                    btn.style.pointerEvents = 'auto';
-                }
             }
 
             // 新增：批量循环发送重构请求
@@ -1837,9 +1743,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
                         slug: chk.value,
                         name: chk.getAttribute('data-name'),
                         overview_page: overviewPage,
-                        league: chk.getAttribute('data-league'),
-                        start_date: chk.getAttribute('data-start_date'),
-                        end_date: chk.getAttribute('data-end_date')
+                        league: chk.getAttribute('data-league')
                     };
                     
                     try {
@@ -2000,35 +1904,7 @@ export default {
                     return textResponse("Missing required fields. Please provide slug, name, overview_page, and league.", 400);
                 }
 
-                if ((payload.start_date && !payload.end_date) || (!payload.start_date && payload.end_date)) {
-                    return textResponse("Both start_date and end_date must be provided together, or neither.", 400);
-                }
-
                 return executeTaskWithLogs(env, () => runCustomRebuild(env, payload));
-            }
-
-            case "/delete-archive": {
-                if (request.method !== "POST") return methodNotAllowedResponse();
-                if (isUnauthorized(request, env)) return unauthorizedResponse();
-
-                let payload;
-                try {
-                    payload = await request.json();
-                } catch (e) {
-                    return textResponse("Invalid JSON payload", 400);
-                }
-
-                if (!payload.slug) {
-                    return textResponse("Missing slug field.", 400);
-                }
-
-                const key = `ARCHIVE_${payload.slug}`;
-                await env.LOL_KV.delete(key);
-                
-                const archiveHTML = await generateArchiveStaticHTML(env);
-                await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
-
-                return okResponse();
             }
 
             case "/tools": {
