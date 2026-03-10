@@ -1103,7 +1103,6 @@ async function runUpdate(env, force=false) {
     const NOW = Date.now();
     const FAST_THRESHOLD = 6 * 60 * 1000;         
     const SLOW_THRESHOLD = 56 * 60 * 1000;        
-    const SLOW_MAX_MULTIPLIER = 3;
     const UPDATE_ROUNDS = 1;
 
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
@@ -1135,18 +1134,10 @@ async function runUpdate(env, force=false) {
         const dayLast = utils.toCST(lastTs).getUTCDate();
         const isNewDay = dayNow !== dayLast;
         
-        let tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0, slowWeight: 1 };
-        let slowWeight = tMeta.slowWeight || 1;
-        
-        if (isNewDay) slowWeight = 1;
-        
+        const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
         const currentMode = tMeta.mode;
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
-        let threshold = FAST_THRESHOLD;
-        if (currentMode === "slow" && !isStarted) {
-            const slowDelay = SLOW_THRESHOLD * slowWeight;
-            threshold = Math.min(slowDelay, SLOW_THRESHOLD * SLOW_MAX_MULTIPLIER);
-        }
+        const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
         const dName = tourn.league || tourn.name || tourn.slug.toUpperCase();
         const modeIcon = currentMode === "slow" ? "🐌" : "⚡";
@@ -1154,11 +1145,10 @@ async function runUpdate(env, force=false) {
         if (force || elapsed >= threshold || isNewDay) {
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
-                xm: elapsedMins, threshold: threshold, isNewDay: isNewDay, mode: currentMode, slowWeight: slowWeight 
+                xm: elapsedMins, isNewDay: isNewDay, mode: currentMode 
             });
         } else {
-            const remainingMins = Math.max(0, Math.floor(threshold / 60000) - elapsedMins);
-            coolDetails.push(`${dName}(${modeIcon}${remainingMins}m)`);
+            coolDetails.push(`${dName}(${modeIcon}${elapsedMins}m)`);
         }
     });
 
@@ -1198,10 +1188,10 @@ async function runUpdate(env, force=false) {
     const breakers = [];
     const apiErrors = [];
     
-    // 先填充 idleDetails/syncDetails（只存联赛名，用于判断）
     results.forEach(res => {
         const c = batch.find(b => b.slug === res.slug);
         const dName = c.league;
+        const mIcon = c.mode === "slow" ? "🐌" : "⚡";
 
         if (res.status === 'fulfilled') {
             const slug = res.slug;
@@ -1241,12 +1231,12 @@ async function runUpdate(env, force=false) {
                             return tA.localeCompare(tB);
                         });
                         cache.rawMatches[slug] = mergedList;
-                        syncDetails.push(dName);
+                        syncDetails.push(`${dName} +${changesCount} (${mIcon}${c.xm}m)`);
                     } else {
-                        idleDetails.push(dName);
+                        idleDetails.push(`${dName} *${oldData.length} (${mIcon}${c.xm}m)`);
                     }
                 } else {
-                    idleDetails.push(dName);
+                    idleDetails.push(`${dName} *${oldData.length} (${mIcon}${c.xm}m)`);
                 }
             } else {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
@@ -1255,9 +1245,9 @@ async function runUpdate(env, force=false) {
                 } else {
                     cache.rawMatches[slug] = newData;
                     if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-                        syncDetails.push(dName);
+                        syncDetails.push(`${dName} *${newData.length} (${mIcon}${c.xm}m)`);
                     } else {
-                        idleDetails.push(dName);
+                        idleDetails.push(`${dName} *${newData.length} (${mIcon}${c.xm}m)`);
                     }
                 }
             }
@@ -1275,59 +1265,6 @@ async function runUpdate(env, force=false) {
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
-    // 根据 idleDetails/syncDetails 更新 slowWeight
-    batch.forEach(c => {
-        const isIdle = idleDetails.some(d => d.includes(c.league));
-        const isSync = syncDetails.some(d => d.includes(c.league));
-        
-        if (isIdle) {
-            if (c.slowWeight < SLOW_MAX_MULTIPLIER) c.slowWeight++;
-        } else if (isSync) {
-            c.slowWeight = 1;
-        }
-    });
-    
-    // 用更新后的 slowWeight 重新计算倒计时
-    const syncDetails2 = [];
-    const idleDetails2 = [];
-    results.forEach(res => {
-        const c = batch.find(b => b.slug === res.slug);
-        const dName = c.league;
-        const mIcon = c.mode === "slow" ? "🐌" : "⚡";
-        
-        let threshold = FAST_THRESHOLD;
-        if (c.mode === "slow" && c.slowWeight) {
-            const slowDelay = SLOW_THRESHOLD * c.slowWeight;
-            threshold = Math.min(slowDelay, SLOW_THRESHOLD * SLOW_MAX_MULTIPLIER);
-        }
-        
-        // 检查这个联赛是否触发了
-        const isTriggered = idleDetails.some(d => d.includes(c.league)) || syncDetails.some(d => d.includes(c.league));
-        const remainingMins = isTriggered 
-            ? Math.floor(threshold / 60000) 
-            : Math.max(0, Math.floor(threshold / 60000) - c.xm);
-
-        if (res.status === 'fulfilled') {
-            const slug = res.slug;
-            const newData = res.data || [];
-            const oldData = cache.rawMatches[slug] || [];
-            
-            if (res.isDelta) {
-                if (newData.length > 0) {
-                    syncDetails2.push(`${dName} +${newData.length - oldData.length} (${mIcon}${remainingMins}m)`);
-                } else {
-                    idleDetails2.push(`${dName} *${oldData.length} (${mIcon}${remainingMins}m)`);
-                }
-            } else {
-                if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-                    syncDetails2.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
-                } else {
-                    idleDetails2.push(`${dName} *${newData.length} (${mIcon}${remainingMins}m)`);
-                }
-            }
-        }
-    });
-    
     const modeSwitches = [];
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
@@ -1344,11 +1281,11 @@ async function runUpdate(env, force=false) {
     const authPrefix = isAnon ? "👻 " : "";
     let trafficLight, action, content;
     
-    if (syncDetails2.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
+    if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
         trafficLight = "⚪"; action = "[IDLE]";
         
         let parts = [];
-        if (idleDetails2.length > 0) parts.push(`🔍 ${idleDetails2.join(", ")}`);
+        if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         parts.push(`🟰 Identical`);
         
@@ -1359,7 +1296,7 @@ async function runUpdate(env, force=false) {
         action = hasErr ? "[ERR!]" : "[SYNC]";
         
         let parts = [];
-        if (syncDetails2.length > 0) parts.push(`🔄 ${syncDetails2.join(", ")}`);
+        if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
         if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
@@ -1369,18 +1306,6 @@ async function runUpdate(env, force=false) {
 
     const finalLog = `${trafficLight} ${action} | ${authPrefix}${content}`;
     if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
-
-    // 保存 slowWeight 到 meta
-    batch.forEach(c => {
-        if (!meta.tournaments) meta.tournaments = {};
-        if (!meta.tournaments[c.slug]) meta.tournaments[c.slug] = {};
-        
-        const existing = analysis.tournMeta[c.slug] || {};
-        meta.tournaments[c.slug] = {
-            ...existing,
-            slowWeight: c.slowWeight
-        };
-    });
 
 
     const newCacheData = { 
@@ -1412,7 +1337,7 @@ async function runUpdate(env, force=false) {
     const archiveHTML = await generateArchiveStaticHTML(env, newCacheData);
     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
 
-    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: meta.tournaments }));
+    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
     
     return l;
 }
