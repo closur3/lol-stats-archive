@@ -1496,10 +1496,12 @@ function renderToolsPage(time, sha, existingArchives = []) {
             
             .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
             .form-group { display: flex; flex-direction: column; }
+            .form-group-full { grid-column: 1 / -1; }
             .tool-label { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px; padding-left: 2px; }
             .form-input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; color: #0f172a; box-sizing: border-box; transition: all 0.2s; background: #f8fafc; }
             .form-input:focus { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); outline: none; }
             .form-input::placeholder { color: #94a3b8; }
+            textarea.form-input { resize: vertical; min-height: 80px; }
             
             /* 修改后的代码：使用 Grid 布局实现一行两个 */
             .qr-list-container { max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #f8fafc; margin-bottom: 15px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1596,9 +1598,9 @@ function renderToolsPage(time, sha, existingArchives = []) {
                             <label class="tool-label">Name</label>
                             <input type="text" id="rb-name" placeholder="LPL 2026 Split 1" class="form-input">
                         </div>
-                        <div class="form-group">
-                            <label class="tool-label">Overview Page</label>
-                            <input type="text" id="rb-overview" placeholder="LPL/2026 Season/Split 1" class="form-input">
+                        <div class="form-group form-group-full">
+                            <label class="tool-label">Overview Page (one per line)</label>
+                            <textarea id="rb-overview" placeholder="LPL/2026 Season/Split 1&#10;LPL/2026 Season/Split 1 Playoffs" class="form-input" rows="3"></textarea>
                         </div>
                         <div class="form-group">
                             <label class="tool-label">League</label>
@@ -1648,10 +1650,12 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 setAuthOverlayVisible(true);
             }
             function getRebuildPayload() {
+                const overviewRaw = rebuildInputs.overview.value.trim();
+                const overview_lines = overviewRaw.split('\n').map(s => s.trim()).filter(s => s);
                 return {
                     slug: rebuildInputs.slug.value.trim(),
                     name: rebuildInputs.name.value.trim(),
-                    overview: rebuildInputs.overview.value.trim(),
+                    overview: overview_lines.length > 0 ? overview_lines : overviewRaw,
                     league: rebuildInputs.league.value.trim(),
                     start_date: rebuildInputs.start_date.value.trim(),
                     end_date: rebuildInputs.end_date.value.trim()
