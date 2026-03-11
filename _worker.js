@@ -1458,7 +1458,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 </div>
             </div>`;
 
-    // 构建复选框列表（带删除按钮）
+    // 构建复选框列表（带删除和填充按钮）
     let archiveListHtml = existingArchives.map(t => {
         const overviewStr = Array.isArray(t.overview_page) ? JSON.stringify(t.overview_page) : JSON.stringify([t.overview_page]);
         const startDate = t.start_date || '';
@@ -1470,7 +1470,10 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 <span class="qr-league">${t.league || 'UNKN'}</span>
                 <span class="qr-name">${t.name}</span>
             </label>
-            <button class="delete-btn" onclick="deleteArchive('${t.slug}', '${t.name}')">🗑️</button>
+            <div class="qr-actions">
+                <button class="fill-btn" onclick="fillArchive('${t.slug}')" title="Fill to Manual Archive">📋</button>
+                <button class="delete-btn" onclick="deleteArchive('${t.slug}', '${t.name}')" title="Delete">🗑️</button>
+            </div>
         </div>
     `}).join("");
     if (!archiveListHtml) archiveListHtml = "<div class='tool-info-desc' style='text-align:center; padding: 20px 0;'>No existing archives found.</div>";
@@ -1516,6 +1519,9 @@ function renderToolsPage(time, sha, existingArchives = []) {
             .form-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb; margin: 0; flex-shrink: 0; }
             .qr-name { font-weight: 700; color: #1e293b; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .qr-league { font-size: 12px; font-weight: 700; color: #fff; background: #94a3b8; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+            .qr-actions { display: flex; gap: 6px; flex-shrink: 0; }
+            .fill-btn { background: #fff; color: #2563eb; border: 1px solid #bfdbfe; padding: 6px 10px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; transition: 0.2s; font-family: inherit; margin: 0; flex-shrink: 0; }
+            .fill-btn:hover { background: #eff6ff; border-color: #93c5fd; }
             .delete-btn { background: #fff; color: #dc2626; border: 1px solid #fecaca; padding: 6px 10px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; transition: 0.2s; font-family: inherit; margin: 0; flex-shrink: 0; }
             .delete-btn:hover { background: #fef2f2; border-color: #fca5a5; }
             .secondary-btn { background: #fff; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
@@ -1598,8 +1604,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="tool-label">Slug</label>
-                            <input type="text" id="ma-slug" placeholder="lpl-2026-split-1" class="form-input" list="ma-slug-list" onchange="onSlugSelect()">
-                            <datalist id="ma-slug-list"></datalist>
+                            <input type="text" id="ma-slug" placeholder="lpl-2026-split-1" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Name</label>
@@ -1646,9 +1651,6 @@ function renderToolsPage(time, sha, existingArchives = []) {
             const REBUILD_REQUIRED_MSG = "⚠️ Please fill in all 4 fields.";
             let adminToken = sessionStorage.getItem("admin_pwd") || "";
             if (adminToken) authOverlay.style.display = "none";
-            
-            // 页面加载时填充 datalist
-            document.addEventListener('DOMContentLoaded', loadExistingArchivesToDatalist);
 
             function setAuthOverlayVisible(visible) {
                 authOverlay.style.display = visible ? "flex" : "none";
@@ -1698,59 +1700,6 @@ function renderToolsPage(time, sha, existingArchives = []) {
                     return true;
                 }
                 return false;
-            }
-            
-            // 加载现有存档到 datalist
-            async function loadExistingArchivesToDatalist() {
-                try {
-                    const res = await fetch('/tools-data', {
-                        headers: { 'Authorization': 'Bearer ' + adminToken }
-                    });
-                    if (!res.ok) return;
-                    
-                    const archives = await res.json();
-                    const datalist = document.getElementById('ma-slug-list');
-                    
-                    // 存储完整数据供后续使用
-                    window.existingArchives = {};
-                    
-                    archives.forEach(arch => {
-                        const option = document.createElement('option');
-                        option.value = arch.slug;
-                        option.textContent = arch.name + ' (' + arch.league + ')';
-                        datalist.appendChild(option);
-                        
-                        // 存储完整数据
-                        window.existingArchives[arch.slug] = arch;
-                    });
-                } catch (e) {
-                    console.error('Failed to load existing archives:', e);
-                }
-            }
-            
-            // 当用户从 datalist 选择时自动填充表单
-            function onSlugSelect() {
-                const slugInput = document.getElementById('ma-slug');
-                const selectedSlug = slugInput.value.trim();
-                
-                if (!selectedSlug || !window.existingArchives[selectedSlug]) return;
-                
-                const arch = window.existingArchives[selectedSlug];
-                
-                document.getElementById('ma-name').value = arch.name || '';
-                
-                // 处理 overview_page 数组
-                if (Array.isArray(arch.overview_page)) {
-                    document.getElementById('ma-overview').value = arch.overview_page.join(', ');
-                } else {
-                    document.getElementById('ma-overview').value = arch.overview_page || '';
-                }
-                
-                document.getElementById('ma-league').value = arch.league || '';
-                document.getElementById('ma-start').value = arch.start_date || '';
-                document.getElementById('ma-end').value = arch.end_date || '';
-                
-                showToast('✅ Archive loaded. Modify fields as needed.', 'success');
             }
 
             function requireAuth() {
@@ -1964,6 +1913,44 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 } catch (e) {
                     showToast("❌ Network Error", "error");
                 }
+            }
+            
+            // 填充存档到手动存档表单
+            function fillArchive(slug) {
+                const checkbox = document.querySelector('.qr-chk[value="' + slug + '"]');
+                if (!checkbox) return;
+                
+                const name = checkbox.getAttribute('data-name');
+                const overviewAttr = checkbox.getAttribute('data-overview');
+                const league = checkbox.getAttribute('data-league');
+                const startDate = checkbox.getAttribute('data-start');
+                const endDate = checkbox.getAttribute('data-end');
+                
+                let overviewPage;
+                try {
+                    overviewPage = JSON.parse(overviewAttr);
+                } catch (e) {
+                    overviewPage = overviewAttr;
+                }
+                
+                // 填充到 Manual Archive 表单
+                document.getElementById('ma-slug').value = slug;
+                document.getElementById('ma-name').value = name;
+                
+                if (Array.isArray(overviewPage)) {
+                    document.getElementById('ma-overview').value = overviewPage.join(', ');
+                } else {
+                    document.getElementById('ma-overview').value = overviewPage || '';
+                }
+                
+                document.getElementById('ma-league').value = league || '';
+                document.getElementById('ma-start').value = startDate || '';
+                document.getElementById('ma-end').value = endDate || '';
+                
+                showToast('✅ Filled to Manual Archive. Modify and save!', 'success');
+                
+                // 滚动到 Manual Archive 区域
+                document.getElementById('ma-slug').scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         </script>
     </body>
@@ -2188,21 +2175,6 @@ export default {
                     return okResponse();
                 } catch (err) {
                     return textResponse(`Save Error: ${err.message}`, 500);
-                }
-            }
-            
-            case "/tools-data": {
-                if (isUnauthorized(request, env)) return unauthorizedResponse();
-                
-                try {
-                    const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
-                    const dataKeys = allKeys.keys.filter(k => k.name !== "ARCHIVE_STATIC_HTML");
-                    const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-                    const validArchives = rawSnapshots.filter(s => s && s.tourn).map(s => s.tourn);
-                    
-                    return jsonResponse(validArchives);
-                } catch (e) {
-                    return jsonResponse([]);
                 }
             }
 
