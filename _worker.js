@@ -1012,10 +1012,29 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
         const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
+        // 排序逻辑：start_date 倒序 > end_date 倒序 > slug 字母顺序
         validSnapshots.sort((a, b) => {
-            const tsA = (a.updateTimestamps && a.tourn) ? (a.updateTimestamps[a.tourn.slug] || 0) : 0;
-            const tsB = (b.updateTimestamps && b.tourn) ? (b.updateTimestamps[b.tourn.slug] || 0) : 0;
-            return tsB - tsA;
+            const aStart = a.tourn.start_date || '';
+            const bStart = b.tourn.start_date || '';
+            const aEnd = a.tourn.end_date || '';
+            const bEnd = b.tourn.end_date || '';
+            
+            // 主要排序：start_date 倒序（日期越晚越靠前）
+            if (aStart !== bStart) {
+                if (!aStart) return 1; // 没有日期的排后面
+                if (!bStart) return -1;
+                return bStart.localeCompare(aStart);
+            }
+            
+            // 第二排序：end_date 倒序
+            if (aEnd !== bEnd) {
+                if (!aEnd) return 1;
+                if (!bEnd) return -1;
+                return bEnd.localeCompare(aEnd);
+            }
+            
+            // 第三排序：slug 字母顺序（确保稳定性）
+            return (a.tourn.slug || '').localeCompare(b.tourn.slug || '');
         });
 
         const combined = validSnapshots.map(snap => {
@@ -1119,6 +1138,31 @@ async function runUpdate(env, force=false) {
         l.error(`🔴 [ERR!] | ❌ Config(Fail)`); 
         return l; 
     }
+
+    // 对联赛进行排序：start_date 倒序 > end_date 倒序 > slug 字母顺序
+    runtimeConfig.TOURNAMENTS.sort((a, b) => {
+        const aStart = a.start_date || '';
+        const bStart = b.start_date || '';
+        const aEnd = a.end_date || '';
+        const bEnd = b.end_date || '';
+        
+        // 主要排序：start_date 倒序（日期越晚越靠前）
+        if (aStart !== bStart) {
+            if (!aStart) return 1; // 没有日期的排后面
+            if (!bStart) return -1;
+            return bStart.localeCompare(aStart);
+        }
+        
+        // 第二排序：end_date 倒序
+        if (aEnd !== bEnd) {
+            if (!aEnd) return 1;
+            if (!bEnd) return -1;
+            return bEnd.localeCompare(aEnd);
+        }
+        
+        // 第三排序：slug 字母顺序（确保稳定性）
+        return (a.slug || '').localeCompare(b.slug || '');
+    });
 
     if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
     if (!cache.rawMatches) cache.rawMatches = {}; 
@@ -1361,14 +1405,18 @@ async function runCustomRebuild(env, payload) {
     const authContext = await loginToFandom(env);
 
     try {
-        const matches = await fetchAllMatches(payload.slug, payload.overview_page, authContext, null);
+        // 支持 overview_page 为数组或字符串
+        const overviewPages = Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page];
+        const matches = await fetchAllMatches(payload.slug, overviewPages, authContext, null);
         
         if (matches && matches.length > 0) {
             const tourn = {
                 slug: payload.slug,
                 name: payload.name,
-                overview_page: payload.overview_page,
-                league: payload.league
+                overview_page: overviewPages,
+                league: payload.league,
+                start_date: payload.start_date || null,
+                end_date: payload.end_date || null
             };
             
             const snapshot = {
@@ -1410,14 +1458,21 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 </div>
             </div>`;
 
-    // 构建复选框列表
-    let archiveListHtml = existingArchives.map(t => `
-        <label class="qr-label">
-            <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview='${JSON.stringify(t.overview_page)}' data-league="${t.league}">
-            <span class="qr-league">${t.league || 'UNKN'}</span>
-            <span class="qr-name">${t.name}</span>
-        </label>
-    `).join("");
+    // 构建复选框列表（带删除按钮）
+    let archiveListHtml = existingArchives.map(t => {
+        const overviewStr = Array.isArray(t.overview_page) ? JSON.stringify(t.overview_page) : JSON.stringify([t.overview_page]);
+        const startDate = t.start_date || '';
+        const endDate = t.end_date || '';
+        return `
+        <div class="qr-item">
+            <label class="qr-label">
+                <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview='${overviewStr}' data-league="${t.league}" data-start="${startDate}" data-end="${endDate}">
+                <span class="qr-league">${t.league || 'UNKN'}</span>
+                <span class="qr-name">${t.name}</span>
+            </label>
+            <button class="delete-btn" onclick="deleteArchive('${t.slug}', '${t.name}')">🗑️</button>
+        </div>
+    `}).join("");
     if (!archiveListHtml) archiveListHtml = "<div class='tool-info-desc' style='text-align:center; padding: 20px 0;'>No existing archives found.</div>";
 
     return `<!DOCTYPE html>
@@ -1455,11 +1510,14 @@ function renderToolsPage(time, sha, existingArchives = []) {
             
             /* 修改后的代码：使用 Grid 布局实现一行两个 */
             .qr-list-container { max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #f8fafc; margin-bottom: 15px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-            .qr-label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; background: transparent; }
+            .qr-item { display: flex; align-items: center; gap: 6px; }
+            .qr-label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; background: transparent; flex: 1; min-width: 0; }
             .qr-label:hover { background: #fff; border-color: #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
             .form-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb; margin: 0; flex-shrink: 0; }
             .qr-name { font-weight: 700; color: #1e293b; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .qr-league { font-size: 12px; font-weight: 700; color: #fff; background: #94a3b8; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+            .delete-btn { background: #fff; color: #dc2626; border: 1px solid #fecaca; padding: 6px 10px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; transition: 0.2s; font-family: inherit; margin: 0; flex-shrink: 0; }
+            .delete-btn:hover { background: #fef2f2; border-color: #fca5a5; }
             .secondary-btn { background: #fff; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
             .secondary-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
 
@@ -1535,28 +1593,36 @@ function renderToolsPage(time, sha, existingArchives = []) {
             <div class="wrapper">
                 <div class="table-title">📦 Manual Archive</div>
                 <div class="section-body">
-                    <div class="tool-info-desc tool-info-desc-spaced">Manually reconstruct a deleted tournament by providing its Fandom details.</div>
+                    <div class="tool-info-desc tool-info-desc-spaced">Manually add tournament metadata. This only stores configuration without fetching data from Fandom.</div>
                     
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="tool-label">Slug</label>
-                            <input type="text" id="rb-slug" placeholder="lpl-2026-split-1" class="form-input">
+                            <input type="text" id="ma-slug" placeholder="lpl-2026-split-1" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Name</label>
-                            <input type="text" id="rb-name" placeholder="LPL 2026 Split 1" class="form-input">
+                            <input type="text" id="ma-name" placeholder="LPL 2026 Split 1" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Overview Page</label>
-                            <input type="text" id="rb-overview" placeholder="LPL/2026 Season/Split 1" class="form-input">
+                            <input type="text" id="ma-overview" placeholder="LPL/2026 Season/Split 1" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">League</label>
-                            <input type="text" id="rb-league" placeholder="LPL" class="form-input">
+                            <input type="text" id="ma-league" placeholder="LPL" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="tool-label">Start Date</label>
+                            <input type="date" id="ma-start" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="tool-label">End Date</label>
+                            <input type="date" id="ma-end" class="form-input">
                         </div>
                     </div>
                     <div class="actions-row-end">
-                        <button class="primary-btn" id="btn-rebuild" onclick="submitRebuild()">Rebuild</button>
+                        <button class="primary-btn" id="btn-manual-archive" onclick="submitManualArchive()">Save Metadata</button>
                     </div>
                 </div>
             </div>
@@ -1709,6 +1775,45 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 }
             }
 
+            // 手动存档功能（仅存储元数据）
+            async function submitManualArchive() {
+                if (!requireAuth()) return;
+                
+                const payload = {
+                    slug: document.getElementById('ma-slug').value.trim(),
+                    name: document.getElementById('ma-name').value.trim(),
+                    overview: document.getElementById('ma-overview').value.trim(),
+                    league: document.getElementById('ma-league').value.trim(),
+                    start_date: document.getElementById('ma-start').value,
+                    end_date: document.getElementById('ma-end').value
+                };
+
+                if (!payload.slug || !payload.name || !payload.overview || !payload.league) {
+                    showToast("⚠️ Please fill in all required fields (Slug, Name, Overview Page, League).", "error");
+                    return;
+                }
+
+                const btn = document.getElementById('btn-manual-archive');
+                const restoreBtn = setButtonBusy(btn, '⏳ Saving...');
+
+                try {
+                    const body = JSON.stringify({ 
+                        slug: payload.slug, 
+                        name: payload.name, 
+                        overview_page: payload.overview, 
+                        league: payload.league,
+                        start_date: payload.start_date,
+                        end_date: payload.end_date
+                    });
+                    const res = await sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, body);
+                    await handleTaskResponse(res, "✅ Tournament metadata saved!", "/tools", "⚠️ Error: ");
+                } catch (e) {
+                    showToast(NETWORK_ERROR_MSG, "error");
+                } finally {
+                    restoreBtn();
+                }
+            }
+
             // 新增：快速重构的全选逻辑
             function toggleSelectAllArchives() {
                 const checkboxes = document.querySelectorAll('.qr-chk');
@@ -1775,6 +1880,29 @@ function renderToolsPage(time, sha, existingArchives = []) {
                     setTimeout(() => window.location.href = "/archive", REDIRECT_DELAY_MS);
                 } else if (failCount > 0) {
                     showToast("⚠️ Finished with " + failCount + " errors.", "error");
+                }
+            }
+
+            // 删除存档功能
+            async function deleteArchive(slug, name) {
+                if (!requireAuth()) return;
+                if (!confirm('Are you sure you want to delete archive "' + name + '"?')) return;
+
+                try {
+                    showToast("⏳ Deleting: " + name, "success");
+                    const res = await sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug }));
+                    
+                    if (checkAuthError(res.status)) return;
+                    
+                    if (res.ok) {
+                        showToast("✅ Archive deleted: " + name, "success");
+                        setTimeout(() => window.location.reload(), REDIRECT_DELAY_MS);
+                    } else {
+                        const errText = await res.text();
+                        showToast("⚠️ Error: " + errText, "error");
+                    }
+                } catch (e) {
+                    showToast("❌ Network Error", "error");
                 }
             }
         </script>
@@ -1905,6 +2033,85 @@ export default {
                 }
 
                 return executeTaskWithLogs(env, () => runCustomRebuild(env, payload));
+            }
+
+            case "/delete-archive": {
+                if (request.method !== "POST") return methodNotAllowedResponse();
+                if (isUnauthorized(request, env)) return unauthorizedResponse();
+
+                let payload;
+                try {
+                    payload = await request.json();
+                } catch (e) {
+                    return textResponse("Invalid JSON payload", 400);
+                }
+
+                if (!payload.slug) {
+                    return textResponse("Missing required field: slug", 400);
+                }
+
+                try {
+                    const logger = new Logger();
+                    await env.LOL_KV.delete(`ARCHIVE_${payload.slug}`);
+                    
+                    // 重新生成 archive HTML
+                    const archiveHTML = await generateArchiveStaticHTML(env);
+                    await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                    
+                    logger.success(`🗑️ [DELETE] | 📦 ${payload.slug}`);
+                    await appendLogs(env, logger);
+                    
+                    return okResponse();
+                } catch (err) {
+                    return textResponse(`Delete Error: ${err.message}`, 500);
+                }
+            }
+
+            case "/manual-archive": {
+                if (request.method !== "POST") return methodNotAllowedResponse();
+                if (isUnauthorized(request, env)) return unauthorizedResponse();
+
+                let payload;
+                try {
+                    payload = await request.json();
+                } catch (e) {
+                    return textResponse("Invalid JSON payload", 400);
+                }
+
+                if (!payload.slug || !payload.name || !payload.overview_page || !payload.league) {
+                    return textResponse("Missing required fields. Please provide slug, name, overview_page, and league.", 400);
+                }
+
+                try {
+                    const logger = new Logger();
+                    
+                    // 创建空的存档（仅元数据，无比赛数据）
+                    const snapshot = {
+                        tourn: {
+                            slug: payload.slug,
+                            name: payload.name,
+                            overview_page: Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page],
+                            league: payload.league,
+                            start_date: payload.start_date || null,
+                            end_date: payload.end_date || null
+                        },
+                        rawMatches: [], // 空数据
+                        updateTimestamps: { [payload.slug]: Date.now() }
+                    };
+                    
+                    await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
+                    
+                    // 重新生成 archive HTML
+                    const archiveHTML = await generateArchiveStaticHTML(env);
+                    await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                    
+                    logger.success(`📦 [MANUAL] | 📝 ${payload.name} (${payload.slug})`);
+                    await appendLogs(env, logger);
+                    
+                    return okResponse();
+                } catch (err) {
+                    return textResponse(`Save Error: ${err.message}`, 500);
+                }
             }
 
             case "/tools": {
