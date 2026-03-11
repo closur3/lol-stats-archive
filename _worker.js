@@ -1595,17 +1595,11 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 <div class="section-body">
                     <div class="tool-info-desc tool-info-desc-spaced">Manually add tournament metadata. This only stores configuration without fetching data from Fandom.</div>
                     
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label class="tool-label">Load Existing Archive (Optional)</label>
-                        <select id="ma-select-existing" class="form-input" onchange="loadExistingArchive()" style="cursor: pointer;">
-                            <option value="">-- Select an existing archive to load --</option>
-                        </select>
-                    </div>
-                    
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="tool-label">Slug</label>
-                            <input type="text" id="ma-slug" placeholder="lpl-2026-split-1" class="form-input">
+                            <input type="text" id="ma-slug" placeholder="lpl-2026-split-1" class="form-input" list="ma-slug-list" onchange="onSlugSelect()">
+                            <datalist id="ma-slug-list"></datalist>
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Name</label>
@@ -1653,8 +1647,8 @@ function renderToolsPage(time, sha, existingArchives = []) {
             let adminToken = sessionStorage.getItem("admin_pwd") || "";
             if (adminToken) authOverlay.style.display = "none";
             
-            // 页面加载时填充现有存档下拉框
-            document.addEventListener('DOMContentLoaded', loadExistingArchivesToSelect);
+            // 页面加载时填充 datalist
+            document.addEventListener('DOMContentLoaded', loadExistingArchivesToDatalist);
 
             function setAuthOverlayVisible(visible) {
                 authOverlay.style.display = visible ? "flex" : "none";
@@ -1706,8 +1700,8 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 return false;
             }
             
-            // 加载现有存档到下拉框
-            async function loadExistingArchivesToSelect() {
+            // 加载现有存档到 datalist
+            async function loadExistingArchivesToDatalist() {
                 try {
                     const res = await fetch('/tools-data', {
                         headers: { 'Authorization': 'Bearer ' + adminToken }
@@ -1715,48 +1709,48 @@ function renderToolsPage(time, sha, existingArchives = []) {
                     if (!res.ok) return;
                     
                     const archives = await res.json();
-                    const select = document.getElementById('ma-select-existing');
+                    const datalist = document.getElementById('ma-slug-list');
+                    
+                    // 存储完整数据供后续使用
+                    window.existingArchives = {};
                     
                     archives.forEach(arch => {
                         const option = document.createElement('option');
                         option.value = arch.slug;
-                        option.textContent = arch.name + ' (' + arch.slug + ')';
-                        option.dataset.arch = JSON.stringify(arch);
-                        select.appendChild(option);
+                        option.textContent = arch.name + ' (' + arch.league + ')';
+                        datalist.appendChild(option);
+                        
+                        // 存储完整数据
+                        window.existingArchives[arch.slug] = arch;
                     });
                 } catch (e) {
                     console.error('Failed to load existing archives:', e);
                 }
             }
             
-            // 选择存档后填充表单
-            function loadExistingArchive() {
-                const select = document.getElementById('ma-select-existing');
-                const selectedOption = select.options[select.selectedIndex];
+            // 当用户从 datalist 选择时自动填充表单
+            function onSlugSelect() {
+                const slugInput = document.getElementById('ma-slug');
+                const selectedSlug = slugInput.value.trim();
                 
-                if (!selectedOption || !selectedOption.dataset.arch) return;
+                if (!selectedSlug || !window.existingArchives[selectedSlug]) return;
                 
-                try {
-                    const arch = JSON.parse(selectedOption.dataset.arch);
-                    
-                    document.getElementById('ma-slug').value = arch.slug || '';
-                    document.getElementById('ma-name').value = arch.name || '';
-                    
-                    // 处理 overview_page 数组
-                    if (Array.isArray(arch.overview_page)) {
-                        document.getElementById('ma-overview').value = arch.overview_page.join(', ');
-                    } else {
-                        document.getElementById('ma-overview').value = arch.overview_page || '';
-                    }
-                    
-                    document.getElementById('ma-league').value = arch.league || '';
-                    document.getElementById('ma-start').value = arch.start_date || '';
-                    document.getElementById('ma-end').value = arch.end_date || '';
-                    
-                    showToast('✅ Archive loaded. Modify fields as needed.', 'success');
-                } catch (e) {
-                    showToast('⚠️ Failed to load archive data', 'error');
+                const arch = window.existingArchives[selectedSlug];
+                
+                document.getElementById('ma-name').value = arch.name || '';
+                
+                // 处理 overview_page 数组
+                if (Array.isArray(arch.overview_page)) {
+                    document.getElementById('ma-overview').value = arch.overview_page.join(', ');
+                } else {
+                    document.getElementById('ma-overview').value = arch.overview_page || '';
                 }
+                
+                document.getElementById('ma-league').value = arch.league || '';
+                document.getElementById('ma-start').value = arch.start_date || '';
+                document.getElementById('ma-end').value = arch.end_date || '';
+                
+                showToast('✅ Archive loaded. Modify fields as needed.', 'success');
             }
 
             function requireAuth() {
