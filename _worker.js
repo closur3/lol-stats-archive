@@ -1595,6 +1595,13 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 <div class="section-body">
                     <div class="tool-info-desc tool-info-desc-spaced">Manually add tournament metadata. This only stores configuration without fetching data from Fandom.</div>
                     
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label class="tool-label">Load Existing Archive (Optional)</label>
+                        <select id="ma-select-existing" class="form-input" onchange="loadExistingArchive()" style="cursor: pointer;">
+                            <option value="">-- Select an existing archive to load --</option>
+                        </select>
+                    </div>
+                    
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="tool-label">Slug</label>
@@ -1645,6 +1652,9 @@ function renderToolsPage(time, sha, existingArchives = []) {
             const REBUILD_REQUIRED_MSG = "⚠️ Please fill in all 4 fields.";
             let adminToken = sessionStorage.getItem("admin_pwd") || "";
             if (adminToken) authOverlay.style.display = "none";
+            
+            // 页面加载时填充现有存档下拉框
+            document.addEventListener('DOMContentLoaded', loadExistingArchivesToSelect);
 
             function setAuthOverlayVisible(visible) {
                 authOverlay.style.display = visible ? "flex" : "none";
@@ -1694,6 +1704,59 @@ function renderToolsPage(time, sha, existingArchives = []) {
                     return true;
                 }
                 return false;
+            }
+            
+            // 加载现有存档到下拉框
+            async function loadExistingArchivesToSelect() {
+                try {
+                    const res = await fetch('/tools-data', {
+                        headers: { 'Authorization': 'Bearer ' + adminToken }
+                    });
+                    if (!res.ok) return;
+                    
+                    const archives = await res.json();
+                    const select = document.getElementById('ma-select-existing');
+                    
+                    archives.forEach(arch => {
+                        const option = document.createElement('option');
+                        option.value = arch.slug;
+                        option.textContent = arch.name + ' (' + arch.slug + ')';
+                        option.dataset.arch = JSON.stringify(arch);
+                        select.appendChild(option);
+                    });
+                } catch (e) {
+                    console.error('Failed to load existing archives:', e);
+                }
+            }
+            
+            // 选择存档后填充表单
+            function loadExistingArchive() {
+                const select = document.getElementById('ma-select-existing');
+                const selectedOption = select.options[select.selectedIndex];
+                
+                if (!selectedOption || !selectedOption.dataset.arch) return;
+                
+                try {
+                    const arch = JSON.parse(selectedOption.dataset.arch);
+                    
+                    document.getElementById('ma-slug').value = arch.slug || '';
+                    document.getElementById('ma-name').value = arch.name || '';
+                    
+                    // 处理 overview_page 数组
+                    if (Array.isArray(arch.overview_page)) {
+                        document.getElementById('ma-overview').value = arch.overview_page.join(', ');
+                    } else {
+                        document.getElementById('ma-overview').value = arch.overview_page || '';
+                    }
+                    
+                    document.getElementById('ma-league').value = arch.league || '';
+                    document.getElementById('ma-start').value = arch.start_date || '';
+                    document.getElementById('ma-end').value = arch.end_date || '';
+                    
+                    showToast('✅ Archive loaded. Modify fields as needed.', 'success');
+                } catch (e) {
+                    showToast('⚠️ Failed to load archive data', 'error');
+                }
             }
 
             function requireAuth() {
@@ -2131,6 +2194,21 @@ export default {
                     return okResponse();
                 } catch (err) {
                     return textResponse(`Save Error: ${err.message}`, 500);
+                }
+            }
+            
+            case "/tools-data": {
+                if (isUnauthorized(request, env)) return unauthorizedResponse();
+                
+                try {
+                    const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
+                    const dataKeys = allKeys.keys.filter(k => k.name !== "ARCHIVE_STATIC_HTML");
+                    const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
+                    const validArchives = rawSnapshots.filter(s => s && s.tourn).map(s => s.tourn);
+                    
+                    return jsonResponse(validArchives);
+                } catch (e) {
+                    return jsonResponse([]);
                 }
             }
 
