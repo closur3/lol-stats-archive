@@ -1606,7 +1606,8 @@ function renderToolsPage(time, sha, existingArchives = []) {
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Overview Page</label>
-                            <input type="text" id="ma-overview" placeholder="LPL/2026 Season/Split 1" class="form-input">
+                            <input type="text" id="ma-overview" placeholder='LPL/2026 Season/Split 1 or ["Page1", "Page2"]' class="form-input">
+                            <span style="font-size:11px; color:#64748b; margin-top:4px;">Comma-separated or JSON array</span>
                         </div>
                         <div class="form-group">
                             <label class="tool-label">League</label>
@@ -2085,12 +2086,29 @@ export default {
                 try {
                     const logger = new Logger();
                     
+                    // 处理 overview_page：支持逗号分隔或 JSON 数组格式
+                    let overviewPages = payload.overview_page;
+                    if (typeof overviewPages === 'string') {
+                        const trimmed = overviewPages.trim();
+                        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                            try {
+                                overviewPages = JSON.parse(trimmed);
+                            } catch (e) {
+                                overviewPages = trimmed.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                            }
+                        } else {
+                            overviewPages = trimmed.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                        }
+                    } else if (!Array.isArray(overviewPages)) {
+                        overviewPages = [overviewPages];
+                    }
+                    
                     // 创建空的存档（仅元数据，无比赛数据）
                     const snapshot = {
                         tourn: {
                             slug: payload.slug,
                             name: payload.name,
-                            overview_page: Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page],
+                            overview_page: overviewPages,
                             league: payload.league,
                             start_date: payload.start_date || null,
                             end_date: payload.end_date || null
