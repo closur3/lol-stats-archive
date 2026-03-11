@@ -2059,7 +2059,7 @@ export default {
                     const archiveHTML = await generateArchiveStaticHTML(env);
                     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
                     
-                    logger.success(`🗑️ [DELETE] | 📦 ${payload.slug}`);
+                    logger.success(`🗑️ [DELETE] | 📦 ${payload.name}`);
                     await appendLogs(env, logger);
                     
                     return okResponse();
@@ -2123,7 +2123,7 @@ export default {
                     const archiveHTML = await generateArchiveStaticHTML(env);
                     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
                     
-                    logger.success(`📦 [MANUAL] | 📝 ${payload.name} (${payload.slug})`);
+                    logger.success(`📦 [MANUAL] | 📝 ${payload.name}`);
                     await appendLogs(env, logger);
                     
                     return okResponse();
