@@ -1102,7 +1102,7 @@ async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
     const FAST_THRESHOLD = 6 * 60 * 1000;         
-    const SLOW_THRESHOLD = 56 * 60 * 1000;        
+    const SLOW_THRESHOLD = 60 * 60 * 1000;        
     const UPDATE_ROUNDS = 1;
 
     let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
@@ -1956,3 +1956,4 @@ export default {
         await appendLogs(env, l, true);
     }
 };
+
