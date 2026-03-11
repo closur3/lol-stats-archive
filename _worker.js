@@ -1849,7 +1849,9 @@ function renderToolsPage(time, sha, existingArchives = []) {
                         slug: chk.value,
                         name: chk.getAttribute('data-name'),
                         overview_page: overviewPage,
-                        league: chk.getAttribute('data-league')
+                        league: chk.getAttribute('data-league'),
+                        start_date: chk.getAttribute('data-start') || null,
+                        end_date: chk.getAttribute('data-end') || null
                     };
                     
                     try {
