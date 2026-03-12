@@ -284,7 +284,10 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     return inputTokens.every(t => keyTokens.includes(t));
                 });
             }
+            if (match) res = match.v;
         }
+        nameCache.set(raw, res);
+        return res;
     };
 
     (runtimeConfig.TOURNAMENTS || []).forEach((tourn, tournIdx) => {
@@ -2230,6 +2233,7 @@ export default {
         await appendLogs(env, l, true);
     }
 };
+
 
 
 
