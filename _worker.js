@@ -4,6 +4,15 @@ const GITHUB_COMMIT_BASE = "https://github.com/closur3/lol-stats-archive/commit/
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
 
+// --- Runtime Config Helper Functions ---
+const getRuntimeConfig = async (env) => {
+    return await env.LOL_KV.get("RUNTIME_CONFIG", { type: "json" });
+};
+
+const setRuntimeConfig = async (env, config) => {
+    await env.LOL_KV.put("RUNTIME_CONFIG", JSON.stringify(config));
+};
+
 const utils = {
     pad: (n) => n < 10 ? '0' + n : n,
     toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
@@ -1013,7 +1022,8 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         if (!cacheMain) {
             cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" }) || {};
         }
-        const teamMap = cacheMain?.runtimeConfig?.TEAM_MAP || {};
+        const runtimeConfig = await getRuntimeConfig(env);
+        const teamMap = runtimeConfig?.TEAM_MAP || {};
 
         const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
         const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
@@ -1137,13 +1147,16 @@ async function runUpdate(env, force=false) {
     try {
         const teams = await gh.fetchJson(env, "teams.json");
         const tourns = await gh.fetchJson(env, "tour.json");
-        if (teams && tourns) runtimeConfig = { TEAM_MAP: teams, TOURNAMENTS: tourns };
+        if (teams && tourns) runtimeConfig = { TOURNAMENTS: tourns, TEAM_MAP: teams };
     } catch (e) {}
 
     if (!runtimeConfig) { 
         l.error(`🔴 [ERR!] | ❌ Config(Fail)`); 
         return l; 
     }
+
+    // Save runtimeConfig to separate KV key
+    await setRuntimeConfig(env, runtimeConfig);
 
     // 对联赛进行排序：start_date 倒序 > end_date 倒序 > slug 字母顺序
     runtimeConfig.TOURNAMENTS.sort((a, b) => {
@@ -1376,7 +1389,7 @@ async function runUpdate(env, force=false) {
         debugInfo: analysis.debugInfo, maxDateTs: analysis.maxDateTs,
         statusText: analysis.statusText, scheduleMap: analysis.scheduleMap,
         tournMeta: analysis.tournMeta,
-        updateTime: utils.getNow(), runtimeConfig,
+        updateTime: utils.getNow(),
         rawMatches: cache.rawMatches, updateTimestamps: cache.updateTimestamps
     };
     await env.LOL_KV.put("CACHE_DATA", JSON.stringify(newCacheData));
@@ -2034,9 +2047,10 @@ export default {
         switch (url.pathname) {
             case "/backup": {
                 const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                const runtimeConfig = await getRuntimeConfig(env);
                 if (!cache || !cache.globalStats) return jsonResponse({ error: "No data" }, 503);
                 const payload = {};
-                for (const tourn of cache.runtimeConfig.TOURNAMENTS) if (cache.globalStats[tourn.slug]) payload[`markdown/${tourn.slug}.md`] = generateMarkdown(tourn, cache.globalStats[tourn.slug], cache.timeGrid);
+                for (const tourn of (runtimeConfig?.TOURNAMENTS || [])) if (cache.globalStats[tourn.slug]) payload[`markdown/${tourn.slug}.md`] = generateMarkdown(tourn, cache.globalStats[tourn.slug], cache.timeGrid);
                 return jsonResponse(payload);
             }
 
@@ -2051,11 +2065,12 @@ export default {
 
                 try {
                     const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                    const runtimeConfig = await getRuntimeConfig(env);
                     if (!cache || !cache.globalStats) return textResponse("No cache data available. Run Refresh API first.", 400);
 
                     const homeFragment = renderContentOnly(
                         cache.globalStats, cache.timeGrid, cache.scheduleMap,
-                        cache.runtimeConfig || { TOURNAMENTS: [] },
+                        runtimeConfig || { TOURNAMENTS: [] },
                         cache.updateTimestamps, false, cache.tournMeta || {} 
                     );
                     const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText || "", "home");
