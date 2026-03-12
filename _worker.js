@@ -276,10 +276,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         if (upper.includes("TBD") || upper.includes("TBA") || upper.includes("TO BE DETERMINED")) {
             res = "TBD";
         } else {
-            // 正向：输入包含键（字符级，保持原样）
             let match = teamMapEntries.find(e => upper.includes(e.k));
-
-            // 反向：改用 token 匹配
             if (!match) {
                 const inputTokens = upper.split(/\s+/);
                 match = teamMapEntries.find(e => {
@@ -287,6 +284,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     return inputTokens.every(t => keyTokens.includes(t));
                 });
             }
+        }
     };
 
     (runtimeConfig.TOURNAMENTS || []).forEach((tourn, tournIdx) => {
@@ -2232,5 +2230,6 @@ export default {
         await appendLogs(env, l, true);
     }
 };
+
 
 
