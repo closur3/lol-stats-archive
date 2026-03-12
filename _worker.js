@@ -276,7 +276,14 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         if (upper.includes("TBD") || upper.includes("TBA") || upper.includes("TO BE DETERMINED")) {
             res = "TBD";
         } else {
-            const match = teamMapEntries.find(e => upper.includes(e.k));
+            // 优先尝试完全匹配（包含关系）
+            let match = teamMapEntries.find(e => upper.includes(e.k));
+            
+            // 如果没找到，尝试反向匹配：检查映射表的键是否包含输入的队伍名
+            if (!match) {
+                match = teamMapEntries.find(e => e.k.includes(upper) && e.k.length - upper.length <= 15);
+            }
+            
             if (match) res = match.v;
             else res = raw;
         }
