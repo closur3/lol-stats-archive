@@ -1020,7 +1020,7 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         }
 
         if (!cacheMain) {
-            cacheMain = await env.LOL_KV.get("CACHE_DATA", { type: "json" }) || {};
+            cacheMain = await env.LOL_KV.get("APP_STATE", { type: "json" }) || {};
         }
         const runtimeConfig = await getRuntimeConfig(env);
         const teamMap = runtimeConfig?.TEAM_MAP || {};
@@ -1082,10 +1082,10 @@ class Logger {
 async function appendLogs(env, logger, onlyWhenNonEmpty = false) {
     const newLogs = logger.export();
     if (onlyWhenNonEmpty && newLogs.length === 0) return;
-    const oldLogs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+    const oldLogs = await env.LOL_KV.get("LOGS", { type: "json" }) || [];
     let combinedLogs = [...newLogs, ...oldLogs];
     if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-    await env.LOL_KV.put("logs", JSON.stringify(combinedLogs));
+    await env.LOL_KV.put("LOGS", JSON.stringify(combinedLogs));
 }
 
 function isUnauthorized(request, env) {
@@ -1140,8 +1140,9 @@ async function runUpdate(env, force=false) {
     const SLOW_THRESHOLD = 60 * 60 * 1000;        
     const UPDATE_ROUNDS = 1;
 
-    let cache = await env.LOL_KV.get("CACHE_DATA", {type:"json"});
-    const meta = await env.LOL_KV.get("META", {type:"json"}) || { total: 0, tournaments: {} };
+    let appState = await env.LOL_KV.get("APP_STATE", {type:"json"}) || { tournMeta: {}, rawMatches: {}, updateTimestamps: {} };
+    let cache = appState;  // For backward compatibility with existing code using 'cache' variable
+    const meta = { tournaments: appState.tournMeta || {} };
     
     let runtimeConfig = null;
     try {
@@ -1384,7 +1385,7 @@ async function runUpdate(env, force=false) {
     if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
 
 
-    const newCacheData = { 
+    const newAppState = { 
         globalStats: analysis.globalStats, timeGrid: analysis.timeGrid,
         debugInfo: analysis.debugInfo, maxDateTs: analysis.maxDateTs,
         statusText: analysis.statusText, scheduleMap: analysis.scheduleMap,
@@ -1392,7 +1393,7 @@ async function runUpdate(env, force=false) {
         updateTime: utils.getNow(),
         rawMatches: cache.rawMatches, updateTimestamps: cache.updateTimestamps
     };
-    await env.LOL_KV.put("CACHE_DATA", JSON.stringify(newCacheData));
+    await env.LOL_KV.put("APP_STATE", JSON.stringify(newAppState));
 
     try {
         const homeFragment = renderContentOnly(
@@ -1410,10 +1411,10 @@ async function runUpdate(env, force=false) {
         await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
     }
     
-    const archiveHTML = await generateArchiveStaticHTML(env, newCacheData);
+    const archiveHTML = await generateArchiveStaticHTML(env, newAppState);
     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
 
-    await env.LOL_KV.put("META", JSON.stringify({ total: analysis.grandTotal, tournaments: analysis.tournMeta }));
+
     
     return l;
 }
@@ -2046,11 +2047,11 @@ export default {
 
         switch (url.pathname) {
             case "/backup": {
-                const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                const appState = await env.LOL_KV.get("APP_STATE", { type: "json" });
                 const runtimeConfig = await getRuntimeConfig(env);
-                if (!cache || !cache.globalStats) return jsonResponse({ error: "No data" }, 503);
+                if (!appState || !appState.globalStats) return jsonResponse({ error: "No data" }, 503);
                 const payload = {};
-                for (const tourn of (runtimeConfig?.TOURNAMENTS || [])) if (cache.globalStats[tourn.slug]) payload[`markdown/${tourn.slug}.md`] = generateMarkdown(tourn, cache.globalStats[tourn.slug], cache.timeGrid);
+                for (const tourn of (runtimeConfig?.TOURNAMENTS || [])) if (appState.globalStats[tourn.slug]) payload[`markdown/${tourn.slug}.md`] = generateMarkdown(tourn, appState.globalStats[tourn.slug], appState.timeGrid);
                 return jsonResponse(payload);
             }
 
@@ -2064,19 +2065,19 @@ export default {
                 if (isUnauthorized(request, env)) return unauthorizedResponse();
 
                 try {
-                    const cache = await env.LOL_KV.get("CACHE_DATA", { type: "json" });
+                    const appState = await env.LOL_KV.get("APP_STATE", { type: "json" });
                     const runtimeConfig = await getRuntimeConfig(env);
-                    if (!cache || !cache.globalStats) return textResponse("No cache data available. Run Refresh API first.", 400);
+                    if (!appState || !appState.globalStats) return textResponse("No cache data available. Run Refresh API first.", 400);
 
                     const homeFragment = renderContentOnly(
-                        cache.globalStats, cache.timeGrid, cache.scheduleMap,
+                        appState.globalStats, appState.timeGrid, appState.scheduleMap,
                         runtimeConfig || { TOURNAMENTS: [] },
-                        cache.updateTimestamps, false, cache.tournMeta || {} 
+                        appState.updateTimestamps, false, appState.tournMeta || {} 
                     );
-                    const fullPage = renderPageShell("LoL Insights", homeFragment, cache.statusText || "", "home");
+                    const fullPage = renderPageShell("LoL Insights", homeFragment, appState.statusText || "", "home");
                     await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
 
-                    const archiveHTML = await generateArchiveStaticHTML(env, cache);
+                    const archiveHTML = await generateArchiveStaticHTML(env, appState);
                     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
 
                     return okResponse();
@@ -2216,7 +2217,7 @@ export default {
             }
 
             case "/logs": {
-                const logs = await env.LOL_KV.get("logs", { type: "json" }) || [];
+                const logs = await env.LOL_KV.get("LOGS", { type: "json" }) || [];
                 return htmlResponse(renderLogPage(logs, time, sha));
             }
             
