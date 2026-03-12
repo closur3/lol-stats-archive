@@ -264,7 +264,6 @@ async function fetchAllMatches(slug, sourceInput, authContext, dateFilter = null
 // --- 5. 统计核心 ---
 function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlugs = new Set()) {
     const globalStats = {};
-    const debugInfo = {};
     const tournMeta = {}; 
     
     const timeGrid = { "ALL": {} };
@@ -397,7 +396,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         });
         
         Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
-        debugInfo[tourn.slug] = { raw: rawMatches.length, processed, skipped };
         globalStats[tourn.slug] = stats;
         grandTotal += processed;
         totalMatchesToday += matchesToday;
@@ -437,7 +435,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
     });
 
     // 返回空的 statusText，原先的全局状态废弃
-    return { globalStats, timeGrid, debugInfo, maxDateTs, grandTotal, statusText: "", scheduleMap, tournMeta };
+    return { globalStats, timeGrid, maxDateTs, grandTotal, statusText: "", scheduleMap, tournMeta };
 }
 
 // --- 6. Markdown 生成器 ---
@@ -1387,7 +1385,7 @@ async function runUpdate(env, force=false) {
 
     const newAppState = { 
         globalStats: analysis.globalStats, timeGrid: analysis.timeGrid,
-        debugInfo: analysis.debugInfo, maxDateTs: analysis.maxDateTs,
+        maxDateTs: analysis.maxDateTs,
         statusText: analysis.statusText, scheduleMap: analysis.scheduleMap,
         tournMeta: analysis.tournMeta,
         updateTime: utils.getNow(),
