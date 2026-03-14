@@ -59,6 +59,7 @@ const pickTeamMap = (teamsRaw, tourn, rawMatches) => {
     return filterTeamMapForMatches(base, rawMatches);
 };
 
+
 const utils = {
     pad: (n) => n < 10 ? '0' + n : n,
     toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
@@ -1275,7 +1276,8 @@ async function runUpdate(env, force=false) {
         if (force || elapsed >= threshold || isNewDay) {
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
-                xm: countdownMins, isNewDay: isNewDay, mode: currentMode 
+                xm: countdownMins, isNewDay: isNewDay, mode: currentMode,
+                start_date: tourn.start_date || null
             });
         } else {
             coolDetails.push(`${dName}(${modeIcon}${countdownMins}m)`);
@@ -1301,7 +1303,12 @@ async function runUpdate(env, force=false) {
     for (const c of batch) {
         try {
             const oldData = cache.rawMatches[c.slug] || [];
-            const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow";
+            let beforeFirstMatch = false;
+            if (c.start_date) {
+                const startDt = utils.parseDate(`${c.start_date} 00:00:00`);
+                if (startDt && NOW < startDt.getTime()) beforeFirstMatch = true;
+            }
+            const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow" || beforeFirstMatch;
             const dateQuery = isFullFetch ? null : { start: deltaStartUTC, end: deltaEndUTC };
 
             const data = await fetchAllMatches(c.slug, c.overview_page, authContext, dateQuery);
