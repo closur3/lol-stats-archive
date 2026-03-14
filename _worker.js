@@ -313,7 +313,11 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
     const allFutureMatches = {}; 
 
     const buildResolveName = (teamMap = {}) => {
-        const teamMapEntries = Object.entries(teamMap || {}).map(([k, v]) => ({ k: k.toUpperCase(), v }));
+        const teamMapEntries = Object.entries(teamMap || {}).map(([k, v]) => {
+            const ku = k.toUpperCase();
+            const tokens = ku.split(/\s+/);
+            return { k: ku, v, tokens };
+        });
         const nameCache = new Map();
         return (raw) => {
             if (!raw) return "Unknown";
@@ -323,13 +327,10 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             if (upper.includes("TBD") || upper.includes("TBA") || upper.includes("TO BE DETERMINED")) {
                 res = "TBD";
             } else {
-                let match = teamMapEntries.find(e => upper.includes(e.k));
+                const inputTokens = upper.split(/\s+/);
+                let match = teamMapEntries.find(e => upper === e.k);
                 if (!match) {
-                    const inputTokens = upper.split(/\s+/);
-                    match = teamMapEntries.find(e => {
-                        const keyTokens = e.k.split(/\s+/);
-                        return inputTokens.every(t => keyTokens.includes(t));
-                    });
+                    match = teamMapEntries.find(e => inputTokens.every(t => e.tokens.includes(t)));
                 }
                 if (match) res = match.v;
             }
