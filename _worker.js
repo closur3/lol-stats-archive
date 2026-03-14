@@ -1472,9 +1472,10 @@ async function runUpdate(env, force=false) {
         const grid = analysis.timeGrid[slug] || {};
         const tMeta = analysis.tournMeta[slug] ? { [slug]: analysis.tournMeta[slug] } : {};
         const teamMap = tourn.team_map || {};
+        const { team_map, teamMap: _tm, ...tournStored } = tourn;
 
         const homeSnapshot = {
-            tourn: tourn,
+            tourn: tournStored,
             rawMatches: raw,
             updateTimestamps: { [slug]: ts },
             stats: stats,
@@ -1486,7 +1487,7 @@ async function runUpdate(env, force=false) {
         await env.LOL_KV.put(getHomeKey(slug), JSON.stringify(homeSnapshot));
 
         if (!stats || Object.keys(stats).length === 0) continue;
-        const snapshot = { tourn: tourn, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
+        const snapshot = { tourn: tournStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
         await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
     }
     
