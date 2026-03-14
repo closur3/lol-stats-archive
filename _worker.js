@@ -13,13 +13,6 @@ const isFlatTeamMap = (obj) => {
     return typeof obj[keys[0]] === "string";
 };
 
-const matchTeamKey = (keyUpper, rawUpper) => {
-    if (rawUpper.includes(keyUpper)) return true;
-    const inputTokens = rawUpper.split(/\s+/);
-    const keyTokens = keyUpper.split(/\s+/);
-    return inputTokens.every(t => keyTokens.includes(t));
-};
-
 const filterTeamMapForMatches = (baseMap, rawMatches = []) => {
     if (!baseMap || typeof baseMap !== "object") return {};
     const rawNames = new Set();
@@ -31,12 +24,27 @@ const filterTeamMapForMatches = (baseMap, rawMatches = []) => {
     });
     if (rawNames.size === 0) return {};
 
-    const rawUppers = Array.from(rawNames).map(n => String(n).toUpperCase());
+    const entries = Object.entries(baseMap).map(([k, v]) => ({ k, v, ku: String(k).toUpperCase() }));
     const needed = {};
-    Object.entries(baseMap).forEach(([k, v]) => {
-        const keyUpper = String(k).toUpperCase();
-        if (rawUppers.some(r => matchTeamKey(keyUpper, r))) needed[k] = v;
+
+    const pickKeyForRaw = (rawUpper) => {
+        let match = entries.find(e => rawUpper === e.ku);
+        if (!match) match = entries.find(e => rawUpper.includes(e.ku));
+        if (!match) {
+            const inputTokens = rawUpper.split(/\s+/);
+            match = entries.find(e => {
+                const keyTokens = e.ku.split(/\s+/);
+                return inputTokens.every(t => keyTokens.includes(t));
+            });
+        }
+        return match ? match.k : null;
+    };
+
+    rawNames.forEach(raw => {
+        const key = pickKeyForRaw(String(raw).toUpperCase());
+        if (key && baseMap[key] != null) needed[key] = baseMap[key];
     });
+
     return needed;
 };
 
