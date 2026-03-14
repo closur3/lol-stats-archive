@@ -1238,7 +1238,6 @@ async function runUpdate(env, force=false) {
         return (a.slug || '').localeCompare(b.slug || '');
     });
 
-    if (!cache) cache = { globalStats: {}, updateTimestamps: {}, rawMatches: {} };
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
