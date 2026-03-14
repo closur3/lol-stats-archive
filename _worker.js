@@ -4,13 +4,51 @@ const GITHUB_COMMIT_BASE = "https://github.com/closur3/lol-stats-archive/commit/
 // --- 1. 工具库 (Global UTC+8 Core) ---
 const CST_OFFSET = 8 * 60 * 60 * 1000; 
 
-// --- Runtime Config Helper Functions ---
-const getRuntimeConfig = async (env) => {
-    return await env.LOL_KV.get("RUNTIME_CONFIG", { type: "json" });
+const getHomeKey = (slug) => `HOME_${slug}`;
+
+const isFlatTeamMap = (obj) => {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return false;
+    return typeof obj[keys[0]] === "string";
 };
 
-const setRuntimeConfig = async (env, config) => {
-    await env.LOL_KV.put("RUNTIME_CONFIG", JSON.stringify(config));
+const matchTeamKey = (keyUpper, rawUpper) => {
+    if (rawUpper.includes(keyUpper)) return true;
+    const inputTokens = rawUpper.split(/\s+/);
+    const keyTokens = keyUpper.split(/\s+/);
+    return inputTokens.every(t => keyTokens.includes(t));
+};
+
+const filterTeamMapForMatches = (baseMap, rawMatches = []) => {
+    if (!baseMap || typeof baseMap !== "object") return {};
+    const rawNames = new Set();
+    rawMatches.forEach(m => {
+        const t1 = m.Team1 || m["Team 1"];
+        const t2 = m.Team2 || m["Team 2"];
+        if (t1) rawNames.add(t1);
+        if (t2) rawNames.add(t2);
+    });
+    if (rawNames.size === 0) return {};
+
+    const rawUppers = Array.from(rawNames).map(n => String(n).toUpperCase());
+    const needed = {};
+    Object.entries(baseMap).forEach(([k, v]) => {
+        const keyUpper = String(k).toUpperCase();
+        if (rawUppers.some(r => matchTeamKey(keyUpper, r))) needed[k] = v;
+    });
+    return needed;
+};
+
+const pickTeamMap = (teamsRaw, tourn, rawMatches) => {
+    if (!teamsRaw || typeof teamsRaw !== "object") return {};
+    let base = {};
+    if (teamsRaw.by_slug && teamsRaw.by_slug[tourn.slug]) base = teamsRaw.by_slug[tourn.slug];
+    else if (teamsRaw.by_league && teamsRaw.by_league[tourn.league]) base = teamsRaw.by_league[tourn.league];
+    else if (teamsRaw[tourn.slug] && typeof teamsRaw[tourn.slug] === "object") base = teamsRaw[tourn.slug];
+    else if (teamsRaw[tourn.league] && typeof teamsRaw[tourn.league] === "object") base = teamsRaw[tourn.league];
+    else if (isFlatTeamMap(teamsRaw)) base = teamsRaw;
+    return filterTeamMapForMatches(base, rawMatches);
 };
 
 const utils = {
@@ -274,32 +312,35 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
     const todayStr = utils.getNow().date;
     const allFutureMatches = {}; 
 
-    const teamMapEntries = runtimeConfig.TEAM_MAP ? Object.entries(runtimeConfig.TEAM_MAP).map(([k,v]) => ({k: k.toUpperCase(), v})) : [];
-    const nameCache = new Map();
-    const resolveName = (raw) => {
-        if (!raw) return "Unknown";
-        if (nameCache.has(raw)) return nameCache.get(raw);
-        let res = raw;
-        const upper = raw.toUpperCase();
-        if (upper.includes("TBD") || upper.includes("TBA") || upper.includes("TO BE DETERMINED")) {
-            res = "TBD";
-        } else {
-            let match = teamMapEntries.find(e => upper.includes(e.k));
-            if (!match) {
-                const inputTokens = upper.split(/\s+/);
-                match = teamMapEntries.find(e => {
-                    const keyTokens = e.k.split(/\s+/);
-                    return inputTokens.every(t => keyTokens.includes(t));
-                });
+    const buildResolveName = (teamMap = {}) => {
+        const teamMapEntries = Object.entries(teamMap || {}).map(([k, v]) => ({ k: k.toUpperCase(), v }));
+        const nameCache = new Map();
+        return (raw) => {
+            if (!raw) return "Unknown";
+            if (nameCache.has(raw)) return nameCache.get(raw);
+            let res = raw;
+            const upper = raw.toUpperCase();
+            if (upper.includes("TBD") || upper.includes("TBA") || upper.includes("TO BE DETERMINED")) {
+                res = "TBD";
+            } else {
+                let match = teamMapEntries.find(e => upper.includes(e.k));
+                if (!match) {
+                    const inputTokens = upper.split(/\s+/);
+                    match = teamMapEntries.find(e => {
+                        const keyTokens = e.k.split(/\s+/);
+                        return inputTokens.every(t => keyTokens.includes(t));
+                    });
+                }
+                if (match) res = match.v;
             }
-            if (match) res = match.v;
-        }
-        nameCache.set(raw, res);
-        return res;
+            nameCache.set(raw, res);
+            return res;
+        };
     };
 
     (runtimeConfig.TOURNAMENTS || []).forEach((tourn, tournIdx) => {
         const rawMatches = allRawMatches[tourn.slug] || [];
+        const resolveName = buildResolveName(tourn.team_map || tourn.teamMap || {});
         const stats = {};
         let processed = 0, skipped = 0;
         let matchesToday = 0, pendingToday = 0;
@@ -1007,7 +1048,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
     return `${tablesHtml} ${scheduleHtml} ${injectedData}`;
 }
 
-async function generateArchiveStaticHTML(env, cacheMain = null) {
+async function generateArchiveStaticHTML(env) {
     try {
         const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
         
@@ -1016,12 +1057,6 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         if (!dataKeys.length) {
             return renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "", "archive");
         }
-
-        if (!cacheMain) {
-            cacheMain = await env.LOL_KV.get("APP_STATE", { type: "json" }) || {};
-        }
-        const runtimeConfig = await getRuntimeConfig(env);
-        const teamMap = runtimeConfig?.TEAM_MAP || {};
 
         const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
         const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
@@ -1052,7 +1087,8 @@ async function generateArchiveStaticHTML(env, cacheMain = null) {
         });
 
         const combined = validSnapshots.map(snap => {
-            const miniConfig = { TEAM_MAP: teamMap, TOURNAMENTS: [snap.tourn] };
+            const tournWithMap = { ...snap.tourn, team_map: snap.team_map || {} };
+            const miniConfig = { TOURNAMENTS: [tournWithMap] };
             const analysis = runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches || [] }, {}, miniConfig);
             const statsObj = analysis.globalStats[snap.tourn.slug] || {};
             const timeObj = analysis.timeGrid[snap.tourn.slug] || {};
@@ -1138,15 +1174,12 @@ async function runUpdate(env, force=false) {
     const SLOW_THRESHOLD = 60 * 60 * 1000;        
     const UPDATE_ROUNDS = 1;
 
-    let appState = await env.LOL_KV.get("APP_STATE", {type:"json"}) || { tournMeta: {}, rawMatches: {}, updateTimestamps: {} };
-    let cache = appState;  // For backward compatibility with existing code using 'cache' variable
-    const meta = { tournaments: appState.tournMeta || {} };
-    
     let runtimeConfig = null;
+    let teamsRaw = null;
     try {
-        const teams = await gh.fetchJson(env, "teams.json");
+        teamsRaw = await gh.fetchJson(env, "teams.json");
         const tourns = await gh.fetchJson(env, "tour.json");
-        if (teams && tourns) runtimeConfig = { TOURNAMENTS: tourns, TEAM_MAP: teams };
+        if (tourns) runtimeConfig = { TOURNAMENTS: tourns };
     } catch (e) {}
 
     if (!runtimeConfig) { 
@@ -1154,9 +1187,32 @@ async function runUpdate(env, force=false) {
         return l; 
     }
 
-    // Save runtimeConfig to separate KV key
-    await setRuntimeConfig(env, runtimeConfig);
+    // Remove stale HOME_<slug> entries not in current tour.json
+    try {
+        const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
+        const activeSlugs = new Set((runtimeConfig.TOURNAMENTS || []).map(t => t.slug));
+        const staleKeys = allHomeKeys.keys
+            .map(k => k.name)
+            .filter(n => n !== "HOME_STATIC_HTML")
+            .filter(n => {
+                const slug = n.slice("HOME_".length);
+                return !activeSlugs.has(slug);
+            });
+        for (const key of staleKeys) await env.LOL_KV.delete(key);
+    } catch (e) {}
 
+    // Load per-league cached data
+    const cache = { rawMatches: {}, updateTimestamps: {} };
+    const meta = { tournaments: {} };
+    const homeEntries = await Promise.all((runtimeConfig.TOURNAMENTS || []).map(async t => {
+        const data = await env.LOL_KV.get(getHomeKey(t.slug), { type: "json" });
+        return [t.slug, data];
+    }));
+    homeEntries.forEach(([slug, home]) => {
+        if (home && home.rawMatches) cache.rawMatches[slug] = home.rawMatches;
+        if (home && home.updateTimestamps && home.updateTimestamps[slug]) cache.updateTimestamps[slug] = home.updateTimestamps[slug];
+        if (home && home.tournMeta && home.tournMeta[slug]) meta.tournaments[slug] = home.tournMeta[slug];
+    });
     // 对联赛进行排序：start_date 倒序 > end_date 倒序 > slug 字母顺序
     runtimeConfig.TOURNAMENTS.sort((a, b) => {
         const aStart = a.start_date || '';
@@ -1337,6 +1393,12 @@ async function runUpdate(env, force=false) {
     for (const slug of Object.keys(cache.rawMatches)) if (!activeSlugs.has(slug)) delete cache.rawMatches[slug];
     for (const slug of Object.keys(cache.updateTimestamps)) if (!activeSlugs.has(slug)) delete cache.updateTimestamps[slug];
 
+    // Attach per-league team maps (filtered to only needed teams)
+    for (const tourn of (runtimeConfig.TOURNAMENTS || [])) {
+        const rawMatches = cache.rawMatches[tourn.slug] || [];
+        tourn.team_map = pickTeamMap(teamsRaw, tourn, rawMatches);
+    }
+
     const oldTournMeta = meta.tournaments || {};
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
@@ -1383,16 +1445,6 @@ async function runUpdate(env, force=false) {
     if (trafficLight === "🔴") l.error(finalLog); else l.success(finalLog);
 
 
-    const newAppState = { 
-        globalStats: analysis.globalStats, timeGrid: analysis.timeGrid,
-        maxDateTs: analysis.maxDateTs,
-        statusText: analysis.statusText, scheduleMap: analysis.scheduleMap,
-        tournMeta: analysis.tournMeta,
-        updateTime: utils.getNow(),
-        rawMatches: cache.rawMatches, updateTimestamps: cache.updateTimestamps
-    };
-    await env.LOL_KV.put("APP_STATE", JSON.stringify(newAppState));
-
     try {
         const homeFragment = renderContentOnly(
             analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
@@ -1402,14 +1454,44 @@ async function runUpdate(env, force=false) {
         await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
     } catch (e) {}
 
+    const scheduleBySlug = {};
+    Object.keys(analysis.scheduleMap || {}).forEach(date => {
+        const list = analysis.scheduleMap[date] || [];
+        list.forEach(m => {
+            const slug = m.slug;
+            if (!scheduleBySlug[slug]) scheduleBySlug[slug] = {};
+            if (!scheduleBySlug[slug][date]) scheduleBySlug[slug][date] = [];
+            scheduleBySlug[slug][date].push(m);
+        });
+    });
+
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const slug = tourn.slug;
-        if (!analysis.globalStats[slug]) continue;
-        const snapshot = { tourn: tourn, rawMatches: cache.rawMatches[slug] || [], updateTimestamps: { [slug]: cache.updateTimestamps[slug] } };
+        const raw = cache.rawMatches[slug] || [];
+        const ts = cache.updateTimestamps[slug] || 0;
+        const stats = analysis.globalStats[slug] || {};
+        const grid = analysis.timeGrid[slug] || {};
+        const tMeta = analysis.tournMeta[slug] ? { [slug]: analysis.tournMeta[slug] } : {};
+        const teamMap = tourn.team_map || {};
+
+        const homeSnapshot = {
+            tourn: tourn,
+            rawMatches: raw,
+            updateTimestamps: { [slug]: ts },
+            stats: stats,
+            timeGrid: grid,
+            scheduleMap: scheduleBySlug[slug] || {},
+            tournMeta: tMeta,
+            team_map: teamMap
+        };
+        await env.LOL_KV.put(getHomeKey(slug), JSON.stringify(homeSnapshot));
+
+        if (!stats || Object.keys(stats).length === 0) continue;
+        const snapshot = { tourn: tourn, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
         await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
     }
     
-    const archiveHTML = await generateArchiveStaticHTML(env, newAppState);
+    const archiveHTML = await generateArchiveStaticHTML(env);
     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
 
 
@@ -1423,6 +1505,11 @@ async function runCustomRebuild(env, payload) {
     const authContext = await loginToFandom(env);
 
     try {
+        let teamsRaw = null;
+        try {
+            teamsRaw = await gh.fetchJson(env, "teams.json");
+        } catch (e) {}
+
         // 支持 overview_page 为数组或字符串
         const overviewPages = Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page];
         const matches = await fetchAllMatches(payload.slug, overviewPages, authContext, null);
@@ -1436,11 +1523,13 @@ async function runCustomRebuild(env, payload) {
                 start_date: payload.start_date || null,
                 end_date: payload.end_date || null
             };
+            const teamMap = pickTeamMap(teamsRaw, tourn, matches);
             
             const snapshot = {
                 tourn: tourn,
                 rawMatches: matches,
-                updateTimestamps: { [payload.slug]: Date.now() }
+                updateTimestamps: { [payload.slug]: Date.now() },
+                team_map: teamMap
             };
             
             await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
@@ -2045,11 +2134,21 @@ export default {
 
         switch (url.pathname) {
             case "/backup": {
-                const appState = await env.LOL_KV.get("APP_STATE", { type: "json" });
-                const runtimeConfig = await getRuntimeConfig(env);
-                if (!appState || !appState.globalStats) return jsonResponse({ error: "No data" }, 503);
                 const payload = {};
-                for (const tourn of (runtimeConfig?.TOURNAMENTS || [])) if (appState.globalStats[tourn.slug]) payload[`markdown/${tourn.slug}.md`] = generateMarkdown(tourn, appState.globalStats[tourn.slug], appState.timeGrid);
+                const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
+                const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== "HOME_STATIC_HTML");
+                const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
+                rawHomes.forEach(home => {
+                    if (home && home.tourn && home.stats) {
+                        const slug = home.tourn.slug;
+                        payload[`markdown/${slug}.md`] = generateMarkdown(
+                            home.tourn,
+                            home.stats,
+                            { [slug]: home.timeGrid || {} }
+                        );
+                    }
+                });
+                if (Object.keys(payload).length === 0) return jsonResponse({ error: "No data" }, 503);
                 return jsonResponse(payload);
             }
 
@@ -2063,19 +2162,72 @@ export default {
                 if (isUnauthorized(request, env)) return unauthorizedResponse();
 
                 try {
-                    const appState = await env.LOL_KV.get("APP_STATE", { type: "json" });
-                    const runtimeConfig = await getRuntimeConfig(env);
-                    if (!appState || !appState.globalStats) return textResponse("No cache data available. Run Refresh API first.", 400);
+                    const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
+                    const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== "HOME_STATIC_HTML");
+                    const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
+                    const homeEntries = rawHomes.filter(h => h && h.tourn);
+
+                    // Sort tournaments same as runUpdate
+                    const sortedTourns = homeEntries.map(h => h.tourn).sort((a, b) => {
+                        const aStart = a.start_date || '';
+                        const bStart = b.start_date || '';
+                        const aEnd = a.end_date || '';
+                        const bEnd = b.end_date || '';
+                        if (aStart !== bStart) {
+                            if (!aStart) return 1;
+                            if (!bStart) return -1;
+                            return bStart.localeCompare(aStart);
+                        }
+                        if (aEnd !== bEnd) {
+                            if (!aEnd) return 1;
+                            if (!bEnd) return -1;
+                            return bEnd.localeCompare(aEnd);
+                        }
+                        return (a.slug || '').localeCompare(b.slug || '');
+                    });
+                    const runtimeConfig = { TOURNAMENTS: sortedTourns };
+
+                    const globalStats = {};
+                    const timeGrid = {};
+                    const scheduleMap = {};
+                    const updateTimestamps = {};
+                    const tournMeta = {};
+
+                    homeEntries.forEach(home => {
+                        const tourn = home.tourn;
+                        if (!home) return;
+                        if (home.stats) globalStats[tourn.slug] = home.stats;
+                        if (home.timeGrid) timeGrid[tourn.slug] = home.timeGrid;
+                        if (home.updateTimestamps && home.updateTimestamps[tourn.slug]) {
+                            updateTimestamps[tourn.slug] = home.updateTimestamps[tourn.slug];
+                        }
+                        if (home.tournMeta && home.tournMeta[tourn.slug]) {
+                            tournMeta[tourn.slug] = home.tournMeta[tourn.slug];
+                        }
+                        const sch = home.scheduleMap || {};
+                        Object.keys(sch).forEach(date => {
+                            if (!scheduleMap[date]) scheduleMap[date] = [];
+                            scheduleMap[date].push(...sch[date]);
+                        });
+                    });
+                    Object.keys(scheduleMap).forEach(date => {
+                        scheduleMap[date].sort((a, b) => {
+                            if (a.tournIndex !== b.tournIndex) return a.tournIndex - b.tournIndex;
+                            return a.time.localeCompare(b.time);
+                        });
+                    });
+
+                    if (Object.keys(globalStats).length === 0) return textResponse("No cache data available. Run Refresh API first.", 400);
 
                     const homeFragment = renderContentOnly(
-                        appState.globalStats, appState.timeGrid, appState.scheduleMap,
+                        globalStats, timeGrid, scheduleMap,
                         runtimeConfig || { TOURNAMENTS: [] },
-                        appState.updateTimestamps, false, appState.tournMeta || {} 
+                        updateTimestamps, false, tournMeta 
                     );
-                    const fullPage = renderPageShell("LoL Insights", homeFragment, appState.statusText || "", "home");
+                    const fullPage = renderPageShell("LoL Insights", homeFragment, "", "home");
                     await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
 
-                    const archiveHTML = await generateArchiveStaticHTML(env, appState);
+                    const archiveHTML = await generateArchiveStaticHTML(env);
                     await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
 
                     return okResponse();
@@ -2151,6 +2303,10 @@ export default {
 
                 try {
                     const logger = new Logger();
+                    let teamsRaw = null;
+                    try {
+                        teamsRaw = await gh.fetchJson(env, "teams.json");
+                    } catch (e) {}
                     
                     // 处理 overview_page：支持逗号分隔或 JSON 数组格式
                     let overviewPages = payload.overview_page;
@@ -2180,7 +2336,8 @@ export default {
                             end_date: payload.end_date || null
                         },
                         rawMatches: [], // 空数据
-                        updateTimestamps: { [payload.slug]: Date.now() }
+                        updateTimestamps: { [payload.slug]: Date.now() },
+                        team_map: pickTeamMap(teamsRaw, { slug: payload.slug, league: payload.league }, [])
                     };
                     
                     await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
