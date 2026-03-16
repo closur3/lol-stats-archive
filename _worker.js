@@ -642,10 +642,26 @@ const PYTHON_STYLE = `
             gap: 0; 
             padding: 12px 15px 0 15px; 
         }
+        summary.arch-sum {
+            display: block;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 0;
+        }
+        .arch-title-wrapper {
+            width: 100%;
+            padding: 12px 15px 0 15px;
+            display: flex;
+            align-items: center;
+        }
+        .arch-title-wrapper a {
+            white-space: normal;
+            line-height: 1.3;
+        }
         .title-right-area { 
             width: 100%; 
             justify-content: flex-start !important; 
-            padding: 10px 0; 
+            padding: 10px 15px 12px 15px; 
             border-top: 1px dashed #e2e8f0; 
             margin-top: 8px; 
             display: flex;
