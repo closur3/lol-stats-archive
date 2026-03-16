@@ -653,7 +653,9 @@ const PYTHON_STYLE = `
             padding: 12px 15px 0 15px;
             display: flex;
             align-items: center;
+            column-gap: 10px;
         }
+        .arch-indicator { margin-right: 0; }
         .arch-title-wrapper a {
             white-space: normal;
             line-height: 1.3;
