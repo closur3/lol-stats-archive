@@ -287,7 +287,7 @@ async function fetchAllMatches(slug, sourceInput, authContext, dateFilter = null
 
         const params = new URLSearchParams({
             action: "cargoquery", format: "json", tables: "MatchSchedule",
-            fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
+            fields: "MatchId,Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
             where: whereClause,
             limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
         });
@@ -1357,13 +1357,8 @@ async function runUpdate(env, force=false) {
                 if (newData.length > 0) {
                     const matchMap = new Map();
                     const getUniqueKey = (m) => {
-                        const page = m.OverviewPage || "Unknown";
-                        const n = m.N_MatchInPage || m["N MatchInPage"];
-                        if (n) return `${page}_${n}`;
-                        const t_utc = m.DateTime_UTC || m["DateTime UTC"];
-                        const t1 = m.Team1 || m["Team 1"];
-                        const t2 = m.Team2 || m["Team 2"];
-                        return `${page}_${t_utc}_${t1}_${t2}`;
+                        const id = m.MatchId ?? m["MatchId"];
+                        return String(id ?? "");
                     };
 
                     oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
