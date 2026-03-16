@@ -287,7 +287,7 @@ async function fetchAllMatches(slug, sourceInput, authContext, dateFilter = null
 
         const params = new URLSearchParams({
             action: "cargoquery", format: "json", tables: "MatchSchedule",
-            fields: "MatchId,Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
+            fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
             where: whereClause,
             limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
         });
@@ -1198,8 +1198,8 @@ async function respondCachedHtml(env, key, fallback) {
 async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
-    const FAST_THRESHOLD = 3 * 60 * 1000;
-    const SLOW_THRESHOLD = 60 * 60 * 1000;
+    const FAST_THRESHOLD = 6 * 60 * 1000;         
+    const SLOW_THRESHOLD = 60 * 60 * 1000;        
     const UPDATE_ROUNDS = 1;
 
     let runtimeConfig = null;
@@ -1340,52 +1340,8 @@ async function runUpdate(env, force=false) {
     const failedSlugs = new Set();
     const syncDetails = [];
     const idleDetails = [];
-    const scheduleDetails = [];
     const breakers = [];
     const apiErrors = [];
-
-    const pick = (v) => (v === undefined || v === null) ? "" : String(v).trim();
-    const normalizeMatch = (m) => ({
-        page: pick(m.OverviewPage || "Unknown"),
-        n: pick(m.N_MatchInPage || m["N MatchInPage"]),
-        dt: pick(m.DateTime_UTC || m["DateTime UTC"]),
-        t1: pick(m.Team1 || m["Team 1"]),
-        t2: pick(m.Team2 || m["Team 2"]),
-        s1: pick(m.Team1Score),
-        s2: pick(m.Team2Score),
-        bo: pick(m.BestOf),
-        tab: pick(m.Tab),
-        round: pick(m.Round),
-        patch: pick(m.Patch)
-    });
-    const isSameMatch = (a, b) => {
-        if (!a || !b) return false;
-        const na = normalizeMatch(a);
-        const nb = normalizeMatch(b);
-        return (
-            na.page === nb.page &&
-            na.n === nb.n &&
-            na.dt === nb.dt &&
-            na.t1 === nb.t1 &&
-            na.t2 === nb.t2 &&
-            na.s1 === nb.s1 &&
-            na.s2 === nb.s2 &&
-            na.bo === nb.bo &&
-            na.tab === nb.tab &&
-            na.round === nb.round &&
-            na.patch === nb.patch
-        );
-    };
-
-    const getScoreInfo = (m) => {
-        const s1 = parseInt(m.Team1Score) || 0;
-        const s2 = parseInt(m.Team2Score) || 0;
-        const bo = parseInt(m.BestOf) || 3;
-        const hasScore = (m.Team1Score !== "" && m.Team1Score != null) || (m.Team2Score !== "" && m.Team2Score != null);
-        const isFinished = Math.max(s1, s2) >= Math.ceil(bo / 2);
-        const isLive = !isFinished && (s1 > 0 || s2 > 0 || hasScore);
-        return { s1, s2, bo, hasScore, isFinished, isLive };
-    };
     
     results.forEach(res => {
         const c = batch.find(b => b.slug === res.slug);
@@ -1400,69 +1356,48 @@ async function runUpdate(env, force=false) {
             if (res.isDelta) {
                 if (newData.length > 0) {
                     const matchMap = new Map();
-                    const noIdList = [];
-                    const getMatchId = (m) => pick(m.MatchId || m["Match ID"]);
+                    const getUniqueKey = (m) => {
+                        const page = m.OverviewPage || "Unknown";
+                        const n = m.N_MatchInPage || m["N MatchInPage"];
+                        if (n) return `${page}_${n}`;
+                        const t_utc = m.DateTime_UTC || m["DateTime UTC"];
+                        const t1 = m.Team1 || m["Team 1"];
+                        const t2 = m.Team2 || m["Team 2"];
+                        return `${page}_${t_utc}_${t1}_${t2}`;
+                    };
 
-                    oldData.forEach(m => {
-                        const id = getMatchId(m);
-                        if (id) matchMap.set(id, m);
-                        else noIdList.push(m);
-                    });
+                    oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
 
                     let changesCount = 0;
-                    let meaningfulCount = 0;
-                    let scheduleCount = 0;
                     newData.forEach(m => {
-                        const id = getMatchId(m);
-                        if (!id) {
-                            noIdList.push(m);
+                        const key = getUniqueKey(m);
+                        const oldM = matchMap.get(key);
+                        if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
+                            matchMap.set(key, m);
                             changesCount++;
-                            const n = getScoreInfo(m);
-                            if (n.isLive || n.isFinished || n.hasScore) meaningfulCount++;
-                            else {
-                                const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
-                                const ts = dt ? dt.getTime() : 0;
-                                if (ts && ts > NOW) scheduleCount++;
-                            }
-                            return;
-                        }
-
-                        const oldM = matchMap.get(id);
-                        if (!oldM || !isSameMatch(oldM, m)) {
-                            matchMap.set(id, m);
-                            changesCount++;
-                            const n = getScoreInfo(m);
-                            const o = oldM ? getScoreInfo(oldM) : { hasScore: false, isFinished: false, isLive: false };
-                            if (n.isLive || n.isFinished || n.hasScore || o.isLive || o.isFinished || o.hasScore) {
-                                meaningfulCount++;
-                            } else {
-                                const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
-                                const ts = dt ? dt.getTime() : 0;
-                                if (ts && ts > NOW) scheduleCount++;
-                            }
                         }
                     });
 
+                    // Recalculate countdown after updating timestamp (will happen later)
+                    const thresholdAfterUpdate = c.mode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
+                    const countdownAfterUpdate = Math.ceil(thresholdAfterUpdate / 60000);
+                    
                     if (changesCount > 0) {
-                        const mergedList = Array.from(matchMap.values()).concat(noIdList);
+                        const mergedList = Array.from(matchMap.values());
                         mergedList.sort((a, b) => {
                             const tA = a.DateTime_UTC || "9999-99-99";
                             const tB = b.DateTime_UTC || "9999-99-99";
                             return tA.localeCompare(tB);
                         });
                         cache.rawMatches[slug] = mergedList;
-                        if (meaningfulCount > 0) {
-                            syncDetails.push({ slug, name: dName, prefix: "+", count: meaningfulCount });
-                        } else if (scheduleCount > 0) {
-                            scheduleDetails.push({ slug, name: dName, prefix: "+", count: scheduleCount });
-                        } else {
-                            idleDetails.push({ slug, name: dName, prefix: "*", count: oldData.length });
-                        }
+                        syncDetails.push(`${dName} +${changesCount} (${mIcon}${countdownAfterUpdate}m)`);
                     } else {
-                        idleDetails.push({ slug, name: dName, prefix: "*", count: oldData.length });
+                        idleDetails.push(`${dName} *${oldData.length} (${mIcon}${countdownAfterUpdate}m)`);
                     }
                 } else {
-                    idleDetails.push({ slug, name: dName, prefix: "*", count: oldData.length });
+                    const thresholdAfterUpdate = c.mode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
+                    const countdownAfterUpdate = Math.ceil(thresholdAfterUpdate / 60000);
+                    idleDetails.push(`${dName} *${oldData.length} (${mIcon}${countdownAfterUpdate}m)`);
                 }
             } else {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
@@ -1470,11 +1405,13 @@ async function runUpdate(env, force=false) {
                     failedSlugs.add(slug);
                 } else {
                     cache.rawMatches[slug] = newData;
-                    const sameFull = oldData.length === newData.length && oldData.every((m, i) => isSameMatch(m, newData[i]));
-                    if (!sameFull) {
-                        syncDetails.push({ slug, name: dName, prefix: "*", count: newData.length });
+                    // Recalculate countdown after updating timestamp
+                    const thresholdAfterUpdate = c.mode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
+                    const countdownAfterUpdate = Math.ceil(thresholdAfterUpdate / 60000);
+                    if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
+                        syncDetails.push(`${dName} *${newData.length} (${mIcon}${countdownAfterUpdate}m)`);
                     } else {
-                        idleDetails.push({ slug, name: dName, prefix: "*", count: newData.length });
+                        idleDetails.push(`${dName} *${newData.length} (${mIcon}${countdownAfterUpdate}m)`);
                     }
                 }
             }
@@ -1514,30 +1451,13 @@ async function runUpdate(env, force=false) {
     const authPrefix = isAnon ? "👻 " : "";
     let trafficLight, action, content;
     
-    const formatCountdown = (slug) => {
-        const metaForLog = (analysis.tournMeta && analysis.tournMeta[slug]) || (oldTournMeta && oldTournMeta[slug]) || { mode: "fast", startTs: 0 };
-        const mode = metaForLog.mode || "fast";
-        const modeIcon = mode === "slow" ? "🐌" : "⚡";
-        const thresholdForLog = (mode === "slow" && metaForLog.startTs > 0 && NOW < metaForLog.startTs) ? SLOW_THRESHOLD : FAST_THRESHOLD;
-        const countdownAfterUpdate = Math.ceil(thresholdForLog / 60000);
-        return { modeIcon, countdownAfterUpdate };
-    };
-    const formatDetail = (d) => {
-        const { modeIcon, countdownAfterUpdate } = formatCountdown(d.slug);
-        return `${d.name} ${d.prefix}${d.count} (${modeIcon}${countdownAfterUpdate}m)`;
-    };
-    const syncDetailText = syncDetails.map(formatDetail);
-    const idleDetailText = idleDetails.map(formatDetail);
-    const scheduleDetailText = scheduleDetails.map(formatDetail);
-
     if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
         trafficLight = "⚪"; action = "[IDLE]";
         
         let parts = [];
-        if (idleDetails.length > 0) parts.push(`🔍 ${idleDetailText.join(", ")}`);
-        if (scheduleDetails.length > 0) parts.push(`🗓️ ${scheduleDetailText.join(", ")}`);
+        if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
-        if (idleDetails.length === 0 && scheduleDetails.length === 0) parts.push(`🟰 Identical`);
+        parts.push(`🟰 Identical`);
         
         content = parts.join(" | ");
     } else {
@@ -1546,8 +1466,7 @@ async function runUpdate(env, force=false) {
         action = hasErr ? "[ERR!]" : "[SYNC]";
         
         let parts = [];
-        if (syncDetails.length > 0) parts.push(`🔄 ${syncDetailText.join(", ")}`);
-        if (scheduleDetails.length > 0) parts.push(`🗓️ ${scheduleDetailText.join(", ")}`);
+        if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
         if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
@@ -2519,7 +2438,6 @@ export default {
         await appendLogs(env, l, true);
     }
 };
-
 
 
 
