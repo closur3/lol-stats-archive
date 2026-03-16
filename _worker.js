@@ -381,20 +381,24 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 const matchTimeStr = `${p.h}:${p.m}`;
                 dateDisplay = `${p.mo}-${p.da} ${matchTimeStr}`;
 
-                if (matchDateStr >= todayStr) {
-                    if (matchDateStr === todayStr) {
+                const isCrossDayLive = !isFinished && isLive && matchDateStr < todayStr;
+
+                if (matchDateStr >= todayStr || isCrossDayLive) {
+                    if (matchDateStr === todayStr || isCrossDayLive) {
                         matchesToday++;
                         if (!isFinished) {
                             pendingToday++;
                             if (ts < earliestPendingTs) earliestPendingTs = ts;
                         }
                     }
-                    if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
+
+                    const bucketDate = matchDateStr;
+                    if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
                     
                     let blockName = m.Tab || "";
                     if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") if (m.Round) blockName = m.Round;
 
-                    allFutureMatches[matchDateStr].push({
+                    allFutureMatches[bucketDate].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
                         league: tourn.league, slug: tourn.slug,
