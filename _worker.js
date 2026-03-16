@@ -661,7 +661,7 @@ const PYTHON_STYLE = `
         .title-right-area { 
             width: 100%; 
             justify-content: flex-start !important; 
-            padding: 10px 15px 12px 15px; 
+            padding: 10px 15px 12px 55px; 
             border-top: 1px dashed #e2e8f0; 
             margin-top: 8px; 
             display: flex;
