@@ -287,7 +287,7 @@ async function fetchAllMatches(slug, sourceInput, authContext, dateFilter = null
 
         const params = new URLSearchParams({
             action: "cargoquery", format: "json", tables: "MatchSchedule",
-            fields: "Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
+            fields: "MatchId,Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
             where: whereClause,
             limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
         });
@@ -1400,26 +1400,36 @@ async function runUpdate(env, force=false) {
             if (res.isDelta) {
                 if (newData.length > 0) {
                     const matchMap = new Map();
-                    const getUniqueKey = (m) => {
-                        const page = m.OverviewPage || "Unknown";
-                        const n = m.N_MatchInPage || m["N MatchInPage"];
-                        if (n) return `${page}_${n}`;
-                        const t_utc = m.DateTime_UTC || m["DateTime UTC"];
-                        const t1 = m.Team1 || m["Team 1"];
-                        const t2 = m.Team2 || m["Team 2"];
-                        return `${page}_${t_utc}_${t1}_${t2}`;
-                    };
+                    const noIdList = [];
+                    const getMatchId = (m) => pick(m.MatchId || m["Match ID"]);
 
-                    oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
+                    oldData.forEach(m => {
+                        const id = getMatchId(m);
+                        if (id) matchMap.set(id, m);
+                        else noIdList.push(m);
+                    });
 
                     let changesCount = 0;
                     let meaningfulCount = 0;
                     let scheduleCount = 0;
                     newData.forEach(m => {
-                        const key = getUniqueKey(m);
-                        const oldM = matchMap.get(key);
+                        const id = getMatchId(m);
+                        if (!id) {
+                            noIdList.push(m);
+                            changesCount++;
+                            const n = getScoreInfo(m);
+                            if (n.isLive || n.isFinished || n.hasScore) meaningfulCount++;
+                            else {
+                                const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
+                                const ts = dt ? dt.getTime() : 0;
+                                if (ts && ts > NOW) scheduleCount++;
+                            }
+                            return;
+                        }
+
+                        const oldM = matchMap.get(id);
                         if (!oldM || !isSameMatch(oldM, m)) {
-                            matchMap.set(key, m);
+                            matchMap.set(id, m);
                             changesCount++;
                             const n = getScoreInfo(m);
                             const o = oldM ? getScoreInfo(oldM) : { hasScore: false, isFinished: false, isLive: false };
@@ -1434,7 +1444,7 @@ async function runUpdate(env, force=false) {
                     });
 
                     if (changesCount > 0) {
-                        const mergedList = Array.from(matchMap.values());
+                        const mergedList = Array.from(matchMap.values()).concat(noIdList);
                         mergedList.sort((a, b) => {
                             const tA = a.DateTime_UTC || "9999-99-99";
                             const tB = b.DateTime_UTC || "9999-99-99";
