@@ -1,5 +1,4 @@
 name: "Deploy: Publish Worker"
-
 on:
   push:
     paths:
@@ -12,13 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set Time Variable
         run: echo "CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
 
       - name: Install Wrangler
         run: npm install -g wrangler
-  
+
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
@@ -33,10 +32,32 @@ jobs:
       - name: Refresh UI
         env:
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          DEPLOY_SHA: ${{ github.sha }}
         run: |
-          sleep 2
-          
-          echo "Triggering /refresh-ui endpoint..."
-          curl -X POST https://lol-stats.closur3.workers.dev/refresh-ui \
+          WORKER_URL="https://lol-stats.closur3.workers.dev"
+          MAX_ATTEMPTS=20
+          INTERVAL=3
+          DEPLOY_SHORT_SHA="${DEPLOY_SHA:0:7}"
+
+          echo "Waiting for Worker to serve SHA: $DEPLOY_SHORT_SHA"
+
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            LIVE_SHORT_SHA=$(curl -sf "$WORKER_URL/logs" | grep -o 'class="footer-sha">@[0-9a-f]*' | grep -o '[0-9a-f]*$')
+
+            if [ "$LIVE_SHORT_SHA" = "$DEPLOY_SHORT_SHA" ]; then
+              echo "✅ Worker updated (attempt $i). Triggering /refresh-ui..."
+              curl -X POST "$WORKER_URL/refresh-ui" \
+                   -H "Authorization: Bearer $ADMIN_SECRET" \
+                   -w "\nHTTP Status: %{http_code}\n"
+              exit 0
+            fi
+
+            echo "Attempt $i/$MAX_ATTEMPTS: live=$LIVE_SHORT_SHA, expected=$DEPLOY_SHORT_SHA — retrying in ${INTERVAL}s"
+            sleep $INTERVAL
+          done
+
+          echo "❌ Timed out. Triggering /refresh-ui anyway..."
+          curl -X POST "$WORKER_URL/refresh-ui" \
                -H "Authorization: Bearer $ADMIN_SECRET" \
                -w "\nHTTP Status: %{http_code}\n"
+          exit 1
