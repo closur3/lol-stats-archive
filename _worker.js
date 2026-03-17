@@ -1287,14 +1287,10 @@ async function runUpdate(env, force=false) {
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
     let candidates = [], coolDetails = [];
-    const dayNow = utils.toCST(NOW).getUTCDate();
-
     runtimeConfig.TOURNAMENTS.forEach(tourn => {
         const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
         const elapsedMins = Math.floor(elapsed / 60000);
-        const dayLast = utils.toCST(lastTs).getUTCDate();
-        const isNewDay = dayNow !== dayLast;
         
         const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
         const currentMode = tMeta.mode;
@@ -1311,7 +1307,7 @@ async function runUpdate(env, force=false) {
         if (force || elapsed >= threshold) {
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
-                xm: countdownMins, isNewDay: isNewDay, mode: currentMode,
+                xm: countdownMins, mode: currentMode,
                 start_date: tourn.start_date || null
             });
         } else {
