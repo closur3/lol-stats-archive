@@ -355,6 +355,8 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         let processed = 0, skipped = 0;
         let matchesToday = 0, pendingToday = 0;
         let earliestPendingTs = Infinity;
+        let nextUpcomingTs = Infinity;
+        const nowTs = Date.now();
         
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
@@ -404,6 +406,10 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                         league: tourn.league, slug: tourn.slug,
                         tournIndex: tournIdx, blockName: blockName || ""  
                     });
+                }
+
+                if (!isFinished && ts >= nowTs) {
+                    if (ts < nextUpcomingTs) nextUpcomingTs = ts;
                 }
 
                 if (isFinished) {
@@ -458,10 +464,12 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
         let nextStreak = 0, nextMode = "fast";
 
+        const hasNearMatch = nextUpcomingTs !== Infinity && (nextUpcomingTs - nowTs) <= (3 * 60 * 60 * 1000);
+
         if (failedSlugs.has(tourn.slug)) {
             nextStreak = prevT.streak || 0;
             nextMode = prevT.mode || "fast";
-        } else if (matchesToday > 0 && pendingToday > 0) { 
+        } else if ((matchesToday > 0 && pendingToday > 0) || hasNearMatch) { 
             nextStreak = 0; 
             nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
         } else { 
