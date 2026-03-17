@@ -471,7 +471,12 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             nextMode = prevT.mode || "fast";
         } else if ((matchesToday > 0 && pendingToday > 0) || hasNearMatch) { 
             nextStreak = 0; 
-            nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
+            if (matchesToday > 0 && pendingToday > 0) {
+                nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
+            } else {
+                // Upcoming match within 3 hours: keep fast even across days
+                nextMode = "fast";
+            }
         } else { 
             nextStreak = prevT.streak >= 1 ? 2 : 1; 
             nextMode = nextStreak >= 2 ? "slow" : "fast"; 
@@ -2484,6 +2489,5 @@ export default {
         await appendLogs(env, l, true);
     }
 };
-
 
 
