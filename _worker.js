@@ -317,7 +317,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
     const createSlot = () => { const t = {}; for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; return t; };
     timeGrid.ALL = createSlot(); 
 
-    let maxDateTs = 0, grandTotal = 0, totalMatchesToday = 0;
     const todayStr = utils.getNow().date;
     const allFutureMatches = {}; 
 
@@ -352,7 +351,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         const rawMatches = allRawMatches[tourn.slug] || [];
         const resolveName = buildResolveName(tourn.team_map);
         const stats = {};
-        let processed = 0, skipped = 0;
+        // processed/skipped removed (unused)
         let matchesToday = 0, pendingToday = 0;
         let earliestPendingTs = Infinity;
         let nextUpcomingTs = Infinity;
@@ -363,7 +362,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         rawMatches.forEach(m => {
             const t1 = resolveName(m.Team1 || m["Team 1"]);
             const t2 = resolveName(m.Team2 || m["Team 2"]);
-            if(!t1 || !t2) { skipped++; return; } 
+            if(!t1 || !t2) { return; } 
             
             ensureTeam(t1); ensureTeam(t2);
 
@@ -414,7 +413,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 if (isFinished) {
                     if(ts > stats[t1].last) stats[t1].last = ts;
                     if(ts > stats[t2].last) stats[t2].last = ts;
-                    if(ts > maxDateTs) maxDateTs = ts;
 
                     const pyDay = p.day === 0 ? 6 : p.day - 1;
                     const targetH = parseInt(p.h, 10);
@@ -442,9 +440,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             stats[t1].history.push({ d: dateDisplay, vs: t2, s: `${s1}-${s2}`, res: resT1, bo: bo, full: isFull, ts: ts });
             stats[t2].history.push({ d: dateDisplay, vs: t1, s: `${s2}-${s1}`, res: resT2, bo: bo, full: isFull, ts: ts });
 
-            if(!isFinished) { skipped++; return; }
-
-            processed++;
+            if(!isFinished) { return; }
             const winner = s1 > s2 ? t1 : t2, loser = s1 > s2 ? t2 : t1;
             [t1,t2].forEach(tm => { stats[tm].s_t++; stats[tm].g_t += (s1+s2); });
             stats[winner].s_w++; stats[t1].g_w += s1; stats[t2].g_w += s2;
@@ -457,8 +453,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         
         Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
         globalStats[tourn.slug] = stats;
-        grandTotal += processed;
-        totalMatchesToday += matchesToday;
+        // counters removed
 
         const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
         let nextStreak = 0, nextMode = "fast";
@@ -501,8 +496,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         });
     });
 
-    // 返回空的 statusText，原先的全局状态废弃
-    return { globalStats, timeGrid, maxDateTs, grandTotal, statusText: "", scheduleMap, tournMeta };
+    return { globalStats, timeGrid, scheduleMap, tournMeta };
 }
 
 // --- 6. Markdown 生成器 ---
@@ -864,7 +858,7 @@ function renderActionBtn(href, icon, text) {
     return `<a href="${href}" class="action-btn"><span class="btn-icon">${icon}</span> <span class="btn-text">${text}</span></a>`;
 }
 
-function renderPageShell(title, bodyContent, _statusText = "", navMode = "home") {
+function renderPageShell(title, bodyContent, navMode = "home") {
     let navBtn = "";
     const logoIcon = navMode === "archive" ? "📦" : "🥇";
     if (navMode === "home") navBtn = renderActionBtn("/archive", "📦", "Archive");
@@ -882,13 +876,10 @@ function renderBuildFooter(time, sha) {
     return `<div class="build-footer"><code class="footer-label">deployed:</code> <code class="footer-time">${time || "N/A"}</code> <a href="${GITHUB_COMMIT_BASE}${sha}" target="_blank"><code class="footer-sha">@${shortSha}</code></a></div>`;
 }
 
-function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, updateTimestamps, isArchive = false, tournMeta = {}) {
+function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, isArchive = false, tournMeta = {}) {
     globalStats = globalStats || {};
     timeData = timeData || {};
     scheduleMap = scheduleMap || {};
-    updateTimestamps = updateTimestamps || {};
-    runtimeConfig = runtimeConfig || { TOURNAMENTS: [] };
-    if (!runtimeConfig.TOURNAMENTS) runtimeConfig.TOURNAMENTS = [];
 
     const injectedData = `<script>window.g_stats = Object.assign(window.g_stats || {}, ${JSON.stringify(globalStats)});</script>`;
     const STYLE_MUTED_DASH = 'style="color:#cbd5e1"';
@@ -1100,7 +1091,7 @@ async function generateArchiveStaticHTML(env) {
         const dataKeys = allKeys.keys.filter(k => k.name !== "ARCHIVE_STATIC_HTML");
         
         if (!dataKeys.length) {
-            return renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "", "archive");
+            return renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "archive");
         }
 
         const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
@@ -1140,13 +1131,13 @@ async function generateArchiveStaticHTML(env) {
             return renderContentOnly(
                 { [snap.tourn.slug]: statsObj },
                 { [snap.tourn.slug]: timeObj },
-                {}, miniConfig, snap.updateTimestamps || {}, true
+                {}, miniConfig, true
             );
         }).join("");
         
-        return renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "", "archive");
+        return renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "archive");
     } catch (e) {
-        return renderPageShell("LoL Archive Error", `<div class="arch-error-msg">Error generating archive: ${e.message}</div>`, "", "archive");
+        return renderPageShell("LoL Archive Error", `<div class="arch-error-msg">Error generating archive: ${e.message}</div>`, "archive");
     }
 }
 
@@ -1286,11 +1277,10 @@ async function runUpdate(env, force=false) {
     if (!cache.rawMatches) cache.rawMatches = {}; 
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
-    let candidates = [], coolDetails = [];
+    let candidates = [];
     runtimeConfig.TOURNAMENTS.forEach(tourn => {
         const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
-        const elapsedMins = Math.floor(elapsed / 60000);
         
         const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
         const currentMode = tMeta.mode;
@@ -1298,20 +1288,12 @@ async function runUpdate(env, force=false) {
         const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
         const dName = tourn.league;
-        const modeIcon = currentMode === "slow" ? "🐌" : "⚡";
-
-        // Calculate countdown to next fetch (in minutes, rounded up)
-        const countdown = Math.max(0, threshold - elapsed);
-        const countdownMins = Math.ceil(countdown / 60000);
-
         if (force || elapsed >= threshold) {
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
-                xm: countdownMins, mode: currentMode,
+                mode: currentMode,
                 start_date: tourn.start_date || null
             });
-        } else {
-            coolDetails.push(`${dName}(${modeIcon}${countdownMins}m)`);
         }
     });
 
@@ -1528,9 +1510,9 @@ async function runUpdate(env, force=false) {
     try {
         const homeFragment = renderContentOnly(
             analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-            runtimeConfig, cache.updateTimestamps, false, analysis.tournMeta 
+            runtimeConfig, false, analysis.tournMeta 
         );
-        const fullPage = renderPageShell("LoL Insights", homeFragment, analysis.statusText, "home");
+        const fullPage = renderPageShell("LoL Insights", homeFragment, "home");
         await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
     } catch (e) {}
 
@@ -2303,9 +2285,9 @@ export default {
                     const homeFragment = renderContentOnly(
                         globalStats, timeGrid, scheduleMap,
                         runtimeConfig || { TOURNAMENTS: [] },
-                        updateTimestamps, false, tournMeta 
+                        false, tournMeta 
                     );
-                    const fullPage = renderPageShell("LoL Insights", homeFragment, "", "home");
+                    const fullPage = renderPageShell("LoL Insights", homeFragment, "home");
                     await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
 
                     const archiveHTML = await generateArchiveStaticHTML(env);
