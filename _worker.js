@@ -1315,7 +1315,6 @@ async function runUpdate(env, force=false) {
     });
 
     if (candidates.length === 0) { 
-        l.success(`⚪ [COOL] | ❄️ ${coolDetails.join(", ")}`);
         return l; 
     }
 
