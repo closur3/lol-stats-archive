@@ -356,6 +356,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         let earliestPendingTs = Infinity;
         let nextUpcomingTs = Infinity;
         const nowTs = Date.now();
+        let hasLiveMatch = false;
         
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
@@ -370,6 +371,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             const bo = parseInt(m.BestOf)||3;
             const isFinished = Math.max(s1, s2) >= Math.ceil(bo/2);
             const isLive = !isFinished && (s1 > 0 || s2 > 0 || (m.Team1Score !== "" && m.Team1Score != null));
+            if (isLive) hasLiveMatch = true;
             const isFull = (bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2);
             
             const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
@@ -463,6 +465,9 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         if (failedSlugs.has(tourn.slug)) {
             nextStreak = prevT.streak || 0;
             nextMode = prevT.mode || "fast";
+        } else if (hasLiveMatch) {
+            nextStreak = 0;
+            nextMode = "fast";
         } else if ((matchesToday > 0 && pendingToday > 0) || hasNearMatch) { 
             nextStreak = 0; 
             if (matchesToday > 0 && pendingToday > 0) {
