@@ -350,7 +350,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 
     (runtimeConfig.TOURNAMENTS || []).forEach((tourn, tournIdx) => {
         const rawMatches = allRawMatches[tourn.slug] || [];
-        const resolveName = buildResolveName(tourn.team_map || tourn.teamMap || {});
+        const resolveName = buildResolveName(tourn.team_map);
         const stats = {};
         let processed = 0, skipped = 0;
         let matchesToday = 0, pendingToday = 0;
@@ -1046,7 +1046,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
         const emojiStr = (!isArchive && tournMeta[tourn.slug] && tournMeta[tourn.slug].emoji)
             ? `<span ${STYLE_EMOJI}>${tournMeta[tourn.slug].emoji}</span>`
             : "";
-        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name || tourn.slug}</a>`;
+        const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tourn.name}</a>`;
 
         if (isArchive) {
             const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
@@ -1301,7 +1301,7 @@ async function runUpdate(env, force=false) {
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
         const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
         
-        const dName = tourn.league || tourn.name || tourn.slug.toUpperCase();
+        const dName = tourn.league;
         const modeIcon = currentMode === "slow" ? "🐌" : "⚡";
 
         // Calculate countdown to next fetch (in minutes, rounded up)
