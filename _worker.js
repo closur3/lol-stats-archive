@@ -1423,10 +1423,10 @@ async function runUpdate(env, force=false) {
                         cache.rawMatches[slug] = mergedList;
                         syncItems.push({ slug, dName, type: "delta", count: changesCount });
                     } else {
-                        idleItems.push({ slug, dName, type: "delta", count: oldData.length });
+                        idleItems.push({ slug, dName, type: "delta", count: 0 });
                     }
                 } else {
-                    idleItems.push({ slug, dName, type: "delta", count: oldData.length });
+                    idleItems.push({ slug, dName, type: "delta", count: 0 });
                 }
             } else {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
@@ -1485,7 +1485,7 @@ async function runUpdate(env, force=false) {
 
     const formatItem = (item) => {
         const info = formatCountdown(item.slug);
-        const prefix = item.type === "delta" && item.count > 0 ? "+" : "*";
+        const prefix = item.type === "delta" ? "+" : "*";
         return `${item.dName} ${prefix}${item.count} (${info.modeIcon}${info.countdownMins}m)`;
     };
 
