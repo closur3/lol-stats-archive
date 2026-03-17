@@ -1350,16 +1350,14 @@ async function runUpdate(env, force=false) {
     }
 
     const failedSlugs = new Set();
-    const syncDetails = [];
-    const idleDetails = [];
+    const syncItems = [];
+    const idleItems = [];
     const breakers = [];
     const apiErrors = [];
     
     results.forEach(res => {
         const c = batch.find(b => b.slug === res.slug);
         const dName = c.league;
-        const mIcon = c.mode === "slow" ? "🐌" : "⚡";
-
         if (res.status === 'fulfilled') {
             const slug = res.slug;
             const newData = res.data || [];
@@ -1373,22 +1371,49 @@ async function runUpdate(env, force=false) {
                         return String(id ?? "");
                     };
 
+                    const fieldAliases = {
+                        MatchId: ["MatchId"],
+                        Team1: ["Team1", "Team 1"],
+                        Team2: ["Team2", "Team 2"],
+                        Team1Score: ["Team1Score", "Team 1 Score"],
+                        Team2Score: ["Team2Score", "Team 2 Score"],
+                        DateTime_UTC: ["DateTime_UTC", "DateTime UTC"],
+                        OverviewPage: ["OverviewPage", "Overview Page"],
+                        BestOf: ["BestOf", "Best Of"],
+                        N_MatchInPage: ["N_MatchInPage", "N MatchInPage"],
+                        Tab: ["Tab"],
+                        Round: ["Round"]
+                    };
+
+                    const getField = (m, name) => {
+                        const keys = fieldAliases[name] || [name];
+                        for (const k of keys) {
+                            if (m != null && Object.prototype.hasOwnProperty.call(m, k)) return m[k];
+                        }
+                        return undefined;
+                    };
+
+                    const normalize = (v) => (v == null ? "" : String(v));
+                    const isSameMatch = (a, b) => {
+                        const fields = ["MatchId", "Team1", "Team2", "Team1Score", "Team2Score", "DateTime_UTC", "OverviewPage", "BestOf", "N_MatchInPage", "Tab", "Round"];
+                        for (const f of fields) {
+                            if (normalize(getField(a, f)) !== normalize(getField(b, f))) return false;
+                        }
+                        return true;
+                    };
+
                     oldData.forEach(m => matchMap.set(getUniqueKey(m), m));
 
                     let changesCount = 0;
                     newData.forEach(m => {
                         const key = getUniqueKey(m);
                         const oldM = matchMap.get(key);
-                        if (!oldM || JSON.stringify(oldM) !== JSON.stringify(m)) {
+                        if (!oldM || !isSameMatch(oldM, m)) {
                             matchMap.set(key, m);
                             changesCount++;
                         }
                     });
 
-                    // Recalculate countdown after updating timestamp (will happen later)
-                    const thresholdAfterUpdate = c.mode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
-                    const countdownAfterUpdate = Math.ceil(thresholdAfterUpdate / 60000);
-                    
                     if (changesCount > 0) {
                         const mergedList = Array.from(matchMap.values());
                         mergedList.sort((a, b) => {
@@ -1397,14 +1422,12 @@ async function runUpdate(env, force=false) {
                             return tA.localeCompare(tB);
                         });
                         cache.rawMatches[slug] = mergedList;
-                        syncDetails.push(`${dName} +${changesCount} (${mIcon}${countdownAfterUpdate}m)`);
+                        syncItems.push({ slug, dName, type: "delta", count: changesCount });
                     } else {
-                        idleDetails.push(`${dName} *${oldData.length} (${mIcon}${countdownAfterUpdate}m)`);
+                        idleItems.push({ slug, dName, type: "delta", count: oldData.length });
                     }
                 } else {
-                    const thresholdAfterUpdate = c.mode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
-                    const countdownAfterUpdate = Math.ceil(thresholdAfterUpdate / 60000);
-                    idleDetails.push(`${dName} *${oldData.length} (${mIcon}${countdownAfterUpdate}m)`);
+                    idleItems.push({ slug, dName, type: "delta", count: oldData.length });
                 }
             } else {
                 if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
@@ -1412,13 +1435,10 @@ async function runUpdate(env, force=false) {
                     failedSlugs.add(slug);
                 } else {
                     cache.rawMatches[slug] = newData;
-                    // Recalculate countdown after updating timestamp
-                    const thresholdAfterUpdate = c.mode === "slow" ? SLOW_THRESHOLD : FAST_THRESHOLD;
-                    const countdownAfterUpdate = Math.ceil(thresholdAfterUpdate / 60000);
                     if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-                        syncDetails.push(`${dName} *${newData.length} (${mIcon}${countdownAfterUpdate}m)`);
+                        syncItems.push({ slug, dName, type: "full", count: newData.length });
                     } else {
-                        idleDetails.push(`${dName} *${newData.length} (${mIcon}${countdownAfterUpdate}m)`);
+                        idleItems.push({ slug, dName, type: "full", count: newData.length });
                     }
                 }
             }
@@ -1452,6 +1472,26 @@ async function runUpdate(env, force=false) {
             modeSwitches.push(`${dName}(${newMode === "slow" ? "🐌" : "⚡"})`);
         }
     });
+
+    const formatCountdown = (slug) => {
+        const metaNow = (analysis.tournMeta && analysis.tournMeta[slug]) || (oldTournMeta && oldTournMeta[slug]) || { mode: "fast", startTs: 0 };
+        const mode = metaNow.mode || "fast";
+        const startTs = metaNow.startTs || 0;
+        const isStarted = startTs > 0 && NOW >= startTs;
+        const threshold = (mode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
+        const countdownMins = Math.ceil(threshold / 60000);
+        const modeIcon = mode === "slow" ? "🐌" : "⚡";
+        return { modeIcon, countdownMins };
+    };
+
+    const formatItem = (item) => {
+        const info = formatCountdown(item.slug);
+        const prefix = item.type === "delta" && item.count > 0 ? "+" : "*";
+        return `${item.dName} ${prefix}${item.count} (${info.modeIcon}${info.countdownMins}m)`;
+    };
+
+    const syncDetails = syncItems.map(formatItem);
+    const idleDetails = idleItems.map(formatItem);
     
     // --- 终极日志输出 ---
     const isAnon = (!authContext || authContext.isAnonymous);
