@@ -1308,7 +1308,7 @@ async function runUpdate(env, force=false) {
         const countdown = Math.max(0, threshold - elapsed);
         const countdownMins = Math.ceil(countdown / 60000);
 
-        if (force || elapsed >= threshold || isNewDay) {
+        if (force || elapsed >= threshold) {
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
                 xm: countdownMins, isNewDay: isNewDay, mode: currentMode,
@@ -1342,7 +1342,7 @@ async function runUpdate(env, force=false) {
                 const startDt = utils.parseDate(`${c.start_date} 00:00:00`);
                 if (startDt && NOW < startDt.getTime()) beforeFirstMatch = true;
             }
-            const isFullFetch = force || c.isNewDay || oldData.length === 0 || c.mode === "slow" || beforeFirstMatch;
+            const isFullFetch = force || oldData.length === 0 || c.mode === "slow" || beforeFirstMatch;
             const dateQuery = isFullFetch ? null : { start: deltaStartUTC, end: deltaEndUTC };
 
             const data = await fetchAllMatches(c.slug, c.overview_page, authContext, dateQuery);
