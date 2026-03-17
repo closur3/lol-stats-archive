@@ -1502,8 +1502,8 @@ async function runUpdate(env, force=false) {
         
         let parts = [];
         if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
-        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         parts.push(`🟰 Identical`);
+        if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         
         content = parts.join(" | ");
     } else {
