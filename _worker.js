@@ -1211,7 +1211,7 @@ async function respondCachedHtml(env, key, fallback) {
 async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
-    const FAST_THRESHOLD = 3 * 60 * 1000;
+    const CRON_INTERVAL_MS = Number(env.CRON_INTERVAL_MINUTES) * 60 * 1000;
     const SLOW_THRESHOLD = 60 * 60 * 1000;
     const UPDATE_ROUNDS = 1;
 
@@ -1290,7 +1290,7 @@ async function runUpdate(env, force=false) {
         const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
         const currentMode = tMeta.mode;
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
-        const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
+        const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : CRON_INTERVAL_MS;
         
         const dName = tourn.league;
         if (force || elapsed >= threshold) {
@@ -1465,7 +1465,7 @@ async function runUpdate(env, force=false) {
         const mode = metaNow.mode || "fast";
         const startTs = metaNow.startTs || 0;
         const isStarted = startTs > 0 && NOW >= startTs;
-        const threshold = (mode === "slow" && !isStarted) ? SLOW_THRESHOLD : FAST_THRESHOLD;
+        const threshold = (mode === "slow" && !isStarted) ? SLOW_THRESHOLD : CRON_INTERVAL_MS;
         const countdownMins = Math.ceil(threshold / 60000);
         const modeIcon = mode === "slow" ? "🐌" : "⚡";
         return { modeIcon, countdownMins };
