@@ -397,14 +397,13 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     const bucketDate = matchDateStr;
                     if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
                     
-                    let blockName = m.Tab || "";
-                    if (!blockName || blockName === "Bracket" || blockName === "Knockout Stage") if (m.Round) blockName = m.Round;
+                    const tabName = m.Tab || "";
 
                     allFutureMatches[bucketDate].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
                         league: tourn.league, slug: tourn.slug,
-                        tournIndex: tournIdx, blockName: blockName || ""  
+                        tournIndex: tournIdx, tabName: tabName || ""  
                     });
                 }
 
@@ -1074,10 +1073,11 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, up
                 let lastGroupKey = "";
 
                 matches.forEach(m => {
-                    const blockName = m.blockName || "";
-                    const groupKey = `${m.league}_${blockName}`;
+                    const tabName = m.tabName || "";
+                    const groupKey = `${m.league}_${tabName}`;
                     if (groupKey !== lastGroupKey) {
-                        cardHtml += `<div class="sch-group-header" ${STYLE_SCH_GROUP_HEADER}><div class="spine-row" ${STYLE_SCH_GROUP_ROW}><span class="spine-l" ${STYLE_SCH_GROUP_NAME}>${m.league}</span><span class="spine-sep">/</span><span class="spine-r" ${STYLE_SCH_GROUP_BLOCK}>${blockName || "REGULAR"}</span></div></div>`;
+                        const blockHtml = tabName ? `<span class="spine-sep">/</span><span class="spine-r" ${STYLE_SCH_GROUP_BLOCK}>${tabName}</span>` : "";
+                        cardHtml += `<div class="sch-group-header" ${STYLE_SCH_GROUP_HEADER}><div class="spine-row" ${STYLE_SCH_GROUP_ROW}><span class="spine-l" ${STYLE_SCH_GROUP_NAME}>${m.league}</span>${blockHtml}</div></div>`;
                         lastGroupKey = groupKey;
                     }
                     cardHtml += buildScheduleRow(m);
@@ -2489,5 +2489,3 @@ export default {
         await appendLogs(env, l, true);
     }
 };
-
-
