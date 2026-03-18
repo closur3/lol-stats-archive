@@ -30,7 +30,7 @@ jobs:
           DEPLOY_SHA: ${{ github.sha }}
         run: |
           WORKER_URL="https://lol-stats.closur3.workers.dev"
-          MAX_ATTEMPTS=40
+          MAX_ATTEMPTS=30
           INTERVAL=1
           CONFIRM_NEEDED=3
           DEPLOY_SHORT_SHA="${DEPLOY_SHA:0:7}"
