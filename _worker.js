@@ -905,7 +905,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, is
     const STYLE_SCH_GROUP_ROW = 'style="width:100%; padding:0 10px; box-sizing:border-box"';
     const STYLE_SCH_GROUP_NAME = 'style="font-weight:800"';
     const STYLE_SCH_GROUP_BLOCK = 'style="font-weight:800; opacity:0.7"';
-    const STYLE_SCH_MID_CELL = 'style="display:flex;justify-content:center;align-items:center;width:30px;transition:background 0.2s;"';
+    const STYLE_SCH_MID_CELL = 'style="display:flex;justify-content:center;align-items:center;width:34px;transition:background 0.2s;"';
     const STYLE_TBD_TEAM = 'style="color:#9ca3af"';
 
     const mkSpine = (val, sep) => {
