@@ -471,7 +471,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         } else if ((matchesToday > 0 && pendingToday > 0) || hasNearMatch) { 
             nextStreak = 0; 
             if (matchesToday > 0 && pendingToday > 0) {
-                nextMode = (Date.now() >= earliestPendingTs) ? "fast" : "slow";
+                nextMode = hasNearMatch ? "fast" : "slow";
             } else {
                 // Upcoming match within 3 hours: keep fast even across days
                 nextMode = "fast";
