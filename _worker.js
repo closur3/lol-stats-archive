@@ -618,7 +618,7 @@ const PYTHON_STYLE = `
     .spine-row { display: flex; justify-content: center; align-items: stretch; width: 100%; height: 100%; }
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
-    .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+    .spine-sep { width: 35px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
     .sch-row .spine-l { padding: 4px 5px; margin-left: 6px; }
     .sch-row .spine-r { padding: 4px 5px; margin-right: 6px; }
     .spine-l.clickable:hover, .spine-r.clickable:hover, .spine-sep.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
@@ -905,7 +905,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, is
     const STYLE_SCH_GROUP_ROW = 'style="width:100%; padding:0 10px; box-sizing:border-box"';
     const STYLE_SCH_GROUP_NAME = 'style="font-weight:800"';
     const STYLE_SCH_GROUP_BLOCK = 'style="font-weight:800; opacity:0.7"';
-    const STYLE_SCH_MID_CELL = 'style="display:flex;justify-content:center;align-items:center;width:40px;transition:background 0.2s;"';
+    const STYLE_SCH_MID_CELL = 'style="display:flex;justify-content:center;align-items:center;transition:background 0.2s;"';
     const STYLE_TBD_TEAM = 'style="color:#9ca3af"';
 
     const mkSpine = (val, sep) => {
