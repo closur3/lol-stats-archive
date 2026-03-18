@@ -31,7 +31,7 @@ jobs:
         run: |
           WORKER_URL="https://lol-stats.closur3.workers.dev"
           MAX_ATTEMPTS=40
-          INTERVAL=5
+          INTERVAL=1
           CONFIRM_NEEDED=3
           DEPLOY_SHORT_SHA="${DEPLOY_SHA:0:7}"
           CONFIRM_COUNT=0
