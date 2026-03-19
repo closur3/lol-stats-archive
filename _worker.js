@@ -457,19 +457,16 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         globalStats[tourn.slug] = stats;
         // counters removed
 
-        const prevT = prevTournMeta[tourn.slug] || { streak: 0, mode: "fast" };
-        let nextStreak = 0, nextMode = "fast";
+        const prevT = prevTournMeta[tourn.slug] || { mode: "fast" };
+        let nextMode = "fast";
 
         const hasNearMatch = nextUpcomingTs !== Infinity && (nextUpcomingTs - nowTs) <= (3 * 60 * 60 * 1000);
 
         if (failedSlugs.has(tourn.slug)) {
-            nextStreak = prevT.streak || 0;
             nextMode = prevT.mode || "fast";
         } else if (hasLiveMatch) {
-            nextStreak = 0;
             nextMode = "fast";
         } else if ((matchesToday > 0 && pendingToday > 0) || hasNearMatch) { 
-            nextStreak = 0; 
             if (matchesToday > 0 && pendingToday > 0) {
                 nextMode = hasNearMatch ? "fast" : "slow";
             } else {
@@ -477,19 +474,22 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 nextMode = "fast";
             }
         } else { 
-            nextStreak = prevT.streak >= 1 ? 2 : 1; 
-            nextMode = nextStreak >= 2 ? "slow" : "fast"; 
+            nextMode = "fast"; 
         }
         
         // 赋予每个联赛专属的 Emoji 状态
         let emoji = "";
-        if (nextStreak === 0 && nextMode === "fast") emoji = "🎮";
-        else if (nextStreak === 0 && nextMode === "slow") emoji = "⏳";
-        else if (nextStreak === 1) emoji = "👀";
-        else if (matchesToday === 0) emoji = "💤";
-        else emoji = "✔️";
+        if (matchesToday === 0) {
+            emoji = "💤";
+        } else if (nextMode === "fast") {
+            emoji = "🎮";
+        } else if (nextMode === "slow") {
+            emoji = "⏳";
+        } else {
+            emoji = "✔️";
+        }
 
-        tournMeta[tourn.slug] = { streak: nextStreak, mode: nextMode, startTs: earliestPendingTs !== Infinity ? earliestPendingTs : 0, emoji: emoji };
+        tournMeta[tourn.slug] = { mode: nextMode, startTs: earliestPendingTs !== Infinity ? earliestPendingTs : 0, emoji: emoji };
     });
 
     let scheduleMap = {};
@@ -1288,7 +1288,7 @@ async function runUpdate(env, force=false) {
         const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
         
-        const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", streak: 0, startTs: 0 };
+        const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", startTs: 0 };
         const currentMode = tMeta.mode;
         const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
         const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : 0;
