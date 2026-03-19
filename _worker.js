@@ -552,7 +552,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
     
     [...hours, "Total"].forEach(h => {
         if (!regionGrid[h]) return;
-        const label = h === "Total" ? `**Total**` : `**${h}:00**`;
+            const label = h === "Total" ? `**Total**` : `**${String(h).padStart(2,'0')}:00**`;
         let line = `| ${label} |`;
         for (let w = 0; w < 8; w++) {
             const cell = regionGrid[h][w];
@@ -962,7 +962,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, is
         [...hours, "Total"].forEach(h => {
             if (!regionGrid[h]) return;
             const isTotal = h === "Total";
-            const label = isTotal ? "Total" : `${h}:00`;
+            const label = isTotal ? "Total" : `${String(h).padStart(2,'0')}:00`;
             html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col" style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
 
             for (let w = 0; w < 8; w++) {
