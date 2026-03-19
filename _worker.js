@@ -475,15 +475,8 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             // 比赛已开始：快速模式
             nextMode = "fast";
         } else if (matchesToday > 0 && pendingToday > 0) {
-            // 今天有比赛且有未开始的比赛：区分比赛开始前 vs 比赛结束后
-            const hasMatchStartedToday = earliestTodayTs !== Infinity && nowTs >= earliestTodayTs;
-            if (hasMatchStartedToday) {
-                // 今天有比赛已经开始过（可能已结束）：如果下场比赛在3小时内则快速模式
-                nextMode = hasNearMatch ? "fast" : "slow";
-            } else {
-                // 比赛开始前：慢速模式
-                nextMode = "slow";
-            }
+            // 今天有比赛且有未开始的比赛：只有在比赛开始时才进入快速模式
+            nextMode = "slow";
         } else if (hasNearMatch) {
             // 3小时内有下一场比赛（可能不是今天）：维持快速模式
             nextMode = "fast";
