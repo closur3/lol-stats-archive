@@ -355,6 +355,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         let matchesToday = 0, pendingToday = 0;
         let earliestPendingTs = Infinity;
         let nextUpcomingTs = Infinity;
+        let earliestTodayTs = Infinity;
         const nowTs = Date.now();
         let hasLiveMatch = false;
         
@@ -389,6 +390,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 if (matchDateStr >= todayStr || isCrossDayLive) {
                     if (matchDateStr === todayStr || isCrossDayLive) {
                         matchesToday++;
+                        if (ts < earliestTodayTs) earliestTodayTs = ts;
                         if (!isFinished) {
                             pendingToday++;
                             if (ts < earliestPendingTs) earliestPendingTs = ts;
@@ -467,16 +469,27 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         if (failedSlugs.has(tourn.slug)) {
             nextMode = prevT.mode || "fast";
         } else if (hasLiveMatch) {
+            // 有直播比赛：快速模式
             nextMode = "fast";
-        } else if ((matchesToday > 0 && pendingToday > 0) || hasNearMatch) { 
-            if (matchesToday > 0 && pendingToday > 0) {
-                nextMode = (hasNearMatch || isStarted) ? "fast" : "slow";
+        } else if (isStarted) {
+            // 比赛已开始：快速模式
+            nextMode = "fast";
+        } else if (matchesToday > 0 && pendingToday > 0) {
+            // 今天有比赛且有未开始的比赛：区分比赛开始前 vs 比赛结束后
+            const hasMatchStartedToday = earliestTodayTs !== Infinity && nowTs >= earliestTodayTs;
+            if (hasMatchStartedToday) {
+                // 今天有比赛已经开始过（可能已结束）：如果下场比赛在3小时内则快速模式
+                nextMode = hasNearMatch ? "fast" : "slow";
             } else {
-                // Upcoming match within 3 hours: keep fast even across days
-                nextMode = "fast";
+                // 比赛开始前：慢速模式
+                nextMode = "slow";
             }
-        } else { 
-            nextMode = "fast"; 
+        } else if (hasNearMatch) {
+            // 3小时内有下一场比赛（可能不是今天）：维持快速模式
+            nextMode = "fast";
+        } else {
+            // 其他情况：慢速模式
+            nextMode = "slow";
         }
         
         // 赋予每个联赛专属的 Emoji 状态
@@ -491,7 +504,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             emoji = "✔️";
         }
 
-        tournMeta[tourn.slug] = { mode: nextMode, startTs, isStarted, emoji };
+        tournMeta[tourn.slug] = { mode: nextMode, startTs, isStarted, earliestTodayTs, emoji };
     });
 
     let scheduleMap = {};
