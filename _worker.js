@@ -619,8 +619,8 @@ const PYTHON_STYLE = `
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
-    .sch-row .spine-l { padding: 4px 5px 4px 0; }
-    .sch-row .spine-r { padding: 4px 0 4px 5px; }
+    .sch-row .spine-l { padding: 4px 5px; margin-left: 6px; }
+    .sch-row .spine-r { padding: 4px 5px; margin-right: 6px; }
     .spine-l.clickable:hover, .spine-r.clickable:hover, .spine-sep.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
     .t-cell { display: flex; align-items: center; width: 100%; height: 100%; }
     .t-val { flex: 1; flex-basis: 0; text-align: right; font-weight: 700; padding-right: 4px; white-space: nowrap; } 
@@ -636,8 +636,8 @@ const PYTHON_STYLE = `
     .sch-group-header .spine-r { justify-content: flex-start; padding-left: 2px; opacity: 0.7; }
     .sch-group-header:first-child { border-top: none; }
     .sch-row { display: flex; align-items: stretch; padding: 0; border-bottom: 1px solid #f8fafc; font-size: 14px; color: #334155; min-height: 36px; flex: 0 0 auto; }
-    .sch-time { min-width: 40px; color: #94a3b8; font-size: 13px; display: flex; align-items: center; justify-content: flex-start; padding-left: 10px; }
-    .sch-tag-col { min-width: 40px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; }
+    .sch-time { width: 44px; color: #94a3b8; font-size: 13px; display: flex; align-items: center; justify-content: flex-start; padding-left: 10px; }
+    .sch-tag-col { width: 44px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
     .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #dbeafe; color: #1d4ed8; }
     .sch-pill.gold { background: #f2d49c; color: #9c5326; }
