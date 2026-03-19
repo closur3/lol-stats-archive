@@ -464,7 +464,10 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         const startTs = earliestPendingTs !== Infinity ? earliestPendingTs : 0;
         const isStarted = startTs > 0 && nowTs >= startTs;
 
-        const hasNearMatch = nextUpcomingTs !== Infinity && (nextUpcomingTs - nowTs) <= (3 * 60 * 60 * 1000);
+        // hasNearMatch: 从上一场比赛结束到下一场比赛开始的时间间隔在3小时内
+        const hasNearMatch = nextUpcomingTs !== Infinity && 
+            (nextUpcomingTs - nowTs) <= (3 * 60 * 60 * 1000) &&
+            (earliestTodayTs === Infinity || (nowTs - earliestTodayTs) <= (3 * 60 * 60 * 1000));
 
         if (failedSlugs.has(tourn.slug)) {
             nextMode = prevT.mode || "fast";
@@ -475,8 +478,9 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             // 比赛已开始：快速模式
             nextMode = "fast";
         } else if (matchesToday > 0 && pendingToday > 0) {
-            // 今天有比赛且有未开始的比赛：只有在比赛开始时才进入快速模式
-            nextMode = "slow";
+            // 今天有比赛且有未开始的比赛：只有在比赛开始后且hasNearMatch才快速模式
+            const hasMatchStartedToday = earliestTodayTs !== Infinity && nowTs >= earliestTodayTs;
+            nextMode = (hasMatchStartedToday && hasNearMatch) ? "fast" : "slow";
         } else if (hasNearMatch) {
             // 3小时内有下一场比赛（可能不是今天）：维持快速模式
             nextMode = "fast";
