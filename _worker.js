@@ -769,31 +769,41 @@ const PYTHON_JS = `
             if (va !== vb) return next === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
             if (c === COL_BO3_PCT || c === COL_BO5_PCT) { let sA = parseValue(ra.cells[COL_SERIES_WR].innerText), sB = parseValue(rb.cells[COL_SERIES_WR].innerText); if (sA !== sB) return sB - sA; }
             if (c === COL_SERIES) {
-                // 胜负记录次级排序：按负场数升序（负场少的在前）
-                const getLosses = (cell) => {
+                // 胜负记录次级排序：按小场净胜场降序
+                const getGameNet = (cell) => {
                     const text = cell.innerText;
                     if (text === "-" || !text.includes("-")) return 0;
                     const parts = text.split("-");
-                    return parts.length === 2 ? parseFloat(parts[1]) : 0;
+                    if (parts.length === 2) {
+                        const wins = parseFloat(parts[0]) || 0;
+                        const losses = parseFloat(parts[1]) || 0;
+                        return wins - losses; // 净胜场
+                    }
+                    return 0;
                 };
-                const lA = getLosses(ra.cells[COL_SERIES]);
-                const lB = getLosses(rb.cells[COL_SERIES]);
-                if (lA !== lB) return lA - lB; // 负场数升序
+                const netA = getGameNet(ra.cells[COL_GAME]);
+                const netB = getGameNet(rb.cells[COL_GAME]);
+                if (netA !== netB) return netB - netA; // 净胜场降序
             } else if (c === COL_SERIES_WR) {
                 // 系列赛胜率次级排序：按游戏胜率降序
                 let gA = parseValue(ra.cells[COL_GAME_WR].innerText), gB = parseValue(rb.cells[COL_GAME_WR].innerText);
                 if (gA !== gB) return gB - gA;
             } else if (c === COL_GAME) {
-                // 游戏胜负记录次级排序：按负场数升序
-                const getLosses = (cell) => {
+                // 游戏胜负记录次级排序：按净胜场降序
+                const getGameNet = (cell) => {
                     const text = cell.innerText;
                     if (text === "-" || !text.includes("-")) return 0;
                     const parts = text.split("-");
-                    return parts.length === 2 ? parseFloat(parts[1]) : 0;
+                    if (parts.length === 2) {
+                        const wins = parseFloat(parts[0]) || 0;
+                        const losses = parseFloat(parts[1]) || 0;
+                        return wins - losses; // 净胜场
+                    }
+                    return 0;
                 };
-                const lA = getLosses(ra.cells[COL_GAME]);
-                const lB = getLosses(rb.cells[COL_GAME]);
-                if (lA !== lB) return lA - lB; // 负场数升序
+                const netA = getGameNet(ra.cells[COL_GAME]);
+                const netB = getGameNet(rb.cells[COL_GAME]);
+                if (netA !== netB) return netB - netA; // 净胜场降序
             }
             return 0;
         });
