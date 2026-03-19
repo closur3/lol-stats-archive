@@ -490,13 +490,13 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         // 赋予每个联赛专属的 Emoji 状态
         let emoji = "";
         if (matchesToday === 0) {
-            emoji = "💤";
-        } else if (nextMode === "fast") {
-            emoji = "🎮";
-        } else if (nextMode === "slow") {
-            emoji = "⏳";
+            emoji = "💤"; // 今天无比赛
+        } else if (pendingToday > 0) {
+            // 今天还有未开始的比赛
+            emoji = nextMode === "fast" ? "🎮" : "⏳";
         } else {
-            emoji = "✔️";
+            // 今天所有比赛已结束
+            emoji = hasNearMatch ? "⏳" : "✔️";
         }
 
         tournMeta[tourn.slug] = { mode: nextMode, startTs, isStarted, earliestTodayTs, emoji };
