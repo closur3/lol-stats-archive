@@ -768,7 +768,33 @@ const PYTHON_JS = `
             
             if (va !== vb) return next === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
             if (c === COL_BO3_PCT || c === COL_BO5_PCT) { let sA = parseValue(ra.cells[COL_SERIES_WR].innerText), sB = parseValue(rb.cells[COL_SERIES_WR].innerText); if (sA !== sB) return sB - sA; }
-            if (c === COL_SERIES || c === COL_SERIES_WR) { let gA = parseValue(ra.cells[COL_GAME_WR].innerText), gB = parseValue(rb.cells[COL_GAME_WR].innerText); if (gA !== gB) return gB - gA; }
+            if (c === COL_SERIES) {
+                // 胜负记录次级排序：按负场数升序（负场少的在前）
+                const getLosses = (cell) => {
+                    const text = cell.innerText;
+                    if (text === "-" || !text.includes("-")) return 0;
+                    const parts = text.split("-");
+                    return parts.length === 2 ? parseFloat(parts[1]) : 0;
+                };
+                const lA = getLosses(ra.cells[COL_SERIES]);
+                const lB = getLosses(rb.cells[COL_SERIES]);
+                if (lA !== lB) return lA - lB; // 负场数升序
+            } else if (c === COL_SERIES_WR) {
+                // 系列赛胜率次级排序：按游戏胜率降序
+                let gA = parseValue(ra.cells[COL_GAME_WR].innerText), gB = parseValue(rb.cells[COL_GAME_WR].innerText);
+                if (gA !== gB) return gB - gA;
+            } else if (c === COL_GAME) {
+                // 游戏胜负记录次级排序：按负场数升序
+                const getLosses = (cell) => {
+                    const text = cell.innerText;
+                    if (text === "-" || !text.includes("-")) return 0;
+                    const parts = text.split("-");
+                    return parts.length === 2 ? parseFloat(parts[1]) : 0;
+                };
+                const lA = getLosses(ra.cells[COL_GAME]);
+                const lB = getLosses(rb.cells[COL_GAME]);
+                if (lA !== lB) return lA - lB; // 负场数升序
+            }
             return 0;
         });
 
@@ -1045,7 +1071,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, is
 
         const mainPage = Array.isArray(tourn.overview_page) ? tourn.overview_page[0] : tourn.overview_page;
         const rows = stats.map(s => buildTeamRow(s, tourn.slug)).join("");
-        const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(6, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(8, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
+        const tableBody = `<table id="${tableId}"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(5, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(7, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
 
         const regionGrid = timeData[tourn.slug] || {};
         const timeTableHtml = buildTimeTable(regionGrid);
