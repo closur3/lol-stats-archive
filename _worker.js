@@ -1466,7 +1466,7 @@ async function runUpdate(env, force=false) {
         const mode = metaNow.mode || "fast";
         const startTs = metaNow.startTs || 0;
         const isStarted = startTs > 0 && NOW >= startTs;
-        const modeIcon = mode === "slow" ? "🐌" : "⚡";
+        const modeIcon = (mode === "slow" && !isStarted) ? "🐌" : "⚡";
         const countdownMins = (mode === "slow" && !isStarted) ? Math.ceil(SLOW_THRESHOLD / 60000) : Number(env.CRON_INTERVAL_MINUTES);
         return { modeIcon, countdownMins };
     };
