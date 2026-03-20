@@ -654,11 +654,12 @@ const PYTHON_STYLE = `
         }
         .table-title {
             /* Make home header match archive header layout and stay visible on horizontal scroll */
-            display: flex;
+            display: block;
             flex-direction: column;
             align-items: flex-start;
             padding: 0;
             min-height: 72px; /* match summary.arch-sum */
+            height: 72px;
             position: sticky;
             left: 0;
             z-index: 25;
@@ -669,7 +670,7 @@ const PYTHON_STYLE = `
         .table-title > div:first-child {
             /* Mirror archive: arch-title-wrapper internal padding */
             width: 100%;
-            flex: 1;
+            height: 36px;
             padding: 0 15px;
             display: flex;
             align-items: center;
@@ -682,8 +683,7 @@ const PYTHON_STYLE = `
             line-height: 1.3;
         }
         .table-title .title-right-area {
-            /* Center dashed divider by splitting header into equal halves */
-            flex: 1;
+            height: 36px;
             margin-top: 0 !important;
             padding: 0 15px !important;
             align-items: center;
