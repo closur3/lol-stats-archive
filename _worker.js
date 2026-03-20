@@ -670,6 +670,15 @@ const PYTHON_STYLE = `
             /* Mirror archive: arch-title-wrapper internal padding */
             width: 100%;
             padding: 12px 15px 0 15px;
+            display: flex;
+            align-items: center;
+            column-gap: 10px;
+            gap: 10px !important; /* override inline STYLE_TITLE_ROW gap */
+            min-width: 0;
+        }
+        .table-title > div:first-child a {
+            white-space: normal;
+            line-height: 1.3;
         }
         .arch-title-wrapper {
             width: 100%;
