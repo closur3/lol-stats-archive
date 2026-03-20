@@ -452,7 +452,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         const prevT = prevTournMeta[tourn.slug] || { mode: "fast" };
         let nextMode = "fast";
 
-        const isStarted = lastMatchStartTs > 0;
         const matchInterval = (lastMatchStartTs > 0 && nextMatchStartTs !== Infinity)
             ? nextMatchStartTs - lastMatchStartTs
             : Infinity;
@@ -462,10 +461,8 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             nextMode = prevT.mode || "fast";
         } else if (hasLiveMatch) {
             nextMode = "fast";
-        } else if (isStarted && isNearInterval) {
+        } else if (isNearInterval) {
             nextMode = "fast";
-        } else if (isStarted && !isNearInterval) {
-            nextMode = "slow";
         } else {
             nextMode = "slow";
         }
@@ -482,7 +479,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             emoji = "💤";
         }
 
-        tournMeta[tourn.slug] = { mode: nextMode, startTs, isStarted, emoji };
+        tournMeta[tourn.slug] = { mode: nextMode, startTs, emoji };
     });
 
     let scheduleMap = {};
@@ -1317,11 +1314,10 @@ async function runUpdate(env, force=false) {
         const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
         
-        const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", startTs: 0, isStarted: false };
+        const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast" };
         const currentMode = tMeta.mode;
-        const isStarted = tMeta.isStarted || false;
-        const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : 0;
-        
+        const threshold = currentMode === "slow" ? SLOW_THRESHOLD : 0;
+
         const dName = tourn.league;
         if (force || elapsed >= threshold) {
             candidates.push({ 
@@ -1483,10 +1479,9 @@ async function runUpdate(env, force=false) {
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
         const newMode = analysis.tournMeta[slug].mode;
-        const isStarted = analysis.tournMeta[slug].isStarted || false;
         
         // 只有当模式真正改变且比赛未开始时才显示切换提示
-        if (oldMode !== newMode && !isStarted) {
+        if (oldMode !== newMode) {
             const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
             const dName = t ? (t.league || t.name || slug.toUpperCase()) : slug;
             modeSwitches.push(`${dName}(${newMode === "slow" ? "🐌" : "⚡"})`);
@@ -1494,11 +1489,10 @@ async function runUpdate(env, force=false) {
     });
 
     const formatCountdown = (slug) => {
-        const metaNow = (analysis.tournMeta && analysis.tournMeta[slug]) || (oldTournMeta && oldTournMeta[slug]) || { mode: "fast", startTs: 0, isStarted: false };
+        const metaNow = (analysis.tournMeta && analysis.tournMeta[slug]) || (oldTournMeta && oldTournMeta[slug]) || { mode: "fast" };
         const mode = metaNow.mode || "fast";
-        const isStarted = metaNow.isStarted || false;
-        const modeIcon = (mode === "slow" && !isStarted) ? "🐌" : "⚡";
-        const countdownMins = (mode === "slow" && !isStarted) ? Math.ceil(SLOW_THRESHOLD / 60000) : Number(env.CRON_INTERVAL_MINUTES);
+        const modeIcon = mode === "slow" ? "🐌" : "⚡";
+        const countdownMins = mode === "slow" ? Math.ceil(SLOW_THRESHOLD / 60000) : Number(env.CRON_INTERVAL_MINUTES);
         return { modeIcon, countdownMins };
     };
 
