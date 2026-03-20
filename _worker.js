@@ -388,7 +388,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 if (matchDateStr >= todayStr || isCrossDayLive) {
                     const bucketDate = matchDateStr;
                     if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
-                    
                     const tabName = m.Tab || "";
                     allFutureMatches[bucketDate].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
@@ -446,9 +445,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
         globalStats[tourn.slug] = stats;
 
-        // startTs 由 nextMatchStartTs 派生，无日期限制
         const startTs = nextMatchStartTs !== Infinity ? nextMatchStartTs : 0;
-
         const prevT = prevTournMeta[tourn.slug] || { mode: "fast" };
         let nextMode = "fast";
 
@@ -1479,8 +1476,6 @@ async function runUpdate(env, force=false) {
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
         const newMode = analysis.tournMeta[slug].mode;
-        
-        // 只有当模式真正改变且比赛未开始时才显示切换提示
         if (oldMode !== newMode) {
             const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
             const dName = t ? (t.league || t.name || slug.toUpperCase()) : slug;
