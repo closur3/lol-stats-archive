@@ -1556,7 +1556,10 @@ async function runUpdate(env, force=false) {
             runtimeConfig, false, analysis.tournMeta 
         );
         const fullPage = renderPageShell("LoL Insights", homeFragment, "home");
-        await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+        const existingHomeHTML = await env.LOL_KV.get("HOME_STATIC_HTML");
+        if (existingHomeHTML !== fullPage) {
+            await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+        }
     } catch (e) {}
 
     const scheduleBySlug = {};
@@ -1597,8 +1600,14 @@ async function runUpdate(env, force=false) {
         await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
     }
     
-    const archiveHTML = await generateArchiveStaticHTML(env);
-    await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+    // 只有当有数据变化时才重新生成归档HTML
+    if (syncItems.length > 0) {
+        const archiveHTML = await generateArchiveStaticHTML(env);
+        const existingArchiveHTML = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
+        if (existingArchiveHTML !== archiveHTML) {
+            await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+        }
+    }
 
 
     
@@ -1642,7 +1651,10 @@ async function runCustomRebuild(env, payload) {
             l.success(`🟢 [SYNC] | 🔄 ${payload.league} *${matches.length} | ⚙️ Rebuild Archive`);
             
             const archiveHTML = await generateArchiveStaticHTML(env);
-            await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+            const existingArchiveHTML = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
+            if (existingArchiveHTML !== archiveHTML) {
+                await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+            }
         } else {
             l.error(`🔴 [ERR!] | 🚧 ${payload.league}(Drop) | ❌ No matches found for rebuild`);
             throw new Error("No matches found from Fandom API");
@@ -2331,10 +2343,16 @@ export default {
                         false, tournMeta 
                     );
                     const fullPage = renderPageShell("LoL Insights", homeFragment, "home");
-                    await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+                    const existingHomeHTML = await env.LOL_KV.get("HOME_STATIC_HTML");
+                    if (existingHomeHTML !== fullPage) {
+                        await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+                    }
 
                     const archiveHTML = await generateArchiveStaticHTML(env);
-                    await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                    const existingArchiveHTML = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
+                    if (existingArchiveHTML !== archiveHTML) {
+                        await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                    }
 
                     return okResponse();
                 } catch (err) {
@@ -2381,7 +2399,10 @@ export default {
                     
                     // 重新生成 archive HTML
                     const archiveHTML = await generateArchiveStaticHTML(env);
-                    await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                    const existingArchiveHTML = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
+                    if (existingArchiveHTML !== archiveHTML) {
+                        await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                    }
                     
                     logger.success(`🗑️ [DELETE] | 📦 ${payload.name}`);
                     await appendLogs(env, logger);
@@ -2450,7 +2471,10 @@ export default {
                     
                     // 重新生成 archive HTML
                     const archiveHTML = await generateArchiveStaticHTML(env);
-                    await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                    const existingArchiveHTML = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
+                    if (existingArchiveHTML !== archiveHTML) {
+                        await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                    }
                     
                     logger.success(`📦 [MANUAL] | 📝 ${payload.name}`);
                     await appendLogs(env, logger);
