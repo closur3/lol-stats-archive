@@ -1319,7 +1319,7 @@ async function runUpdate(env, force=false) {
         
         const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast", startTs: 0, isStarted: false };
         const currentMode = tMeta.mode;
-        const isStarted = tMeta.startTs > 0 && NOW >= tMeta.startTs;
+        const isStarted = tMeta.isStarted || false;
         const threshold = (currentMode === "slow" && !isStarted) ? SLOW_THRESHOLD : 0;
         
         const dName = tourn.league;
@@ -1592,7 +1592,8 @@ async function runUpdate(env, force=false) {
         const homeKey = getHomeKey(slug);
         const existingHome = await env.LOL_KV.get(homeKey, { type: "json" });
         const homeHasChanges = !existingHome || 
-            JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw);
+            JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw) ||
+            JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tMeta);
         
         if (homeHasChanges) {
             writePromises.push(env.LOL_KV.put(homeKey, JSON.stringify(homeSnapshot)));
