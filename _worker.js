@@ -351,7 +351,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         const rawMatches = allRawMatches[tourn.slug] || [];
         const resolveName = buildResolveName(tourn.team_map);
         const stats = {};
-        let startTs = Infinity; // 最早未开始比赛时间
         let nextMatchStartTs = Infinity;
         let lastMatchStartTs = 0;
         const nowTs = Date.now();
@@ -378,7 +377,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 
             if (dt) {
                 ts = dt.getTime();
-                if (ts < nowTs && ts > lastMatchStartTs) lastMatchStartTs = ts; // 更新最近比赛开始时间
+                if (ts < nowTs && ts > lastMatchStartTs) lastMatchStartTs = ts;
                 const p = utils.timeParts(ts);
                 const matchDateStr = `${p.y}-${p.mo}-${p.da}`;
                 const matchTimeStr = `${p.h}:${p.m}`;
@@ -387,17 +386,10 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 const isCrossDayLive = !isFinished && isLive && matchDateStr < todayStr;
 
                 if (matchDateStr >= todayStr || isCrossDayLive) {
-                    if (matchDateStr === todayStr || isCrossDayLive) {
-                        if (!isFinished) {
-                            if (ts < startTs) startTs = ts;
-                        }
-                    }
-
                     const bucketDate = matchDateStr;
                     if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
                     
                     const tabName = m.Tab || "";
-
                     allFutureMatches[bucketDate].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
                         is_finished: isFinished, is_live: isLive, 
@@ -454,31 +446,32 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
         globalStats[tourn.slug] = stats;
 
+        // startTs 由 nextMatchStartTs 派生，无日期限制
+        const startTs = nextMatchStartTs !== Infinity ? nextMatchStartTs : 0;
+
         const prevT = prevTournMeta[tourn.slug] || { mode: "fast" };
         let nextMode = "fast";
-        if (startTs === Infinity) startTs = 0;
-        const isStarted = startTs > 0 && nowTs >= startTs;
 
-        const matchInterval = (nextMatchStartTs !== Infinity && lastMatchStartTs > 0) 
-            ? nextMatchStartTs - lastMatchStartTs 
+        const isStarted = lastMatchStartTs > 0;
+        const matchInterval = (lastMatchStartTs > 0 && nextMatchStartTs !== Infinity)
+            ? nextMatchStartTs - lastMatchStartTs
             : Infinity;
-        const isNearInterval = matchInterval <= (8 * 60 * 60 * 1000);
+        const isNearInterval = matchInterval < (8 * 60 * 60 * 1000);
 
         if (failedSlugs.has(tourn.slug)) {
             nextMode = prevT.mode || "fast";
         } else if (hasLiveMatch) {
             nextMode = "fast";
-        } else if (isStarted) {
+        } else if (isStarted && isNearInterval) {
             nextMode = "fast";
-        } else if (prevT.mode === "fast" && isNearInterval) {
-            nextMode = "fast";
+        } else if (isStarted && !isNearInterval) {
+            nextMode = "slow";
         } else {
             nextMode = "slow";
         }
         
-        // Emoji 逻辑：基于当前时间到下一场比赛的间隔
-        const timeToNextMatch = (nextMatchStartTs !== Infinity) ? nextMatchStartTs - nowTs : Infinity;
-        const isNearStartTime = timeToNextMatch <= (24 * 60 * 60 * 1000); // 24小时内有比赛开赛
+        const timeToNextMatch = nextMatchStartTs !== Infinity ? nextMatchStartTs - nowTs : Infinity;
+        const isNearStartTime = timeToNextMatch <= (24 * 60 * 60 * 1000);
         
         let emoji = "";
         if (nextMode === "fast") {
