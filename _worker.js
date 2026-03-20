@@ -453,12 +453,13 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             ? nextMatchStartTs - lastMatchStartTs
             : Infinity;
         const isNearInterval = matchInterval < (8 * 60 * 60 * 1000);
+        const isImminent = nextMatchStartTs !== Infinity && nowTs >= nextMatchStartTs;
 
         if (failedSlugs.has(tourn.slug)) {
             nextMode = prevT.mode || "fast";
         } else if (hasLiveMatch) {
             nextMode = "fast";
-        } else if (isNearInterval) {
+        } else if (isNearInterval || isImminent) {
             nextMode = "fast";
         } else {
             nextMode = "slow";
@@ -1313,7 +1314,9 @@ async function runUpdate(env, force=false) {
         
         const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast" };
         const currentMode = tMeta.mode;
-        const threshold = currentMode === "slow" ? SLOW_THRESHOLD : 0;
+        const startTs = tMeta.startTs || 0;
+        const isImminent = startTs > 0 && NOW >= startTs;
+        const threshold = (currentMode === "slow" && !isImminent) ? SLOW_THRESHOLD : 0;
 
         const dName = tourn.league;
         if (force || elapsed >= threshold) {
