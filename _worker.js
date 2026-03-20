@@ -651,7 +651,7 @@ const PYTHON_STYLE = `
             flex-direction: column;
             align-items: flex-start;
             padding: 0;
-            min-height: 72px; /* allow growth, keep dashed divider centered via flex halves */
+            min-height: 82px; /* allow growth, keep dashed divider centered via flex halves */
         }
         .table-title {
             /* Make home header match archive header layout and stay visible on horizontal scroll */
@@ -659,7 +659,7 @@ const PYTHON_STYLE = `
             flex-direction: column;
             align-items: flex-start;
             padding: 0;
-            min-height: 72px; /* allow growth, keep dashed divider centered via flex halves */
+            min-height: 82px; /* allow growth, keep dashed divider centered via flex halves */
             position: sticky;
             left: 0;
             z-index: 25;
