@@ -674,8 +674,9 @@ const PYTHON_STYLE = `
             padding: 0 15px;
             display: flex;
             align-items: center;
-            column-gap: 10px;
-            gap: 10px !important; /* override inline STYLE_TITLE_ROW gap */
+            /* Keep same spacing as original inline style (gap: 6px) */
+            column-gap: 6px;
+            gap: 6px !important; /* override inline STYLE_TITLE_ROW gap */
             min-width: 0;
         }
         .table-title > div:first-child a {
@@ -696,6 +697,21 @@ const PYTHON_STYLE = `
             display: flex;
             align-items: center;
             column-gap: 10px;
+        }
+        summary.arch-sum {
+            height: 72px;
+            /* summary.arch-sum already has min-height: 72px on desktop */
+        }
+        /* archive: split header into two equal 36px parts so dashed divider is centered */
+        summary.arch-sum > .arch-title-wrapper {
+            height: 36px;
+            padding: 0 15px;
+        }
+        summary.arch-sum .title-right-area {
+            height: 36px;
+            margin-top: 0 !important;
+            padding: 0 15px !important;
+            align-items: center;
         }
         .arch-indicator { margin-right: 0; }
         .arch-title-wrapper a {
