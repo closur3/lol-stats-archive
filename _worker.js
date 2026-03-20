@@ -658,12 +658,18 @@ const PYTHON_STYLE = `
             flex-direction: column;
             align-items: flex-start;
             padding: 0;
+            min-height: 72px; /* match summary.arch-sum */
             position: sticky;
             left: 0;
             z-index: 25;
             background: #fff;
             border-bottom: none;
             width: 100%;
+        }
+        .table-title > div:first-child {
+            /* Mirror archive: arch-title-wrapper internal padding */
+            width: 100%;
+            padding: 12px 15px 0 15px;
         }
         .arch-title-wrapper {
             width: 100%;
