@@ -652,6 +652,19 @@ const PYTHON_STYLE = `
             align-items: flex-start;
             padding: 0;
         }
+        .table-title {
+            /* Make home header match archive header layout and stay visible on horizontal scroll */
+            display: block;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 0;
+            position: sticky;
+            left: 0;
+            z-index: 25;
+            background: #fff;
+            border-bottom: none;
+            width: 100%;
+        }
         .arch-title-wrapper {
             width: 100%;
             padding: 12px 15px 0 15px;
