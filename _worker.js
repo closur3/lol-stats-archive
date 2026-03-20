@@ -1573,6 +1573,7 @@ async function runUpdate(env, force=false) {
         });
     });
 
+    const writePromises = [];
     for (const tourn of runtimeConfig.TOURNAMENTS) {
         const slug = tourn.slug;
         const raw = cache.rawMatches[slug] || [];
@@ -1593,12 +1594,32 @@ async function runUpdate(env, force=false) {
             tournMeta: tMeta,
             team_map: teamMap
         };
-        await env.LOL_KV.put(getHomeKey(slug), JSON.stringify(homeSnapshot));
+        
+        // 数据变化检测
+        const homeKey = getHomeKey(slug);
+        const existingHome = await env.LOL_KV.get(homeKey, { type: "json" });
+        const homeHasChanges = !existingHome || 
+            JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw);
+        
+        if (homeHasChanges) {
+            writePromises.push(env.LOL_KV.put(homeKey, JSON.stringify(homeSnapshot)));
+        }
 
-        if (!stats || Object.keys(stats).length === 0) continue;
-        const snapshot = { tourn: tournStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
-        await env.LOL_KV.put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
+        if (stats && Object.keys(stats).length > 0) {
+            const snapshot = { tourn: tournStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
+            const archiveKey = `ARCHIVE_${slug}`;
+            const existingArchive = await env.LOL_KV.get(archiveKey, { type: "json" });
+            const archiveHasChanges = !existingArchive || 
+                JSON.stringify(existingArchive.rawMatches || []) !== JSON.stringify(raw);
+            
+            if (archiveHasChanges) {
+                writePromises.push(env.LOL_KV.put(archiveKey, JSON.stringify(snapshot)));
+            }
+        }
     }
+    
+    // 并行写入所有数据
+    await Promise.all(writePromises);
     
     // 只有当有数据变化时才重新生成归档HTML
     if (syncItems.length > 0) {
@@ -2344,15 +2365,18 @@ export default {
                     );
                     const fullPage = renderPageShell("LoL Insights", homeFragment, "home");
                     const existingHomeHTML = await env.LOL_KV.get("HOME_STATIC_HTML");
+                    const writePromises = [];
                     if (existingHomeHTML !== fullPage) {
-                        await env.LOL_KV.put("HOME_STATIC_HTML", fullPage);
+                        writePromises.push(env.LOL_KV.put("HOME_STATIC_HTML", fullPage));
                     }
 
                     const archiveHTML = await generateArchiveStaticHTML(env);
                     const existingArchiveHTML = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
                     if (existingArchiveHTML !== archiveHTML) {
-                        await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
+                        writePromises.push(env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML));
                     }
+                    
+                    await Promise.all(writePromises);
 
                     return okResponse();
                 } catch (err) {
