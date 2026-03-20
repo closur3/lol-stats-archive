@@ -470,7 +470,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             nextMode = "fast";
         } else if (isStarted) {
             nextMode = "fast";
-        } else if (isNearInterval) {
+        } else if (prevT.mode === "fast" && isNearInterval) {
             nextMode = "fast";
         } else {
             nextMode = "slow";
