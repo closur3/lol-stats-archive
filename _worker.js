@@ -647,19 +647,19 @@ const PYTHON_STYLE = `
             padding: 12px 15px 0 15px; 
         }
         summary.arch-sum {
-            display: block;
+            display: flex;
             flex-direction: column;
             align-items: flex-start;
             padding: 0;
+            min-height: 72px; /* allow growth, keep dashed divider centered via flex halves */
         }
         .table-title {
             /* Make home header match archive header layout and stay visible on horizontal scroll */
-            display: block;
+            display: flex;
             flex-direction: column;
             align-items: flex-start;
             padding: 0;
-            min-height: 72px; /* match summary.arch-sum */
-            height: 72px;
+            min-height: 72px; /* allow growth, keep dashed divider centered via flex halves */
             position: sticky;
             left: 0;
             z-index: 25;
@@ -670,10 +670,10 @@ const PYTHON_STYLE = `
         .table-title > div:first-child {
             /* Mirror archive: arch-title-wrapper internal padding */
             width: 100%;
-            height: 36px;
             padding: 0 15px;
             display: flex;
             align-items: center;
+            flex: 1 1 0;
             /* Keep same spacing as original inline style (gap: 6px) */
             column-gap: 6px;
             gap: 6px !important; /* override inline STYLE_TITLE_ROW gap */
@@ -684,34 +684,26 @@ const PYTHON_STYLE = `
             line-height: 1.3;
         }
         .table-title .title-right-area {
-            height: 36px;
             margin-top: 0 !important;
             padding: 0 15px !important;
             align-items: center;
             display: flex;
+            flex: 1 1 0;
             justify-content: flex-end !important;
         }
         .arch-title-wrapper {
             width: 100%;
-            padding: 12px 15px 0 15px;
+            padding: 0 15px;
             display: flex;
             align-items: center;
             column-gap: 10px;
-        }
-        summary.arch-sum {
-            height: 72px;
-            /* summary.arch-sum already has min-height: 72px on desktop */
-        }
-        /* archive: split header into two equal 36px parts so dashed divider is centered */
-        summary.arch-sum > .arch-title-wrapper {
-            height: 36px;
-            padding: 0 15px;
+            flex: 1 1 0;
         }
         summary.arch-sum .title-right-area {
-            height: 36px;
             margin-top: 0 !important;
             padding: 0 15px !important;
             align-items: center;
+            flex: 1 1 0;
         }
         .arch-indicator { margin-right: 0; }
         .arch-title-wrapper a {
