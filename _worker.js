@@ -749,7 +749,7 @@ const PYTHON_STYLE = `
         .match-item { padding: 10px 8px; }
         .col-date { width: 48px; font-size: 12px; }
         .modal-divider { margin: 0 6px; }
-        .col-res { width: 28px; }
+        .col-res { width: 48px; }
         .score-box { min-width: 40px; }
         .spine-l { padding-right: 2px; }
         .spine-r { padding-left: 2px; }
