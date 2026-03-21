@@ -1499,9 +1499,9 @@ async function runUpdate(env, force=false) {
             if (newMode === "fast" && analysis.tournMeta[slug].isStarted) {
                 reason = "MatchStarted";
             } else if (newMode === "fast") {
-                reason = `Interval ${intervalH.toFixed(1)}h < 8h`;
+                reason = `Interval ${intervalH}h`;
             } else {
-                reason = `Interval ${intervalH.toFixed(1)}h >= 8h`;
+                reason = `Interval ${intervalH}h`;
             }
             
             const arrow = oldMode === "fast" ? "⚡->🐌" : "🐌->⚡";
