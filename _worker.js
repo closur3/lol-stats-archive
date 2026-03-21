@@ -798,9 +798,9 @@ const PYTHON_JS = `
         if (resStatus === 'N') { scoreContent = '<span class="score-text vs">VS</span>'; } 
         else { const fmtScore = (score || '').toString().replace('-', '<span ' + STYLE_SCORE_DASH + '>-</span>'); scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>'; }
         const boxClass = isFull ? 'score-box is-full' : 'score-box';
-        const t1Color = team1 === 'TBD' ? 'style="color:#9ca3af !important;"' : '', t2Color = team2 === 'TBD' ? 'style="color:#9ca3af !important;"' : '';
+        const t1Style = team1 === 'TBD' ? 'style="padding-right:5px;color:#9ca3af !important;"' : 'style="padding-right:5px;"', t2Style = team2 === 'TBD' ? 'style="padding-left:5px;color:#9ca3af !important;"' : 'style="padding-left:5px;"';
 
-        return '<div class="' + matchItemClass + '"><div class="col-date">' + dateHtml + '</div><div class="modal-divider"></div><div class="col-vs-area"><div class="spine-row"><span class="spine-l" ' + STYLE_TEAM_LEFT_PAD + t1Color + '">' + team1 + '</span><div ' + STYLE_SCORE_WRAP + '><div class="' + boxClass + '">' + scoreContent + '</div></div><span class="spine-r" ' + STYLE_TEAM_RIGHT_PAD + t2Color + '">' + team2 + '</span></div></div><div class="modal-divider"></div><div class="col-res">' + resTag + '</div></div>';
+        return '<div class="' + matchItemClass + '"><div class="col-date">' + dateHtml + '</div><div class="modal-divider"></div><div class="col-vs-area"><div class="spine-row"><span class="spine-l" ' + t1Style + '>' + team1 + '</span><div ' + STYLE_SCORE_WRAP + '><div class="' + boxClass + '">' + scoreContent + '</div></div><span class="spine-r" ' + t2Style + '>' + team2 + '</span></div></div><div class="modal-divider"></div><div class="col-res">' + resTag + '</div></div>';
     }
 
     function renderListHTML(htmlArr) {
