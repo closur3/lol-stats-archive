@@ -2226,7 +2226,7 @@ function renderLogPage(logs, time, sha) {
     </header>
     <div class="container logs-container-tight">
         <ul class="log-list">${entries}</ul>
-        ${logs.length === 0 ? '<div class="empty-logs">No logs found for today.</div>' : ''}
+        ${logs.length === 0 ? '<div class="empty-logs">No logs found.</div>' : ''}
     </div>
     ${buildFooter}
 </body>
