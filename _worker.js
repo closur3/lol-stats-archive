@@ -377,12 +377,22 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 
             if (dt) {
                 ts = dt.getTime();
-                if (ts < nowTs && ts > lastMatchStartTs) lastMatchStartTs = ts;
                 const p = utils.timeParts(ts);
                 const matchDateStr = `${p.y}-${p.mo}-${p.da}`;
                 const matchTimeStr = `${p.h}:${p.m}`;
                 dateDisplay = `${p.mo}-${p.da} ${matchTimeStr}`;
-
+                
+                // lastMatchStartTs: 所有已完赛比赛中最晚的开始时间（不管是不是今天）
+                if (isFinished && ts > lastMatchStartTs) {
+                    lastMatchStartTs = ts;
+                }
+                
+                // nextMatchStartTs: 所有未结束比赛中最早的开始时间（包括即将开始的和正在进行的）
+                if (!isFinished && ts < nextMatchStartTs) {
+                    nextMatchStartTs = ts;
+                }
+                
+                // 跨天比赛强制保留逻辑：昨天开始的比赛如果今天还在进行，则保留到今天赛程中
                 const isCrossDayLive = !isFinished && isLive && matchDateStr < todayStr;
 
                 if (matchDateStr >= todayStr || isCrossDayLive) {
@@ -395,10 +405,6 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                         league: tourn.league, slug: tourn.slug,
                         tournIndex: tournIdx, tabName: tabName || ""  
                     });
-                }
-
-                if (!isFinished && ts >= nowTs) {
-                    if (ts < nextMatchStartTs) nextMatchStartTs = ts;
                 }
 
                 if (isFinished) {
