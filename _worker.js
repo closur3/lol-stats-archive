@@ -1345,16 +1345,14 @@ async function runUpdate(env, force=false) {
     }
 
     const authContext = await loginToFandom(env);
-
-    const batchSize = Math.ceil(candidates.length / UPDATE_ROUNDS);
-    const batch = candidates.slice(0, batchSize);
-    
-    const pastDateObj = new Date(NOW - 48 * 60 * 60 * 1000); 
-    const futureDateObj = new Date(NOW + 48 * 60 * 60 * 1000); 
-    const deltaStartUTC = pastDateObj.toISOString().slice(0, 10); 
-    const deltaEndUTC = futureDateObj.toISOString().slice(0, 10); 
-
+    const batch = candidates.slice(0, Math.ceil(candidates.length / UPDATE_ROUNDS));
     const results = [];
+
+    const pastDateObj = new Date(NOW - 48 * 60 * 60 * 1000);
+    const futureDateObj = new Date(NOW + 48 * 60 * 60 * 1000);
+    const deltaStartUTC = pastDateObj.toISOString().slice(0, 10);
+    const deltaEndUTC = futureDateObj.toISOString().slice(0, 10);
+
     for (const c of batch) {
         try {
             const oldData = cache.rawMatches[c.slug] || [];
