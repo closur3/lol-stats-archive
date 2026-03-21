@@ -1533,19 +1533,6 @@ async function runUpdate(env, force=false) {
 
     const syncDetails = syncItems.map(formatItem);
     const idleDetails = idleItems.map(formatItem);
-    
-    // 添加被跳过的 tournaments 到日志
-    const skippedTourns = runtimeConfig.TOURNAMENTS.filter(t => {
-        return !syncItems.some(s => s.slug === t.slug) && !idleItems.some(i => i.slug === t.slug);
-    }).map(t => {
-        const tMeta = analysis.tournMeta[t.slug];
-        const mode = tMeta ? tMeta.mode : "unknown";
-        const modeIcon = mode === "slow" ? "🐌" : "⚡";
-        const countdownMins = mode === "slow" 
-            ? Math.ceil(SLOW_THRESHOLD / 60000) 
-            : Number(env.CRON_INTERVAL_MINUTES);
-        return `${t.league} *${cache.rawMatches[t.slug]?.length || 0} (${modeIcon}${countdownMins}m,skipped)`;
-    });
 
     const isAnon = (!authContext || authContext.isAnonymous);
     const authPrefix = isAnon ? "👻 " : "";
@@ -1556,7 +1543,6 @@ async function runUpdate(env, force=false) {
 
         let parts = [];
         if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
-        if (skippedTourns.length > 0) parts.push(`⏸ ${skippedTourns.join(", ")}`);
         parts.push(`🟰 Identical`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
 
@@ -1610,14 +1596,7 @@ async function runUpdate(env, force=false) {
         const stats = analysis.globalStats[slug] || {};
         const grid = analysis.timeGrid[slug] || {};
         const tMeta = analysis.tournMeta[slug] ? { [slug]: analysis.tournMeta[slug] } : {};
-        
-        // 调试：检查 tMeta 是否为空
-        if (Object.keys(tMeta).length === 0) {
-            console.log(`[WRITE_KV] ${slug}: tMeta is EMPTY! analysis.tournMeta[slug]=${JSON.stringify(analysis.tournMeta[slug])}`);
-        } else {
-            console.log(`[WRITE_KV] ${slug}: tMeta=${JSON.stringify(tMeta[slug])}`);
-        }
-        
+
         const teamMap = tourn.team_map || {};
         const { team_map, teamMap: _tm, ...tournStored } = tourn;
 
@@ -1635,10 +1614,11 @@ async function runUpdate(env, force=false) {
         // 数据变化检测
         const homeKey = getHomeKey(slug);
         const existingHome = await env.LOL_KV.get(homeKey, { type: "json" });
-        const homeHasChanges = !existingHome || 
+        const homeHasChanges = !existingHome ||
             JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw) ||
-            JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tMeta);
-        
+            JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tMeta) ||
+            JSON.stringify(existingHome.updateTimestamps || {}) !== JSON.stringify({ [slug]: ts });
+
         if (homeHasChanges) {
             writePromises.push(env.LOL_KV.put(homeKey, JSON.stringify(homeSnapshot)));
         }
