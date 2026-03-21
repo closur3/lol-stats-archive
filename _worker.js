@@ -479,7 +479,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             emoji = "🎮";
         } else {
             const timeToNext = nextMatchStartTs !== Infinity ? (nextMatchStartTs - nowTs) / (1000*60*60) : Infinity;
-            if (timeToNext <= 16) {
+            if (timeToNext <= 24) {
                 emoji = "⏳";
             } else {
                 emoji = "💤";
