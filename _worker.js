@@ -1322,23 +1322,26 @@ async function runUpdate(env, force=false) {
         
         const currentMode = tMetaFromKV.mode;
         const startTs = tMetaFromKV.startTs || 0;
-        
+
         const isMatchStarted = startTs > 0 && NOW >= startTs;
         const threshold = (currentMode === "slow" && !isMatchStarted) ? SLOW_THRESHOLD : 0;
-        
+
         console.log(`[THRESHOLD] ${tourn.slug}: mode=${currentMode}, startTs=${startTs}, isMatchStarted=${isMatchStarted}, threshold=${threshold/1000/60}m, elapsed=${elapsed/1000/60}m`);
-        
+
         if (force || elapsed >= threshold) {
-            candidates.push({ 
+            candidates.push({
                 slug: tourn.slug, overview_page: tourn.overview_page, league: tourn.league,
                 mode: currentMode,
                 start_date: tourn.start_date || null
             });
+        } else {
+            console.log(`[SKIP] ${tourn.slug}: mode=${currentMode}, elapsed=${elapsed/1000/60}m < threshold=${threshold/1000/60}m`);
         }
     });
 
-    if (candidates.length === 0) { 
-        return l; 
+    if (candidates.length === 0) {
+        console.log(`[SKIP] All tournaments skipped`);
+        return l;
     }
 
     const authContext = await loginToFandom(env);
@@ -1512,13 +1515,13 @@ async function runUpdate(env, force=false) {
     const formatCountdown = (slug) => {
         const metaNow = analysis.tournMeta[slug] || oldTournMeta[slug] || { mode: "fast" };
         const mode = metaNow.mode;
-        
+
         const modeIcon = mode === "slow" ? "🐌" : "⚡";
-        
-        const countdownMins = mode === "slow" 
-            ? Math.ceil(SLOW_THRESHOLD / 60000) 
+
+        const countdownMins = mode === "slow"
+            ? Math.ceil(SLOW_THRESHOLD / 60000)
             : Number(env.CRON_INTERVAL_MINUTES);
-        
+
         return { modeIcon, countdownMins, mode };
     };
 
@@ -1531,18 +1534,32 @@ async function runUpdate(env, force=false) {
     const syncDetails = syncItems.map(formatItem);
     const idleDetails = idleItems.map(formatItem);
     
+    // 添加被跳过的 tournaments 到日志
+    const skippedTourns = runtimeConfig.TOURNAMENTS.filter(t => {
+        return !syncItems.some(s => s.slug === t.slug) && !idleItems.some(i => i.slug === t.slug);
+    }).map(t => {
+        const tMeta = analysis.tournMeta[t.slug];
+        const mode = tMeta ? tMeta.mode : "unknown";
+        const modeIcon = mode === "slow" ? "🐌" : "⚡";
+        const countdownMins = mode === "slow" 
+            ? Math.ceil(SLOW_THRESHOLD / 60000) 
+            : Number(env.CRON_INTERVAL_MINUTES);
+        return `${t.league} *${cache.rawMatches[t.slug]?.length || 0} (${modeIcon}${countdownMins}m,skipped)`;
+    });
+
     const isAnon = (!authContext || authContext.isAnonymous);
     const authPrefix = isAnon ? "👻 " : "";
     let trafficLight, action, content;
-    
+
     if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
         trafficLight = "⚪"; action = "[IDLE]";
-        
+
         let parts = [];
         if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
+        if (skippedTourns.length > 0) parts.push(`⏸ ${skippedTourns.join(", ")}`);
         parts.push(`🟰 Identical`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
-        
+
         content = parts.join(" | ");
     } else {
         const hasErr = apiErrors.length > 0 || breakers.length > 0;
