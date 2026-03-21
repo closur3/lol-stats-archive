@@ -641,83 +641,17 @@ const PYTHON_STYLE = `
 
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 650px) {
-        .table-title, summary.arch-sum { 
-            flex-wrap: wrap; 
-            gap: 0; 
-            padding: 12px 15px 0 15px; 
-        }
-        summary.arch-sum {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            padding: 0;
-            min-height: 82px; /* allow growth, keep dashed divider centered via flex halves */
-        }
-        .table-title {
-            /* Make home header match archive header layout and stay visible on horizontal scroll */
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            padding: 0;
-            min-height: 82px; /* allow growth, keep dashed divider centered via flex halves */
-            position: sticky;
-            left: 0;
-            z-index: 25;
-            background: #fff;
-            border-bottom: none;
-            width: 100%;
-        }
-        .table-title > div:first-child {
-            /* Mirror archive: arch-title-wrapper internal padding */
-            width: 100%;
-            padding: 0 15px;
-            display: flex;
-            align-items: center;
-            flex: 1 1 0;
-            /* Keep same spacing as original inline style (gap: 6px) */
-            column-gap: 6px;
-            gap: 6px !important; /* override inline STYLE_TITLE_ROW gap */
-            min-width: 0;
-        }
-        .table-title > div:first-child a {
-            white-space: normal;
-            line-height: 1.3;
-        }
-        .table-title .title-right-area {
-            margin-top: 0 !important;
-            padding: 0 15px !important;
-            align-items: center;
-            display: flex;
-            flex: 1 1 0;
-            justify-content: flex-end !important;
-        }
-        .arch-title-wrapper {
-            width: 100%;
-            padding: 0 15px;
-            display: flex;
-            align-items: center;
-            column-gap: 10px;
-            flex: 1 1 0;
-        }
-        summary.arch-sum .title-right-area {
-            margin-top: 0 !important;
-            padding: 0 15px !important;
-            align-items: center;
-            flex: 1 1 0;
-        }
+        .table-title, summary.arch-sum { flex-wrap: wrap; gap: 0; padding: 12px 15px 0 15px; }
+        summary.arch-sum { display: flex; flex-direction: column; align-items: flex-start; padding: 0; min-height: 82px; }
+        .table-title { display: flex; flex-direction: column; align-items: flex-start; padding: 0; min-height: 82px; position: sticky; left: 0; z-index: 25; background: #fff; border-bottom: none; width: 100%; }
+        .table-title > div:first-child { width: 100%; padding: 0 15px; display: flex; align-items: center; flex: 1 1 0; column-gap: 6px; gap: 6px !important; min-width: 0; }
+        .table-title > div:first-child a { white-space: normal; line-height: 1.3; }
+        .table-title .title-right-area { margin-top: 0 !important; padding: 0 15px !important; align-items: center; display: flex; flex: 1 1 0; justify-content: flex-end !important; }
+        .arch-title-wrapper { width: 100%; padding: 0 15px; display: flex; align-items: center; column-gap: 10px; flex: 1 1 0; }
+        summary.arch-sum .title-right-area { margin-top: 0 !important; padding: 0 15px !important; align-items: center; flex: 1 1 0; }
         .arch-indicator { margin-right: 0; }
-        .arch-title-wrapper a {
-            white-space: normal;
-            line-height: 1.3;
-        }
-        .title-right-area { 
-            width: 100%; 
-            justify-content: flex-end !important; 
-            padding: 10px 15px 12px 15px; 
-            border-top: 1px dashed #e2e8f0; 
-            margin-top: 8px; 
-            display: flex;
-        }
+        .arch-title-wrapper a { white-space: normal; line-height: 1.3; }
+        .title-right-area { width: 100%; justify-content: flex-end !important; padding: 10px 15px 12px 15px; border-top: 1px dashed #e2e8f0; margin-top: 8px; display: flex; }
         .league-summary { font-size: 11px; padding: 3px 8px; }
     }
     @media (max-width: 650px) { .sch-container { grid-template-columns: 1fr; } }
@@ -745,16 +679,7 @@ const PYTHON_STYLE = `
     .score-text { font-weight: 800; font-size: 15px; color: #1e293b; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
     .score-text.live { color: #10b981; }
     .score-text.vs { color: #94a3b8; font-size: 10px; letter-spacing: 0; font-weight: 700; }
-    @media (max-width: 650px) {
-        .match-item { padding: 10px 8px; }
-        .col-date { width: 48px; font-size: 12px; }
-        .modal-divider { margin: 0 6px; }
-        .col-res { width: 48px; font-size: 18px; }
-        .col-res .hist-icon { font-size: 18px; }
-        .score-box { min-width: 48px; }
-        .spine-l { padding-right: 2px; }
-        .spine-r { padding-left: 2px; }
-    }
+    @media (max-width: 650px) { .match-item { padding: 10px 8px; } .col-date { width: 48px; font-size: 12px; } .modal-divider { margin: 0 6px; } .col-res { width: 48px; font-size: 18px; } .col-res .hist-icon { font-size: 18px; } .score-box { min-width: 48px; } .spine-l { padding-right: 2px; } .spine-r { padding-left: 2px; } }
 `;
 
 const BUILD_FOOTER_STYLE = `
@@ -1806,13 +1731,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             .secondary-btn { background: #fff; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
             .secondary-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
 
-            @media (max-width: 650px) {
-                .form-grid { grid-template-columns: 1fr; gap: 12px; }
-                .flex-row { flex-direction: column; align-items: stretch; text-align: left; }
-                .primary-btn, .secondary-btn { width: 100%; }
-                .actions-row-end { flex-direction: column; }
-                .qr-list-container { grid-template-columns: 1fr; }
-            }
+            @media (max-width: 650px) { .form-grid { grid-template-columns: 1fr; gap: 12px; } .flex-row { flex-direction: column; align-items: stretch; text-align: left; } .primary-btn, .secondary-btn { width: 100%; } .actions-row-end { flex-direction: column; } .qr-list-container { grid-template-columns: 1fr; } }
 
             ${BUILD_FOOTER_STYLE}
             
@@ -2273,12 +2192,7 @@ function renderLogPage(logs, time, sha) {
         .logs-container-tight { padding: 0; width: calc(100% - 30px); }
         ${BUILD_FOOTER_STYLE}
         
-        @media (max-width: 650px) { 
-            .log-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 15px; } 
-            .log-time { font-size: 12px; } 
-            .log-level { display: inline-flex; width: auto; padding: 3px 8px; font-size: 11px; } 
-            code.log-msg { width: 100%; margin-top: 2px; font-size: 14px; } 
-        }
+        @media (max-width: 650px) { .log-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 15px; } .log-time { font-size: 12px; } .log-level { display: inline-flex; width: auto; padding: 3px 8px; font-size: 11px; } code.log-msg { width: 100%; margin-top: 2px; font-size: 14px; } }
     </style>
 </head>
 <body>
