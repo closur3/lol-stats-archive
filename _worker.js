@@ -454,46 +454,35 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 
         const startTs = nextMatchStartTs !== Infinity ? nextMatchStartTs : 0;
         
-        // ========== 严格的模式切换逻辑 ==========
-        // 计算两场比赛开始时间间隔（小时）
         const matchIntervalHours = (lastMatchStartTs > 0 && nextMatchStartTs !== Infinity)
             ? (nextMatchStartTs - lastMatchStartTs) / (1000 * 60 * 60)
             : Infinity;
         
-        // 两个核心判断条件
-        const isStarted = nextMatchStartTs !== Infinity && nowTs >= nextMatchStartTs;  // 比赛开始
-        const isNearInterval = matchIntervalHours < 8;  // 间隔 < 8 小时
+        const isStarted = nextMatchStartTs !== Infinity && nowTs >= nextMatchStartTs;
+        const isNearInterval = matchIntervalHours < 8;
         
-        // 模式判断：只有两个条件能进入快速模式
         let nextMode;
         if (failedSlugs.has(tourn.slug)) {
-            // 抓取失败：保持上一模式
             nextMode = prevT.mode || "fast";
         } else if (hasLiveMatch) {
-            // 有直播：快速模式
             nextMode = "fast";
         } else if (isStarted) {
-            // 条件 1：比赛开始 → 快速模式
             nextMode = "fast";
         } else if (isNearInterval) {
-            // 条件 2：间隔 < 8 小时 → 快速模式
             nextMode = "fast";
         } else {
-            // 其他情况 → 慢速模式
             nextMode = "slow";
         }
-        // ========================================
 
-        // Emoji 逻辑（仅用于显示，不影响模式）
         let emoji = "";
         if (nextMode === "fast") {
-            emoji = "🎮";  // 快速模式
+            emoji = "🎮";
         } else {
             const timeToNext = nextMatchStartTs !== Infinity ? (nextMatchStartTs - nowTs) / (1000*60*60) : Infinity;
             if (timeToNext <= 24) {
-                emoji = "⏳";  // 慢速但 24h 内有比赛
+                emoji = "⏳";
             } else {
-                emoji = "💤";  // 慢速且无近期比赛
+                emoji = "💤";
             }
         }
 
@@ -1307,12 +1296,10 @@ async function runUpdate(env, force=false) {
         const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
         
-        // 从 KV 读取模式数据（由上一轮 runFullAnalysis 生成）
         const tMetaFromKV = (meta.tournaments && meta.tournaments[tourn.slug]);
         
         if (!tMetaFromKV) {
-            // KV 中没有数据，默认 fast 模式（首次运行）
-            console.log(`[THRESHOLD] ${tourn.slug}: NO_KV_DATA → fast mode, threshold=0`);
+            console.log(`[THRESHOLD] ${tourn.slug}: NO_KV_DATA, use fast mode, threshold=0`);
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: tourn.league,
                 mode: "fast",
@@ -1324,10 +1311,7 @@ async function runUpdate(env, force=false) {
         const currentMode = tMetaFromKV.mode;
         const startTs = tMetaFromKV.startTs || 0;
         
-        // 判断比赛是否已开始
         const isMatchStarted = startTs > 0 && NOW >= startTs;
-        
-        // 阈值计算：慢速模式 + 比赛未开始 = 60 分钟，其他 = 0 分钟（立即刷新）
         const threshold = (currentMode === "slow" && !isMatchStarted) ? SLOW_THRESHOLD : 0;
         
         console.log(`[THRESHOLD] ${tourn.slug}: mode=${currentMode}, startTs=${startTs}, isMatchStarted=${isMatchStarted}, threshold=${threshold/1000/60}m, elapsed=${elapsed/1000/60}m`);
@@ -1340,7 +1324,6 @@ async function runUpdate(env, force=false) {
             });
         }
     });
-    // ========================================
 
     if (candidates.length === 0) { 
         return l; 
@@ -1500,31 +1483,26 @@ async function runUpdate(env, force=false) {
             const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
             const dName = t ? (t.league || t.name || slug.toUpperCase()) : slug;
             
-            // 显示切换原因
             let reason = "";
             if (newMode === "fast" && analysis.tournMeta[slug].isStarted) {
-                reason = "比赛开始";
+                reason = "MatchStarted";
             } else if (newMode === "fast") {
-                reason = `间隔${intervalH.toFixed(1)}h<8h`;
+                reason = `Interval ${intervalH.toFixed(1)}h < 8h`;
             } else {
-                reason = `间隔${intervalH.toFixed(1)}h≥8h`;
+                reason = `Interval ${intervalH.toFixed(1)}h >= 8h`;
             }
             
-            const arrow = oldMode === "fast" ? "⚡→🐌" : "🐌→⚡";
+            const arrow = oldMode === "fast" ? "⚡->🐌" : "🐌->⚡";
             modeSwitches.push(`${dName}(${arrow} ${reason})`);
         }
     });
 
-    // ========== LOG输出：模式标识与 analysis.tournMeta 强绑定 ==========
     const formatCountdown = (slug) => {
-        // 优先使用最新分析结果，如果没有则使用 KV 旧数据
         const metaNow = analysis.tournMeta[slug] || oldTournMeta[slug] || { mode: "fast" };
         const mode = metaNow.mode;
         
-        // 模式图标：🐌 = slow, ⚡ = fast
         const modeIcon = mode === "slow" ? "🐌" : "⚡";
         
-        // 刷新间隔：慢速 60 分钟，快速 5 分钟
         const countdownMins = mode === "slow" 
             ? Math.ceil(SLOW_THRESHOLD / 60000) 
             : Number(env.CRON_INTERVAL_MINUTES);
@@ -1541,7 +1519,6 @@ async function runUpdate(env, force=false) {
     const syncDetails = syncItems.map(formatItem);
     const idleDetails = idleItems.map(formatItem);
     
-    // --- 终极日志输出 ---
     const isAnon = (!authContext || authContext.isAnonymous);
     const authPrefix = isAnon ? "👻 " : "";
     let trafficLight, action, content;
