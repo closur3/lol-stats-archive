@@ -675,6 +675,8 @@ const PYTHON_STYLE = `
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     .match-list::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     .match-item { display: flex; align-items: center; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 12px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s ease; min-height: 48px; }
+    .match-item.match-win { border-left: 3px solid #10b981; border-right: 3px solid #10b981; }
+    .match-item.match-loss { border-left: 3px solid #ef4444; border-right: 3px solid #ef4444; }
     .match-item:last-child { margin-bottom: 0; }
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .col-date { width: 60px; flex-shrink: 0; font-size: 13px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
@@ -781,6 +783,17 @@ const PYTHON_JS = `
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
         const dateParts = (date || '').split(' ');
         const dateHtml = dateParts.length === 2 ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + '>' + dateParts[1] + '</span>' : (date || '');
+        
+        // 根据比赛结果添加边框样式类
+        let matchItemClass = 'match-item';
+        if (mode === 'history') {
+            if (resStatus === 'W') {
+                matchItemClass += ' match-win';
+            } else if (resStatus === 'L') {
+                matchItemClass += ' match-loss';
+            }
+        }
+        
         let scoreContent = '', scoreClass = 'score-text';
         if (resStatus === 'LIV') scoreClass += ' live';
         if (resStatus === 'N') { scoreContent = '<span class="score-text vs">VS</span>'; } 
@@ -788,7 +801,7 @@ const PYTHON_JS = `
         const boxClass = isFull ? 'score-box is-full' : 'score-box';
         const t1Color = team1 === 'TBD' ? 'color:#9ca3af;' : '', t2Color = team2 === 'TBD' ? 'color:#9ca3af;' : '';
 
-        return '<div class="match-item"><div class="col-date">' + dateHtml + '</div><div class="modal-divider"></div><div class="col-vs-area"><div class="spine-row"><span class="spine-l" ' + STYLE_TEAM_LEFT_PAD + t1Color + '">' + team1 + '</span><div ' + STYLE_SCORE_WRAP + '><div class="' + boxClass + '">' + scoreContent + '</div></div><span class="spine-r" ' + STYLE_TEAM_RIGHT_PAD + t2Color + '">' + team2 + '</span></div></div><div class="modal-divider"></div><div class="col-res">' + resTag + '</div></div>';
+        return '<div class="' + matchItemClass + '"><div class="col-date">' + dateHtml + '</div><div class="modal-divider"></div><div class="col-vs-area"><div class="spine-row"><span class="spine-l" ' + STYLE_TEAM_LEFT_PAD + t1Color + '">' + team1 + '</span><div ' + STYLE_SCORE_WRAP + '><div class="' + boxClass + '">' + scoreContent + '</div></div><span class="spine-r" ' + STYLE_TEAM_RIGHT_PAD + t2Color + '">' + team2 + '</span></div></div><div class="modal-divider"></div><div class="col-res">' + resTag + '</div></div>';
     }
 
     function renderListHTML(htmlArr) {
