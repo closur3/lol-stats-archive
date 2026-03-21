@@ -675,10 +675,9 @@ const PYTHON_STYLE = `
     .match-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     .match-list::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     .match-item { display: flex; align-items: center; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 12px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s ease; min-height: 48px; }
-    .match-item.match-win { border-color: #10b981; }
-    .match-item.match-loss { border-color: #ef4444; }
+    .match-item.match-win { border-color: rgba(16,185,129,0.8); }
+    .match-item.match-loss { border-color: rgba(239,68,68,0.8); }
     .match-item:last-child { margin-bottom: 0; }
-    .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .col-date { width: 60px; flex-shrink: 0; font-size: 13px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
     .col-res { width: 44px; flex-shrink: 0; font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; }
     .col-res .hist-icon { font-size: 18px; }
