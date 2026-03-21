@@ -477,15 +477,21 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             nextMode = "slow";
         }
 
-        // Emoji 逻辑：仅基于模式
+        // 计算到下一场比赛的时间
+        const timeToNextMatch = nextMatchStartTs !== Infinity ? nextMatchStartTs - nowTs : Infinity;
+        const isNearStartTime = timeToNextMatch <= (24 * 60 * 60 * 1000);
+        
+        // Emoji 逻辑：保持原有三种状态
         let emoji = "";
         if (nextMode === "fast") {
-            emoji = "⚡";
+            emoji = "🎮";
+        } else if (isNearStartTime) {
+            emoji = "⏳";
         } else {
-            emoji = "🐌";
+            emoji = "💤";
         }
 
-        tournMeta[tourn.slug] = { mode: nextMode, startTs, emoji, matchIntervalHours };
+        tournMeta[tourn.slug] = { mode: nextMode, startTs, emoji };
     });
 
     let scheduleMap = {};
@@ -1457,21 +1463,13 @@ async function runUpdate(env, force=false) {
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
     const modeSwitches = [];
-    const modeStatus = [];
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
         const newMode = analysis.tournMeta[slug].mode;
-        const intervalHours = analysis.tournMeta[slug].matchIntervalHours;
-        const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
-        const dName = t ? (t.league || t.name || slug.toUpperCase()) : slug;
-        
         if (oldMode !== newMode) {
-            const reason = newMode === "fast" ? "比赛开始" : `间隔${intervalHours.toFixed(1)}h`;
-            modeSwitches.push(`${dName}(${oldMode === "fast" ? "⚡→🐌" : "🐌→⚡"} ${reason})`);
-        } else {
-            // 显示当前模式状态
-            const intervalStr = intervalHours === Infinity ? "∞" : `${intervalHours.toFixed(1)}h`;
-            modeStatus.push(`${dName}(${newMode === "fast" ? "⚡" : "🐌"} 间隔:${intervalStr})`);
+            const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
+            const dName = t ? (t.league || t.name || slug.toUpperCase()) : slug;
+            modeSwitches.push(`${dName}(${newMode === "slow" ? "🐌" : "⚡"})`);
         }
     });
 
@@ -1504,7 +1502,6 @@ async function runUpdate(env, force=false) {
         if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
         parts.push(`🟰 Identical`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
-        else if (modeStatus.length > 0) parts.push(`📊 ${modeStatus.join(", ")}`);
         
         content = parts.join(" | ");
     } else {
@@ -1515,7 +1512,6 @@ async function runUpdate(env, force=false) {
         let parts = [];
         if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
-        else if (modeStatus.length > 0) parts.push(`📊 ${modeStatus.join(", ")}`);
         if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
         if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
         
