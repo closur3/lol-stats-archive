@@ -349,6 +349,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
 
     (runtimeConfig.TOURNAMENTS || []).forEach((tourn, tournIdx) => {
         const rawMatches = allRawMatches[tourn.slug] || [];
+        console.log(`[ANALYSIS] ${tourn.slug}: rawMatches.length=${rawMatches.length}`);
         const resolveName = buildResolveName(tourn.team_map);
         const stats = {};
         let nextMatchStartTs = Infinity;
@@ -1304,14 +1305,18 @@ async function runUpdate(env, force=false) {
         const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
         
-        const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast" };
-        const currentMode = tMeta.mode;
-        const startTs = tMeta.startTs || 0;
+        // 从 KV 读取模式数据
+        const tMetaFromKV = (meta.tournaments && meta.tournaments[tourn.slug]);
+        const currentMode = tMetaFromKV ? tMetaFromKV.mode : "fast";
+        const startTs = tMetaFromKV ? (tMetaFromKV.startTs || 0) : 0;
+        
         // 比赛已开始时，保持快速刷新；否则慢速模式使用 60 分钟阈值
         const isMatchStarted = startTs > 0 && NOW >= startTs;
         const threshold = (currentMode === "slow" && !isMatchStarted) ? SLOW_THRESHOLD : 0;
 
         const dName = tourn.league;
+        console.log(`[CANDIDATE] ${tourn.slug}: mode=${currentMode}, threshold=${threshold/1000/60}m, elapsed=${elapsed/1000/60}m`);
+        
         if (force || elapsed >= threshold) {
             candidates.push({ 
                 slug: tourn.slug, overview_page: tourn.overview_page, league: dName,
@@ -1559,6 +1564,14 @@ async function runUpdate(env, force=false) {
         const stats = analysis.globalStats[slug] || {};
         const grid = analysis.timeGrid[slug] || {};
         const tMeta = analysis.tournMeta[slug] ? { [slug]: analysis.tournMeta[slug] } : {};
+        
+        // 调试：检查 tMeta 是否为空
+        if (Object.keys(tMeta).length === 0) {
+            console.log(`[WRITE_KV] ${slug}: tMeta is EMPTY! analysis.tournMeta[slug]=${JSON.stringify(analysis.tournMeta[slug])}`);
+        } else {
+            console.log(`[WRITE_KV] ${slug}: tMeta=${JSON.stringify(tMeta[slug])}`);
+        }
+        
         const teamMap = tourn.team_map || {};
         const { team_map, teamMap: _tm, ...tournStored } = tourn;
 
