@@ -736,6 +736,7 @@ const PYTHON_STYLE = `
     .match-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .col-date { width: 60px; flex-shrink: 0; font-size: 13px; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; white-space: nowrap; }
     .col-res { width: 44px; flex-shrink: 0; font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .col-res .hist-icon { font-size: 18px; }
     .col-vs-area { flex: 1; min-width: 0; }
     .modal-divider { width: 1px; height: 28px; background: #e2e8f0; flex-shrink: 0; margin: 0 16px; }
     .score-box { display: flex; align-items: center; justify-content: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 0; min-height: 28px; min-width: 48px; transition: 0.2s; }
@@ -744,12 +745,13 @@ const PYTHON_STYLE = `
     .score-text { font-weight: 800; font-size: 15px; color: #1e293b; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
     .score-text.live { color: #10b981; }
     .score-text.vs { color: #94a3b8; font-size: 10px; letter-spacing: 0; font-weight: 700; }
-    .hist-icon { font-size: 16px; }
+    .hist-icon { font-size: 18px; }
     @media (max-width: 600px) {
         .match-item { padding: 10px 8px; }
         .col-date { width: 48px; font-size: 12px; }
         .modal-divider { margin: 0 6px; }
-        .col-res { width: 48px; }
+        .col-res { width: 48px; font-size: 18px; }
+        .col-res .hist-icon { font-size: 18px; }
         .score-box { min-width: 48px; }
         .spine-l { padding-right: 2px; }
         .spine-r { padding-left: 2px; }
