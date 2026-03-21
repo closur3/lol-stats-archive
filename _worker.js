@@ -568,7 +568,7 @@ const COMMON_STYLE = `
     .action-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.2s; font-family: inherit; }
     .action-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
     .btn-icon { display: inline-flex; justify-content: center; width: 16px; text-align: center; }
-    @media (max-width: 600px) { .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
+    @media (max-width: 650px) { .btn-text { display: none; } .action-btn { padding: 6px 10px; } }
 `;
 
 const PYTHON_STYLE = `
@@ -720,7 +720,7 @@ const PYTHON_STYLE = `
         }
         .league-summary { font-size: 11px; padding: 3px 8px; }
     }
-    @media (max-width: 600px) { .sch-container { grid-template-columns: 1fr; } }
+    @media (max-width: 650px) { .sch-container { grid-template-columns: 1fr; } }
     
     @keyframes modalShow { 0% { opacity: 0; transform: translate(-50%, -45%) scale(0.98); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
     .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; background-color: rgba(15, 23, 42, 0.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
@@ -745,8 +745,7 @@ const PYTHON_STYLE = `
     .score-text { font-weight: 800; font-size: 15px; color: #1e293b; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
     .score-text.live { color: #10b981; }
     .score-text.vs { color: #94a3b8; font-size: 10px; letter-spacing: 0; font-weight: 700; }
-    .hist-icon { font-size: 18px; }
-    @media (max-width: 600px) {
+    @media (max-width: 650px) {
         .match-item { padding: 10px 8px; }
         .col-date { width: 48px; font-size: 12px; }
         .modal-divider { margin: 0 6px; }
@@ -1807,7 +1806,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             .secondary-btn { background: #fff; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
             .secondary-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
 
-            @media (max-width: 600px) {
+            @media (max-width: 650px) {
                 .form-grid { grid-template-columns: 1fr; gap: 12px; }
                 .flex-row { flex-direction: column; align-items: stretch; text-align: left; }
                 .primary-btn, .secondary-btn { width: 100%; }
@@ -2274,7 +2273,7 @@ function renderLogPage(logs, time, sha) {
         .logs-container-tight { padding: 0; width: calc(100% - 30px); }
         ${BUILD_FOOTER_STYLE}
         
-        @media (max-width: 600px) { 
+        @media (max-width: 650px) { 
             .log-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 15px; } 
             .log-time { font-size: 12px; } 
             .log-level { display: inline-flex; width: auto; padding: 3px 8px; font-size: 11px; } 
