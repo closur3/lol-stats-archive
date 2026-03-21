@@ -449,35 +449,43 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         const prevT = prevTournMeta[tourn.slug] || { mode: "fast" };
         let nextMode = "fast";
 
-        const matchInterval = (lastMatchStartTs > 0 && nextMatchStartTs !== Infinity)
-            ? nextMatchStartTs - lastMatchStartTs
+        // 计算两场比赛的开始时间间隔（小时）
+        const matchIntervalHours = (lastMatchStartTs > 0 && nextMatchStartTs !== Infinity)
+            ? (nextMatchStartTs - lastMatchStartTs) / (1000 * 60 * 60)
             : Infinity;
-        const isNearInterval = matchInterval < (8 * 60 * 60 * 1000);
-        const isImminent = nextMatchStartTs !== Infinity && nowTs >= nextMatchStartTs;
+        
+        // 快速模式维持条件：间隔 < 8 小时
+        const isNearInterval = matchIntervalHours < 8;
+        
+        // 比赛正在进行中（当前时间 >= 下一场比赛开始时间）
+        const isStarted = nextMatchStartTs !== Infinity && nowTs >= nextMatchStartTs;
 
         if (failedSlugs.has(tourn.slug)) {
+            // 抓取失败时保持上一模式
             nextMode = prevT.mode || "fast";
         } else if (hasLiveMatch) {
+            // 有直播比赛，强制快速模式
             nextMode = "fast";
-        } else if (isNearInterval || isImminent) {
+        } else if (isStarted) {
+            // 比赛开始，进入快速模式
+            nextMode = "fast";
+        } else if (isNearInterval) {
+            // 间隔 < 8 小时，维持快速模式
             nextMode = "fast";
         } else {
+            // 其他情况切换到慢速模式
             nextMode = "slow";
         }
-        
-        const timeToNextMatch = nextMatchStartTs !== Infinity ? nextMatchStartTs - nowTs : Infinity;
-        const isNearStartTime = timeToNextMatch <= (24 * 60 * 60 * 1000);
-        
+
+        // Emoji 逻辑：仅基于模式
         let emoji = "";
         if (nextMode === "fast") {
-            emoji = "🎮";
-        } else if (isNearStartTime) {
-            emoji = "⏳";
+            emoji = "⚡";
         } else {
-            emoji = "💤";
+            emoji = "🐌";
         }
 
-        tournMeta[tourn.slug] = { mode: nextMode, startTs, emoji };
+        tournMeta[tourn.slug] = { mode: nextMode, startTs, emoji, matchIntervalHours };
     });
 
     let scheduleMap = {};
@@ -1287,8 +1295,9 @@ async function runUpdate(env, force=false) {
         const tMeta = (meta.tournaments && meta.tournaments[tourn.slug]) || { mode: "fast" };
         const currentMode = tMeta.mode;
         const startTs = tMeta.startTs || 0;
-        const isImminent = startTs > 0 && NOW >= startTs;
-        const threshold = (currentMode === "slow" && !isImminent) ? SLOW_THRESHOLD : 0;
+        // 比赛已开始时，保持快速刷新；否则慢速模式使用 60 分钟阈值
+        const isMatchStarted = startTs > 0 && NOW >= startTs;
+        const threshold = (currentMode === "slow" && !isMatchStarted) ? SLOW_THRESHOLD : 0;
 
         const dName = tourn.league;
         if (force || elapsed >= threshold) {
@@ -1448,13 +1457,21 @@ async function runUpdate(env, force=false) {
     const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
 
     const modeSwitches = [];
+    const modeStatus = [];
     Object.keys(analysis.tournMeta).forEach(slug => {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
         const newMode = analysis.tournMeta[slug].mode;
+        const intervalHours = analysis.tournMeta[slug].matchIntervalHours;
+        const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
+        const dName = t ? (t.league || t.name || slug.toUpperCase()) : slug;
+        
         if (oldMode !== newMode) {
-            const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
-            const dName = t ? (t.league || t.name || slug.toUpperCase()) : slug;
-            modeSwitches.push(`${dName}(${newMode === "slow" ? "🐌" : "⚡"})`);
+            const reason = newMode === "fast" ? "比赛开始" : `间隔${intervalHours.toFixed(1)}h`;
+            modeSwitches.push(`${dName}(${oldMode === "fast" ? "⚡→🐌" : "🐌→⚡"} ${reason})`);
+        } else {
+            // 显示当前模式状态
+            const intervalStr = intervalHours === Infinity ? "∞" : `${intervalHours.toFixed(1)}h`;
+            modeStatus.push(`${dName}(${newMode === "fast" ? "⚡" : "🐌"} 间隔:${intervalStr})`);
         }
     });
 
@@ -1487,6 +1504,7 @@ async function runUpdate(env, force=false) {
         if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
         parts.push(`🟰 Identical`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
+        else if (modeStatus.length > 0) parts.push(`📊 ${modeStatus.join(", ")}`);
         
         content = parts.join(" | ");
     } else {
@@ -1497,6 +1515,7 @@ async function runUpdate(env, force=false) {
         let parts = [];
         if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
+        else if (modeStatus.length > 0) parts.push(`📊 ${modeStatus.join(", ")}`);
         if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
         if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
         
