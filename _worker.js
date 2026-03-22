@@ -1231,7 +1231,7 @@ async function runUpdate(env, force=false) {
     const l = new Logger();
     const NOW = Date.now();
 
-    const SLOW_THRESHOLD = 60 * 60 * 1000;
+    const SLOW_THRESHOLD = 120 * 60 * 1000;
     const UPDATE_ROUNDS = 1;
 
     let runtimeConfig = null;
