@@ -74,7 +74,7 @@ jobs:
               elif diff:
                   commit_msg = f"📁 Dump: {' | '.join(diff)}"
               else:
-                  commit_msg = "🔄 Dump: no changes"
+                  commit_msg = "📁 Dump: no changes"
 
               if "GITHUB_OUTPUT" in os.environ:
                   with open(os.environ["GITHUB_OUTPUT"], "a") as f:
