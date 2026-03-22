@@ -396,7 +396,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 // 跨天比赛强制保留逻辑：昨天开始的比赛如果今天还在进行，则保留到今天赛程中；结束后保留至次日结束（48小时）
                 const isCrossDayKeep = matchDateStr < todayStr && ( (!isFinished && isLive) || (isFinished && (() => {
                     const matchDateUTC = utils.parseDate(matchDateStr + " 00:00:00");
-                    const matchDateCST = new Date(matchDateUTC.getTime() - CST_OFFSET); // 转换为UTC+8的00:00:00
+                    const matchDateCST = new Date(matchDateUTC.getTime() + CST_OFFSET); // 转换为UTC+8的00:00:00
                     const nextDayEnd = matchDateCST.getTime() + 2*24*60*60*1000; // 次日0点
                     return Date.now() < nextDayEnd;
                 })()) );
