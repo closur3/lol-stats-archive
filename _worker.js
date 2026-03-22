@@ -815,9 +815,9 @@ const PYTHON_JS = `
         const sortedMatches = [...m].sort((a, b) => b.d.localeCompare(a.d));
         const listHtml = sortedMatches.map(item => {
             let boTag = '<span ' + STYLE_MUTED_DASH + '>-</span>';
-            if (item.bo === 5) boTag = '<span class="sch-pill gold" ' + STYLE_BO_SMALL + '>BO5</span>';
-            else if (item.bo === 3) boTag = '<span class="sch-pill" ' + STYLE_BO_SMALL + '>BO3</span>';
-            else if (item.bo === 1) boTag = '<span class="sch-pill" ' + STYLE_BO_SMALL + '>BO1</span>';
+            if (item.bo === 5) boTag = '<span class="sch-pill gold">BO5</span>';
+            else if (item.bo === 3) boTag = '<span class="sch-pill">BO3</span>';
+            else if (item.bo === 1) boTag = '<span class="sch-pill">BO1</span>';
             return renderMatchItem('dist', item.d, boTag, item.t1, item.t2, item.f, item.s);
         });
         renderListHTML(listHtml);
