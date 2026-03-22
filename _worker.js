@@ -415,7 +415,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     const pyDay = p.day === 0 ? 6 : p.day - 1;
                     const targetH = parseInt(p.h, 10);
 
-                    const matchObj = { d: `${p.mo}-${p.da}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull, bo: bo };
+                    const matchObj = { d: `${p.mo}-${p.da} ${matchTimeStr}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull, bo: bo };
                     
                     if (!timeGrid[tourn.slug]) timeGrid[tourn.slug] = { "Total": createSlot() };
                     if (!timeGrid[tourn.slug][targetH]) timeGrid[tourn.slug][targetH] = createSlot();
