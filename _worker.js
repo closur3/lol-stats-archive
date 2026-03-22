@@ -616,8 +616,8 @@ const PYTHON_STYLE = `
     .spine-l { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-r { flex: 1; flex-basis: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0; font-weight: 800; transition: background 0.15s; }
     .spine-sep { width: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
-    .sch-row .spine-l { padding: 4px 5px; margin-left: 15px; }
-    .sch-row .spine-r { padding: 4px 5px; margin-right: 15px; }
+    .sch-row .spine-l { padding: 4px 5px; margin-left: 10px; }
+    .sch-row .spine-r { padding: 4px 5px; margin-right: 10px; }
     .spine-l.clickable:hover, .spine-r.clickable:hover, .spine-sep.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
     .t-cell { display: flex; align-items: center; width: 100%; height: 100%; }
     .t-val { flex: 1; flex-basis: 0; text-align: right; font-weight: 700; padding-right: 4px; white-space: nowrap; } 
