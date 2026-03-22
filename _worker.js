@@ -393,10 +393,14 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     nextMatchStartTs = ts;
                 }
                 
-                // 跨天比赛强制保留逻辑：昨天开始的比赛如果今天还在进行，则保留到今天赛程中
-                const isCrossDayLive = !isFinished && isLive && matchDateStr < todayStr;
+                // 跨天比赛强制保留逻辑：昨天开始的比赛如果今天还在进行，则保留到今天赛程中；结束后保留至下一天结束
+                const isCrossDayKeep = matchDateStr < todayStr && ( (!isFinished && isLive) || (isFinished && (() => {
+                    const matchDate = utils.parseDate(matchDateStr + " 00:00:00");
+                    const nextDayEnd = matchDate.getTime() + 2*24*60*60*1000;
+                    return Date.now() < nextDayEnd;
+                })()) );
 
-                if (matchDateStr >= todayStr || isCrossDayLive) {
+                if (matchDateStr >= todayStr || isCrossDayKeep) {
                     const bucketDate = matchDateStr;
                     if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
                     const tabName = m.Tab || "";
