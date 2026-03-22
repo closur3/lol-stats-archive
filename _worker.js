@@ -636,7 +636,7 @@ const PYTHON_STYLE = `
     .sch-time { width: 44px; color: #94a3b8; font-size: 13px; display: flex; align-items: center; justify-content: flex-start; padding-left: 10px; }
     .sch-tag-col { width: 44px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
-    .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #dbeafe; color: #1d4ed8; }
+    .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px !important; font-weight: 700; background: #dbeafe; color: #1d4ed8; }
     .sch-pill.gold { background: #f2d49c; color: #9c5326; }
     .sch-live-score { color: #10b981; font-size: 13px; }
     .sch-fin-score { color: #334155; font-size: 13px; }
@@ -683,6 +683,8 @@ const PYTHON_STYLE = `
     .col-res .hist-icon { font-size: 18px; }
     .col-vs-area { flex: 1; min-width: 0; }
     .modal-divider { width: 1px; height: 28px; background: #e2e8f0; flex-shrink: 0; margin: 0 16px; }
+    .sch-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px !important; font-weight: 700; background: #dbeafe; color: #1d4ed8; }
+    .sch-pill.gold { background: #f2d49c; color: #9c5326; }
     .score-box { display: flex; align-items: center; justify-content: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 0; min-height: 28px; min-width: 48px; transition: 0.2s; }
     .score-box.is-full { background: #fff7ed; border-color: #fdba74; box-shadow: inset 0 0 0 1px #fdba74; }
     .score-box.is-full .score-text { color: #c2410c; }
