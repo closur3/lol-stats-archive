@@ -218,7 +218,7 @@ export class APIRouter {
         };
 
         await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
-        logger.success(`🟢 [SYNC] | 🔄 ${payload.league} *${matches.length} | ⚙️ Rebuild Archive`);
+        logger.success(`🟢 [SYNC] | 🔄 ${payload.name || payload.slug} *${matches.length} | ⚙️ Rebuild Archive`);
 
         const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
         const existingArchiveHTML = await env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
@@ -226,7 +226,7 @@ export class APIRouter {
           await env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
         }
       } else {
-        logger.error(`🔴 [ERR!] | 🚧 ${payload.league}(Drop) | ❌ No matches found for rebuild`);
+        logger.error(`🔴 [ERR!] | 🚧 ${payload.name || payload.slug}(Drop) | ❌ No matches found for rebuild`);
         throw new Error("No matches found from Fandom API");
       }
 
@@ -241,7 +241,7 @@ export class APIRouter {
 
       return new Response("OK", { status: 200 });
     } catch (err) {
-      logger.error(`🔴 [ERR!] | ❌ ${payload.league}(Fail) | ${err.message}`);
+      logger.error(`🔴 [ERR!] | ❌ ${payload.name || payload.slug}(Fail) | ${err.message}`);
       
       // 记录日志
       const newLogs = logger.logs;
