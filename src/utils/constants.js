@@ -19,6 +19,9 @@ export const KV_KEYS = {
   ARCHIVE_STATIC_HTML: "ARCHIVE_STATIC_HTML"
 };
 
+// 获取HOME键名
+export const getHomeKey = (slug) => `HOME_${slug}`;
+
 // 赛事状态
 export const MATCH_STATUS = {
   LIVE: 'LIVE',
