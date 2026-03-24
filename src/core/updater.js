@@ -65,7 +65,7 @@ export class Updater {
     const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force);
 
     // 处理结果
-    const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force);
+    const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, runtimeConfig);
 
     // 分析数据
     const oldTournMeta = cache.meta?.tournaments || {};
@@ -203,12 +203,17 @@ export class Updater {
   /**
    * 处理抓取结果
    */
-  processResults(results, cache, NOW, force) {
+  processResults(results, cache, NOW, force, runtimeConfig) {
     const failedSlugs = new Set();
     const syncItems = [];
     const idleItems = [];
     const breakers = [];
     const apiErrors = [];
+
+    const getDisplayName = (slug) => {
+      const tournament = runtimeConfig.TOURNAMENTS.find(t => t.slug === slug);
+      return tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
+    };
 
     const fieldAliases = {
       MatchId: ["MatchId"],
@@ -275,12 +280,12 @@ export class Updater {
                 return tA.localeCompare(tB);
               });
               cache.rawMatches[slug] = mergedList;
-              syncItems.push({ slug, dName: slug, type: "delta", count: changesCount });
+              syncItems.push({ slug, dName: getDisplayName(slug), type: "delta", count: changesCount });
             } else {
-              idleItems.push({ slug, dName: slug, type: "delta", count: 0 });
+              idleItems.push({ slug, dName: getDisplayName(slug), type: "delta", count: 0 });
             }
           } else {
-            idleItems.push({ slug, dName: slug, type: "delta", count: 0 });
+            idleItems.push({ slug, dName: getDisplayName(slug), type: "delta", count: 0 });
           }
         } else {
           if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
@@ -289,9 +294,9 @@ export class Updater {
           } else {
             cache.rawMatches[slug] = newData;
             if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-              syncItems.push({ slug, dName: slug, type: "full", count: newData.length });
+              syncItems.push({ slug, dName: getDisplayName(slug), type: "full", count: newData.length });
             } else {
-              idleItems.push({ slug, dName: slug, type: "full", count: newData.length });
+              idleItems.push({ slug, dName: getDisplayName(slug), type: "full", count: newData.length });
             }
           }
         }
@@ -341,8 +346,18 @@ export class Updater {
     
     if (syncItems.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
       trafficLight = "⚪"; action = "[IDLE]";
-      content = "🟰 Identical";
-      if (modeSwitches.length > 0) content += ` | ⚙️ ${modeSwitches.join(", ")}`;
+      
+      let parts = [];
+      if (idleItems.length > 0) {
+        const idleDetails = idleItems.map(item => {
+          return item.dName;
+        });
+        parts.push(`🔍 ${idleDetails.join(", ")}`);
+      }
+      parts.push(`🟰 Identical`);
+      if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
+      
+      content = parts.join(" | ");
     } else {
       const hasErr = apiErrors.length > 0 || breakers.length > 0;
       trafficLight = hasErr ? "🔴" : "🟢";
