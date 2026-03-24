@@ -324,7 +324,7 @@ export class Updater {
       const modeIcon = mode === "slow" ? "🐌" : "⚡";
       const countdownMins = mode === "slow"
         ? Math.ceil(SLOW_THRESHOLD / 60000)
-        : 60; // 默认60分钟
+        : Number(this.env.CRON_INTERVAL_MINUTES) || 5; // 从环境变量读取，默认5分钟
       return { modeIcon, countdownMins, mode };
     };
 
