@@ -429,14 +429,44 @@ export class HTMLRenderer {
     function showPopup(title, dayIndex, matches) {
         const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Total"];
         document.getElementById('modalTitle').innerText = title + " - " + dayNames[dayIndex];
-        const sortedMatches = [...matches].sort((matchA, matchB) => matchB.d.localeCompare(matchA.d));
-        const listHtml = sortedMatches.map(match => {
-            let boTag = '<span ' + STYLE_MUTED_DASH + '>-</span>';
-            if (match.bo === 5) boTag = '<span class="sch-pill gold">BO5</span>';
-            else if (match.bo === 3) boTag = '<span class="sch-pill">BO3</span>';
-            else if (match.bo === 1) boTag = '<span class="sch-pill">BO1</span>';
-            return renderMatchItem('distribution', match.d, boTag, match.t1, match.t2, match.f, match.s);
-        });
+        
+        // 分离已结束和未开始的比赛
+        const finished = matches.filter(m => m.f);
+        const upcoming = matches.filter(m => !m.f);
+        
+        // 已结束：日期降序（新到旧）
+        finished.sort((a, b) => (b.fd || b.d).localeCompare(a.fd || a.d));
+        // 未开始：日期升序（旧到新）
+        upcoming.sort((a, b) => (a.fd || a.d).localeCompare(b.fd || b.d));
+        
+        const sortedMatches = [...finished, ...upcoming];
+        
+        let listHtml = [];
+        
+        // 已结束比赛区域
+        if (finished.length > 0) {
+            listHtml.push('<div class="section-header" style="background:#f0fdf4;color:#166534;padding:8px 16px;font-weight:700;font-size:13px;border-radius:8px 8px 0 0;border:1px solid #86efac;border-bottom:none;">✅ 已结束 (' + finished.length + ')</div>');
+            finished.forEach(match => {
+                let boTag = '<span ' + STYLE_MUTED_DASH + '>-</span>';
+                if (match.bo === 5) boTag = '<span class="sch-pill gold">BO5</span>';
+                else if (match.bo === 3) boTag = '<span class="sch-pill">BO3</span>';
+                else if (match.bo === 1) boTag = '<span class="sch-pill">BO1</span>';
+                listHtml.push(renderMatchItem('distribution', match.d, boTag, match.t1, match.t2, match.f, match.s));
+            });
+        }
+        
+        // 未开始比赛区域
+        if (upcoming.length > 0) {
+            listHtml.push('<div class="section-header" style="background:#eff6ff;color:#1e40af;padding:8px 16px;font-weight:700;font-size:13px;border-radius:8px 8px 0 0;border:1px solid #93c5fd;border-bottom:none;margin-top:' + (finished.length > 0 ? '16px' : '0') + 'px;">📅 未开始 (' + upcoming.length + ')</div>');
+            upcoming.forEach(match => {
+                let boTag = '<span ' + STYLE_MUTED_DASH + '>-</span>';
+                if (match.bo === 5) boTag = '<span class="sch-pill gold">BO5</span>';
+                else if (match.bo === 3) boTag = '<span class="sch-pill">BO3</span>';
+                else if (match.bo === 1) boTag = '<span class="sch-pill">BO1</span>';
+                listHtml.push(renderMatchItem('distribution', match.d, boTag, match.t1, match.t2, match.f, match.s));
+            });
+        }
+        
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display = "block";
     }

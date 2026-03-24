@@ -96,77 +96,72 @@ export class Analyzer {
         const isFull = (bestOf === 3 && Math.min(team1Score, team2Score) === 1) || (bestOf === 5 && Math.min(team1Score, team2Score) === 2);
 
         const dateTime = dateUtils.parseDate(match.DateTime_UTC || match["DateTime UTC"]);
-        let dateDisplay = "-", timestamp = 0;
-
-        if (dateTime) {
-          timestamp = dateTime.getTime();
-          const timeParts = dateUtils.timeParts(timestamp);
-          const matchDateStr = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
+        const timeParts = dateTime ? dateUtils.timeParts(dateTime) : null;
+        let dateDisplay = "-", fullDate = "-", timestamp = 0;
+        if (timeParts) {
           const matchTimeStr = `${timeParts.h}:${timeParts.m}`;
           dateDisplay = `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`;
+          fullDate = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
+          timestamp = match.DateTime_UTC ? new Date(match.DateTime_UTC).getTime() : 0;
+        }
 
-          // lastMatchStartTimestamp: 所有已完赛比赛中最晚的开始时间（不管是不是今天）
-          if (isFinished && timestamp > lastMatchStartTimestamp) {
-            lastMatchStartTimestamp = timestamp;
-          }
+        // nextMatchStartTimestamp: 所有未结束比赛中最早的开始时间（包括即将开始的和正在进行的）
+        if (!isFinished && timestamp < nextMatchStartTimestamp) {
+          nextMatchStartTimestamp = timestamp;
+        }
 
-          // nextMatchStartTimestamp: 所有未结束比赛中最早的开始时间（包括即将开始的和正在进行的）
-          if (!isFinished && timestamp < nextMatchStartTimestamp) {
-            nextMatchStartTimestamp = timestamp;
-          }
+        // 跨天比赛强制保留逻辑
+        const isCrossDayKeep = dateUtils.isCrossDayKeep(matchDateStr, todayStr, isFinished, isLive);
 
-          // 跨天比赛强制保留逻辑
-          const isCrossDayKeep = dateUtils.isCrossDayKeep(matchDateStr, todayStr, isFinished, isLive);
+        if (matchDateStr >= todayStr || isCrossDayKeep) {
+          const bucketDate = matchDateStr;
+          if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
+          const tabName = match.Tab || "";
+          allFutureMatches[bucketDate].push({
+            time: matchTimeStr, 
+            t1: team1Name, 
+            t2: team2Name, 
+            s1: team1Score, 
+            s2: team2Score, 
+            bo: bestOf,
+            is_finished: isFinished, 
+            is_live: isLive,
+            league: tournament.league, 
+            slug: tournament.slug,
+            tournIndex: tournamentIndex, 
+            tabName: tabName || ""
+          });
+        }
 
-          if (matchDateStr >= todayStr || isCrossDayKeep) {
-            const bucketDate = matchDateStr;
-            if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
-            const tabName = match.Tab || "";
-            allFutureMatches[bucketDate].push({
-              time: matchTimeStr, 
-              t1: team1Name, 
-              t2: team2Name, 
-              s1: team1Score, 
-              s2: team2Score, 
-              bo: bestOf,
-              is_finished: isFinished, 
-              is_live: isLive,
-              league: tournament.league, 
-              slug: tournament.slug,
-              tournIndex: tournamentIndex, 
-              tabName: tabName || ""
-            });
-          }
+        if (isFinished) {
+          if(timestamp > stats[team1Name].last) stats[team1Name].last = timestamp;
+          if(timestamp > stats[team2Name].last) stats[team2Name].last = timestamp;
 
-          if (isFinished) {
-            if(timestamp > stats[team1Name].last) stats[team1Name].last = timestamp;
-            if(timestamp > stats[team2Name].last) stats[team2Name].last = timestamp;
+          const pyDay = timeParts.day === 0 ? 6 : timeParts.day - 1;
+          const targetHour = parseInt(timeParts.h, 10);
 
-            const pyDay = timeParts.day === 0 ? 6 : timeParts.day - 1;
-            const targetHour = parseInt(timeParts.h, 10);
+          const matchObj = { 
+            d: `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`, 
+            fd: `${timeParts.y}-${timeParts.mo}-${timeParts.da}`,
+            t1: team1Name, 
+            t2: team2Name, 
+            s: `${team1Score}-${team2Score}`, 
+            f: isFull, 
+            bo: bestOf 
+          };
 
-            const matchObj = { 
-              d: `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`, 
-              t1: team1Name, 
-              t2: team2Name, 
-              s: `${team1Score}-${team2Score}`, 
-              f: isFull, 
-              bo: bestOf 
-            };
+          if (!timeGrid[tournament.slug]) timeGrid[tournament.slug] = { "Total": createSlot() };
+          if (!timeGrid[tournament.slug][targetHour]) timeGrid[tournament.slug][targetHour] = createSlot();
 
-            if (!timeGrid[tournament.slug]) timeGrid[tournament.slug] = { "Total": createSlot() };
-            if (!timeGrid[tournament.slug][targetHour]) timeGrid[tournament.slug][targetHour] = createSlot();
-
-            const addMatchToSlot = (grid, hour, day) => { 
-              grid[hour][day].total++; 
-              if(isFull) grid[hour][day].full++; 
-              grid[hour][day].matches.push(matchObj); 
-            };
-            addMatchToSlot(timeGrid[tournament.slug], targetHour, pyDay);
-            addMatchToSlot(timeGrid[tournament.slug], "Total", pyDay);
-            addMatchToSlot(timeGrid[tournament.slug], targetHour, 7);
-            addMatchToSlot(timeGrid[tournament.slug], "Total", 7);
-          }
+          const addMatchToSlot = (grid, hour, day) => { 
+            grid[hour][day].total++; 
+            if(isFull) grid[hour][day].full++; 
+            grid[hour][day].matches.push(matchObj); 
+          };
+          addMatchToSlot(timeGrid[tournament.slug], targetHour, pyDay);
+          addMatchToSlot(timeGrid[tournament.slug], "Total", pyDay);
+          addMatchToSlot(timeGrid[tournament.slug], targetHour, 7);
+          addMatchToSlot(timeGrid[tournament.slug], "Total", 7);
         }
 
         let result1 = 'N', result2 = 'N';
@@ -180,6 +175,7 @@ export class Analyzer {
 
         stats[team1Name].history.push({ 
           d: dateDisplay, 
+          fd: fullDate,
           vs: team2Name, 
           s: `${team1Score}-${team2Score}`, 
           res: result1, 
@@ -189,6 +185,7 @@ export class Analyzer {
         });
         stats[team2Name].history.push({ 
           d: dateDisplay, 
+          fd: fullDate,
           vs: team1Name, 
           s: `${team2Score}-${team1Score}`, 
           res: result2, 
