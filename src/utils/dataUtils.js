@@ -93,7 +93,7 @@ export const dataUtils = {
       if (team1) rawNames.add(team1);
       if (team2) rawNames.add(team2);
     });
-    if (rawNames.size === 0) return {};
+    if (rawNames.size === 0) return baseMap || {};
 
     const entries = Object.entries(baseMap).map(([k, v]) => ({ k, v, ku: String(k).toUpperCase() }));
     const needed = {};

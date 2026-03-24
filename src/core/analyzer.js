@@ -103,7 +103,7 @@ export class Analyzer {
           dateDisplay = `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`;
           fullDate = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
           matchDateStr = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
-          timestamp = match.DateTime_UTC ? new Date(match.DateTime_UTC).getTime() : 0;
+          timestamp = (match.DateTime_UTC || match["DateTime UTC"]) ? new Date(match.DateTime_UTC || match["DateTime UTC"]).getTime() : 0;
         }
 
         // nextMatchStartTimestamp: 所有未结束比赛中最早的开始时间（包括即将开始的和正在进行的）

@@ -452,10 +452,10 @@ export class HTMLRenderer {
         const finished = history.filter(m => m.res === 'W' || m.res === 'L');
         const upcoming = history.filter(m => m.res === 'N' || m.res === 'LIV');
         
-        // 已结束：按timestamp降序（新到旧）
-        finished.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-        // 未开始：按timestamp升序（旧到新）
-        upcoming.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+        // 已结束：按timestamp降序（新到旧），如果ts相同则按日期字符串排序
+        finished.sort((a, b) => (b.ts || 0) - (a.ts || 0) || b.d.localeCompare(a.d));
+        // 未开始：按timestamp升序（旧到新），如果ts相同则按日期字符串排序
+        upcoming.sort((a, b) => (a.ts || 0) - (b.ts || 0) || a.d.localeCompare(b.d));
         
         let listHtml = [];
         
@@ -498,10 +498,10 @@ export class HTMLRenderer {
         const finished = history.filter(m => m.res === 'W' || m.res === 'L');
         const upcoming = history.filter(m => m.res === 'N' || m.res === 'LIV');
         
-        // 已结束：按timestamp降序（新到旧）
-        finished.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-        // 未开始：按timestamp升序（旧到新）
-        upcoming.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+        // 已结束：按timestamp降序（新到旧），如果ts相同则按日期字符串排序
+        finished.sort((a, b) => (b.ts || 0) - (a.ts || 0) || b.d.localeCompare(a.d));
+        // 未开始：按timestamp升序（旧到新），如果ts相同则按日期字符串排序
+        upcoming.sort((a, b) => (a.ts || 0) - (b.ts || 0) || a.d.localeCompare(b.d));
         
         let listHtml = [];
         
