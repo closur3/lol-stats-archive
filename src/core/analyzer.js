@@ -107,8 +107,14 @@ export class Analyzer {
         }
 
         // nextMatchStartTimestamp: 所有未结束比赛中最早的开始时间（包括即将开始的和正在进行的）
-        if (!isFinished && timestamp < nextMatchStartTimestamp) {
+        // 只有当timestamp是有效值（大于0）时才更新
+        if (!isFinished && timestamp > 0 && timestamp < nextMatchStartTimestamp) {
           nextMatchStartTimestamp = timestamp;
+        }
+        
+        // lastMatchStartTimestamp: 所有已结束比赛中最晚的开始时间
+        if (isFinished && timestamp > 0 && timestamp > lastMatchStartTimestamp) {
+          lastMatchStartTimestamp = timestamp;
         }
 
         // 跨天比赛强制保留逻辑
