@@ -192,7 +192,7 @@ export class APIRouter {
       let teamsRaw = null;
       try {
         const githubClient = new GitHubClient(env);
-        teamsRaw = await githubClient.fetchJson("teams.json");
+        teamsRaw = await githubClient.fetchJson("config/teams.json");
       } catch (e) {}
 
       // 支持 overview_page 为数组或字符串
@@ -335,7 +335,7 @@ export class APIRouter {
       let teamsRaw = null;
       try {
         const githubClient = new GitHubClient(env);
-        teamsRaw = await githubClient.fetchJson("teams.json");
+        teamsRaw = await githubClient.fetchJson("config/teams.json");
       } catch (e) {}
 
       // 处理 overview_page：支持逗号分隔或 JSON 数组格式

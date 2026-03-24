@@ -27,8 +27,8 @@ export class Updater {
     let runtimeConfig = null;
     let teamsRaw = null;
     try {
-      teamsRaw = await this.githubClient.fetchJson("teams.json");
-      const tourns = await this.githubClient.fetchJson("tour.json");
+      teamsRaw = await this.githubClient.fetchJson("config/teams.json");
+      const tourns = await this.githubClient.fetchJson("config/tour.json");
       if (tourns) runtimeConfig = { TOURNAMENTS: tourns };
     } catch (e) {}
 

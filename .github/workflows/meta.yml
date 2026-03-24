@@ -83,12 +83,12 @@ jobs:
           old_teams = {}
           old_leagues = {}
           try:
-              with open("teams.json", "r", encoding="utf-8") as f:
+              with open("config/teams.json", "r", encoding="utf-8") as f:
                   old_teams = json.load(f)
           except:
               pass
           try:
-              with open("leagues.json", "r", encoding="utf-8") as f:
+              with open("config/leagues.json", "r", encoding="utf-8") as f:
                   old_leagues = json.load(f)
           except:
               pass
@@ -103,7 +103,7 @@ jobs:
               n, s = t.get("Name"), t.get("Short")
               if n and s:
                   team_map[n] = s
-          with open("teams.json", "w", encoding="utf-8") as f:
+          with open("config/teams.json", "w", encoding="utf-8") as f:
               json.dump(team_map, f, indent=2, ensure_ascii=False)
           print(f"✨ [TEAMS] 完成，共 {len(team_map)} 条\n")
 
@@ -117,7 +117,7 @@ jobs:
               lg, short = t.get("League"), t.get("League Short")
               if lg and short:
                   league_map[lg] = short
-          with open("leagues.json", "w", encoding="utf-8") as f:
+          with open("config/leagues.json", "w", encoding="utf-8") as f:
               json.dump(league_map, f, indent=2, ensure_ascii=False)
           print(f"✨ [LEAGUES] 完成，共 {len(league_map)} 条")
 

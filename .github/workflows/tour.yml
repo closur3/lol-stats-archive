@@ -37,7 +37,7 @@ jobs:
 
           now = datetime.now()
           today_dt = now.date()
-          TARGET_FILE = "tour.json"
+          TARGET_FILE = "config/tour.json"
 
           # ==================== 配置区 ====================
           PREHEAT_DAYS, EXPIRE_DAYS = 7, 1
@@ -208,7 +208,7 @@ jobs:
               log("INFO", f"系统初始化完成 (日期: {today_dt}) | 开始抓取赛事目录")
               log_sep()
 
-              LEAGUE_MAPPING = load_json("leagues.json", {})
+              LEAGUE_MAPPING = load_json("config/leagues.json", {})
 
               ALLOWED_REGIONS = set()
               if "Region" in CARGO_WHERE and CARGO_WHERE["Region"] is not None:
