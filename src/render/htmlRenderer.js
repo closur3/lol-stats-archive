@@ -431,8 +431,8 @@ export class HTMLRenderer {
         document.getElementById('modalTitle').innerText = title + " - " + dayNames[dayIndex];
         
         // 分离已结束和未开始的比赛
-        const finished = matches.filter(m => m.f);
-        const upcoming = matches.filter(m => !m.f);
+        const finished = matches.filter(m => m.done !== false);
+        const upcoming = matches.filter(m => m.done === false);
         
         // 已结束：日期降序（新到旧）
         finished.sort((a, b) => (b.fd || b.d).localeCompare(a.fd || a.d));
