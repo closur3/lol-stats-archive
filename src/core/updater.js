@@ -44,6 +44,12 @@ export class Updater {
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS);
     runtimeConfig.TOURNAMENTS = dateUtils.sortTournamentsByDate(runtimeConfig.TOURNAMENTS);
 
+    // 为每个锦标赛附加team_map
+    for (const tourn of (runtimeConfig.TOURNAMENTS || [])) {
+      const rawMatches = cache.rawMatches[tourn.slug] || [];
+      tourn.team_map = dataUtils.pickTeamMap(teamsRaw, tourn, rawMatches);
+    }
+
     // 确定需要更新的锦标赛
     const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force);
     if (candidates.length === 0) {
