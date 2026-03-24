@@ -317,6 +317,27 @@ export class Updater {
     const isAnon = (!authContext || authContext.isAnonymous);
     const authPrefix = isAnon ? "👻 " : "";
     
+    // 格式化倒计时信息
+    const formatCountdown = (slug) => {
+      const metaNow = analysis.tournMeta[slug] || oldTournMeta[slug] || { mode: "fast" };
+      const mode = metaNow.mode;
+      const modeIcon = mode === "slow" ? "🐌" : "⚡";
+      const countdownMins = mode === "slow"
+        ? Math.ceil(SLOW_THRESHOLD / 60000)
+        : 60; // 默认60分钟
+      return { modeIcon, countdownMins, mode };
+    };
+
+    // 格式化项目信息
+    const formatItem = (item) => {
+      const info = formatCountdown(item.slug);
+      const prefix = item.type === "delta" ? "+" : "*";
+      return `${item.dName} ${prefix}${item.count} (${info.modeIcon}${info.countdownMins}m)`;
+    };
+
+    const syncDetails = syncItems.map(formatItem);
+    const idleDetails = idleItems.map(formatItem);
+    
     // 模式切换检测
     const modeSwitches = [];
     Object.keys(analysis.tournMeta).forEach(slug => {
@@ -344,16 +365,11 @@ export class Updater {
 
     let trafficLight, action, content;
     
-    if (syncItems.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
+    if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
       trafficLight = "⚪"; action = "[IDLE]";
       
       let parts = [];
-      if (idleItems.length > 0) {
-        const idleDetails = idleItems.map(item => {
-          return item.dName;
-        });
-        parts.push(`🔍 ${idleDetails.join(", ")}`);
-      }
+      if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
       parts.push(`🟰 Identical`);
       if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
       
@@ -364,7 +380,7 @@ export class Updater {
       action = hasErr ? "[ERR!]" : "[SYNC]";
 
       let parts = [];
-      if (syncItems.length > 0) parts.push(`🔄 ${syncItems.length} items`);
+      if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
       if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
       if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
       if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
