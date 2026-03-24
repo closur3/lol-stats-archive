@@ -33,8 +33,13 @@ jobs:
 
           try:
               resp = requests.get(url, timeout=30)
-              resp.raise_for_status()
-              data = resp.json()
+              
+              # 尝试解析 JSON，即使 HTTP 状态码不是 200
+              try:
+                  data = resp.json()
+              except:
+                  resp.raise_for_status()
+                  data = {}
 
               if not isinstance(data, dict):
                   print("❌ 错误: Worker 返回的数据格式不是预期的 JSON 对象")
