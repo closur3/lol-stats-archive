@@ -107,7 +107,7 @@ export class APIRouter {
       const timeGrid = {};
       const scheduleMap = {};
       const tournMeta = {};
-      rawHomes.forEach(home => {
+      homeEntries.forEach(home => {
         if (home && home.tourn && home.stats) {
           const slug = home.tourn.slug;
           if (home.stats) globalStats[slug] = home.stats;
@@ -241,6 +241,17 @@ export class APIRouter {
 
       return new Response("OK", { status: 200 });
     } catch (err) {
+      logger.error(`🔴 [ERR!] | ❌ ${payload.league}(Fail) | ${err.message}`);
+      
+      // 记录日志
+      const newLogs = logger.logs;
+      if (newLogs.length > 0) {
+        const oldLogs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
+        let combinedLogs = [...newLogs, ...oldLogs];
+        if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+        await env.LOL_KV.put(KV_KEYS.LOGS, JSON.stringify(combinedLogs));
+      }
+      
       return new Response(`Error: ${err.message}`, { status: 500 });
     }
   }
@@ -279,7 +290,7 @@ export class APIRouter {
         await env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
       }
 
-      logger.success(`🗑️ [DELETE] | 📦 ${payload.slug}`);
+      logger.success(`🗑️ [DELETE] | 📦 ${payload.name || payload.slug}`);
       
       // 记录日志
       const newLogs = logger.logs;
