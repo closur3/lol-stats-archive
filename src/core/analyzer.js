@@ -242,7 +242,7 @@ export class Analyzer {
         }
       });
 
-      Object.values(stats).forEach(team => team.history.sort((a, b) => b.timestamp - a.timestamp));
+      Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
       globalStats[tournament.slug] = stats;
 
       const startTimestamp = nextMatchStartTimestamp !== Infinity ? nextMatchStartTimestamp : 0;
