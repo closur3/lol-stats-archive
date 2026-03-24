@@ -35,10 +35,15 @@ jobs:
               resp = requests.get(url, timeout=30)
               resp.raise_for_status()
               data = resp.json()
-              
+
               if not isinstance(data, dict):
                   print("❌ 错误: Worker 返回的数据格式不是预期的 JSON 对象")
                   exit(1)
+
+              # 如果返回 {"error": "No data"}，表示没有备份数据，正常退出
+              if data.get("error") == "No data":
+                  print("ℹ️  Worker 返回 No data，没有可备份的数据，正常退出")
+                  exit(0)
 
               changes_count = 0
               created_files = []
