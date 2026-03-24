@@ -427,12 +427,16 @@ export class HTMLRenderer {
     }
 
     function showPopup(title, dayIndex, matches) {
+        console.log('showPopup matches:', matches); // 调试
         const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Total"];
         document.getElementById('modalTitle').innerText = title + " - " + dayNames[dayIndex];
         
         // 分离已结束和未开始的比赛
         const finished = matches.filter(m => m.done !== false);
         const upcoming = matches.filter(m => m.done === false);
+        
+        console.log('finished:', finished.length, 'upcoming:', upcoming.length); // 调试
+        console.log('sample match done:', matches[0]?.done); // 调试
         
         // 已结束：日期降序（新到旧）
         finished.sort((a, b) => (b.fd || b.d).localeCompare(a.fd || a.d));
