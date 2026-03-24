@@ -308,17 +308,17 @@ export class Updater {
     
     // 模式切换检测
     const modeSwitches = [];
-    Object.keys(analysis.tournamentMeta).forEach(slug => {
+    Object.keys(analysis.tournMeta).forEach(slug => {
       const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
-      const newMode = analysis.tournamentMeta[slug].mode;
-      const intervalH = analysis.tournamentMeta[slug].matchIntervalHours || Infinity;
+      const newMode = analysis.tournMeta[slug].mode;
+      const intervalH = analysis.tournMeta[slug].matchIntervalHours || Infinity;
 
       if (oldMode !== newMode) {
         const tournament = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
         const displayName = tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
 
         let reason = "";
-        if (newMode === "fast" && analysis.tournamentMeta[slug].isStarted) {
+        if (newMode === "fast" && analysis.tournMeta[slug].isStarted) {
           reason = "MatchStarted";
         } else if (newMode === "fast") {
           reason = `Interval ${intervalH}h`;
@@ -363,7 +363,7 @@ export class Updater {
     try {
       const homeFragment = HTMLRenderer.renderContentOnly(
         analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-        runtimeConfig, false, analysis.tournamentMeta
+        runtimeConfig, false, analysis.tournMeta
       );
       const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
       const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
@@ -394,7 +394,7 @@ export class Updater {
       const ts = cache.updateTimestamps[slug] || 0;
       const stats = analysis.globalStats[slug] || {};
       const grid = analysis.timeGrid[slug] || {};
-      const tournamentMeta = analysis.tournamentMeta[slug] ? { [slug]: analysis.tournamentMeta[slug] } : {};
+      const tournamentMeta = analysis.tournMeta[slug] ? { [slug]: analysis.tournMeta[slug] } : {};
 
       const teamMap = tournament.team_map || {};
       const { team_map: _, ...tournamentStored } = tournament;
@@ -465,14 +465,14 @@ export class Updater {
       }
 
       const rawSnapshots = await Promise.all(dataKeys.map(k => this.env.LOL_KV.get(k.name, { type: "json" })));
-      const validSnapshots = rawSnapshots.filter(s => s && s.tournament && s.tournament.slug);
+      const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
       // 排序逻辑：start_date 倒序 > end_date 倒序 > slug 字母顺序
       validSnapshots.sort((a, b) => {
-        const aStart = a.tournament.start_date || '';
-        const bStart = b.tournament.start_date || '';
-        const aEnd = a.tournament.end_date || '';
-        const bEnd = b.tournament.end_date || '';
+        const aStart = a.tourn.start_date || '';
+        const bStart = b.tourn.start_date || '';
+        const aEnd = a.tourn.end_date || '';
+        const bEnd = b.tourn.end_date || '';
 
         // 主要排序：start_date 倒序（日期越晚越靠前）
         if (aStart !== bStart) {
@@ -489,18 +489,18 @@ export class Updater {
         }
 
         // 第三排序：slug 字母顺序（确保稳定性）
-        return (a.tournament.slug || '').localeCompare(b.tournament.slug || '');
+        return (a.tourn.slug || '').localeCompare(b.tourn.slug || '');
       });
 
       const combined = validSnapshots.map(snap => {
-        const tournamentWithMap = { ...snap.tournament, team_map: snap.team_map || {} };
+        const tournamentWithMap = { ...snap.tourn, team_map: snap.team_map || {} };
         const miniConfig = { TOURNAMENTS: [tournamentWithMap] };
-        const analysis = Analyzer.runFullAnalysis({ [snap.tournament.slug]: snap.rawMatches || [] }, {}, miniConfig);
-        const statsObj = analysis.globalStats[snap.tournament.slug] || {};
-        const timeObj = analysis.timeGrid[snap.tournament.slug] || {};
+        const analysis = Analyzer.runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches || [] }, {}, miniConfig);
+        const statsObj = analysis.globalStats[snap.tourn.slug] || {};
+        const timeObj = analysis.timeGrid[snap.tourn.slug] || {};
         const content = HTMLRenderer.renderContentOnly(
-          { [snap.tournament.slug]: statsObj },
-          { [snap.tournament.slug]: timeObj },
+          { [snap.tourn.slug]: statsObj },
+          { [snap.tourn.slug]: timeObj },
           {}, miniConfig, true
         );
         return content;

@@ -106,14 +106,14 @@ export class APIRouter {
       const globalStats = {};
       const timeGrid = {};
       const scheduleMap = {};
-      const tournamentMeta = {};
+      const tournMeta = {};
       rawHomes.forEach(home => {
         if (home && home.tourn && home.stats) {
           const slug = home.tourn.slug;
           if (home.stats) globalStats[slug] = home.stats;
           if (home.timeGrid) timeGrid[slug] = home.timeGrid;
           if (home.tournMeta && home.tournMeta[slug]) {
-            tournamentMeta[slug] = home.tournMeta[slug];
+            tournMeta[slug] = home.tournMeta[slug];
           }
         }
         const sch = home.scheduleMap || {};
@@ -137,7 +137,7 @@ export class APIRouter {
       const homeFragment = HTMLRenderer.renderContentOnly(
         globalStats, timeGrid, scheduleMap,
         runtimeConfig || { TOURNAMENTS: [] },
-        false, tournamentMeta
+        false, tournMeta
       );
       const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
       const existingHomeHTML = await env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);

@@ -297,7 +297,7 @@ export class Analyzer {
       });
     });
 
-    return { globalStats, timeGrid, scheduleMap, tournamentMeta };
+    return { globalStats, timeGrid, scheduleMap, tournMeta: tournamentMeta };
   }
 
   /**

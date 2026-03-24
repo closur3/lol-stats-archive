@@ -10,7 +10,7 @@ export class HTMLRenderer {
   /**
    * 渲染主要内容
    */
-  static renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, isArchive = false, tournamentMeta = {}) {
+  static renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, isArchive = false, tournMeta = {}) {
     globalStats = globalStats || {};
     timeData = timeData || {};
     scheduleMap = scheduleMap || {};
@@ -180,8 +180,8 @@ export class HTMLRenderer {
         const regionGrid = timeData[tournament.slug] || {};
         const timeTableHtml = buildTimeTable(regionGrid);
 
-        const emojiStr = (!isArchive && tournamentMeta[tournament.slug] && tournamentMeta[tournament.slug].emoji)
-            ? `<span ${STYLE_EMOJI}>${tournamentMeta[tournament.slug].emoji}</span>`
+        const emojiStr = (!isArchive && tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji)
+            ? `<span ${STYLE_EMOJI}>${tournMeta[tournament.slug].emoji}</span>`
             : "";
         const titleLink = `<a href="https://lol.fandom.com/wiki/${mainPage}" target="_blank">${tournament.name}</a>`;
 
