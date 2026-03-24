@@ -461,13 +461,28 @@ export class HTMLRenderer {
         
         // 已结束比赛区域
         if (finished.length > 0) {
-            listHtml.push('<div style="border-top:2px solid #10b981;margin:12px 0 8px 0;padding-top:8px;font-size:12px;font-weight:600;color:#10b981;">✅ 已结束</div>');
+            listHtml.push('<div style="border-top:2px solid #10b981;margin:8px 0;"></div>');
             finished.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
                 const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
                 listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
             });
         }
+        
+        // 未开始比赛区域
+        if (upcoming.length > 0) {
+            const marginTop = finished.length > 0 ? 'margin-top:16px;' : '';
+            listHtml.push('<div style="border-top:2px solid #3b82f6;margin:8px 0;' + marginTop + '"></div>');
+            upcoming.forEach(match => {
+                const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
+                const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
+            });
+        }
+        
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
+    }
         
         // 未开始比赛区域
         if (upcoming.length > 0) {
@@ -507,13 +522,28 @@ export class HTMLRenderer {
         
         // 已结束比赛区域
         if (finished.length > 0) {
-            listHtml.push('<div style="border-top:2px solid #10b981;margin:12px 0 8px 0;padding-top:8px;font-size:12px;font-weight:600;color:#10b981;">✅ 已结束</div>');
+            listHtml.push('<div style="border-top:2px solid #10b981;margin:8px 0;"></div>');
             finished.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
                 const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
                 listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
             });
         }
+        
+        // 未开始比赛区域
+        if (upcoming.length > 0) {
+            const marginTop = finished.length > 0 ? 'margin-top:16px;' : '';
+            listHtml.push('<div style="border-top:2px solid #3b82f6;margin:8px 0;' + marginTop + '"></div>');
+            upcoming.forEach(match => {
+                const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
+                const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
+            });
+        }
+        
+        renderListHTML(listHtml);
+        document.getElementById('matchModal').style.display="block";
+    }
         
         // 未开始比赛区域
         if (upcoming.length > 0) {
