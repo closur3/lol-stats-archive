@@ -344,17 +344,17 @@ jobs:
                       pass
 
               merged = {**base_dict, **{item["slug"]: item for item in final_output}}
-              
+
               def sort_key(x):
                   start_date = x.get("start_date", "")
                   end_date = x.get("end_date", "")
                   slug = x.get("slug", "")
-                  
+
                   # 主要按 start_date 倒序
                   # 次要按 end_date 倒序
                   # 第三按 slug 字母顺序（确保稳定性）
                   return (start_date, end_date, slug)
-              
+
               unique_res = sorted(merged.values(), key=sort_key, reverse=True)
 
               with open(TARGET_FILE, "w", encoding="utf-8") as f:

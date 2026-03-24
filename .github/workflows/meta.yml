@@ -125,13 +125,13 @@ jobs:
           removed_teams = set(old_teams.keys()) - set(team_map.keys())
           new_leagues = set(league_map.keys()) - set(old_leagues.keys())
           removed_leagues = set(old_leagues.keys()) - set(league_map.keys())
-          
+
           diff = []
           if new_teams or removed_teams:
               diff.append(f"teams +{len(new_teams)}/-{len(removed_teams)}")
           if new_leagues or removed_leagues:
               diff.append(f"leagues +{len(new_leagues)}/-{len(removed_leagues)}")
-          
+
           if diff:
               commit_msg = f"📋 Meta: {' | '.join(diff)}"
           else:

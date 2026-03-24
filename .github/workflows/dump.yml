@@ -24,7 +24,7 @@ jobs:
           import os
 
           url = os.environ.get("WORKER_URL")
-          
+
           if not url:
               print("❌ 错误: WORKER_URL 环境变量未设置")
               exit(1)
@@ -33,7 +33,7 @@ jobs:
 
           try:
               resp = requests.get(url, timeout=30)
-              
+
               # 尝试解析 JSON，即使 HTTP 状态码不是 200
               try:
                   data = resp.json()
@@ -56,14 +56,14 @@ jobs:
 
               for file_path, raw_template in data.items():
                   os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                  
+
                   if not os.path.exists(file_path):
                       print(f"✨ [新建] {file_path}")
                       created_files.append(file_path)
                   else:
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
-                      
+
                       if old_content != raw_template:
                           print(f"⚡ [更新] {file_path}: 检测到比赛数据或排名变动")
                           updated_files.append(file_path)
@@ -74,11 +74,11 @@ jobs:
                   with open(file_path, "w", encoding="utf-8") as f:
                       f.write(raw_template)
                   changes_count += 1
-              
+
               print(f"\n✅ 处理完成。共更新/新建 {changes_count} 个文件。")
 
               diff = [f"+ {os.path.basename(f)}" for f in created_files] + [f"~ {os.path.basename(f)}" for f in updated_files]
-              
+
               if len(diff) > 5:
                   commit_msg = f"📁 Dump: +{len(created_files)}, ~{len(updated_files)}"
               elif diff:
