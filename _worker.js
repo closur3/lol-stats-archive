@@ -2,7 +2,7 @@ const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 const GITHUB_COMMIT_BASE = "https://github.com/closur3/lol-stats-archive/commit/";
 
 // --- 1. 工具库 (Global UTC+8 Core) ---
-const CST_OFFSET = 8 * 60 * 60 * 1000; 
+const CST_OFFSET = 8 * 60 * 60 * 1000;
 
 const getHomeKey = (slug) => `HOME_${slug}`;
 
@@ -63,7 +63,7 @@ const pickTeamMap = (teamsRaw, tourn, rawMatches) => {
 const utils = {
     pad: (n) => n < 10 ? '0' + n : n,
     toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
-    
+
     timeParts: (ts) => {
         const d = utils.toCST(ts);
         return {
@@ -78,7 +78,7 @@ const utils = {
         const iso = `${p.y}-${p.mo}-${p.da} ${p.h}:${p.m}:${p.s}`;
         return { obj: utils.toCST(), full: iso, short: iso.slice(2), date: iso.slice(0, 10), time: iso.slice(11, 16) };
     },
-    
+
     fmtDate: (ts) => {
         if (!ts) return "(Pending)";
         const p = utils.timeParts(ts);
@@ -87,14 +87,14 @@ const utils = {
 
     rate: (n, d) => d > 0 ? n / d : null,
     pct: (r) => r !== null ? `${Math.round(r * 100)}%` : "-",
-    
+
     color: (r, rev = false) => {
-        if (r === null) return "#f1f5f9"; 
+        if (r === null) return "#f1f5f9";
         const val = Math.max(0, Math.min(1, r));
         const hue = rev ? (1 - val) * 140 : val * 140;
         return `hsl(${parseInt(hue)}, 55%, 50%)`;
     },
-    
+
     colorDate: (ts) => {
         if (!ts) return "#9ca3af";
         const diffDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
@@ -104,12 +104,12 @@ const utils = {
         if (diffDays <= 14) return "hsl(215, 40%, 60%)";
         return "hsl(215, 40%, 60%)";
     },
-    
+
     parseDate: (str) => {
         if(!str) return null;
         try { return new Date(str.replace(" ", "T") + "Z"); } catch(e) { return null; }
     },
-    
+
     extractCookies: (headers) => {
         if (!headers) return "";
         if (typeof headers.getSetCookie === 'function') {
@@ -160,7 +160,7 @@ const gh = {
         const url = `https://api.github.com/repos/${env.GITHUB_USER}/${env.GITHUB_REPO}/contents/${path}`;
         try {
             const r = await fetch(url, {
-                headers: { 
+                headers: {
                     "User-Agent": BOT_UA,
                     "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
                     "Accept": "application/vnd.github.v3+json"
@@ -193,11 +193,11 @@ async function loginToFandom(env) {
             headers: { "User-Agent": BOT_UA }
         });
         if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
-        
+
         const tokenData = await tokenResp.json();
         const loginToken = tokenData?.query?.tokens?.logintoken;
         if (!loginToken) throw new Error("Failed to get login token");
-        
+
         const step1Cookie = utils.extractCookies(tokenResp.headers);
 
         const params = new URLSearchParams();
@@ -209,7 +209,7 @@ async function loginToFandom(env) {
             headers: { "User-Agent": BOT_UA, "Cookie": step1Cookie }
         });
         const loginData = await loginResp.json();
-        
+
         if (loginData.login && loginData.login.result === "Success") {
             const step2Cookie = utils.extractCookies(loginResp.headers);
             const finalCookie = `${step1Cookie}; ${step2Cookie}`;
@@ -225,8 +225,8 @@ async function loginToFandom(env) {
 // --- 4. 抓取逻辑 (静默探针版) ---
 async function fetchWithRetry(url, authContext = null, maxRetries = 3) {
     let attempt = 1;
-    const headers = { 
-        "User-Agent": BOT_UA, "Accept": "application/json", "Accept-Encoding": "gzip, deflate, br" 
+    const headers = {
+        "User-Agent": BOT_UA, "Accept": "application/json", "Accept-Encoding": "gzip, deflate, br"
     };
     if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
 
@@ -238,24 +238,24 @@ async function fetchWithRetry(url, authContext = null, maxRetries = 3) {
                 const waitSecs = retryAfter ? parseInt(retryAfter) : 30;
                 throw new Error(`Wait ${waitSecs}s`);
             }
-            
+
             const rawBody = await r.text();
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            
+
             let data;
             try { data = JSON.parse(rawBody); } catch (e) { throw new Error(`JSON Parse Fail`); }
-            
+
             if (data.error) {
                 if (data.error.code === "maxlag") {
-                    const retryAfter = r.headers.get("Retry-After") || 5; 
+                    const retryAfter = r.headers.get("Retry-After") || 5;
                     throw new Error(`Wait ${retryAfter}s`);
                 }
                 throw new Error(`API Error [${data.error.code}]`);
             }
             if (!data.cargoquery) throw new Error(`Structure Error`);
-            return data.cargoquery; 
+            return data.cargoquery;
         } catch (e) {
-            let waitTimeMs = 15000 * Math.pow(2, attempt - 1); 
+            let waitTimeMs = 15000 * Math.pow(2, attempt - 1);
             const match = e.message.match(/Wait (\d+)s/);
             if (match) waitTimeMs = parseInt(match[1]) * 1000;
 
@@ -311,14 +311,14 @@ async function fetchAllMatches(slug, sourceInput, authContext, dateFilter = null
 // --- 5. 统计核心 ---
 function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlugs = new Set()) {
     const globalStats = {};
-    const tournMeta = {}; 
-    
+    const tournMeta = {};
+
     const timeGrid = { "ALL": {} };
     const createSlot = () => { const t = {}; for(let i=0; i<8; i++) t[i] = { total:0, full:0, matches:[] }; return t; };
-    timeGrid.ALL = createSlot(); 
+    timeGrid.ALL = createSlot();
 
     const todayStr = utils.getNow().date;
-    const allFutureMatches = {}; 
+    const allFutureMatches = {};
 
     const buildResolveName = (teamMap = {}) => {
         const teamMapEntries = Object.entries(teamMap || {}).map(([k, v]) => ({ k: k.toUpperCase(), v }));
@@ -356,14 +356,14 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
         let lastMatchStartTs = 0;
         const nowTs = Date.now();
         let hasLiveMatch = false;
-        
+
         const ensureTeam = (name) => { if(!stats[name]) stats[name] = { name, bo3_f:0, bo3_t:0, bo5_f:0, bo5_t:0, s_w:0, s_t:0, g_w:0, g_t:0, strk_w:0, strk_l:0, last:0, history:[] }; };
 
         rawMatches.forEach(m => {
             const t1 = resolveName(m.Team1 || m["Team 1"]);
             const t2 = resolveName(m.Team2 || m["Team 2"]);
-            if(!t1 || !t2) { return; } 
-            
+            if(!t1 || !t2) { return; }
+
             ensureTeam(t1); ensureTeam(t2);
 
             const s1 = parseInt(m.Team1Score)||0, s2 = parseInt(m.Team2Score)||0;
@@ -372,7 +372,7 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             const isLive = !isFinished && (s1 > 0 || s2 > 0 || (m.Team1Score !== "" && m.Team1Score != null));
             if (isLive) hasLiveMatch = true;
             const isFull = (bo===3 && Math.min(s1,s2)===1) || (bo===5 && Math.min(s1,s2)===2);
-            
+
             const dt = utils.parseDate(m.DateTime_UTC || m["DateTime UTC"]);
             let dateDisplay = "-", ts = 0;
 
@@ -382,17 +382,17 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                 const matchDateStr = `${p.y}-${p.mo}-${p.da}`;
                 const matchTimeStr = `${p.h}:${p.m}`;
                 dateDisplay = `${p.mo}-${p.da} ${matchTimeStr}`;
-                
+
                 // lastMatchStartTs: 所有已完赛比赛中最晚的开始时间（不管是不是今天）
                 if (isFinished && ts > lastMatchStartTs) {
                     lastMatchStartTs = ts;
                 }
-                
+
                 // nextMatchStartTs: 所有未结束比赛中最早的开始时间（包括即将开始的和正在进行的）
                 if (!isFinished && ts < nextMatchStartTs) {
                     nextMatchStartTs = ts;
                 }
-                
+
                 // 跨天比赛强制保留逻辑：昨天开始的比赛如果今天还在进行，则保留到今天赛程中；结束后保留至次日结束（48小时）
                 const isCrossDayKeep = matchDateStr < todayStr && ( (!isFinished && isLive) || (isFinished && (() => {
                     const matchDateUTC = new Date(matchDateStr + " 00:00:00 UTC");
@@ -407,9 +407,9 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     const tabName = m.Tab || "";
                     allFutureMatches[bucketDate].push({
                         time: matchTimeStr, t1: t1, t2: t2, s1: s1, s2: s2, bo: bo,
-                        is_finished: isFinished, is_live: isLive, 
+                        is_finished: isFinished, is_live: isLive,
                         league: tourn.league, slug: tourn.slug,
-                        tournIndex: tournIdx, tabName: tabName || ""  
+                        tournIndex: tournIdx, tabName: tabName || ""
                     });
                 }
 
@@ -421,18 +421,18 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
                     const targetH = parseInt(p.h, 10);
 
                     const matchObj = { d: `${p.mo}-${p.da} ${matchTimeStr}`, t1: t1, t2: t2, s: `${s1}-${s2}`, f: isFull, bo: bo };
-                    
+
                     if (!timeGrid[tourn.slug]) timeGrid[tourn.slug] = { "Total": createSlot() };
                     if (!timeGrid[tourn.slug][targetH]) timeGrid[tourn.slug][targetH] = createSlot();
-                    
+
                     const add = (grid, h, d) => { grid[h][d].total++; if(isFull) grid[h][d].full++; grid[h][d].matches.push(matchObj); };
-                    add(timeGrid[tourn.slug], targetH, pyDay);      
-                    add(timeGrid[tourn.slug], "Total", pyDay);      
-                    add(timeGrid[tourn.slug], targetH, 7);            
-                    add(timeGrid[tourn.slug], "Total", 7);            
+                    add(timeGrid[tourn.slug], targetH, pyDay);
+                    add(timeGrid[tourn.slug], "Total", pyDay);
+                    add(timeGrid[tourn.slug], targetH, 7);
+                    add(timeGrid[tourn.slug], "Total", 7);
                 }
             }
-            
+
             let resT1 = 'N', resT2 = 'N';
             if (isLive) { resT1 = 'LIV'; resT2 = 'LIV'; }
             else if (isFinished) {
@@ -453,19 +453,19 @@ function runFullAnalysis(allRawMatches, prevTournMeta, runtimeConfig, failedSlug
             if(stats[winner].strk_l > 0) { stats[winner].strk_l=0; stats[winner].strk_w=1; } else stats[winner].strk_w++;
             if(stats[loser].strk_w > 0) { stats[loser].strk_w=0; stats[loser].strk_l=1; } else stats[loser].strk_l++;
         });
-        
+
         Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
         globalStats[tourn.slug] = stats;
 
         const startTs = nextMatchStartTs !== Infinity ? nextMatchStartTs : 0;
-        
+
         const matchIntervalHours = (lastMatchStartTs > 0 && nextMatchStartTs !== Infinity)
             ? (nextMatchStartTs - lastMatchStartTs) / (1000 * 60 * 60)
             : Infinity;
-        
+
         const isStarted = nextMatchStartTs !== Infinity && nowTs >= nextMatchStartTs;
         const isNearInterval = matchIntervalHours < 8;
-        
+
         let nextMode;
         if (failedSlugs.has(tourn.slug)) {
             nextMode = prevT.mode || "fast";
@@ -548,10 +548,10 @@ function generateMarkdown(tourn, stats, timeGrid) {
     }
 
     md += `\n## \n📅 **Time Slot Distribution**\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
-    
+
     const regionGrid = timeGrid[tourn.slug] || {};
     const hours = Object.keys(regionGrid).filter(k => k !== "Total" && !isNaN(k)).map(Number).sort((a, b) => a - b);
-    
+
     [...hours, "Total"].forEach(h => {
         if (!regionGrid[h]) return;
             const label = h === "Total" ? `**Total**` : `**${String(h).padStart(2,'0')}:00**`;
@@ -566,7 +566,7 @@ function generateMarkdown(tourn, stats, timeGrid) {
         }
         md += line + "\n";
     });
-    
+
     return md;
 }
 
@@ -597,7 +597,7 @@ const PYTHON_STYLE = `
     td { padding: 12px 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.04); border: none !important; }
     tr { border: none !important; }
     .team-col { position: sticky; left: 0; background: white !important; z-index: 10; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.04), inset -1px -1px 2px rgba(0, 0, 0, 0.04) !important; border: none !important; outline: none !important; }
-    .team-clickable { cursor: pointer; } 
+    .team-clickable { cursor: pointer; }
     .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
     .table-title { padding: 15px; font-weight: 700; border-bottom: 2px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #fff; }
     .table-title a { color: #2563eb; text-decoration: none; }
@@ -625,7 +625,7 @@ const PYTHON_STYLE = `
     .sch-row .spine-r { padding: 4px 5px; margin-right: 0; }
     .spine-l.clickable:hover, .spine-r.clickable:hover, .spine-sep.clickable:hover { background-color: #eff6ff; color: #2563eb; cursor: pointer; }
     .t-cell { display: flex; align-items: center; width: 100%; height: 100%; }
-    .t-val { flex: 1; flex-basis: 0; text-align: right; font-weight: 700; padding-right: 4px; white-space: nowrap; } 
+    .t-val { flex: 1; flex-basis: 0; text-align: right; font-weight: 700; padding-right: 4px; white-space: nowrap; }
     .t-pct { flex: 1; flex-basis: 0; text-align: left; opacity: 0.9; font-size: 11px; font-weight: 700; padding-left: 4px; white-space: nowrap; }
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
     .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
@@ -668,7 +668,7 @@ const PYTHON_STYLE = `
         .league-summary { font-size: 11px; padding: 3px 8px; }
     }
     @media (max-width: 650px) { .sch-container { grid-template-columns: 1fr; } }
-    
+
     @keyframes modalShow { 0% { opacity: 0; transform: translate(-50%, -45%) scale(0.98); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
     .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; background-color: rgba(15, 23, 42, 0.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
     .modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #ffffff; margin: 0; padding: 0; border: 1px solid #e2e8f0; width: 90%; max-width: 420px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); animation: modalShow 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; display: flex; flex-direction: column; max-height: 80vh; }
@@ -720,7 +720,7 @@ const PYTHON_JS = `
     const STYLE_H2H_SUMMARY = 'style="color:#94a3b8;font-size:14px"';
     const STYLE_H2H_DASH = 'style="margin:0 1px"';
     const STYLE_MUTED_DASH = 'style="color:#cbd5e1"';
-    
+
     function doSort(c, id) {
         const t = document.getElementById(id), b = t.tBodies[0], r = Array.from(b.rows), k = 'data-sort-dir-' + c, cur = t.getAttribute(k);
         const defaultAscCols = [COL_TEAM, COL_BO3_PCT, COL_BO5_PCT];
@@ -728,10 +728,10 @@ const PYTHON_JS = `
 
         r.sort((ra, rb) => {
             let va = ra.cells[c].innerText, vb = rb.cells[c].innerText;
-            if (c === COL_LAST_DATE) { va = va === "-" ? "" : va; vb = vb === "-" ? "" : vb; } 
-            else if (c === COL_STREAK) { const ps = x => x === "-" ? 0 : (x.includes('W') ? parseInt(x) : -parseInt(x)); va = ps(va); vb = ps(vb); } 
+            if (c === COL_LAST_DATE) { va = va === "-" ? "" : va; vb = vb === "-" ? "" : vb; }
+            else if (c === COL_STREAK) { const ps = x => x === "-" ? 0 : (x.includes('W') ? parseInt(x) : -parseInt(x)); va = ps(va); vb = ps(vb); }
             else { va = parseValue(va); vb = parseValue(vb); }
-            
+
             if (va !== vb) return next === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
             if (c === COL_BO3_PCT || c === COL_BO5_PCT) { let sA = parseValue(ra.cells[COL_SERIES_WR].innerText), sB = parseValue(rb.cells[COL_SERIES_WR].innerText); if (sA !== sB) return sB - sA; }
             if (c === COL_SERIES) {
@@ -774,10 +774,10 @@ const PYTHON_JS = `
             return 0;
         });
 
-        t.setAttribute(k, next); 
+        t.setAttribute(k, next);
         r.forEach(x => b.appendChild(x));
     }
-    
+
     function parseValue(v) {
         if(v==="-")return -1; if(v.includes('%'))return parseFloat(v);
         if(v.includes('/')){let p=v.split('/');return p[1]==='-'?-1:parseFloat(p[0])/parseFloat(p[1]);}
@@ -788,7 +788,7 @@ const PYTHON_JS = `
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
         const dateParts = (date || '').split(' ');
         const dateHtml = dateParts.length === 2 ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + '>' + dateParts[1] + '</span>' : (date || '');
-        
+
         // 根据比赛结果添加边框样式类
         let matchItemClass = 'match-item';
         if (mode === 'history') {
@@ -798,10 +798,10 @@ const PYTHON_JS = `
                 matchItemClass += ' match-loss';
             }
         }
-        
+
         let scoreContent = '', scoreClass = 'score-text';
         if (resStatus === 'LIV') scoreClass += ' live';
-        if (resStatus === 'N') { scoreContent = '<span class="score-text vs">VS</span>'; } 
+        if (resStatus === 'N') { scoreContent = '<span class="score-text vs">VS</span>'; }
         else { const fmtScore = (score || '').toString().replace('-', '<span ' + STYLE_SCORE_DASH + '>-</span>'); scoreContent = '<span class="' + scoreClass + '">' + fmtScore + '</span>'; }
         const boxClass = isFull ? 'score-box is-full' : 'score-box';
         const t1Style = team1 === 'TBD' ? 'style="padding-right:5px;color:#9ca3af !important;"' : 'style="padding-right:5px;"', t2Style = team2 === 'TBD' ? 'style="padding-left:5px;color:#9ca3af !important;"' : 'style="padding-left:5px;"';
@@ -848,8 +848,8 @@ const PYTHON_JS = `
         const data = window.g_stats[slug][teamName];
         let history = data.history || [];
         let titleSuffix = "";
-        if (type === 'bo3') { history = history.filter(h => h.bo === 3); titleSuffix = " - BO3"; } 
-        else if (type === 'bo5') { history = history.filter(h => h.bo === 5); titleSuffix = " - BO5"; } 
+        if (type === 'bo3') { history = history.filter(h => h.bo === 3); titleSuffix = " - BO3"; }
+        else if (type === 'bo5') { history = history.filter(h => h.bo === 5); titleSuffix = " - BO5"; }
         else { titleSuffix = " - Series"; }
         document.getElementById('modalTitle').innerText = teamName + titleSuffix;
         const listHtml = history.map(h => {
@@ -1052,7 +1052,7 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, is
             let parts = [];
             if (t_bo3_t > 0) parts.push(`BO3: ${t_bo3_f}/${t_bo3_t} <span style="opacity:0.7;font-weight:400;">(${utils.pct(utils.rate(t_bo3_f, t_bo3_t))})</span>`);
             if (t_bo5_t > 0) parts.push(`BO5: ${t_bo5_f}/${t_bo5_t} <span style="opacity:0.7;font-weight:400;">(${utils.pct(utils.rate(t_bo5_f, t_bo5_t))})</span>`);
-            
+
             leagueSummaryHtml = `<div class="league-summary">${parts.join(" <span class='summary-sep'>|</span> ")}</div>`;
         }
 
@@ -1116,9 +1116,9 @@ function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, is
 async function generateArchiveStaticHTML(env) {
     try {
         const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
-        
+
         const dataKeys = allKeys.keys.filter(k => k.name !== "ARCHIVE_STATIC_HTML");
-        
+
         if (!dataKeys.length) {
             return renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "archive");
         }
@@ -1132,21 +1132,21 @@ async function generateArchiveStaticHTML(env) {
             const bStart = b.tourn.start_date || '';
             const aEnd = a.tourn.end_date || '';
             const bEnd = b.tourn.end_date || '';
-            
+
             // 主要排序：start_date 倒序（日期越晚越靠前）
             if (aStart !== bStart) {
                 if (!aStart) return 1; // 没有日期的排后面
                 if (!bStart) return -1;
                 return bStart.localeCompare(aStart);
             }
-            
+
             // 第二排序：end_date 倒序
             if (aEnd !== bEnd) {
                 if (!aEnd) return 1;
                 if (!bEnd) return -1;
                 return bEnd.localeCompare(aEnd);
             }
-            
+
             // 第三排序：slug 字母顺序（确保稳定性）
             return (a.tourn.slug || '').localeCompare(b.tourn.slug || '');
         });
@@ -1163,7 +1163,7 @@ async function generateArchiveStaticHTML(env) {
                 {}, miniConfig, true
             );
         }).join("");
-        
+
         return renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "archive");
     } catch (e) {
         return renderPageShell("LoL Archive Error", `<div class="arch-error-msg">Error generating archive: ${e.message}</div>`, "archive");
@@ -1247,9 +1247,9 @@ async function runUpdate(env, force=false) {
         if (tourns) runtimeConfig = { TOURNAMENTS: tourns };
     } catch (e) {}
 
-    if (!runtimeConfig) { 
-        l.error(`🔴 [ERR!] | ❌ Config(Fail)`); 
-        return l; 
+    if (!runtimeConfig) {
+        l.error(`🔴 [ERR!] | ❌ Config(Fail)`);
+        return l;
     }
 
     // Remove stale HOME_<slug> entries not in current tour.json
@@ -1284,26 +1284,26 @@ async function runUpdate(env, force=false) {
         const bStart = b.start_date || '';
         const aEnd = a.end_date || '';
         const bEnd = b.end_date || '';
-        
+
         // 主要排序：start_date 倒序（日期越晚越靠前）
         if (aStart !== bStart) {
             if (!aStart) return 1; // 没有日期的排后面
             if (!bStart) return -1;
             return bStart.localeCompare(aStart);
         }
-        
+
         // 第二排序：end_date 倒序
         if (aEnd !== bEnd) {
             if (!aEnd) return 1;
             if (!bEnd) return -1;
             return bEnd.localeCompare(aEnd);
         }
-        
+
         // 第三排序：slug 字母顺序（确保稳定性）
         return (a.slug || '').localeCompare(b.slug || '');
     });
 
-    if (!cache.rawMatches) cache.rawMatches = {}; 
+    if (!cache.rawMatches) cache.rawMatches = {};
     if (!cache.updateTimestamps) cache.updateTimestamps = {};
 
     // ========== 严格的阈值判断逻辑 ==========
@@ -1313,19 +1313,19 @@ async function runUpdate(env, force=false) {
     runtimeConfig.TOURNAMENTS.forEach(tourn => {
         const lastTs = cache.updateTimestamps[tourn.slug] || 0;
         const elapsed = NOW - lastTs;
-        
+
         const tMetaFromKV = (meta.tournaments && meta.tournaments[tourn.slug]);
-        
+
         if (!tMetaFromKV) {
             console.log(`[THRESHOLD] ${tourn.slug}: NO_KV_DATA, use fast mode, threshold=0`);
-            candidates.push({ 
+            candidates.push({
                 slug: tourn.slug, overview_page: tourn.overview_page, league: tourn.league,
                 mode: "fast",
                 start_date: tourn.start_date || null
             });
             return;
         }
-        
+
         const currentMode = tMetaFromKV.mode;
         const startTs = tMetaFromKV.startTs || 0;
 
@@ -1383,7 +1383,7 @@ async function runUpdate(env, force=false) {
     const idleItems = [];
     const breakers = [];
     const apiErrors = [];
-    
+
     results.forEach(res => {
         const c = batch.find(b => b.slug === res.slug);
         const dName = c.league;
@@ -1391,7 +1391,7 @@ async function runUpdate(env, force=false) {
             const slug = res.slug;
             const newData = res.data || [];
             const oldData = cache.rawMatches[slug] || [];
-            
+
             if (res.isDelta) {
                 if (newData.length > 0) {
                     const matchMap = new Map();
@@ -1489,7 +1489,7 @@ async function runUpdate(env, force=false) {
     }
 
     const oldTournMeta = meta.tournaments || {};
-    const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs); 
+    const analysis = runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs);
 
     // ========== 模式切换检测 ==========
     const modeSwitches = [];
@@ -1497,11 +1497,11 @@ async function runUpdate(env, force=false) {
         const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
         const newMode = analysis.tournMeta[slug].mode;
         const intervalH = analysis.tournMeta[slug].matchIntervalHours || Infinity;
-        
+
         if (oldMode !== newMode) {
             const t = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
             const dName = t ? (t.league || t.name || slug.toUpperCase()) : slug;
-            
+
             let reason = "";
             if (newMode === "fast" && analysis.tournMeta[slug].isStarted) {
                 reason = "MatchStarted";
@@ -1510,7 +1510,7 @@ async function runUpdate(env, force=false) {
             } else {
                 reason = `Interval ${intervalH}h`;
             }
-            
+
             const arrow = oldMode === "fast" ? "⚡->🐌" : "🐌->⚡";
             modeSwitches.push(`${dName}(${arrow} ${reason})`);
         }
@@ -1555,13 +1555,13 @@ async function runUpdate(env, force=false) {
         const hasErr = apiErrors.length > 0 || breakers.length > 0;
         trafficLight = hasErr ? "🔴" : "🟢";
         action = hasErr ? "[ERR!]" : "[SYNC]";
-        
+
         let parts = [];
         if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
         if (modeSwitches.length > 0) parts.push(`⚙️ ${modeSwitches.join(", ")}`);
         if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
         if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
-        
+
         content = parts.join(" | ");
     }
 
@@ -1572,7 +1572,7 @@ async function runUpdate(env, force=false) {
     try {
         const homeFragment = renderContentOnly(
             analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-            runtimeConfig, false, analysis.tournMeta 
+            runtimeConfig, false, analysis.tournMeta
         );
         const fullPage = renderPageShell("LoL Insights", homeFragment, "home");
         const existingHomeHTML = await env.LOL_KV.get("HOME_STATIC_HTML");
@@ -1614,7 +1614,7 @@ async function runUpdate(env, force=false) {
             tournMeta: tMeta,
             team_map: teamMap
         };
-        
+
         // 数据变化检测
         const homeKey = getHomeKey(slug);
         const existingHome = await env.LOL_KV.get(homeKey, { type: "json" });
@@ -1631,18 +1631,18 @@ async function runUpdate(env, force=false) {
             const snapshot = { tourn: tournStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
             const archiveKey = `ARCHIVE_${slug}`;
             const existingArchive = await env.LOL_KV.get(archiveKey, { type: "json" });
-            const archiveHasChanges = !existingArchive || 
+            const archiveHasChanges = !existingArchive ||
                 JSON.stringify(existingArchive.rawMatches || []) !== JSON.stringify(raw);
-            
+
             if (archiveHasChanges) {
                 writePromises.push(env.LOL_KV.put(archiveKey, JSON.stringify(snapshot)));
             }
         }
     }
-    
+
     // 并行写入所有数据
     await Promise.all(writePromises);
-    
+
     // 只有当有数据变化时才重新生成归档HTML
     if (syncItems.length > 0) {
         const archiveHTML = await generateArchiveStaticHTML(env);
@@ -1653,13 +1653,13 @@ async function runUpdate(env, force=false) {
     }
 
 
-    
+
     return l;
 }
 
 async function runCustomRebuild(env, payload) {
     const l = new Logger();
-    
+
     const authContext = await loginToFandom(env);
 
     try {
@@ -1671,7 +1671,7 @@ async function runCustomRebuild(env, payload) {
         // 支持 overview_page 为数组或字符串
         const overviewPages = Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page];
         const matches = await fetchAllMatches(payload.slug, overviewPages, authContext, null);
-        
+
         if (matches && matches.length > 0) {
             const tourn = {
                 slug: payload.slug,
@@ -1682,17 +1682,17 @@ async function runCustomRebuild(env, payload) {
                 end_date: payload.end_date || null
             };
             const teamMap = pickTeamMap(teamsRaw, tourn, matches);
-            
+
             const snapshot = {
                 tourn: tourn,
                 rawMatches: matches,
                 updateTimestamps: { [payload.slug]: Date.now() },
                 team_map: teamMap
             };
-            
+
             await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
             l.success(`🟢 [SYNC] | 🔄 ${payload.league} *${matches.length} | ⚙️ Rebuild Archive`);
-            
+
             const archiveHTML = await generateArchiveStaticHTML(env);
             const existingArchiveHTML = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
             if (existingArchiveHTML !== archiveHTML) {
@@ -1706,7 +1706,7 @@ async function runCustomRebuild(env, payload) {
         l.error(`🔴 [ERR!] | ❌ ${payload.league}(Fail) | ${e.message}`);
         throw e;
     }
-    
+
     return l;
 }
 
@@ -1757,7 +1757,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             ${COMMON_STYLE}
             body { min-height: 100dvh; display: flex; flex-direction: column; margin: 0; }
             .container { flex: 1; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-            
+
             .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
             .table-title { padding: 15px 20px; font-weight: 700; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; box-sizing: border-box; }
             .section-body { padding: 25px 20px; box-sizing: border-box; }
@@ -1771,14 +1771,14 @@ function renderToolsPage(time, sha, existingArchives = []) {
 
             .primary-btn { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
             .primary-btn:hover { background: #1d4ed8; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
-            
+
             .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
             .form-group { display: flex; flex-direction: column; }
             .tool-label { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px; padding-left: 2px; }
             .form-input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; color: #0f172a; box-sizing: border-box; transition: all 0.2s; background: #f8fafc; }
             .form-input:focus { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); outline: none; }
             .form-input::placeholder { color: #94a3b8; }
-            
+
             /* 修改后的代码：使用 Grid 布局实现一行两个 */
             .qr-list-container { max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #f8fafc; margin-bottom: 15px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
             .qr-item { display: flex; align-items: center; gap: 6px; }
@@ -1798,7 +1798,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             @media (max-width: 650px) { .form-grid { grid-template-columns: 1fr; gap: 12px; } .flex-row { flex-direction: column; align-items: stretch; text-align: left; } .primary-btn, .secondary-btn { width: 100%; } .actions-row-end { flex-direction: column; } .qr-list-container { grid-template-columns: 1fr; } }
 
             ${BUILD_FOOTER_STYLE}
-            
+
             /* Clean Glass Auth Overlay */
             #auth-overlay { position: fixed; inset: 0; background: rgba(241,245,249,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999; }
             .auth-card { background: #fff; padding: 35px 30px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); width: 340px; text-align: center; box-sizing: border-box; border: 1px solid #e2e8f0; }
@@ -1807,7 +1807,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             .auth-subtitle { color: #64748b; font-size: 13px; margin-bottom: 25px; line-height: 1.4; }
             .auth-btn { width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
             .auth-input { text-align: center; font-family: monospace; letter-spacing: 2px; margin-bottom: 20px; padding: 12px; }
-            
+
             /* Toast 通知 */
             #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; width: auto; max-width: 92vw; }
             .toast { display: inline-flex; align-items: center; width: fit-content; max-width: min(92vw, 460px); color: #1e293b; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); border: 1px solid #d9ecff; padding: 11px 14px; border-radius: 14px; font-size: 13px; line-height: 1.45; font-weight: 600; letter-spacing: 0.1px; box-shadow: 0 12px 28px -18px rgba(14,116,144,0.45), 0 3px 10px rgba(148,163,184,0.18); opacity: 0; transform: translateY(-10px) scale(0.985); transition: opacity 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease; text-align: left; word-break: break-word; }
@@ -1838,7 +1838,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 ${renderActionBtn("/logs", "📜", "Logs")}
             </div>
         </header>
-        
+
         <div class="container">
             ${renderTaskCard("🎨 UI Customization", "Local UI Refresh", "Regenerate static HTML using existing cached data. No API calls.", "btn-refresh", "/refresh-ui", "Refresh HTML")}
 
@@ -1862,7 +1862,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 <div class="table-title">📦 Manual Archive</div>
                 <div class="section-body">
                     <div class="tool-info-desc tool-info-desc-spaced">Manually add tournament metadata. This only stores configuration without fetching data from Fandom.</div>
-                    
+
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="tool-label">Slug</label>
@@ -1897,7 +1897,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             </div>
         </div>
         ${buildFooter}
-        
+
         <script>
             const authOverlay = document.getElementById("auth-overlay");
             const authPwdInput = document.getElementById("auth-pwd");
@@ -1938,12 +1938,12 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 toast.className = 'toast ' + type;
                 toast.innerText = msg;
                 toastContainer.appendChild(toast);
-                void toast.offsetWidth; 
+                void toast.offsetWidth;
                 toast.classList.add('show');
                 setTimeout(() => {
                     toast.classList.remove('show');
                     setTimeout(() => toast.remove(), 300);
-                }, TOAST_DURATION_MS); 
+                }, TOAST_DURATION_MS);
             }
 
             function unlockTools() {
@@ -2047,7 +2047,7 @@ function renderToolsPage(time, sha, existingArchives = []) {
             // 手动存档功能（仅存储元数据）
             async function submitManualArchive() {
                 if (!requireAuth()) return;
-                
+
                 const payload = {
                     slug: document.getElementById('ma-slug').value.trim(),
                     name: document.getElementById('ma-name').value.trim(),
@@ -2066,10 +2066,10 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 const restoreBtn = setButtonBusy(btn, '⏳ Saving...');
 
                 try {
-                    const body = JSON.stringify({ 
-                        slug: payload.slug, 
-                        name: payload.name, 
-                        overview_page: payload.overview, 
+                    const body = JSON.stringify({
+                        slug: payload.slug,
+                        name: payload.name,
+                        overview_page: payload.overview,
                         league: payload.league,
                         start_date: payload.start_date,
                         end_date: payload.end_date
@@ -2121,16 +2121,16 @@ function renderToolsPage(time, sha, existingArchives = []) {
                         start_date: chk.getAttribute('data-start') || null,
                         end_date: chk.getAttribute('data-end') || null
                     };
-                    
+
                     try {
                         showToast("⏳ Fetching: " + payload.name, "success");
                         const res = await sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload));
-                        
+
                         if (checkAuthError(res.status)) {
                             restoreBtn();
                             return;
                         }
-                        
+
                         if (res.ok) {
                             successCount++;
                             showToast("✅ Completed: " + payload.name, "success");
@@ -2162,9 +2162,9 @@ function renderToolsPage(time, sha, existingArchives = []) {
                 try {
                     showToast("⏳ Deleting: " + name, "success");
                     const res = await sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug }));
-                    
+
                     if (checkAuthError(res.status)) return;
-                    
+
                     if (res.ok) {
                         showToast("✅ Archive deleted: " + name, "success");
                         setTimeout(() => window.location.reload(), REDIRECT_DELAY_MS);
@@ -2176,41 +2176,41 @@ function renderToolsPage(time, sha, existingArchives = []) {
                     showToast("❌ Network Error", "error");
                 }
             }
-            
+
             // 填充存档到手动存档表单
             function fillArchive(slug) {
                 const checkbox = document.querySelector('.qr-chk[value="' + slug + '"]');
                 if (!checkbox) return;
-                
+
                 const name = checkbox.getAttribute('data-name');
                 const overviewAttr = checkbox.getAttribute('data-overview');
                 const league = checkbox.getAttribute('data-league');
                 const startDate = checkbox.getAttribute('data-start');
                 const endDate = checkbox.getAttribute('data-end');
-                
+
                 let overviewPage;
                 try {
                     overviewPage = JSON.parse(overviewAttr);
                 } catch (e) {
                     overviewPage = overviewAttr;
                 }
-                
+
                 // 填充到 Manual Archive 表单
                 document.getElementById('ma-slug').value = slug;
                 document.getElementById('ma-name').value = name;
-                
+
                 if (Array.isArray(overviewPage)) {
                     document.getElementById('ma-overview').value = overviewPage.join(', ');
                 } else {
                     document.getElementById('ma-overview').value = overviewPage || '';
                 }
-                
+
                 document.getElementById('ma-league').value = league || '';
                 document.getElementById('ma-start').value = startDate || '';
                 document.getElementById('ma-end').value = endDate || '';
-                
+
                 showToast('✅ Filled to Manual Archive. Modify and save!', 'success');
-                
+
                 // 滚动到 Manual Archive 区域
                 document.getElementById('ma-slug').scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
@@ -2243,7 +2243,7 @@ function renderLogPage(logs, time, sha) {
         .log-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; list-style: none; margin: 0; padding: 0; }
         .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 20px; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; align-items: center; }
         .log-entry:nth-child(even) { background-color: #f8fafc; }
-        
+
         code.log-time, code.log-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace !important; background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; }
         .log-time { color: #64748b; font-size: 13px; white-space: nowrap; font-weight: 400; }
         .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 4px 0; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -2251,11 +2251,11 @@ function renderLogPage(logs, time, sha) {
         .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
         .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
         code.log-msg { color: #334155; word-break: break-all; line-height: 1.6; font-weight: 600; white-space: pre-wrap; display: block; font-size: 14px; }
-        
+
         .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
         .logs-container-tight { padding: 0; width: calc(100% - 30px); }
         ${BUILD_FOOTER_STYLE}
-        
+
         @media (max-width: 650px) { .log-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 15px; } .log-time { font-size: 12px; } .log-level { display: inline-flex; width: auto; padding: 3px 8px; font-size: 11px; } code.log-msg { width: 100%; margin-top: 2px; font-size: 14px; } }
     </style>
 </head>
@@ -2372,7 +2372,7 @@ export default {
                     const homeFragment = renderContentOnly(
                         globalStats, timeGrid, scheduleMap,
                         runtimeConfig || { TOURNAMENTS: [] },
-                        false, tournMeta 
+                        false, tournMeta
                     );
                     const fullPage = renderPageShell("LoL Insights", homeFragment, "home");
                     const existingHomeHTML = await env.LOL_KV.get("HOME_STATIC_HTML");
@@ -2386,7 +2386,7 @@ export default {
                     if (existingArchiveHTML !== archiveHTML) {
                         writePromises.push(env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML));
                     }
-                    
+
                     await Promise.all(writePromises);
 
                     return okResponse();
@@ -2394,7 +2394,7 @@ export default {
                     return textResponse(`Render Error: ${err.message}`, 500);
                 }
             }
-            
+
             case "/rebuild-archive": {
                 if (request.method !== "POST") return methodNotAllowedResponse();
                 if (isUnauthorized(request, env)) return unauthorizedResponse();
@@ -2431,17 +2431,17 @@ export default {
                 try {
                     const logger = new Logger();
                     await env.LOL_KV.delete(`ARCHIVE_${payload.slug}`);
-                    
+
                     // 重新生成 archive HTML
                     const archiveHTML = await generateArchiveStaticHTML(env);
                     const existingArchiveHTML = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
                     if (existingArchiveHTML !== archiveHTML) {
                         await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
                     }
-                    
+
                     logger.success(`🗑️ [DELETE] | 📦 ${payload.name}`);
                     await appendLogs(env, logger);
-                    
+
                     return okResponse();
                 } catch (err) {
                     return textResponse(`Delete Error: ${err.message}`, 500);
@@ -2469,7 +2469,7 @@ export default {
                     try {
                         teamsRaw = await gh.fetchJson(env, "teams.json");
                     } catch (e) {}
-                    
+
                     // 处理 overview_page：支持逗号分隔或 JSON 数组格式
                     let overviewPages = payload.overview_page;
                     if (typeof overviewPages === 'string') {
@@ -2486,7 +2486,7 @@ export default {
                     } else if (!Array.isArray(overviewPages)) {
                         overviewPages = [overviewPages];
                     }
-                    
+
                     // 创建空的存档（仅元数据，无比赛数据）
                     const snapshot = {
                         tourn: {
@@ -2501,19 +2501,19 @@ export default {
                         updateTimestamps: { [payload.slug]: Date.now() },
                         team_map: pickTeamMap(teamsRaw, { slug: payload.slug, league: payload.league }, [])
                     };
-                    
+
                     await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
-                    
+
                     // 重新生成 archive HTML
                     const archiveHTML = await generateArchiveStaticHTML(env);
                     const existingArchiveHTML = await env.LOL_KV.get("ARCHIVE_STATIC_HTML");
                     if (existingArchiveHTML !== archiveHTML) {
                         await env.LOL_KV.put("ARCHIVE_STATIC_HTML", archiveHTML);
                     }
-                    
+
                     logger.success(`📦 [MANUAL] | 📝 ${payload.name}`);
                     await appendLogs(env, logger);
-                    
+
                     return okResponse();
                 } catch (err) {
                     return textResponse(`Save Error: ${err.message}`, 500);
@@ -2532,7 +2532,7 @@ export default {
                 } catch(e) {
                     console.error("Error fetching archives for tools page", e);
                 }
-                
+
                 return htmlResponse(renderToolsPage(time, sha, existingArchives));
             }
 
@@ -2540,7 +2540,7 @@ export default {
                 const logs = await env.LOL_KV.get("LOGS", { type: "json" }) || [];
                 return htmlResponse(renderLogPage(logs, time, sha));
             }
-            
+
             case "/archive": {
                 return respondCachedHtml(
                     env,
