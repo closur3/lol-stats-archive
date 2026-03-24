@@ -18,16 +18,16 @@ export class APIRouter {
     const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
     const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
     const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
-    rawHomes.forEach(home => {
-      if (home && home.tournament && home.stats) {
-        const slug = home.tournament.slug;
-        payload[`markdown/${slug}.md`] = HTMLRenderer.generateMarkdown(
-          home.tournament,
-          home.stats,
-          { [slug]: home.timeGrid || {} }
-        );
-      }
-    });
+      rawHomes.forEach(home => {
+        if (home && home.tourn && home.stats) {
+          const slug = home.tourn.slug;
+          payload[`markdown/${slug}.md`] = HTMLRenderer.generateMarkdown(
+            home.tourn,
+            home.stats,
+            { [slug]: home.timeGrid || {} }
+          );
+        }
+      });
     if (Object.keys(payload).length === 0) {
       return new Response(JSON.stringify({ error: "No data" }), { 
         status: 503, 
@@ -81,10 +81,10 @@ export class APIRouter {
       const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
       const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
       const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
-      const homeEntries = rawHomes.filter(h => h && h.tournament);
+      const homeEntries = rawHomes.filter(h => h && h.tourn);
 
       // 排序锦标赛
-      const sortedTourns = homeEntries.map(h => h.tournament).sort((matchA, matchB) => {
+      const sortedTourns = homeEntries.map(h => h.tourn).sort((matchA, matchB) => {
         const aStart = matchA.start_date || '';
         const bStart = matchB.start_date || '';
         const aEnd = matchA.end_date || '';
@@ -108,12 +108,12 @@ export class APIRouter {
       const scheduleMap = {};
       const tournamentMeta = {};
       rawHomes.forEach(home => {
-        if (home && home.tournament && home.stats) {
-          const slug = home.tournament.slug;
+        if (home && home.tourn && home.stats) {
+          const slug = home.tourn.slug;
           if (home.stats) globalStats[slug] = home.stats;
           if (home.timeGrid) timeGrid[slug] = home.timeGrid;
-          if (home.tournamentMeta && home.tournamentMeta[slug]) {
-            tournamentMeta[slug] = home.tournamentMeta[slug];
+          if (home.tournMeta && home.tournMeta[slug]) {
+            tournamentMeta[slug] = home.tournMeta[slug];
           }
         }
         const sch = home.scheduleMap || {};
@@ -124,7 +124,7 @@ export class APIRouter {
       });
       Object.keys(scheduleMap).forEach(date => {
         scheduleMap[date].sort((matchA, matchB) => {
-          if (matchA.tournamentIndex !== matchB.tournamentIndex) return matchA.tournamentIndex - matchB.tournamentIndex;
+          if (matchA.tournIndex !== matchB.tournIndex) return matchA.tournIndex - matchB.tournIndex;
           return matchA.time.localeCompare(matchB.time);
         });
       });
@@ -211,7 +211,7 @@ export class APIRouter {
         const teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, matches);
 
         const snapshot = {
-          tournament: tournament,
+          tourn: tournament,
           rawMatches: matches,
           updateTimestamps: { [payload.slug]: Date.now() },
           team_map: teamMap
@@ -346,7 +346,7 @@ export class APIRouter {
 
       // 创建空的存档（仅元数据，无比赛数据）
       const snapshot = {
-        tournament: {
+        tourn: {
           slug: payload.slug,
           name: payload.name,
           overview_page: overviewPages,
@@ -407,14 +407,14 @@ export class APIRouter {
       }
 
       const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-      const validSnapshots = rawSnapshots.filter(s => s && s.tournament && s.tournament.slug);
+      const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
       // 排序逻辑：start_date 倒序 > end_date 倒序 > slug 字母顺序
       validSnapshots.sort((a, b) => {
-        const aStart = a.tournament.start_date || '';
-        const bStart = b.tournament.start_date || '';
-        const aEnd = a.tournament.end_date || '';
-        const bEnd = b.tournament.end_date || '';
+        const aStart = a.tourn.start_date || '';
+        const bStart = b.tourn.start_date || '';
+        const aEnd = a.tourn.end_date || '';
+        const bEnd = b.tourn.end_date || '';
 
         // 主要排序：start_date 倒序（日期越晚越靠前）
         if (aStart !== bStart) {
@@ -431,21 +431,20 @@ export class APIRouter {
         }
 
         // 第三排序：slug 字母顺序（确保稳定性）
-        return (a.tournament.slug || '').localeCompare(b.tournament.slug || '');
+        return (a.tourn.slug || '').localeCompare(b.tourn.slug || '');
       });
 
       const combined = validSnapshots.map(snap => {
-        const tournamentWithMap = { ...snap.tournament, team_map: snap.team_map || {} };
+        const tournamentWithMap = { ...snap.tourn, team_map: snap.team_map || {} };
         const miniConfig = { TOURNAMENTS: [tournamentWithMap] };
-        const analysis = Analyzer.runFullAnalysis({ [snap.tournament.slug]: snap.rawMatches || [] }, {}, miniConfig);
-        const statsObj = analysis.globalStats[snap.tournament.slug] || {};
-        const timeObj = analysis.timeGrid[snap.tournament.slug] || {};
+        const analysis = Analyzer.runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches || [] }, {}, miniConfig);
+        const statsObj = analysis.globalStats[snap.tourn.slug] || {};
+        const timeObj = analysis.timeGrid[snap.tourn.slug] || {};
         return HTMLRenderer.renderContentOnly(
-          { [snap.tournament.slug]: statsObj },
-          { [snap.tournament.slug]: timeObj },
+          { [snap.tourn.slug]: statsObj },
+          { [snap.tourn.slug]: timeObj },
           {}, miniConfig, true
         );
-        return content;
       }).join("");
 
       return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "archive");

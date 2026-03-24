@@ -106,7 +106,7 @@ export class Updater {
     homeEntries.forEach(([slug, home]) => {
       if (home && home.rawMatches) cache.rawMatches[slug] = home.rawMatches;
       if (home && home.updateTimestamps && home.updateTimestamps[slug]) cache.updateTimestamps[slug] = home.updateTimestamps[slug];
-      if (home && home.tournamentMeta && home.tournamentMeta[slug]) cache.meta.tournaments[slug] = home.tournamentMeta[slug];
+      if (home && home.tournMeta && home.tournMeta[slug]) cache.meta.tournaments[slug] = home.tournMeta[slug];
     });
     
     return cache;
@@ -400,13 +400,13 @@ export class Updater {
       const { team_map: _, ...tournamentStored } = tournament;
 
       const homeSnapshot = {
-        tournament: tournamentStored,
+        tourn: tournamentStored,
         rawMatches: raw,
         updateTimestamps: { [slug]: ts },
         stats: stats,
         timeGrid: grid,
         scheduleMap: scheduleBySlug[slug] || {},
-        tournamentMeta: tournamentMeta,
+        tournMeta: tournamentMeta,
         team_map: teamMap
       };
 
@@ -415,7 +415,7 @@ export class Updater {
       const existingHome = await this.env.LOL_KV.get(homeKey, { type: "json" });
       const homeHasChanges = !existingHome ||
           JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw) ||
-          JSON.stringify(existingHome.tournamentMeta || {}) !== JSON.stringify(tournamentMeta) ||
+          JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tournamentMeta) ||
           JSON.stringify(existingHome.updateTimestamps || {}) !== JSON.stringify({ [slug]: ts });
 
       if (homeHasChanges) {
@@ -424,7 +424,7 @@ export class Updater {
 
       // 保存归档数据
       if (stats && Object.keys(stats).length > 0) {
-        const snapshot = { tournament: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
+        const snapshot = { tourn: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
         const archiveKey = `ARCHIVE_${slug}`;
         const existingArchive = await this.env.LOL_KV.get(archiveKey, { type: "json" });
         const archiveHasChanges = !existingArchive ||

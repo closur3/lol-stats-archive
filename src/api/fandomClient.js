@@ -90,7 +90,7 @@ export class FandomClient {
 
         if (data.error) {
           if (data.error.code === "maxlag") {
-            const retryAfter = r.headers.get("Retry-After") || 5;
+            const retryAfter = response.headers.get("Retry-After") || 5;
             throw new Error(`Wait ${retryAfter}s`);
           }
           throw new Error(`API Error [${data.error.code}]`);

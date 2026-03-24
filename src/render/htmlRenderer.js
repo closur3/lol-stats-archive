@@ -385,16 +385,16 @@ export class HTMLRenderer {
         // 根据比赛结果添加边框样式类
         let matchItemClass = 'match-item';
         if (mode === 'history') {
-            if (matchStatus === 'WIN') {
+            if (resStatus === 'WIN') {
                 matchItemClass += ' match-win';
-            } else if (matchStatus === 'LOSS') {
+            } else if (resStatus === 'LOSS') {
                 matchItemClass += ' match-loss';
             }
         }
 
         let scoreContent = '', scoreClass = 'score-text';
-        if (matchStatus === 'LIVE') scoreClass += ' live';
-        if (matchStatus === 'UPCOMING') { 
+        if (resStatus === 'LIVE') scoreClass += ' live';
+        if (resStatus === 'UPCOMING') { 
           scoreContent = '<span class="score-text vs">VS</span>'; 
         } else { 
           const formattedScore = (score || '').toString().replace('-', '<span ' + STYLE_SCORE_DASH + '>-</span>'); 

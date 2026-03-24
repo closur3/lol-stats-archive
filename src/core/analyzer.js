@@ -133,7 +133,7 @@ export class Analyzer {
               is_live: isLive,
               league: tournament.league, 
               slug: tournament.slug,
-              tournamentIndex: tournamentIndex, 
+              tournIndex: tournamentIndex, 
               tabName: tabName || ""
             });
           }
@@ -292,7 +292,7 @@ export class Analyzer {
     const sortedFutureDates = Object.keys(allFutureMatches).sort();
         sortedFutureDates.slice(0, 4).forEach(date => {
       scheduleMap[date] = allFutureMatches[date].sort((matchA, matchB) => {
-        if (matchA.tournamentIndex !== matchB.tournamentIndex) return matchA.tournamentIndex - matchB.tournamentIndex;
+        if (matchA.tournIndex !== matchB.tournIndex) return matchA.tournIndex - matchB.tournIndex;
         return matchA.time.localeCompare(matchB.time);
       });
     });

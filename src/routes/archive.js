@@ -36,14 +36,14 @@ export class ArchiveRouter {
       }
 
       const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-      const validSnapshots = rawSnapshots.filter(s => s && s.tournament && s.tournament.slug);
+      const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
       // 排序逻辑：start_date 倒序 > end_date 倒序 > slug 字母顺序
       validSnapshots.sort((a, b) => {
-        const aStart = a.tournament.start_date || '';
-        const bStart = b.tournament.start_date || '';
-        const aEnd = a.tournament.end_date || '';
-        const bEnd = b.tournament.end_date || '';
+        const aStart = a.tourn.start_date || '';
+        const bStart = b.tourn.start_date || '';
+        const aEnd = a.tourn.end_date || '';
+        const bEnd = b.tourn.end_date || '';
 
         // 主要排序：start_date 倒序（日期越晚越靠前）
         if (aStart !== bStart) {
@@ -60,18 +60,18 @@ export class ArchiveRouter {
         }
 
         // 第三排序：slug 字母顺序（确保稳定性）
-        return (a.tournament.slug || '').localeCompare(b.tournament.slug || '');
+        return (a.tourn.slug || '').localeCompare(b.tourn.slug || '');
       });
 
       const combined = validSnapshots.map(snap => {
-        const tournamentWithMap = { ...snap.tournament, team_map: snap.team_map || {} };
+        const tournamentWithMap = { ...snap.tourn, team_map: snap.team_map || {} };
         const miniConfig = { TOURNAMENTS: [tournamentWithMap] };
-        const analysis = Analyzer.runFullAnalysis({ [snap.tournament.slug]: snap.rawMatches || [] }, {}, miniConfig);
-        const statsObj = analysis.globalStats[snap.tournament.slug] || {};
-        const timeObj = analysis.timeGrid[snap.tournament.slug] || {};
+        const analysis = Analyzer.runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches || [] }, {}, miniConfig);
+        const statsObj = analysis.globalStats[snap.tourn.slug] || {};
+        const timeObj = analysis.timeGrid[snap.tourn.slug] || {};
         const content = HTMLRenderer.renderContentOnly(
-          { [snap.tournament.slug]: statsObj },
-          { [snap.tournament.slug]: timeObj },
+          { [snap.tourn.slug]: statsObj },
+          { [snap.tourn.slug]: timeObj },
           {}, miniConfig, true
         );
         return content;
