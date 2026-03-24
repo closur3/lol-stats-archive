@@ -539,26 +539,26 @@ export class Updater {
  */
 class Logger {
   constructor() { 
-    this.logs = []; 
+    this.l = []; 
   }
   
-  error(message) { 
-    this.logs.push({
-      time: dateUtils.getNow().short, 
-      level: 'ERROR', 
-      message: message
+  error(m) { 
+    this.l.push({
+      t: dateUtils.getNow().short, 
+      l: 'ERROR', 
+      m: m
     }); 
   }
   
-  success(message) { 
-    this.logs.push({
-      time: dateUtils.getNow().short, 
-      level: 'SUCCESS', 
-      message: message
+  success(m) { 
+    this.l.push({
+      t: dateUtils.getNow().short, 
+      l: 'SUCCESS', 
+      m: m
     }); 
   }
   
   export() { 
-    return this.logs; 
+    return this.l; 
   }
 }

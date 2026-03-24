@@ -953,8 +953,8 @@ export class HTMLRenderer {
     if (!Array.isArray(logs)) logs = [];
     const logLevelClassMap = { ERROR: "lvl-err", SUCCESS: "lvl-ok" };
     const entries = logs.map(log => {
-        const lvlClass = logLevelClassMap[log.level] || "lvl-inf";
-        return `<li class="log-entry"><code class="log-time">${log.time}</code><span class="log-level ${lvlClass}">${log.level}</span><code class="log-msg">${log.message}</code></li>`;
+        const lvlClass = logLevelClassMap[log.l] || "lvl-inf";
+        return `<li class="log-entry"><code class="log-time">${log.t}</code><span class="log-level ${lvlClass}">${log.l}</span><code class="log-msg">${log.m}</code></li>`;
     }).join("");
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
 
