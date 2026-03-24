@@ -148,7 +148,6 @@ export class Analyzer {
             t2: team2Name, 
             s: `${team1Score}-${team2Score}`, 
             f: isFull, 
-            done: true, // 时间表中的比赛都是已结束的
             bo: bestOf 
           };
 
