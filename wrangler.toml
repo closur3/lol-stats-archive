@@ -1,6 +1,7 @@
 name = "lol-stats"
-main = "_worker.js"
+main = "src/index.js"
 compatibility_date = "2026-02-03"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 GITHUB_USER = "closur3"
@@ -19,3 +20,10 @@ invocation_logs = true
 
 [triggers]
 crons = ["*/5 * * * *"]
+
+# 构建配置
+[build]
+command = "echo 'No build step needed for ES modules'"
+
+[build.upload]
+format = "modules"

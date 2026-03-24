@@ -1,0 +1,21 @@
+{
+  "name": "lol-stats-archive",
+  "version": "2.0.0",
+  "description": "League of Legends statistics archive worker",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "echo 'Build complete - ES modules ready'",
+    "test": "node test-full-migration.js",
+    "lint": "eslint src/ || true"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240405.0",
+    "eslint": "^8.57.0",
+    "wrangler": "^3.24.0"
+  },
+  "dependencies": {
+    "hono": "^4.0.0"
+  }
+}
