@@ -461,7 +461,7 @@ export class HTMLRenderer {
         
         // 已结束比赛区域
         if (finished.length > 0) {
-            listHtml.push('<div class="section-header" style="background:#f0fdf4;color:#166534;padding:8px 16px;font-weight:700;font-size:13px;border-radius:8px 8px 0 0;border:1px solid #86efac;border-bottom:none;">✅ 已结束 (' + finished.length + ')</div>');
+            listHtml.push('<div style="border-top:2px solid #10b981;margin:12px 0 8px 0;padding-top:8px;font-size:12px;font-weight:600;color:#10b981;">✅ 已结束</div>');
             finished.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
                 const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
@@ -471,7 +471,8 @@ export class HTMLRenderer {
         
         // 未开始比赛区域
         if (upcoming.length > 0) {
-            listHtml.push('<div class="section-header" style="background:#eff6ff;color:#1e40af;padding:8px 16px;font-weight:700;font-size:13px;border-radius:8px 8px 0 0;border:1px solid #93c5fd;border-bottom:none;margin-top:' + (finished.length > 0 ? '16px' : '0') + 'px;">📅 未开始 (' + upcoming.length + ')</div>');
+            const marginTop = finished.length > 0 ? 'margin-top:20px;' : '';
+            listHtml.push('<div style="border-top:2px solid #3b82f6;margin:12px 0 8px 0;padding-top:8px;font-size:12px;font-weight:600;color:#3b82f6;' + marginTop + '">📅 未开始</div>');
             upcoming.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
                 const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
@@ -506,7 +507,7 @@ export class HTMLRenderer {
         
         // 已结束比赛区域
         if (finished.length > 0) {
-            listHtml.push('<div class="section-header" style="background:#f0fdf4;color:#166534;padding:8px 16px;font-weight:700;font-size:13px;border-radius:8px 8px 0 0;border:1px solid #86efac;border-bottom:none;">✅ 已结束 (' + finished.length + ')</div>');
+            listHtml.push('<div style="border-top:2px solid #10b981;margin:12px 0 8px 0;padding-top:8px;font-size:12px;font-weight:600;color:#10b981;">✅ 已结束</div>');
             finished.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
                 const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
@@ -516,7 +517,8 @@ export class HTMLRenderer {
         
         // 未开始比赛区域
         if (upcoming.length > 0) {
-            listHtml.push('<div class="section-header" style="background:#eff6ff;color:#1e40af;padding:8px 16px;font-weight:700;font-size:13px;border-radius:8px 8px 0 0;border:1px solid #93c5fd;border-bottom:none;margin-top:' + (finished.length > 0 ? '16px' : '0') + 'px;">📅 未开始 (' + upcoming.length + ')</div>');
+            const marginTop = finished.length > 0 ? 'margin-top:20px;' : '';
+            listHtml.push('<div style="border-top:2px solid #3b82f6;margin:12px 0 8px 0;padding-top:8px;font-size:12px;font-weight:600;color:#3b82f6;' + marginTop + '">📅 未开始</div>');
             upcoming.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
                 const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
