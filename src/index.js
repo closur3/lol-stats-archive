@@ -61,6 +61,15 @@ export default {
   async scheduled(event, env, ctx) {
     console.log("Scheduled event triggered");
     const updater = new Updater(env);
-    await updater.runUpdate(false);
+    const logger = await updater.runUpdate(false);
+    
+    // 记录日志（仅当日志非空时）
+    const newLogs = logger.export();
+    if (newLogs.length > 0) {
+      const oldLogs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
+      let combinedLogs = [...newLogs, ...oldLogs];
+      if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
+      await env.LOL_KV.put(KV_KEYS.LOGS, JSON.stringify(combinedLogs));
+    }
   }
 };
