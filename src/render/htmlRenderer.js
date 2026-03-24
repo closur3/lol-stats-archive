@@ -124,26 +124,26 @@ export class HTMLRenderer {
     };
 
     const buildScheduleRow = (match) => {
-        const boLabel = match.bestOf ? `BO${match.bestOf}` : "";
-        const boClass = match.bestOf === 5 ? "sch-pill gold" : "sch-pill";
-        const isTbd1 = match.team1 === "TBD", isTbd2 = match.team2 === "TBD";
-        const t1Click = isTbd1 ? "" : `onclick="openTeam('${match.slug}', '${match.team1}')"`;
-        const t2Click = isTbd2 ? "" : `onclick="openTeam('${match.slug}', '${match.team2}')"`;
-        const r1 = getRateHtml(match.team1, match.slug, match.bestOf), r2 = getRateHtml(match.team2, match.slug, match.bestOf);
+        const boLabel = match.bo ? `BO${match.bo}` : "";
+        const boClass = match.bo === 5 ? "sch-pill gold" : "sch-pill";
+        const isTbd1 = match.t1 === "TBD", isTbd2 = match.t2 === "TBD";
+        const t1Click = isTbd1 ? "" : `onclick="openTeam('${match.slug}', '${match.t1}')"`;
+        const t2Click = isTbd2 ? "" : `onclick="openTeam('${match.slug}', '${match.t2}')"`;
+        const r1 = getRateHtml(match.t1, match.slug, match.bo), r2 = getRateHtml(match.t2, match.slug, match.bo);
 
         let midContent = `<span ${STYLE_VS_TEXT}>vs</span>`;
         if (match.is_finished) {
-            const s1Style = match.score1 > match.score2 ? "color:#0f172a" : "color:#94a3b8";
-            const s2Style = match.score2 > match.score1 ? "color:#0f172a" : "color:#94a3b8";
-            midContent = `<span class="sch-fin-score"><span style="${s1Style}">${match.score1}</span><span ${STYLE_SCORE_SEP}>-</span><span style="${s2Style}">${match.score2}</span></span>`;
+            const s1Style = match.s1 > match.s2 ? "color:#0f172a" : "color:#94a3b8";
+            const s2Style = match.s2 > match.s1 ? "color:#0f172a" : "color:#94a3b8";
+            midContent = `<span class="sch-fin-score"><span style="${s1Style}">${match.s1}</span><span ${STYLE_SCORE_SEP}>-</span><span style="${s2Style}">${match.s2}</span></span>`;
         } else if (match.is_live) {
-            midContent = `<span class="sch-live-score">${match.score1}<span ${STYLE_SCORE_SEP}>-</span>${match.score2}</span>`;
+            midContent = `<span class="sch-live-score">${match.s1}<span ${STYLE_SCORE_SEP}>-</span>${match.s2}</span>`;
         }
 
         const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
-        const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${match.team1}', '${match.team2}')"` : "";
+        const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${match.t1}', '${match.t2}')"` : "";
 
-        return `<div class="sch-row"><span class="sch-time">${match.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${t1Click} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${r1}${match.team1}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${t2Click} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.team2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
+        return `<div class="sch-row"><span class="sch-time">${match.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${t1Click} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${r1}${match.t1}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${t2Click} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
     };
 
     let tablesHtml = "";
@@ -268,10 +268,10 @@ export class HTMLRenderer {
     <script>
     const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
     const RESULT_ICON_MAP = { 
-      'WIN': '✔', 
-      'LOSS': '❌', 
-      'LIVE': '🔵', 
-      'UPCOMING': '🕒' 
+      'W': '✔', 
+      'L': '❌', 
+      'LIV': '🔵', 
+      'N': '🕒' 
     };
     const STYLE_DATE_TIME = 'style="font-weight:700;color:#475569"';
     const STYLE_SCORE_DASH = 'style="opacity:0.4;margin:0 1px"';
@@ -385,16 +385,16 @@ export class HTMLRenderer {
         // 根据比赛结果添加边框样式类
         let matchItemClass = 'match-item';
         if (mode === 'history') {
-            if (resStatus === 'WIN') {
+            if (resStatus === 'W') {
                 matchItemClass += ' match-win';
-            } else if (resStatus === 'LOSS') {
+            } else if (resStatus === 'L') {
                 matchItemClass += ' match-loss';
             }
         }
 
         let scoreContent = '', scoreClass = 'score-text';
-        if (resStatus === 'LIVE') scoreClass += ' live';
-        if (resStatus === 'UPCOMING') { 
+        if (resStatus === 'LIV') scoreClass += ' live';
+        if (resStatus === 'N') { 
           scoreContent = '<span class="score-text vs">VS</span>'; 
         } else { 
           const formattedScore = (score || '').toString().replace('-', '<span ' + STYLE_SCORE_DASH + '>-</span>'); 
@@ -429,13 +429,13 @@ export class HTMLRenderer {
     function showPopup(title, dayIndex, matches) {
         const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Total"];
         document.getElementById('modalTitle').innerText = title + " - " + dayNames[dayIndex];
-        const sortedMatches = [...matches].sort((matchA, matchB) => matchB.date.localeCompare(matchA.date));
+        const sortedMatches = [...matches].sort((matchA, matchB) => matchB.d.localeCompare(matchA.d));
         const listHtml = sortedMatches.map(match => {
             let boTag = '<span ' + STYLE_MUTED_DASH + '>-</span>';
-            if (match.bestOf === 5) boTag = '<span class="sch-pill gold">BO5</span>';
-            else if (match.bestOf === 3) boTag = '<span class="sch-pill">BO3</span>';
-            else if (match.bestOf === 1) boTag = '<span class="sch-pill">BO1</span>';
-            return renderMatchItem('distribution', match.date, boTag, match.team1, match.team2, match.isFull, match.score);
+            if (match.bo === 5) boTag = '<span class="sch-pill gold">BO5</span>';
+            else if (match.bo === 3) boTag = '<span class="sch-pill">BO3</span>';
+            else if (match.bo === 1) boTag = '<span class="sch-pill">BO1</span>';
+            return renderMatchItem('distribution', match.d, boTag, match.t1, match.t2, match.f, match.s);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display = "block";
@@ -446,9 +446,9 @@ export class HTMLRenderer {
         const data = window.g_stats[slug][teamName];
         document.getElementById('modalTitle').innerText = teamName + " - Schedule";
         const listHtml = (data.history || []).map(match => {
-            const icon = RESULT_ICON_MAP[match.result] || RESULT_ICON_MAP['UPCOMING'];
-            const resultTag = \`<span class="\${(match.result === 'WIN' || match.result === 'LOSS') ? '' : 'hist-icon'}">\${icon}</span>\`;
-            return renderMatchItem('history', match.date, resultTag, teamName, match.vs, match.isFull, match.score, match.result);
+            const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
+            const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+            return renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
@@ -459,14 +459,14 @@ export class HTMLRenderer {
         const data = window.g_stats[slug][teamName];
         let history = data.history || [];
         let titleSuffix = "";
-        if (type === 'bo3') { history = history.filter(match => match.bestOf === 3); titleSuffix = " - BO3"; }
-        else if (type === 'bo5') { history = history.filter(match => match.bestOf === 5); titleSuffix = " - BO5"; }
+        if (type === 'bo3') { history = history.filter(match => match.bo === 3); titleSuffix = " - BO3"; }
+        else if (type === 'bo5') { history = history.filter(match => match.bo === 5); titleSuffix = " - BO5"; }
         else { titleSuffix = " - Series"; }
         document.getElementById('modalTitle').innerText = teamName + titleSuffix;
         const listHtml = history.map(match => {
-            const icon = RESULT_ICON_MAP[match.result] || RESULT_ICON_MAP['UPCOMING'];
-            const resultTag = \`<span class="\${(match.result === 'WIN' || match.result === 'LOSS') ? '' : 'hist-icon'}">\${icon}</span>\`;
-            return renderMatchItem('history', match.date, resultTag, teamName, match.vs, match.isFull, match.score, match.result);
+            const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
+            const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+            return renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
@@ -477,13 +477,13 @@ export class HTMLRenderer {
         const data = window.g_stats[slug][team1Name];
         const h2hHistory = (data.history || []).filter(match => match.vs === team2Name);
         let team1Wins = 0, team2Wins = 0;
-        h2hHistory.forEach(match => { if(match.result === 'WIN') team1Wins++; else if(match.result === 'LOSS') team2Wins++; });
+        h2hHistory.forEach(match => { if(match.res === 'W') team1Wins++; else if(match.res === 'L') team2Wins++; });
         const summary = h2hHistory.length > 0 ? ' <span ' + STYLE_H2H_SUMMARY + '>(' + team1Wins + '<span ' + STYLE_H2H_DASH + '>-</span>' + team2Wins + ')</span>' : "";
         document.getElementById('modalTitle').innerHTML = team1Name + " vs " + team2Name + summary;
         const listHtml = h2hHistory.map(match => {
-            const icon = RESULT_ICON_MAP[match.result] || RESULT_ICON_MAP['UPCOMING'];
-            const resultTag = '<span class="' + ((match.result === 'WIN' || match.result === 'LOSS') ? '' : 'hist-icon') + '">' + icon + '</span>';
-            return renderMatchItem('history', match.date, resultTag, team1Name, match.vs, match.isFull, match.score, match.result);
+            const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
+            const resultTag = '<span class="' + ((match.res === 'W' || match.res === 'L') ? '' : 'hist-icon') + '">' + icon + '</span>';
+            return renderMatchItem('history', match.d, resultTag, team1Name, match.vs, match.full, match.s, match.res);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";

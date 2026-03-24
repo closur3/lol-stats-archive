@@ -101,9 +101,9 @@ export class Analyzer {
         if (dateTime) {
           timestamp = dateTime.getTime();
           const timeParts = dateUtils.timeParts(timestamp);
-          const matchDateStr = `${timeParts.year}-${timeParts.month}-${timeParts.day}`;
-          const matchTimeStr = `${timeParts.hours}:${timeParts.minutes}`;
-          dateDisplay = `${timeParts.month}-${timeParts.day} ${matchTimeStr}`;
+          const matchDateStr = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
+          const matchTimeStr = `${timeParts.h}:${timeParts.m}`;
+          dateDisplay = `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`;
 
           // lastMatchStartTimestamp: 所有已完赛比赛中最晚的开始时间（不管是不是今天）
           if (isFinished && timestamp > lastMatchStartTimestamp) {
@@ -124,11 +124,11 @@ export class Analyzer {
             const tabName = match.Tab || "";
             allFutureMatches[bucketDate].push({
               time: matchTimeStr, 
-              team1: team1Name, 
-              team2: team2Name, 
-              score1: team1Score, 
-              score2: team2Score, 
-              bestOf: bestOf,
+              t1: team1Name, 
+              t2: team2Name, 
+              s1: team1Score, 
+              s2: team2Score, 
+              bo: bestOf,
               is_finished: isFinished, 
               is_live: isLive,
               league: tournament.league, 
@@ -142,16 +142,16 @@ export class Analyzer {
             if(timestamp > stats[team1Name].last) stats[team1Name].last = timestamp;
             if(timestamp > stats[team2Name].last) stats[team2Name].last = timestamp;
 
-            const pyDay = timeParts.weekday === 0 ? 6 : timeParts.weekday - 1;
-            const targetHour = parseInt(timeParts.hours, 10);
+            const pyDay = timeParts.day === 0 ? 6 : timeParts.day - 1;
+            const targetHour = parseInt(timeParts.h, 10);
 
             const matchObj = { 
-              date: `${timeParts.month}-${timeParts.day} ${matchTimeStr}`, 
-              team1: team1Name, 
-              team2: team2Name, 
-              score: `${team1Score}-${team2Score}`, 
-              isFull: isFull, 
-              bestOf: bestOf 
+              d: `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`, 
+              t1: team1Name, 
+              t2: team2Name, 
+              s: `${team1Score}-${team2Score}`, 
+              f: isFull, 
+              bo: bestOf 
             };
 
             if (!timeGrid[tournament.slug]) timeGrid[tournament.slug] = { "Total": createSlot() };
@@ -169,32 +169,32 @@ export class Analyzer {
           }
         }
 
-        let result1 = 'UPCOMING', result2 = 'UPCOMING';
+        let result1 = 'N', result2 = 'N';
         if (isLive) { 
-          result1 = 'LIVE'; 
-          result2 = 'LIVE'; 
+          result1 = 'LIV'; 
+          result2 = 'LIV'; 
         } else if (isFinished) {
-          result1 = team1Score > team2Score ? 'WIN' : 'LOSS';
-          result2 = team2Score > team1Score ? 'WIN' : 'LOSS';
+          result1 = team1Score > team2Score ? 'W' : 'L';
+          result2 = team2Score > team1Score ? 'W' : 'L';
         }
 
         stats[team1Name].history.push({ 
-          date: dateDisplay, 
+          d: dateDisplay, 
           vs: team2Name, 
-          score: `${team1Score}-${team2Score}`, 
-          result: result1, 
-          bestOf: bestOf, 
-          isFull: isFull, 
-          timestamp: timestamp 
+          s: `${team1Score}-${team2Score}`, 
+          res: result1, 
+          bo: bestOf, 
+          full: isFull, 
+          ts: timestamp 
         });
         stats[team2Name].history.push({ 
-          date: dateDisplay, 
+          d: dateDisplay, 
           vs: team1Name, 
-          score: `${team2Score}-${team1Score}`, 
-          result: result2, 
-          bestOf: bestOf, 
-          isFull: isFull, 
-          timestamp: timestamp 
+          s: `${team2Score}-${team1Score}`, 
+          res: result2, 
+          bo: bestOf, 
+          full: isFull, 
+          ts: timestamp 
         });
 
         if(!isFinished) { return; }

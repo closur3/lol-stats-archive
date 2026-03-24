@@ -20,13 +20,13 @@ export const dateUtils = {
   timeParts: (ts) => {
     const date = dateUtils.toCST(ts);
     return {
-      year: date.getUTCFullYear(),
-      month: dateUtils.pad(date.getUTCMonth() + 1),
-      day: dateUtils.pad(date.getUTCDate()),
-      hours: dateUtils.pad(date.getUTCHours()),
-      minutes: dateUtils.pad(date.getUTCMinutes()),
-      seconds: dateUtils.pad(date.getUTCSeconds()),
-      weekday: date.getUTCDay()
+      y: date.getUTCFullYear(),
+      mo: dateUtils.pad(date.getUTCMonth() + 1),
+      da: dateUtils.pad(date.getUTCDate()),
+      h: dateUtils.pad(date.getUTCHours()),
+      m: dateUtils.pad(date.getUTCMinutes()),
+      s: dateUtils.pad(date.getUTCSeconds()),
+      day: date.getUTCDay()
     };
   },
 
@@ -35,7 +35,7 @@ export const dateUtils = {
    */
   getNow: () => {
     const parts = dateUtils.timeParts();
-    const isoString = `${parts.year}-${parts.month}-${parts.day} ${parts.hours}:${parts.minutes}:${parts.seconds}`;
+    const isoString = `${parts.y}-${parts.mo}-${parts.da} ${parts.h}:${parts.m}:${parts.s}`;
     return { 
       dateTime: dateUtils.toCST(), 
       full: isoString, 
@@ -51,7 +51,7 @@ export const dateUtils = {
   fmtDate: (timestamp) => {
     if (!timestamp) return "(Pending)";
     const parts = dateUtils.timeParts(timestamp);
-    return `${parts.year.toString().slice(2)}-${parts.month}-${parts.day} ${parts.hours}:${parts.minutes}`;
+    return `${parts.y.toString().slice(2)}-${parts.mo}-${parts.da} ${parts.h}:${parts.m}`;
   },
 
   /**
