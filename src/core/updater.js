@@ -212,7 +212,7 @@ export class Updater {
 
     const getDisplayName = (slug) => {
       const tournament = runtimeConfig.TOURNAMENTS.find(t => t.slug === slug);
-      return tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
+      return tournament ? (tournament.name || tournament.league || slug.toUpperCase()) : slug;
     };
 
     const fieldAliases = {
@@ -326,7 +326,7 @@ export class Updater {
 
       if (oldMode !== newMode) {
         const tournament = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
-        const displayName = tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
+        const displayName = tournament ? (tournament.name || tournament.league || slug.toUpperCase()) : slug;
 
         let reason = "";
         if (newMode === "fast" && analysis.tournMeta[slug].isStarted) {
