@@ -184,7 +184,7 @@ export class APIRouter {
     }
 
     try {
-      const logger = { logs: [], error(message) { this.logs.push({time: new Date().toISOString().slice(2, 19), level: 'ERROR', message}); }, success(message) { this.logs.push({time: new Date().toISOString().slice(2, 19), level: 'SUCCESS', message}); } };
+      const logger = { logs: [], error(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'ERROR', m: message}); }, success(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'SUCCESS', m: message}); } };
       
       const authContext = await FandomClient.login(env.FANDOM_USER, env.FANDOM_PASS);
       const fandomClient = new FandomClient(authContext);
@@ -279,7 +279,7 @@ export class APIRouter {
     }
 
     try {
-      const logger = { logs: [], error(message) { this.logs.push({time: new Date().toISOString().slice(2, 19), level: 'ERROR', message}); }, success(message) { this.logs.push({time: new Date().toISOString().slice(2, 19), level: 'SUCCESS', message}); } };
+      const logger = { logs: [], error(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'ERROR', m: message}); }, success(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'SUCCESS', m: message}); } };
       
       await env.LOL_KV.delete(`ARCHIVE_${payload.slug}`);
 
@@ -330,7 +330,7 @@ export class APIRouter {
     }
 
     try {
-      const logger = { logs: [], error(message) { this.logs.push({time: new Date().toISOString().slice(2, 19), level: 'ERROR', message}); }, success(message) { this.logs.push({time: new Date().toISOString().slice(2, 19), level: 'SUCCESS', message}); } };
+      const logger = { logs: [], error(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'ERROR', m: message}); }, success(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'SUCCESS', m: message}); } };
       
       let teamsRaw = null;
       try {
