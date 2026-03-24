@@ -1,1 +1,12 @@
-[]
+[
+    {
+        "slug": "lck-2026-rounds-1-4",
+        "name": "LCK 2026 Rounds 1-4",
+        "league": "LCK",
+        "overview_page": [
+            "LCK/2026 Season/Rounds 1-2"
+        ],
+        "start_date": "2026-04-01",
+        "end_date": "2026-05-31"
+    }
+]
