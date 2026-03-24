@@ -343,23 +343,12 @@ export class Updater {
     Object.keys(analysis.tournMeta).forEach(slug => {
       const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
       const newMode = analysis.tournMeta[slug].mode;
-      const intervalH = analysis.tournMeta[slug].matchIntervalHours || Infinity;
 
       if (oldMode !== newMode) {
         const tournament = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
         const displayName = tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
-
-        let reason = "";
-        if (newMode === "fast" && analysis.tournMeta[slug].isStarted) {
-          reason = "MatchStarted";
-        } else if (newMode === "fast") {
-          reason = `Interval ${intervalH}h`;
-        } else {
-          reason = `Interval ${intervalH}h`;
-        }
-
         const arrow = oldMode === "fast" ? "⚡->🐌" : "🐌->⚡";
-        modeSwitches.push(`${displayName}(${arrow} ${reason})`);
+        modeSwitches.push(`${displayName}(${arrow})`);
       }
     });
 
