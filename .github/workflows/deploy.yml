@@ -4,6 +4,9 @@ on:
     paths:
       - '_worker.js'
       - 'wrangler.toml'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
 jobs:
   deploy:
