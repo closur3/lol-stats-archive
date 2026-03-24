@@ -97,11 +97,12 @@ export class Analyzer {
 
         const dateTime = dateUtils.parseDate(match.DateTime_UTC || match["DateTime UTC"]);
         const timeParts = dateTime ? dateUtils.timeParts(dateTime) : null;
-        let dateDisplay = "-", fullDate = "-", timestamp = 0;
+        let dateDisplay = "-", fullDate = "-", matchDateStr = "-", timestamp = 0;
         if (timeParts) {
           const matchTimeStr = `${timeParts.h}:${timeParts.m}`;
           dateDisplay = `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`;
           fullDate = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
+          matchDateStr = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
           timestamp = match.DateTime_UTC ? new Date(match.DateTime_UTC).getTime() : 0;
         }
 
