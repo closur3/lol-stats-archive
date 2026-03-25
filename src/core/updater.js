@@ -394,6 +394,7 @@ export class Updater {
       const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
       const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
       if (existingHomeHTML !== fullPage) {
+        console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
         await this.env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage);
       }
     } catch (e) {
@@ -445,6 +446,7 @@ export class Updater {
           JSON.stringify(existingHome.updateTimestamps || {}) !== JSON.stringify({ [slug]: ts });
 
       if (homeHasChanges) {
+        console.log(`[KV] PUT ${homeKey}`);
         writePromises.push(this.env.LOL_KV.put(homeKey, JSON.stringify(homeSnapshot)));
       }
 
@@ -457,6 +459,7 @@ export class Updater {
             JSON.stringify(existingArchive.rawMatches || []) !== JSON.stringify(raw);
 
         if (archiveHasChanges) {
+          console.log(`[KV] PUT ${archiveKey}`);
           writePromises.push(this.env.LOL_KV.put(archiveKey, JSON.stringify(snapshot)));
         }
       }
@@ -470,6 +473,7 @@ export class Updater {
         const archiveHTML = await this.generateArchiveStaticHTML();
         const existingArchiveHTML = await this.env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
         if (existingArchiveHTML !== archiveHTML) {
+          console.log(`[KV] PUT ${KV_KEYS.ARCHIVE_STATIC_HTML}`);
           await this.env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
         }
       } catch (e) {
