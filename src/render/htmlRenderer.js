@@ -459,17 +459,14 @@ export class HTMLRenderer {
         
         let listHtml = [];
         
-        // 已结束比赛区域
-        if (finished.length > 0) {
-            listHtml.push('<div style="border-top:2px solid #10b981;margin:8px 0;"></div>');
-            finished.forEach(match => {
-                const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-                const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
-            });
-        }
+        // 已结束比赛
+        finished.forEach(match => {
+            const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
+            const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+            listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
+        });
         
-        // 未开始比赛区域
+        // 未开始比赛区域（蓝色分隔线）
         if (upcoming.length > 0) {
             const marginTop = finished.length > 0 ? 'margin-top:16px;' : '';
             listHtml.push('<div style="border-top:2px solid #3b82f6;margin:8px 0;' + marginTop + '"></div>');
@@ -505,17 +502,14 @@ export class HTMLRenderer {
         
         let listHtml = [];
         
-        // 已结束比赛区域
-        if (finished.length > 0) {
-            listHtml.push('<div style="border-top:2px solid #10b981;margin:8px 0;"></div>');
-            finished.forEach(match => {
-                const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-                const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
-            });
-        }
+        // 已结束比赛
+        finished.forEach(match => {
+            const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
+            const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+            listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
+        });
         
-        // 未开始比赛区域
+        // 未开始比赛区域（蓝色分隔线）
         if (upcoming.length > 0) {
             const marginTop = finished.length > 0 ? 'margin-top:16px;' : '';
             listHtml.push('<div style="border-top:2px solid #3b82f6;margin:8px 0;' + marginTop + '"></div>');
