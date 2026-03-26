@@ -561,11 +561,12 @@ export class HTMLRenderer {
             var d = new Date(utc.includes('Z') ? utc : utc + 'Z');
             if (!isNaN(d.getTime())) return d;
         }
-        // 短格式 "26-03-26 11:33:08" 或 "26-03-26T11:33:08"
+        // 短格式 "26-03-26 11:33:08" 或 "26-03-26T11:33:08" (UTC时间)
         var clean = utc.replace('T', ' ');
         var parts = clean.match(/(\d{2})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
         if (parts) {
-            return new Date(2000 + parseInt(parts[1]), parseInt(parts[2]) - 1, parseInt(parts[3]), parseInt(parts[4]), parseInt(parts[5]), parseInt(parts[6] || 0));
+            // 创建UTC时间的Date对象
+            return new Date(Date.UTC(2000 + parseInt(parts[1]), parseInt(parts[2]) - 1, parseInt(parts[3]), parseInt(parts[4]), parseInt(parts[5]), parseInt(parts[6] || 0)));
         }
         return null;
     }
@@ -1116,20 +1117,7 @@ export class HTMLRenderer {
         ${logs.length === 0 ? '<div class="empty-logs">No logs found</div>' : ''}
     </div>
     ${buildFooter}
-    <script>
-    var codes=document.querySelectorAll('code.log-time');
-    for(var i=0;i<codes.length;i++){
-        var el=codes[i];
-        var utc=el.textContent;
-        if(!utc)continue;
-        var parts=utc.split(/[-T:]/);
-        if(parts.length<5)continue;
-        var d=new Date(2000+parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]),parseInt(parts[3]),parseInt(parts[4]),parseInt(parts[5]||0));
-        if(isNaN(d.getTime()))continue;
-        var pad=function(n){return n<10?'0'+n:n;};
-        el.textContent=d.getFullYear().toString().slice(2)+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
-    }
-    </script>
+    ${HTMLRenderer.renderPythonJS()}
 </body>
 </html>`;
   }
