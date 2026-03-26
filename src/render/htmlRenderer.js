@@ -426,18 +426,7 @@ export class HTMLRenderer {
           modalList.innerHTML = htmlArray.join("");
         }
         // 渲染完成后更新模态框中的日期为本地时区
-        updateModalDates();
-    }
-
-    function updateModalDates() {
-        // 更新模态框中的时间显示
-        document.querySelectorAll('#modalList .col-date span[data-utc]').forEach(function(el) {
-            var utc = el.getAttribute('data-utc');
-            if (utc) {
-                var localTime = formatLocalTime(utc);
-                if (localTime) el.textContent = localTime;
-            }
-        });
+        document.querySelectorAll('#modalList .utc-local[data-utc]').forEach(convertUtcToLocal);
     }
 
     function showPopup(title, dayIndex, matches) {
@@ -561,20 +550,33 @@ export class HTMLRenderer {
     // ============ 统一时区转换系统 ============
     function pad(n) { return n < 10 ? '0' + n : n; }
 
+    // 解析各种UTC时间格式
+    function parseUtcString(utc) {
+        if (!utc) return null;
+        // 时间戳
+        var num = Number(utc);
+        if (!isNaN(num) && num > 0) return new Date(num);
+        // ISO格式 "2026-03-26T11:33:29" 或 "2026-03-26T11:33:29.000Z"
+        if (utc.includes('T')) {
+            var d = new Date(utc.includes('Z') ? utc : utc + 'Z');
+            if (!isNaN(d.getTime())) return d;
+        }
+        // 短格式 "26-03-26 11:33:08" 或 "26-03-26T11:33:08"
+        var clean = utc.replace('T', ' ');
+        var parts = clean.match(/(\d{2})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+        if (parts) {
+            return new Date(2000 + parseInt(parts[1]), parseInt(parts[2]) - 1, parseInt(parts[3]), parseInt(parts[4]), parseInt(parts[5]), parseInt(parts[6] || 0));
+        }
+        return null;
+    }
+
     // 统一的时间转换函数：处理所有带 utc-local 类的元素
     function convertUtcToLocal(el) {
         var utc = el.getAttribute('data-utc');
         if (!utc) return;
         
-        // 尝试解析时间
-        var date = null;
-        var num = Number(utc);
-        if (!isNaN(num) && num > 0) {
-            date = new Date(num);
-        } else {
-            date = new Date(utc);
-        }
-        if (!date || isNaN(date.getTime())) return;
+        var date = parseUtcString(utc);
+        if (!date) return;
         
         // 根据 data-format 属性决定输出格式
         var format = el.getAttribute('data-format') || 'datetime';
