@@ -585,6 +585,7 @@ export class HTMLRenderer {
         var day = pad(date.getDate());
         var hour = pad(date.getHours());
         var minute = pad(date.getMinutes());
+        var second = pad(date.getSeconds());
         
         if (format === 'time') {
             el.textContent = hour + ":" + minute;
@@ -592,8 +593,11 @@ export class HTMLRenderer {
             el.textContent = month + "-" + day;
         } else if (format === 'hour') {
             el.textContent = hour + ":00";
-        } else {
+        } else if (format === 'datetime') {
             el.textContent = year + "-" + month + "-" + day + " " + hour + ":" + minute;
+        } else {
+            // 默认带秒
+            el.textContent = year + "-" + month + "-" + day + " " + hour + ":" + minute + ":" + second;
         }
     }
 
@@ -1084,7 +1088,7 @@ export class HTMLRenderer {
     const logLevelClassMap = { ERROR: "lvl-err", SUCCESS: "lvl-ok" };
     const entries = logs.map(log => {
         const lvlClass = logLevelClassMap[log.l] || "lvl-inf";
-        return `<li class="log-entry"><code class="log-time utc-local" data-utc="${log.t}" data-format="datetime">${log.t}</code><span class="log-level ${lvlClass}">${log.l}</span><code class="log-msg">${log.m}</code></li>`;
+        return `<li class="log-entry"><code class="log-time utc-local" data-utc="${log.t}">${log.t}</code><span class="log-level ${lvlClass}">${log.l}</span><code class="log-msg">${log.m}</code></li>`;
     }).join("");
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
 
