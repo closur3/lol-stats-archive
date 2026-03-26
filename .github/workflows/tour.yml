@@ -259,7 +259,7 @@ jobs:
 
                   mapped_name, matched_keyword = apply_name_mapping(name)
                   if mapped_name:
-                      log("INFO", f"联赛聚合 | 命中聚合关键词({matched_keyword}) | 赛事: {name} → {mapped_name} | OVP: {ov}", PURPLE)
+                      log("INFO", f"联赛聚合 | 命中聚合关键词 ({matched_keyword}) | 赛事: {name} → {mapped_name} | OVP: {ov}", PURPLE)
                       name = mapped_name
 
                   ev = {"ov": ov, "year": y, "name": name, "region": region, "start": s_dt, "end": e_dt, "league_full": league_full}
@@ -273,7 +273,7 @@ jobs:
                           log("INFO", f"初步准入 | 赛事已加入主赛聚合列表 | 赛事: {name} | 联赛: {fmt_league(league_full)}", PURPLE)
                           main_events[key] = {**ev, "extra_ovs": [ov]}
                       else:
-                          log("INFO", f"联赛聚合 | 合并入现有赛事 | 赛事: {name} | OVP: {ov} | Key: {key}", PURPLE)
+                          log("INFO", f"联赛聚合 | 合并入现有赛事: {name} | OVP: {ov} | Key: {key}", PURPLE)
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
                           main_events[key]["end"]   = max(main_events[key]["end"],   e_dt)
                           add_extra_ov(main_events[key], ov)
