@@ -1040,7 +1040,7 @@ export class HTMLRenderer {
 
                 try {
                     showToast("⏳ Deleting: " + name, "success");
-                    const res = await sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug }));
+                    const res = await sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug, name }));
 
                     if (checkAuthError(res.status)) return;
 
