@@ -10,6 +10,16 @@
         "end_date": "2026-05-31"
     },
     {
+        "slug": "esports-world-cup-2026-online-qualifier:china",
+        "name": "Esports World Cup 2026 Online Qualifier: China",
+        "league": "EWC",
+        "overview_page": [
+            "Esports World Cup 2026/Online Qualifiers/China"
+        ],
+        "start_date": "2026-03-27",
+        "end_date": "2026-05-22"
+    },
+    {
         "slug": "esports-world-cup-2026-online-qualifier:-china",
         "name": "Esports World Cup 2026 Online Qualifier: China",
         "league": "EWC",
