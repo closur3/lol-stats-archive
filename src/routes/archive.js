@@ -39,7 +39,6 @@ export class ArchiveRouter {
       const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
       const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
-      // 排序逻辑：start_date 倒序 > end_date 倒序 > slug 字母顺序
       validSnapshots = dataUtils.sortTournamentsByDate(validSnapshots);
 
       const combined = validSnapshots.map(snap => {
