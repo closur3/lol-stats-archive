@@ -88,7 +88,7 @@ export class HTMLRenderer {
                `<td class="col-game" ${statStyle(teamStats.g_t)}>${gameText}</td>` +
                `<td class="col-game-wr" ${percentStyle(gameRate)}>${dataUtils.pct(gameRate)}</td>` +
                `<td class="col-streak" ${streakStyle}>${streak}</td>` +
-               `<td class="col-last" ${lastStyle} data-utc="${teamStats.last || ''}">${lastMatch}</td></tr>`;
+               `<td class="col-last" ${lastStyle}><span class="utc-local" data-utc="${teamStats.last || ''}" data-format="datetime">${lastMatch}</span></td></tr>`;
     };
 
     const buildTimeTable = (regionGrid) => {
@@ -103,8 +103,8 @@ export class HTMLRenderer {
             if (!regionGrid[hour]) return;
             const isTotal = hour === "Total";
             const label = isTotal ? "Total" : `${String(hour).padStart(2,'0')}:00`;
-            const hourAttr = isTotal ? '' : ` data-utc-hour="${hour}"`;
-            html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col timegrid-hour"${hourAttr} style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
+            const hourAttr = isTotal ? '' : ` class="utc-local" data-utc="2026-01-01T${String(hour).padStart(2,'0')}:00:00Z" data-format="hour"`;
+            html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col"${hourAttr} style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
 
             for (let dayIndex = 0; dayIndex < 8; dayIndex++) {
                 const cellData = regionGrid[hour][dayIndex] || { total: 0 };
@@ -144,7 +144,7 @@ export class HTMLRenderer {
         const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
         const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${match.t1}', '${match.t2}')"` : "";
 
-        return `<div class="sch-row"><span class="sch-time" data-utc="${match.iso || ''}" data-utc-time="${match.time || ''}">${match.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${t1Click} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${r1}${match.t1}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${t2Click} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
+        return `<div class="sch-row"><span class="sch-time"><span class="utc-local" data-utc="${match.iso || ''}" data-format="time">${match.time}</span></span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${t1Click} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${r1}${match.t1}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${t2Click} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
     };
 
     let tablesHtml = "";
@@ -207,7 +207,7 @@ export class HTMLRenderer {
                 const matches = scheduleMap[d];
                 const dateObj = new Date(d + "T00:00:00Z");
                 const dayName = WEEKDAY_NAMES[dateObj.getUTCDay()];
-                let cardHtml = `<div class="sch-card" data-utc-date="${d}"><div class="sch-header" ${STYLE_SCH_HEADER}><span>📅 <span class="date-display">${d.slice(5)}</span> ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
+                let cardHtml = `<div class="sch-card"><div class="sch-header" ${STYLE_SCH_HEADER}><span>📅 <span class="utc-local date-display" data-utc="${d}T00:00:00Z" data-format="date">${d.slice(5)}</span> ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
                 let lastGroupKey = "";
 
                 matches.forEach(match => {
@@ -380,7 +380,7 @@ export class HTMLRenderer {
     function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus, isoString) {
         const dateParts = (date || '').split(' ');
         const dateHtml = dateParts.length === 2 
-          ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + ' data-utc="' + (isoString || '') + '">' + dateParts[1] + '</span>' 
+          ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + ' class="utc-local" data-utc="' + (isoString || '') + '" data-format="time">' + dateParts[1] + '</span>' 
           : (date || '');
 
         // 根据比赛结果添加边框样式类
@@ -405,7 +405,7 @@ export class HTMLRenderer {
         const team1Style = team1 === 'TBD' ? 'style="padding-right:5px;color:#9ca3af !important;"' : 'style="padding-right:5px;"';
         const team2Style = team2 === 'TBD' ? 'style="padding-left:5px;color:#9ca3af !important;"' : 'style="padding-left:5px;"';
 
-        return '<div class="' + matchItemClass + '" data-utc="' + (isoString || '') + '">' +
+        return '<div class="' + matchItemClass + '">' +
                '<div class="col-date">' + dateHtml + '</div>' +
                '<div class="modal-divider"></div>' +
                '<div class="col-vs-area"><div class="spine-row">' +
@@ -558,93 +558,67 @@ export class HTMLRenderer {
     function closePopup(){document.getElementById('matchModal').style.display="none";}
     window.onclick=function(e){if(e.target==document.getElementById('matchModal'))closePopup();}
 
-    // 时区支持函数
+    // ============ 统一时区转换系统 ============
     function pad(n) { return n < 10 ? '0' + n : n; }
 
-    // 解析输入为Date对象（支持时间戳、ISO字符串）
-    function parseDateInput(input) {
-        if (!input) return null;
-        var num = Number(input);
-        if (!isNaN(num) && num > 0) return new Date(num);
-        var date = new Date(input);
-        return isNaN(date.getTime()) ? null : date;
-    }
-
-    function formatLocalDate(input) {
-        var date = parseDateInput(input);
-        if (!date) return "";
+    // 统一的时间转换函数：处理所有带 utc-local 类的元素
+    function convertUtcToLocal(el) {
+        var utc = el.getAttribute('data-utc');
+        if (!utc) return;
         
-        // 使用本地时区，保持原格式 YY-MM-DD HH:MM
+        // 尝试解析时间
+        var date = null;
+        var num = Number(utc);
+        if (!isNaN(num) && num > 0) {
+            date = new Date(num);
+        } else {
+            date = new Date(utc);
+        }
+        if (!date || isNaN(date.getTime())) return;
+        
+        // 根据 data-format 属性决定输出格式
+        var format = el.getAttribute('data-format') || 'datetime';
         var year = String(date.getFullYear()).slice(2);
         var month = pad(date.getMonth() + 1);
         var day = pad(date.getDate());
         var hour = pad(date.getHours());
         var minute = pad(date.getMinutes());
-        return year + "-" + month + "-" + day + " " + hour + ":" + minute;
-    }
-
-    function formatLocalTime(input) {
-        var date = parseDateInput(input);
-        if (!date) return "";
         
-        var hour = pad(date.getHours());
-        var minute = pad(date.getMinutes());
-        return hour + ":" + minute;
+        if (format === 'time') {
+            el.textContent = hour + ":" + minute;
+        } else if (format === 'date') {
+            el.textContent = month + "-" + day;
+        } else if (format === 'hour') {
+            el.textContent = hour + ":00";
+        } else {
+            el.textContent = year + "-" + month + "-" + day + " " + hour + ":" + minute;
+        }
     }
 
-    // 页面加载时更新所有带 data-utc 属性的元素
-    function updateAllDatesToLocal() {
-        // 更新表格中的最后比赛日期
-        document.querySelectorAll('td[data-utc]').forEach(function(cell) {
-            var utcTimestamp = cell.getAttribute('data-utc');
-            if (utcTimestamp) {
-                var localDate = formatLocalDate(utcTimestamp);
-                if (localDate) {
-                    cell.textContent = localDate;
-                }
-            }
-        });
-
-        // 更新赛程时间
-        document.querySelectorAll('.sch-time[data-utc]').forEach(function(timeEl) {
-            var utcString = timeEl.getAttribute('data-utc');
-            if (utcString) {
-                var localTime = formatLocalTime(utcString);
-                if (localTime) {
-                    timeEl.textContent = localTime;
-                }
-            }
-        });
-
-        // 更新赛程日期头部 (MM-DD格式)
-        document.querySelectorAll('.sch-card[data-utc-date]').forEach(function(cardEl) {
-            var utcDate = cardEl.getAttribute('data-utc-date');
-            var dateDisplayEl = cardEl.querySelector('.date-display');
-            if (utcDate && dateDisplayEl) {
-                var date = new Date(utcDate + 'T00:00:00Z');
-                if (!isNaN(date.getTime())) {
-                    var month = pad(date.getMonth() + 1);
-                    var day = pad(date.getDate());
-                    dateDisplayEl.textContent = month + "-" + day;
-                }
-            }
-        });
-
-        // 更新时间分布表的小时标签 (UTC小时 -> 本地小时)
-        document.querySelectorAll('.timegrid-hour[data-utc-hour]').forEach(function(el) {
-            var utcHour = parseInt(el.getAttribute('data-utc-hour'), 10);
-            if (!isNaN(utcHour)) {
-                // 创建一个UTC时间的Date对象，然后获取本地小时
-                var date = new Date();
-                date.setUTCHours(utcHour, 0, 0, 0);
-                var localHour = date.getHours();
-                el.textContent = pad(localHour) + ":00";
-            }
-        });
+    // 批量转换所有 utc-local 元素
+    function convertAllUtcElements() {
+        document.querySelectorAll('.utc-local[data-utc]').forEach(convertUtcToLocal);
     }
 
-    // 页面加载完成后更新日期显示
-    document.addEventListener('DOMContentLoaded', updateAllDatesToLocal);
+    // MutationObserver：自动处理动态添加的元素
+    var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1) {
+                    if (node.classList && node.classList.contains('utc-local')) {
+                        convertUtcToLocal(node);
+                    }
+                    node.querySelectorAll && node.querySelectorAll('.utc-local[data-utc]').forEach(convertUtcToLocal);
+                }
+            });
+        });
+    });
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        convertAllUtcElements();
+        observer.observe(document.body, { childList: true, subtree: true });
+    });
     </script>
     `;
   }
@@ -1108,7 +1082,7 @@ export class HTMLRenderer {
     const logLevelClassMap = { ERROR: "lvl-err", SUCCESS: "lvl-ok" };
     const entries = logs.map(log => {
         const lvlClass = logLevelClassMap[log.l] || "lvl-inf";
-        return `<li class="log-entry"><code class="log-time" data-utc="${log.t}">${log.t}</code><span class="log-level ${lvlClass}">${log.l}</span><code class="log-msg">${log.m}</code></li>`;
+        return `<li class="log-entry"><code class="log-time utc-local" data-utc="${log.t}" data-format="datetime">${log.t}</code><span class="log-level ${lvlClass}">${log.l}</span><code class="log-msg">${log.m}</code></li>`;
     }).join("");
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
 
@@ -1136,22 +1110,6 @@ export class HTMLRenderer {
         ${logs.length === 0 ? '<div class="empty-logs">No logs found</div>' : ''}
     </div>
     ${buildFooter}
-    <script>
-    (function() {
-        function pad(n) { return n < 10 ? '0' + n : n; }
-        document.querySelectorAll('.log-time[data-utc]').forEach(function(el) {
-            var utcStr = el.getAttribute('data-utc');
-            if (!utcStr) return;
-            // 解析 UTC 格式 "26-03-26 10:57:11"
-            var parts = utcStr.split(/[- :]/);
-            if (parts.length < 5) return;
-            var date = new Date(2000 + parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), parseInt(parts[3]), parseInt(parts[4]), parseInt(parts[5] || 0));
-            if (isNaN(date.getTime())) return;
-            var local = date.getFullYear().toString().slice(2) + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
-            el.textContent = local;
-        });
-    })();
-    </script>
 </body>
 </html>`;
   }
