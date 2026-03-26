@@ -573,12 +573,13 @@ export class HTMLRenderer {
         var date = parseDateInput(input);
         if (!date) return "";
         
-        // 使用本地时区，但保持原格式 MM-DD HH:MM
+        // 使用本地时区，保持原格式 YY-MM-DD HH:MM
+        var year = String(date.getFullYear()).slice(2);
         var month = pad(date.getMonth() + 1);
         var day = pad(date.getDate());
         var hour = pad(date.getHours());
         var minute = pad(date.getMinutes());
-        return month + "-" + day + " " + hour + ":" + minute;
+        return year + "-" + month + "-" + day + " " + hour + ":" + minute;
     }
 
     function formatLocalTime(input) {
