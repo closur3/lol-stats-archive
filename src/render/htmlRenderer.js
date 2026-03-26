@@ -103,7 +103,8 @@ export class HTMLRenderer {
             if (!regionGrid[hour]) return;
             const isTotal = hour === "Total";
             const label = isTotal ? "Total" : `${String(hour).padStart(2,'0')}:00`;
-            html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col" style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
+            const hourAttr = isTotal ? '' : ` data-utc-hour="${hour}"`;
+            html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col timegrid-hour"${hourAttr} style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
 
             for (let dayIndex = 0; dayIndex < 8; dayIndex++) {
                 const cellData = regionGrid[hour][dayIndex] || { total: 0 };
@@ -628,6 +629,18 @@ export class HTMLRenderer {
                 }
             }
         });
+
+        // 更新时间分布表的小时标签 (UTC小时 -> 本地小时)
+        document.querySelectorAll('.timegrid-hour[data-utc-hour]').forEach(function(el) {
+            var utcHour = parseInt(el.getAttribute('data-utc-hour'), 10);
+            if (!isNaN(utcHour)) {
+                // 创建一个UTC时间的Date对象，然后获取本地小时
+                var date = new Date();
+                date.setUTCHours(utcHour, 0, 0, 0);
+                var localHour = date.getHours();
+                el.textContent = pad(localHour) + ":00";
+            }
+        });
     }
 
     // 页面加载完成后更新日期显示
@@ -1095,7 +1108,7 @@ export class HTMLRenderer {
     const logLevelClassMap = { ERROR: "lvl-err", SUCCESS: "lvl-ok" };
     const entries = logs.map(log => {
         const lvlClass = logLevelClassMap[log.l] || "lvl-inf";
-        return `<li class="log-entry"><code class="log-time">${log.t}</code><span class="log-level ${lvlClass}">${log.l}</span><code class="log-msg">${log.m}</code></li>`;
+        return `<li class="log-entry"><code class="log-time" data-utc="${log.t}">${log.t}</code><span class="log-level ${lvlClass}">${log.l}</span><code class="log-msg">${log.m}</code></li>`;
     }).join("");
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
 
@@ -1123,6 +1136,22 @@ export class HTMLRenderer {
         ${logs.length === 0 ? '<div class="empty-logs">No logs found</div>' : ''}
     </div>
     ${buildFooter}
+    <script>
+    (function() {
+        function pad(n) { return n < 10 ? '0' + n : n; }
+        document.querySelectorAll('.log-time[data-utc]').forEach(function(el) {
+            var utcStr = el.getAttribute('data-utc');
+            if (!utcStr) return;
+            // 解析 UTC 格式 "26-03-26 10:57:11"
+            var parts = utcStr.split(/[- :]/);
+            if (parts.length < 5) return;
+            var date = new Date(2000 + parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), parseInt(parts[3]), parseInt(parts[4]), parseInt(parts[5] || 0));
+            if (isNaN(date.getTime())) return;
+            var local = date.getFullYear().toString().slice(2) + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
+            el.textContent = local;
+        });
+    })();
+    </script>
 </body>
 </html>`;
   }
