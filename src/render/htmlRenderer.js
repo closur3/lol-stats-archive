@@ -103,8 +103,8 @@ export class HTMLRenderer {
             if (!regionGrid[hour]) return;
             const isTotal = hour === "Total";
             const label = isTotal ? "Total" : `${String(hour).padStart(2,'0')}:00`;
-            const hourAttr = isTotal ? '' : ` class="utc-local" data-utc="2026-01-01T${String(hour).padStart(2,'0')}:00:00Z" data-format="hour"`;
-            html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col"${hourAttr} style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
+            const hourAttr = isTotal ? '' : ` utc-local" data-utc="2026-01-01T${String(hour).padStart(2,'0')}:00:00Z" data-format="hour`;
+            html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col ${hourAttr}" style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
 
             for (let dayIndex = 0; dayIndex < 8; dayIndex++) {
                 const cellData = regionGrid[hour][dayIndex] || { total: 0 };
@@ -1116,6 +1116,23 @@ export class HTMLRenderer {
         ${logs.length === 0 ? '<div class="empty-logs">No logs found</div>' : ''}
     </div>
     ${buildFooter}
+    <script>
+    (function(){
+        function pad(n){return n<10?'0'+n:n;}
+        function parseUtc(utc){
+            if(!utc)return null;
+            var clean=utc.replace('T',' ');
+            var m=clean.match(/(\\d{2})-(\\d{2})-(\\d{2})\\s+(\\d{2}):(\\d{2})(?::(\\d{2}))?/);
+            if(m)return new Date(2000+parseInt(m[1]),parseInt(m[2])-1,parseInt(m[3]),parseInt(m[4]),parseInt(m[5]),parseInt(m[6]||0));
+            return null;
+        }
+        document.querySelectorAll('.log-time[data-utc]').forEach(function(el){
+            var d=parseUtc(el.getAttribute('data-utc'));
+            if(!d)return;
+            el.textContent=d.getFullYear().toString().slice(2)+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+        });
+    })();
+    </script>
 </body>
 </html>`;
   }
