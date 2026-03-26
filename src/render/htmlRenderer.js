@@ -424,6 +424,19 @@ export class HTMLRenderer {
         } else {
           modalList.innerHTML = htmlArray.join("");
         }
+        // 渲染完成后更新模态框中的日期为本地时区
+        updateModalDates();
+    }
+
+    function updateModalDates() {
+        // 更新模态框中的时间显示
+        document.querySelectorAll('#modalList .col-date span[data-utc]').forEach(function(el) {
+            var utc = el.getAttribute('data-utc');
+            if (utc) {
+                var localTime = formatLocalTime(utc);
+                if (localTime) el.textContent = localTime;
+            }
+        });
     }
 
     function showPopup(title, dayIndex, matches) {
@@ -580,10 +593,10 @@ export class HTMLRenderer {
     // 页面加载时更新所有带 data-utc 属性的元素
     function updateAllDatesToLocal() {
         // 更新表格中的最后比赛日期
-        document.querySelectorAll('td[data-utc]').forEach(cell => {
-            const utcTimestamp = cell.getAttribute('data-utc');
+        document.querySelectorAll('td[data-utc]').forEach(function(cell) {
+            var utcTimestamp = cell.getAttribute('data-utc');
             if (utcTimestamp) {
-                const localDate = formatLocalDate(utcTimestamp);
+                var localDate = formatLocalDate(utcTimestamp);
                 if (localDate) {
                     cell.textContent = localDate;
                 }
@@ -591,10 +604,10 @@ export class HTMLRenderer {
         });
 
         // 更新赛程时间
-        document.querySelectorAll('.sch-time[data-utc]').forEach(timeEl => {
-            const utcString = timeEl.getAttribute('data-utc');
+        document.querySelectorAll('.sch-time[data-utc]').forEach(function(timeEl) {
+            var utcString = timeEl.getAttribute('data-utc');
             if (utcString) {
-                const localTime = formatLocalTime(utcString);
+                var localTime = formatLocalTime(utcString);
                 if (localTime) {
                     timeEl.textContent = localTime;
                 }
@@ -611,33 +624,6 @@ export class HTMLRenderer {
                     var month = pad(date.getMonth() + 1);
                     var day = pad(date.getDate());
                     dateDisplayEl.textContent = month + "-" + day;
-                }
-            }
-        });
-
-        // 更新模态框中的日期时间（MATCH弹窗中的时间）
-        document.querySelectorAll('.col-date [data-utc]').forEach(dateEl => {
-            const utcString = dateEl.getAttribute('data-utc');
-            if (utcString) {
-                const localTime = formatLocalTime(utcString);
-                if (localTime) {
-                    dateEl.textContent = localTime;
-                }
-            }
-        });
-
-        // 更新MATCH弹窗中的日期部分
-        document.querySelectorAll('.match-item[data-utc]').forEach(itemEl => {
-            const utcString = itemEl.getAttribute('data-utc');
-            const dateEl = itemEl.querySelector('.col-date');
-            if (utcString && dateEl) {
-                // 只更新时间部分，保持日期部分
-                var timeSpan = dateEl.querySelector('span[data-utc]');
-                if (timeSpan) {
-                    var localTime = formatLocalTime(utcString);
-                    if (localTime) {
-                        timeSpan.textContent = localTime;
-                    }
                 }
             }
         });
