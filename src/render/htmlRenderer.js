@@ -431,7 +431,24 @@ export class HTMLRenderer {
 
     function showPopup(title, dayIndex, matches) {
         const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Total"];
-        document.getElementById('modalTitle').innerText = title + " - " + dayNames[dayIndex];
+        
+        // 将UTC时间转换为本地时间
+        let localTime = title;
+        if (title !== "Total") {
+            // 假设title是"HH:00"格式的UTC时间
+            const hour = parseInt(title.split(':')[0]);
+            if (!isNaN(hour)) {
+                // 创建UTC日期对象（使用固定日期，只关心时间）
+                const utcDate = new Date(Date.UTC(2026, 0, 1, hour, 0, 0));
+                // 获取本地小时和分钟
+                const localHour = utcDate.getHours();
+                const localMinute = utcDate.getMinutes();
+                // 格式化为HH:MM
+                localTime = pad(localHour) + ':' + pad(localMinute);
+            }
+        }
+        
+        document.getElementById('modalTitle').innerText = localTime + " - " + dayNames[dayIndex];
         const sortedMatches = [...matches].sort((matchA, matchB) => (matchB.ts || 0) - (matchA.ts || 0) || matchB.d.localeCompare(matchA.d));
         const listHtml = sortedMatches.map(match => {
             let boTag = '<span ' + STYLE_MUTED_DASH + '>-</span>';
