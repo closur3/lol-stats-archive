@@ -1119,16 +1119,13 @@ export class HTMLRenderer {
     <script>
     (function(){
         function pad(n){return n<10?'0'+n:n;}
-        function parseUtc(utc){
-            if(!utc)return null;
-            var clean=utc.replace('T',' ');
-            var m=clean.match(/(\\d{2})-(\\d{2})-(\\d{2})\\s+(\\d{2}):(\\d{2})(?::(\\d{2}))?/);
-            if(m)return new Date(2000+parseInt(m[1]),parseInt(m[2])-1,parseInt(m[3]),parseInt(m[4]),parseInt(m[5]),parseInt(m[6]||0));
-            return null;
-        }
         document.querySelectorAll('.log-time[data-utc]').forEach(function(el){
-            var d=parseUtc(el.getAttribute('data-utc'));
-            if(!d)return;
+            var utc=el.getAttribute('data-utc');
+            if(!utc)return;
+            var clean=utc.replace('T',' ');
+            var p=clean.match(/(\d{2})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):?(\d{2})?/);
+            if(!p)return;
+            var d=new Date(2000+parseInt(p[1]),parseInt(p[2])-1,parseInt(p[3]),parseInt(p[4]),parseInt(p[5]),parseInt(p[6]||0));
             el.textContent=d.getFullYear().toString().slice(2)+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
         });
     })();
