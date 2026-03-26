@@ -19,9 +19,13 @@ jobs:
         id: process_data
         env:
           WORKER_URL: "https://lol-stats.closur3.workers.dev/backup"
+          TIMEZONE: "Asia/Shanghai"  # 可修改为其他时区，如 America/New_York
         run: |
           import requests
           import os
+          import re
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
 
           url = os.environ.get("WORKER_URL")
 
@@ -50,12 +54,58 @@ jobs:
                   print("ℹ️  Worker 返回 No data，没有可备份的数据，正常退出")
                   exit(0)
 
+              # 时区转换配置
+              target_tz_name = os.environ.get("TIMEZONE", "Asia/Shanghai")
+              try:
+                  target_tz = ZoneInfo(target_tz_name)
+              except Exception as e:
+                  print(f"⚠️  警告: 无法加载时区 '{target_tz_name}', 使用UTC作为后备: {e}")
+                  target_tz = ZoneInfo("UTC")
+
+              def convert_utc_to_local(markdown_text):
+                  """将Markdown中的UTC时间转换为目标时区时间"""
+                  # 1. 转换LAST DATE列: "26-02-10 14:00" 格式
+                  def replace_last_date(match):
+                      date_str = match.group(1)
+                      try:
+                          # 解析UTC时间 (假设年份为20xx)
+                          dt_utc = datetime.strptime(f"20{date_str}", "%Y-%m-%d %H:%M")
+                          # 转换为目标时区
+                          dt_local = dt_utc.replace(tzinfo=ZoneInfo("UTC")).astimezone(target_tz)
+                          return dt_local.strftime("%y-%m-%d %H:%M")
+                      except Exception as e:
+                          print(f"⚠️  时间转换失败 '{date_str}': {e}")
+                          return date_str  # 返回原字符串
+
+                  # 2. 转换时间分布表: "**14:00**" 格式
+                  def replace_time_slot(match):
+                      hour_str = match.group(1)
+                      try:
+                          hour = int(hour_str)
+                          # 创建UTC时间的datetime对象 (使用固定日期)
+                          dt_utc = datetime(2026, 1, 1, hour, 0, tzinfo=ZoneInfo("UTC"))
+                          # 转换为目标时区
+                          dt_local = dt_utc.astimezone(target_tz)
+                          local_hour = dt_local.hour
+                          return f"**{local_hour:02d}:00**"
+                      except Exception as e:
+                          print(f"⚠️  小时转换失败 '{hour_str}': {e}")
+                          return match.group(0)  # 返回原字符串
+
+                  # 应用替换
+                  # 注意: 先替换LAST DATE列，避免误替换时间分布表中的时间
+                  text = re.sub(r'(\d{2}-\d{2}-\d{2} \d{2}:\d{2})', replace_last_date, markdown_text)
+                  text = re.sub(r'\*\*(\d{2}):00\*\*', replace_time_slot, text)
+                  return text
+
               changes_count = 0
               created_files = []
               updated_files = []
 
               for file_path, raw_template in data.items():
                   os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                  # 转换UTC时间为本地时间
+                  converted_template = convert_utc_to_local(raw_template)
 
                   if not os.path.exists(file_path):
                       print(f"✨ [新建] {file_path}")
@@ -64,7 +114,7 @@ jobs:
                       with open(file_path, "r", encoding="utf-8") as f:
                           old_content = f.read()
 
-                      if old_content != raw_template:
+                      if old_content != converted_template:
                           print(f"⚡ [更新] {file_path}: 检测到比赛数据或排名变动")
                           updated_files.append(file_path)
                       else:
@@ -72,7 +122,7 @@ jobs:
                           continue
 
                   with open(file_path, "w", encoding="utf-8") as f:
-                      f.write(raw_template)
+                      f.write(converted_template)
                   changes_count += 1
 
               print(f"\n✅ 处理完成。共更新/新建 {changes_count} 个文件。")
