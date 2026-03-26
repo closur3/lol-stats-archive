@@ -125,8 +125,8 @@ jobs:
               """模糊替换：name 中包含 key 片段则替换为 value，未命中返回 None。"""
               for k, v in NAME_MAPPING.items():
                   if k.lower() in name.lower():
-                      return re.compile(re.escape(k), re.IGNORECASE).sub(v, name)
-              return None
+                      return re.compile(re.escape(k), re.IGNORECASE).sub(v, name), k
+              return None, None
 
           def make_session(url: str, bot_user: str, bot_pass: str) -> requests.Session:
               """创建并登录 Fandom API Session，登录失败时退化为匿名模式。"""
@@ -257,9 +257,9 @@ jobs:
                       log("WARN", f"日期异常 | 跳过赛事 | 赛事: {name} | 报错: {e}", YELLOW)
                       continue
 
-                  mapped_name = apply_name_mapping(name)
+                  mapped_name, matched_keyword = apply_name_mapping(name)
                   if mapped_name:
-                      log("INFO", f"名字聚合 | 模糊替换命中 | '{name}' → '{mapped_name}' | OVP: {ov}", PURPLE)
+                      log("INFO", f"联赛聚合 | 命中聚合关键词({matched_keyword}) | 赛事: {name} → {mapped_name} | OVP: {ov}", PURPLE)
                       name = mapped_name
 
                   ev = {"ov": ov, "year": y, "name": name, "region": region, "start": s_dt, "end": e_dt, "league_full": league_full}
@@ -273,7 +273,7 @@ jobs:
                           log("INFO", f"初步准入 | 赛事已加入主赛聚合列表 | 赛事: {name} | 联赛: {fmt_league(league_full)}", PURPLE)
                           main_events[key] = {**ev, "extra_ovs": [ov]}
                       else:
-                          log("INFO", f"名字聚合 | 合并入已有抽屉 | 追加 OVP: {ov} | Key: {key}", PURPLE)
+                          log("INFO", f"联赛聚合 | 合并入现有赛事 | 赛事: {name} | OVP: {ov} | Key: {key}", PURPLE)
                           main_events[key]["start"] = min(main_events[key]["start"], s_dt)
                           main_events[key]["end"]   = max(main_events[key]["end"],   e_dt)
                           add_extra_ov(main_events[key], ov)
@@ -334,17 +334,7 @@ jobs:
                       "end_date": str(v["end"]),
                   })
 
-              # 合并本地缓存（新数据优先）
-              base_dict = {}
-              for item in (load_json(TARGET_FILE, []) or []):
-                  try:
-                      if today_dt <= (parse_date(item["end_date"]) + timedelta(days=EXPIRE_DAYS)):
-                          base_dict[item["slug"]] = item
-                  except Exception:
-                      pass
-
-              merged = {**base_dict, **{item["slug"]: item for item in final_output}}
-
+              # 直接覆写（不合并）
               def sort_key(x):
                   start_date = x.get("start_date", "")
                   end_date = x.get("end_date", "")
@@ -355,7 +345,7 @@ jobs:
                   # 第三按 slug 字母顺序（确保稳定性）
                   return (start_date, end_date, slug)
 
-              unique_res = sorted(merged.values(), key=sort_key, reverse=True)
+              unique_res = sorted(final_output, key=sort_key, reverse=True)
 
               with open(TARGET_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
