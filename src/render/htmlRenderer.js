@@ -556,8 +556,8 @@ export class HTMLRenderer {
         // 时间戳
         var num = Number(utc);
         if (!isNaN(num) && num > 0) return new Date(num);
-        // ISO格式 "2026-03-26T11:33:29" 或 "2026-03-26T11:33:29.000Z"
-        if (utc.includes('T')) {
+        // ISO格式 "2026-03-26T11:33:29" 或 "2026-03-26T11:33:29.000Z" (四位数年份)
+        if (utc.includes('T') && /^\d{4}-/.test(utc)) {
             var d = new Date(utc.includes('Z') ? utc : utc + 'Z');
             if (!isNaN(d.getTime())) return d;
         }
