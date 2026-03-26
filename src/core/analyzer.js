@@ -299,7 +299,7 @@ export class Analyzer {
 
     let scheduleMap = {};
     const sortedFutureDates = Object.keys(allFutureMatches).sort();
-        sortedFutureDates.slice(0, 4).forEach(date => {
+        sortedFutureDates.slice(0, 8).forEach(date => {
       scheduleMap[date] = allFutureMatches[date].sort((matchA, matchB) => {
         if (matchA.tournIndex !== matchB.tournIndex) return matchA.tournIndex - matchB.tournIndex;
         return matchA.time.localeCompare(matchB.time);
