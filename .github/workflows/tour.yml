@@ -55,7 +55,7 @@ jobs:
           CARGO_WHERE = {
               "Year": [now.year],
               "TournamentLevel": "Primary",
-              "IsQualifier": "1",
+              #"IsQualifier": "1",
               "Region": ["International", "China", "Korea"],
           }
           CARGO_WHERE_RAW = ["DateStart IS NOT NULL"]
