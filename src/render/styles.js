@@ -175,7 +175,7 @@ export const TOOLS_PAGE_STYLE = `
     .qr-label:hover { background: #fff; border-color: #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
     .form-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb; margin: 0; flex-shrink: 0; }
     .qr-name { font-weight: 700; color: #1e293b; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .qr-league { font-size: 12px; font-weight: 700; color: #fff; background: #94a3b8; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; width: 35px; display: flex; justify-content: center; align-items: center; white-space: nowrap; }
+    .qr-league { font-size: 12px; font-weight: 700; color: #fff; background: #94a3b8; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; width: 40px; display: flex; justify-content: center; align-items: center; white-space: nowrap; }
     .qr-actions { display: flex; gap: 6px; flex-shrink: 0; }
     .fill-btn { background: #fff; color: #2563eb; border: 1px solid #bfdbfe; padding: 6px 10px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; transition: 0.2s; font-family: inherit; margin: 0; flex-shrink: 0; }
     .fill-btn:hover { background: #eff6ff; border-color: #93c5fd; }
