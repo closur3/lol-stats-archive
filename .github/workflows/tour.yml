@@ -122,7 +122,7 @@ jobs:
               return " AND ".join(parts)
 
           def apply_name_mapping(name: str):
-              """模糊替换：name 中包含 key 片段则替换为 value，未命中返回 None。"""
+              """模糊替换：name 中包含 key 片段则替换为 value，未命中返回 (None, None)。"""
               for k, v in NAME_MAPPING.items():
                   if k.lower() in name.lower():
                       return re.compile(re.escape(k), re.IGNORECASE).sub(v, name), k
