@@ -1,7 +1,5 @@
-import { CST_OFFSET } from './constants.js';
-
 /**
- * 日期时间工具函数
+ * 日期时间工具函数 (纯UTC)
  */
 export const dateUtils = {
   /**
@@ -10,15 +8,10 @@ export const dateUtils = {
   pad: (n) => n < 10 ? '0' + n : n,
 
   /**
-   * 转换为CST时间
-   */
-  toCST: (ts) => new Date((ts || Date.now()) + CST_OFFSET),
-
-  /**
-   * 获取时间部分
+   * 获取UTC时间部分
    */
   timeParts: (ts) => {
-    const date = dateUtils.toCST(ts);
+    const date = ts ? new Date(ts) : new Date();
     return {
       y: date.getUTCFullYear(),
       mo: dateUtils.pad(date.getUTCMonth() + 1),
@@ -31,22 +24,23 @@ export const dateUtils = {
   },
 
   /**
-   * 获取当前时间信息
+   * 获取当前UTC时间信息
    */
   getNow: () => {
-    const parts = dateUtils.timeParts();
-    const isoString = `${parts.y}-${parts.mo}-${parts.da} ${parts.h}:${parts.m}:${parts.s}`;
-    return { 
-      dateTime: dateUtils.toCST(), 
-      full: isoString, 
-      short: isoString.slice(2), 
-      date: isoString.slice(0, 10), 
-      time: isoString.slice(11, 16) 
+    const date = new Date();
+    const isoString = date.toISOString();
+    return {
+      dateTime: date,
+      iso: isoString,
+      full: isoString.replace('T', ' ').slice(0, 19),
+      date: isoString.slice(0, 10),
+      time: isoString.slice(11, 19),
+      timestamp: date.getTime()
     };
   },
 
   /**
-   * 格式化日期
+   * 格式化UTC日期
    */
   fmtDate: (timestamp) => {
     if (!timestamp) return "(Pending)";
@@ -55,14 +49,33 @@ export const dateUtils = {
   },
 
   /**
+   * 转换为ISO字符串
+   */
+  toISO: (ts) => {
+    const date = ts ? new Date(ts) : new Date();
+    return date.toISOString();
+  },
+
+  /**
+   * 转换为ISO字符串 (无毫秒)
+   */
+  toISOShort: (ts) => {
+    const iso = dateUtils.toISO(ts);
+    return iso.replace(/\.\d{3}Z$/, 'Z');
+  },
+
+  /**
    * 解析日期字符串
    */
   parseDate: (str) => {
     if(!str) return null;
-    try { 
-      return new Date(str.replace(" ", "T") + "Z"); 
-    } catch(e) { 
-      return null; 
+    try {
+      if (str.includes('T')) {
+        return new Date(str);
+      }
+      return new Date(str + (str.endsWith('Z') ? '' : 'Z'));
+    } catch(e) {
+      return null;
     }
   },
 
@@ -88,9 +101,8 @@ export const dateUtils = {
     if (!isFinished && isLive) return true;
     
     if (isFinished) {
-      const matchDateUTC = new Date(matchDateStr + " 00:00:00 UTC");
-      const matchDateCST_Ts = matchDateUTC.getTime() - CST_OFFSET;
-      const expireTs = matchDateCST_Ts + 48 * 60 * 60 * 1000;
+      const matchDateUTC = new Date(matchDateStr + "T00:00:00Z");
+      const expireTs = matchDateUTC.getTime() + 48 * 60 * 60 * 1000;
       return Date.now() < expireTs;
     }
     
@@ -107,21 +119,18 @@ export const dateUtils = {
       const aEnd = a.end_date || '';
       const bEnd = b.end_date || '';
 
-      // 主要排序：start_date 倒序（日期越晚越靠前）
       if (aStart !== bStart) {
-        if (!aStart) return 1; // 没有日期的排后面
+        if (!aStart) return 1;
         if (!bStart) return -1;
         return bStart.localeCompare(aStart);
       }
 
-      // 第二排序：end_date 倒序
       if (aEnd !== bEnd) {
         if (!aEnd) return 1;
         if (!bEnd) return -1;
         return bEnd.localeCompare(aEnd);
       }
 
-      // 第三排序：slug 字母顺序（确保稳定性）
       return (a.slug || '').localeCompare(b.slug || '');
     });
   }

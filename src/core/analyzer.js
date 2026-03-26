@@ -3,7 +3,7 @@ import { dataUtils } from '../utils/dataUtils.js';
 import { MATCH_EXPIRY_HOURS, TABLE_COLUMNS, ICONS } from '../utils/constants.js';
 
 /**
- * 统计分析核心模块
+ * 统计分析核心模块 (纯UTC)
  */
 export class Analyzer {
   /**
@@ -98,26 +98,25 @@ export class Analyzer {
         const dateTime = dateUtils.parseDate(match.DateTime_UTC || match["DateTime UTC"]);
         const timeParts = dateTime ? dateUtils.timeParts(dateTime) : null;
         let dateDisplay = "-", fullDate = "-", matchDateStr = "-", matchTimeStr = "-", timestamp = 0;
+        let isoString = "";
         if (timeParts) {
           matchTimeStr = `${timeParts.h}:${timeParts.m}`;
           dateDisplay = `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`;
           fullDate = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
           matchDateStr = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
+          isoString = dateTime.toISOString();
+          
           timestamp = (match.DateTime_UTC || match["DateTime UTC"]) ? new Date(match.DateTime_UTC || match["DateTime UTC"]).getTime() : 0;
         }
 
-        // nextMatchStartTimestamp: 所有未结束比赛中最早的开始时间（包括即将开始的和正在进行的）
-        // 只有当timestamp是有效值（大于0）时才更新
         if (!isFinished && timestamp > 0 && timestamp < nextMatchStartTimestamp) {
           nextMatchStartTimestamp = timestamp;
         }
         
-        // lastMatchStartTimestamp: 所有已结束比赛中最晚的开始时间
         if (isFinished && timestamp > 0 && timestamp > lastMatchStartTimestamp) {
           lastMatchStartTimestamp = timestamp;
         }
 
-        // 跨天比赛强制保留逻辑
         const isCrossDayKeep = dateUtils.isCrossDayKeep(matchDateStr, todayStr, isFinished, isLive);
 
         if (matchDateStr >= todayStr || isCrossDayKeep) {
@@ -125,7 +124,7 @@ export class Analyzer {
           if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
           const tabName = match.Tab || "";
           allFutureMatches[bucketDate].push({
-            time: matchTimeStr, 
+            time: matchTimeStr,
             t1: team1Name, 
             t2: team2Name, 
             s1: team1Score, 
@@ -136,7 +135,9 @@ export class Analyzer {
             league: tournament.league, 
             slug: tournament.slug,
             tournIndex: tournamentIndex, 
-            tabName: tabName || ""
+            tabName: tabName || "",
+            iso: isoString,
+            ts: timestamp
           });
         }
 
@@ -148,8 +149,10 @@ export class Analyzer {
           const targetHour = parseInt(timeParts.h, 10);
 
           const matchObj = { 
-            d: `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`, 
-            fd: `${timeParts.y}-${timeParts.mo}-${timeParts.da}`,
+            d: dateDisplay,
+            fd: fullDate,
+            iso: isoString,
+            ts: timestamp,
             t1: team1Name, 
             t2: team2Name, 
             s: `${team1Score}-${team2Score}`, 
@@ -181,8 +184,9 @@ export class Analyzer {
         }
 
         stats[team1Name].history.push({ 
-          d: dateDisplay, 
+          d: dateDisplay,
           fd: fullDate,
+          iso: isoString,
           vs: team2Name, 
           s: `${team1Score}-${team2Score}`, 
           res: result1, 
@@ -191,8 +195,9 @@ export class Analyzer {
           ts: timestamp 
         });
         stats[team2Name].history.push({ 
-          d: dateDisplay, 
+          d: dateDisplay,
           fd: fullDate,
+          iso: isoString,
           vs: team1Name, 
           s: `${team2Score}-${team1Score}`, 
           res: result2, 
@@ -315,7 +320,6 @@ export class Analyzer {
       bo5FullMatches += stat.bo5_f || 0; 
       bo5TotalMatches += stat.bo5_t || 0;
     });
-    // 比赛双向记录，总数需除以 2
     bo3FullMatches /= 2; 
     bo3TotalMatches /= 2; 
     bo5FullMatches /= 2; 

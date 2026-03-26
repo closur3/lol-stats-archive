@@ -88,7 +88,7 @@ export class HTMLRenderer {
                `<td class="col-game" ${statStyle(teamStats.g_t)}>${gameText}</td>` +
                `<td class="col-game-wr" ${percentStyle(gameRate)}>${dataUtils.pct(gameRate)}</td>` +
                `<td class="col-streak" ${streakStyle}>${streak}</td>` +
-               `<td class="col-last" ${lastStyle}>${lastMatch}</td></tr>`;
+               `<td class="col-last" ${lastStyle} data-utc="${teamStats.last || ''}">${lastMatch}</td></tr>`;
     };
 
     const buildTimeTable = (regionGrid) => {
@@ -143,7 +143,7 @@ export class HTMLRenderer {
         const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
         const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${match.t1}', '${match.t2}')"` : "";
 
-        return `<div class="sch-row"><span class="sch-time">${match.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${t1Click} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${r1}${match.t1}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${t2Click} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
+        return `<div class="sch-row"><span class="sch-time" data-utc="${match.iso || ''}" data-utc-time="${match.time || ''}">${match.time}</span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${t1Click} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${r1}${match.t1}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${t2Click} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
     };
 
     let tablesHtml = "";
@@ -206,7 +206,7 @@ export class HTMLRenderer {
                 const matches = scheduleMap[d];
                 const dateObj = new Date(d + "T00:00:00Z");
                 const dayName = WEEKDAY_NAMES[dateObj.getUTCDay()];
-                let cardHtml = `<div class="sch-card"><div class="sch-header" ${STYLE_SCH_HEADER}><span>📅 ${d.slice(5)} ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
+                let cardHtml = `<div class="sch-card" data-utc-date="${d}"><div class="sch-header" ${STYLE_SCH_HEADER}><span>📅 <span class="date-display">${d.slice(5)}</span> ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
                 let lastGroupKey = "";
 
                 matches.forEach(match => {
@@ -376,10 +376,10 @@ export class HTMLRenderer {
         return isNaN(num) ? value.toLowerCase() : num;
     }
 
-    function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus) {
+    function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus, isoString) {
         const dateParts = (date || '').split(' ');
         const dateHtml = dateParts.length === 2 
-          ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + '>' + dateParts[1] + '</span>' 
+          ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + ' data-utc="' + (isoString || '') + '">' + dateParts[1] + '</span>' 
           : (date || '');
 
         // 根据比赛结果添加边框样式类
@@ -404,7 +404,7 @@ export class HTMLRenderer {
         const team1Style = team1 === 'TBD' ? 'style="padding-right:5px;color:#9ca3af !important;"' : 'style="padding-right:5px;"';
         const team2Style = team2 === 'TBD' ? 'style="padding-left:5px;color:#9ca3af !important;"' : 'style="padding-left:5px;"';
 
-        return '<div class="' + matchItemClass + '">' +
+        return '<div class="' + matchItemClass + '" data-utc="' + (isoString || '') + '">' +
                '<div class="col-date">' + dateHtml + '</div>' +
                '<div class="modal-divider"></div>' +
                '<div class="col-vs-area"><div class="spine-row">' +
@@ -429,13 +429,13 @@ export class HTMLRenderer {
     function showPopup(title, dayIndex, matches) {
         const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Total"];
         document.getElementById('modalTitle').innerText = title + " - " + dayNames[dayIndex];
-        const sortedMatches = [...matches].sort((matchA, matchB) => matchB.d.localeCompare(matchA.d));
+        const sortedMatches = [...matches].sort((matchA, matchB) => (matchB.ts || 0) - (matchA.ts || 0) || matchB.d.localeCompare(matchA.d));
         const listHtml = sortedMatches.map(match => {
             let boTag = '<span ' + STYLE_MUTED_DASH + '>-</span>';
             if (match.bo === 5) boTag = '<span class="sch-pill gold">BO5</span>';
             else if (match.bo === 3) boTag = '<span class="sch-pill">BO3</span>';
             else if (match.bo === 1) boTag = '<span class="sch-pill">BO1</span>';
-            return renderMatchItem('distribution', match.d, boTag, match.t1, match.t2, match.f, match.s);
+            return renderMatchItem('distribution', match.d, boTag, match.t1, match.t2, match.f, match.s, null, match.iso);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display = "block";
@@ -463,7 +463,7 @@ export class HTMLRenderer {
         finished.forEach(match => {
             const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
             const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-            listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
+            listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
         });
         
         // 未开始比赛区域（蓝色分隔线）
@@ -473,7 +473,7 @@ export class HTMLRenderer {
             upcoming.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
                 const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
+                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
             });
         }
         
@@ -506,7 +506,7 @@ export class HTMLRenderer {
         finished.forEach(match => {
             const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
             const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-            listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
+            listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
         });
         
         // 未开始比赛区域（蓝色分隔线）
@@ -516,7 +516,7 @@ export class HTMLRenderer {
             upcoming.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
                 const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res));
+                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
             });
         }
         
@@ -535,7 +535,7 @@ export class HTMLRenderer {
         const listHtml = h2hHistory.map(match => {
             const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
             const resultTag = '<span class="' + ((match.res === 'W' || match.res === 'L') ? '' : 'hist-icon') + '">' + icon + '</span>';
-            return renderMatchItem('history', match.d, resultTag, team1Name, match.vs, match.full, match.s, match.res);
+            return renderMatchItem('history', match.d, resultTag, team1Name, match.vs, match.full, match.s, match.res, match.iso);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
@@ -543,6 +543,106 @@ export class HTMLRenderer {
 
     function closePopup(){document.getElementById('matchModal').style.display="none";}
     window.onclick=function(e){if(e.target==document.getElementById('matchModal'))closePopup();}
+
+    // 时区支持函数
+    function formatLocalDate(isoString, options = {}) {
+        if (!isoString) return "";
+        try {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) return isoString;
+            
+            const defaultOptions = {
+                year: '2-digit',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            };
+            
+            const mergedOptions = { ...defaultOptions, ...options };
+            return new Intl.DateTimeFormat(undefined, mergedOptions).format(date);
+        } catch (e) {
+            return isoString;
+        }
+    }
+
+    function formatLocalTime(isoString, options = {}) {
+        if (!isoString) return "";
+        try {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) return "";
+            
+            const defaultOptions = {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            };
+            
+            const mergedOptions = { ...defaultOptions, ...options };
+            return new Intl.DateTimeFormat(undefined, mergedOptions).format(date);
+        } catch (e) {
+            return "";
+        }
+    }
+
+    // 页面加载时更新所有带 data-utc 属性的元素
+    function updateAllDatesToLocal() {
+        // 更新表格中的最后比赛日期
+        document.querySelectorAll('td[data-utc]').forEach(cell => {
+            const utcTimestamp = cell.getAttribute('data-utc');
+            if (utcTimestamp) {
+                const localDate = formatLocalDate(utcTimestamp);
+                if (localDate) {
+                    cell.textContent = localDate;
+                }
+            }
+        });
+
+        // 更新赛程时间
+        document.querySelectorAll('.sch-time[data-utc]').forEach(timeEl => {
+            const utcString = timeEl.getAttribute('data-utc');
+            if (utcString) {
+                const localTime = formatLocalTime(utcString);
+                if (localTime) {
+                    timeEl.textContent = localTime;
+                }
+            }
+        });
+
+        // 更新赛程日期头部
+        document.querySelectorAll('.sch-card[data-utc-date]').forEach(cardEl => {
+            const utcDate = cardEl.getAttribute('data-utc-date');
+            const dateDisplayEl = cardEl.querySelector('.date-display');
+            if (utcDate && dateDisplayEl) {
+                const date = new Date(utcDate + 'T00:00:00Z');
+                if (!isNaN(date.getTime())) {
+                    const localDate = formatLocalDate(date.toISOString(), {
+                        year: '2-digit',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
+                    if (localDate) {
+                        dateDisplayEl.textContent = localDate.split(' ')[0]; // 只取日期部分
+                    }
+                }
+            }
+        });
+
+        // 更新模态框中的日期时间
+        document.querySelectorAll('[style*="font-weight:700;color:#475569"][data-utc]').forEach(dateEl => {
+            const utcString = dateEl.getAttribute('data-utc');
+            if (utcString) {
+                const localTime = formatLocalTime(utcString);
+                if (localTime) {
+                    dateEl.textContent = localTime;
+                }
+            }
+        });
+    }
+
+    // 页面加载完成后更新日期显示
+    document.addEventListener('DOMContentLoaded', updateAllDatesToLocal);
     </script>
     `;
   }

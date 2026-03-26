@@ -2,8 +2,7 @@
 export const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 export const GITHUB_COMMIT_BASE = "https://github.com/closur3/lol-stats-archive/commit/";
 
-// 时间相关常量
-export const CST_OFFSET = 8 * 60 * 60 * 1000; // UTC+8 时区偏移
+// 时间相关常量 (纯UTC)
 export const SLOW_THRESHOLD = 120 * 60 * 1000; // 2小时（毫秒）
 export const MATCH_EXPIRY_HOURS = 48; // 跨天比赛保留时间
 export const MAX_LOGS = 100; // 最大日志条数
