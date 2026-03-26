@@ -73,8 +73,6 @@ export const dataUtils = {
 
   /**
    * 排序锦标赛（按日期倒序）
-   * @param {Array} tournaments - 锦标赛对象数组，每个对象可能直接包含 start_date/end_date/slug 字段，或者包含 tourn 属性
-   * @returns {Array} 排序后的数组
    */
   sortTournamentsByDate: (tournaments) => {
     if (!tournaments || !Array.isArray(tournaments)) return [];
