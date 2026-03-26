@@ -547,35 +547,34 @@ export class HTMLRenderer {
     // 时区支持函数
     function pad(n) { return n < 10 ? '0' + n : n; }
 
-    function formatLocalDate(isoString) {
-        if (!isoString) return "";
-        try {
-            var date = new Date(isoString);
-            if (isNaN(date.getTime())) return isoString;
-            
-            // 使用本地时区，但保持原格式 MM-DD HH:MM
-            var month = pad(date.getMonth() + 1);
-            var day = pad(date.getDate());
-            var hour = pad(date.getHours());
-            var minute = pad(date.getMinutes());
-            return month + "-" + day + " " + hour + ":" + minute;
-        } catch (e) {
-            return isoString;
-        }
+    // 解析输入为Date对象（支持时间戳、ISO字符串）
+    function parseDateInput(input) {
+        if (!input) return null;
+        var num = Number(input);
+        if (!isNaN(num) && num > 0) return new Date(num);
+        var date = new Date(input);
+        return isNaN(date.getTime()) ? null : date;
     }
 
-    function formatLocalTime(isoString) {
-        if (!isoString) return "";
-        try {
-            var date = new Date(isoString);
-            if (isNaN(date.getTime())) return "";
-            
-            var hour = pad(date.getHours());
-            var minute = pad(date.getMinutes());
-            return hour + ":" + minute;
-        } catch (e) {
-            return "";
-        }
+    function formatLocalDate(input) {
+        var date = parseDateInput(input);
+        if (!date) return "";
+        
+        // 使用本地时区，但保持原格式 MM-DD HH:MM
+        var month = pad(date.getMonth() + 1);
+        var day = pad(date.getDate());
+        var hour = pad(date.getHours());
+        var minute = pad(date.getMinutes());
+        return month + "-" + day + " " + hour + ":" + minute;
+    }
+
+    function formatLocalTime(input) {
+        var date = parseDateInput(input);
+        if (!date) return "";
+        
+        var hour = pad(date.getHours());
+        var minute = pad(date.getMinutes());
+        return hour + ":" + minute;
     }
 
     // 页面加载时更新所有带 data-utc 属性的元素
@@ -616,13 +615,29 @@ export class HTMLRenderer {
             }
         });
 
-        // 更新模态框中的日期时间
-        document.querySelectorAll('[style*="font-weight:700;color:#475569"][data-utc]').forEach(dateEl => {
+        // 更新模态框中的日期时间（MATCH弹窗中的时间）
+        document.querySelectorAll('.col-date [data-utc]').forEach(dateEl => {
             const utcString = dateEl.getAttribute('data-utc');
             if (utcString) {
                 const localTime = formatLocalTime(utcString);
                 if (localTime) {
                     dateEl.textContent = localTime;
+                }
+            }
+        });
+
+        // 更新MATCH弹窗中的日期部分
+        document.querySelectorAll('.match-item[data-utc]').forEach(itemEl => {
+            const utcString = itemEl.getAttribute('data-utc');
+            const dateEl = itemEl.querySelector('.col-date');
+            if (utcString && dateEl) {
+                // 只更新时间部分，保持日期部分
+                var timeSpan = dateEl.querySelector('span[data-utc]');
+                if (timeSpan) {
+                    var localTime = formatLocalTime(utcString);
+                    if (localTime) {
+                        timeSpan.textContent = localTime;
+                    }
                 }
             }
         });
