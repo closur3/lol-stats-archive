@@ -1117,18 +1117,18 @@ export class HTMLRenderer {
     </div>
     ${buildFooter}
     <script>
-    (function(){
-        function pad(n){return n<10?'0'+n:n;}
-        document.querySelectorAll('.log-time[data-utc]').forEach(function(el){
-            var utc=el.getAttribute('data-utc');
-            if(!utc)return;
-            var clean=utc.replace('T',' ');
-            var p=clean.match(/(\d{2})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):?(\d{2})?/);
-            if(!p)return;
-            var d=new Date(2000+parseInt(p[1]),parseInt(p[2])-1,parseInt(p[3]),parseInt(p[4]),parseInt(p[5]),parseInt(p[6]||0));
-            el.textContent=d.getFullYear().toString().slice(2)+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
-        });
-    })();
+    var codes=document.querySelectorAll('code.log-time');
+    for(var i=0;i<codes.length;i++){
+        var el=codes[i];
+        var utc=el.textContent;
+        if(!utc)continue;
+        var parts=utc.split(/[-T:]/);
+        if(parts.length<5)continue;
+        var d=new Date(2000+parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]),parseInt(parts[3]),parseInt(parts[4]),parseInt(parts[5]||0));
+        if(isNaN(d.getTime()))continue;
+        var pad=function(n){return n<10?'0'+n:n;};
+        el.textContent=d.getFullYear().toString().slice(2)+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+    }
     </script>
 </body>
 </html>`;
