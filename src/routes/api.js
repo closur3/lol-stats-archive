@@ -418,7 +418,7 @@ export class APIRouter {
       }
 
       const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-      const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
+      let validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
       validSnapshots = dataUtils.sortTournamentsByDate(validSnapshots);
 
