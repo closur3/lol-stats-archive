@@ -1,5 +1,6 @@
 import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { Analyzer } from '../core/analyzer.js';
+import { dataUtils } from '../utils/dataUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
 
 /**
@@ -39,29 +40,7 @@ export class ArchiveRouter {
       const validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
       // 排序逻辑：start_date 倒序 > end_date 倒序 > slug 字母顺序
-      validSnapshots.sort((a, b) => {
-        const aStart = a.tourn.start_date || '';
-        const bStart = b.tourn.start_date || '';
-        const aEnd = a.tourn.end_date || '';
-        const bEnd = b.tourn.end_date || '';
-
-        // 主要排序：start_date 倒序（日期越晚越靠前）
-        if (aStart !== bStart) {
-          if (!aStart) return 1; // 没有日期的排后面
-          if (!bStart) return -1;
-          return bStart.localeCompare(aStart);
-        }
-
-        // 第二排序：end_date 倒序
-        if (aEnd !== bEnd) {
-          if (!aEnd) return 1;
-          if (!bEnd) return -1;
-          return bEnd.localeCompare(aEnd);
-        }
-
-        // 第三排序：slug 字母顺序（确保稳定性）
-        return (a.tourn.slug || '').localeCompare(b.tourn.slug || '');
-      });
+      validSnapshots = dataUtils.sortTournamentsByDate(validSnapshots);
 
       const combined = validSnapshots.map(snap => {
         const tournamentWithMap = { ...snap.tourn, team_map: snap.team_map || {} };

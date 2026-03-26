@@ -72,6 +72,43 @@ export const dataUtils = {
   },
 
   /**
+   * 排序锦标赛（按日期倒序）
+   * @param {Array} tournaments - 锦标赛对象数组，每个对象可能直接包含 start_date/end_date/slug 字段，或者包含 tourn 属性
+   * @returns {Array} 排序后的数组
+   */
+  sortTournamentsByDate: (tournaments) => {
+    if (!tournaments || !Array.isArray(tournaments)) return [];
+    
+    return [...tournaments].sort((a, b) => {
+      // 支持两种结构：直接是 tourn 对象，或者包含 tourn 属性
+      const aTourn = a.tourn || a;
+      const bTourn = b.tourn || b;
+      
+      const aStart = aTourn.start_date || '';
+      const bStart = bTourn.start_date || '';
+      const aEnd = aTourn.end_date || '';
+      const bEnd = bTourn.end_date || '';
+
+      // 主要排序：start_date 倒序（日期越晚越靠前）
+      if (aStart !== bStart) {
+        if (!aStart) return 1; // 没有日期的排后面
+        if (!bStart) return -1;
+        return bStart.localeCompare(aStart);
+      }
+
+      // 第二排序：end_date 倒序
+      if (aEnd !== bEnd) {
+        if (!aEnd) return 1;
+        if (!bEnd) return -1;
+        return bEnd.localeCompare(aEnd);
+      }
+
+      // 第三排序：slug 字母顺序（确保稳定性）
+      return (aTourn.slug || '').localeCompare(bTourn.slug || '');
+    });
+  },
+
+  /**
    * 检查是否为扁平队伍映射
    */
   isFlatTeamMap: (obj) => {
