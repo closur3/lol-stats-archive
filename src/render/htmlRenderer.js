@@ -557,13 +557,13 @@ export class HTMLRenderer {
         var num = Number(utc);
         if (!isNaN(num) && num > 0) return new Date(num);
         // 完整ISO格式 "2026-03-26T11:33:29.000Z" (四位数年份)
-        if (/^\d{4}-\d{2}-\d{2}T/.test(utc)) {
+        if (/^\\d{4}-\\d{2}-\\d{2}T/.test(utc)) {
             var d = new Date(utc.includes('Z') ? utc : utc + 'Z');
             if (!isNaN(d.getTime())) return d;
         }
         // 短格式 "26-03-26T11:33:08" 或 "26-03-26 11:33:08" (UTC时间)
         var clean = utc.replace('T', ' ');
-        var parts = clean.match(/(\d{2})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+        var parts = clean.match(/(\\d{2})-(\\d{2})-(\\d{2})\\s+(\\d{2}):(\\d{2})(?::(\\d{2}))?/);
         if (parts) {
             // 创建UTC时间的Date对象
             return new Date(Date.UTC(2000 + parseInt(parts[1]), parseInt(parts[2]) - 1, parseInt(parts[3]), parseInt(parts[4]), parseInt(parts[5]), parseInt(parts[6] || 0)));
