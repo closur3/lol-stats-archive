@@ -29,10 +29,12 @@ export const dateUtils = {
   getNow: () => {
     const date = new Date();
     const isoString = date.toISOString();
+    const full = isoString.replace('T', ' ').slice(0, 19);
     return {
       dateTime: date,
       iso: isoString,
-      full: isoString.replace('T', ' ').slice(0, 19),
+      full: full,
+      short: full.slice(2), // 保持原格式 "26-03-26 10:57:11"
       date: isoString.slice(0, 10),
       time: isoString.slice(11, 19),
       timestamp: date.getTime()

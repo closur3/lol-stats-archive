@@ -545,42 +545,34 @@ export class HTMLRenderer {
     window.onclick=function(e){if(e.target==document.getElementById('matchModal'))closePopup();}
 
     // 时区支持函数
-    function formatLocalDate(isoString, options = {}) {
+    function pad(n) { return n < 10 ? '0' + n : n; }
+
+    function formatLocalDate(isoString) {
         if (!isoString) return "";
         try {
-            const date = new Date(isoString);
+            var date = new Date(isoString);
             if (isNaN(date.getTime())) return isoString;
             
-            const defaultOptions = {
-                year: '2-digit',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-            };
-            
-            const mergedOptions = { ...defaultOptions, ...options };
-            return new Intl.DateTimeFormat(undefined, mergedOptions).format(date);
+            // 使用本地时区，但保持原格式 MM-DD HH:MM
+            var month = pad(date.getMonth() + 1);
+            var day = pad(date.getDate());
+            var hour = pad(date.getHours());
+            var minute = pad(date.getMinutes());
+            return month + "-" + day + " " + hour + ":" + minute;
         } catch (e) {
             return isoString;
         }
     }
 
-    function formatLocalTime(isoString, options = {}) {
+    function formatLocalTime(isoString) {
         if (!isoString) return "";
         try {
-            const date = new Date(isoString);
+            var date = new Date(isoString);
             if (isNaN(date.getTime())) return "";
             
-            const defaultOptions = {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-            };
-            
-            const mergedOptions = { ...defaultOptions, ...options };
-            return new Intl.DateTimeFormat(undefined, mergedOptions).format(date);
+            var hour = pad(date.getHours());
+            var minute = pad(date.getMinutes());
+            return hour + ":" + minute;
         } catch (e) {
             return "";
         }
@@ -610,21 +602,16 @@ export class HTMLRenderer {
             }
         });
 
-        // 更新赛程日期头部
-        document.querySelectorAll('.sch-card[data-utc-date]').forEach(cardEl => {
-            const utcDate = cardEl.getAttribute('data-utc-date');
-            const dateDisplayEl = cardEl.querySelector('.date-display');
+        // 更新赛程日期头部 (MM-DD格式)
+        document.querySelectorAll('.sch-card[data-utc-date]').forEach(function(cardEl) {
+            var utcDate = cardEl.getAttribute('data-utc-date');
+            var dateDisplayEl = cardEl.querySelector('.date-display');
             if (utcDate && dateDisplayEl) {
-                const date = new Date(utcDate + 'T00:00:00Z');
+                var date = new Date(utcDate + 'T00:00:00Z');
                 if (!isNaN(date.getTime())) {
-                    const localDate = formatLocalDate(date.toISOString(), {
-                        year: '2-digit',
-                        month: '2-digit',
-                        day: '2-digit'
-                    });
-                    if (localDate) {
-                        dateDisplayEl.textContent = localDate.split(' ')[0]; // 只取日期部分
-                    }
+                    var month = pad(date.getMonth() + 1);
+                    var day = pad(date.getDate());
+                    dateDisplayEl.textContent = month + "-" + day;
                 }
             }
         });
