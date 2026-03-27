@@ -1123,12 +1123,12 @@ export class HTMLRenderer {
 
                     container.innerHTML = tournaments.map(t => {
                         const modeIcon = t.currentMode === 'fast' ? '⚡' : '🐌';
-                        return '<div class="qr-item">' +
-                            '<label class="qr-label">' +
-                            '<span style="width:20px;text-align:center;">' + modeIcon + '</span>' +
+                        return '<div class="qr-item" style="justify-content:space-between;padding:8px 12px;">' +
+                            '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
+                            '<span style="width:20px;text-align:center;flex-shrink:0;">' + modeIcon + '</span>' +
                             '<span class="qr-name">' + t.name + '</span>' +
-                            '</label>' +
-                            '<select class="form-input" data-slug="' + t.slug + '" style="width:auto;min-width:90px;">' +
+                            '</div>' +
+                            '<select class="form-input" data-slug="' + t.slug + '" style="width:auto;min-width:90px;padding:6px 10px;flex-shrink:0;">' +
                             '<option value="auto"' + (t.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
                             '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
                             '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
