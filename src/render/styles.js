@@ -32,7 +32,8 @@ export const PYTHON_STYLE = `
     .team-col { position: sticky; left: 0; background: white !important; z-index: 10; text-align: left; font-weight: 800; padding-left: 15px; width: 80px; transition: 0.2s; box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.04), inset -1px -1px 2px rgba(0, 0, 0, 0.04) !important; border: none !important; outline: none !important; }
     .team-clickable { cursor: pointer; }
     .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
-    .table-title { padding: 15px; font-weight: 700; border-bottom: 2px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+    .table-title { padding: 15px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: 12px 12px 0 0; border: 1px solid #e2e8f0; border-bottom: none; box-sizing: border-box; }
+    .table-title + .wrapper { border-top: none; border-radius: 0 0 12px 12px; }
     .table-title a { color: #2563eb; text-decoration: none; }
     details.arch-sec { background: #fff; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.3s ease; display: block; }
     details.arch-sec:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -89,7 +90,7 @@ export const PYTHON_STYLE = `
     @media (max-width: 650px) {
         .table-title, summary.arch-sum { flex-wrap: wrap; gap: 0; padding: 12px 15px 0 15px; }
         summary.arch-sum { display: flex; flex-direction: column; align-items: flex-start; padding: 0; min-height: 82px; }
-        .table-title { display: flex; flex-direction: column; align-items: flex-start; padding: 0; min-height: 82px; position: sticky; left: 0; z-index: 25; background: #fff; border-bottom: none; width: 100%; }
+        .table-title { display: flex; flex-direction: column; align-items: flex-start; padding: 0; min-height: 82px; background: #fff; border-bottom: none; width: 100%; border-radius: 12px 12px 0 0; }
         .table-title > div:first-child { width: 100%; padding: 0 15px; display: flex; align-items: center; flex: 1 1 0; column-gap: 6px; gap: 6px !important; min-width: 0; }
         .table-title > div:first-child a { white-space: normal; line-height: 1.3; }
         .table-title .title-right-area { margin-top: 0 !important; padding: 0 15px !important; align-items: center; display: flex; flex: 1 1 0; justify-content: flex-end !important; }
