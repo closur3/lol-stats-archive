@@ -1125,14 +1125,13 @@ export class HTMLRenderer {
                         const modeIcon = t.currentMode === 'fast' ? '⚡' : '🐌';
                         return '<div class="qr-item">' +
                             '<label class="qr-label">' +
-                            '<span class="qr-league">' + (t.league || 'UNKN') + '</span>' +
+                            '<span class="qr-league">' + modeIcon + '</span>' +
                             '<span class="qr-name">' + t.name + '</span>' +
-                            '<span class="qr-league" style="margin-left:8px;">' + modeIcon + t.currentMode + '</span>' +
                             '</label>' +
                             '<select class="form-input" data-slug="' + t.slug + '" style="width:auto;min-width:90px;">' +
                             '<option value="auto"' + (t.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
-                            '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
-                            '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
+                            '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>⚡ FAST</option>' +
+                            '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>🐌 SLOW</option>' +
                             '</select>' +
                             '</div>';
                     }).join('');
