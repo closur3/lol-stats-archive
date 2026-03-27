@@ -81,7 +81,7 @@ export class Updater {
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta);
 
     // 保存数据
-    await this.saveData(runtimeConfig, cache, analysis, syncItems);
+    await this.saveData(runtimeConfig, cache, analysis, syncItems, force);
 
     return this.logger;
   }
@@ -391,7 +391,7 @@ export class Updater {
   /**
    * 保存数据
    */
-  async saveData(runtimeConfig, cache, analysis, syncItems) {
+  async saveData(runtimeConfig, cache, analysis, syncItems, force = false) {
     // 保存首页静态HTML
     try {
       const homeFragment = HTMLRenderer.renderContentOnly(
@@ -448,11 +448,11 @@ export class Updater {
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
       const existingHome = await this.env.LOL_KV.get(homeKey, { type: "json" });
       const mode = tournamentMeta[slug]?.mode || "fast";
-      let homeHasChanges = !existingHome ||
+      let homeHasChanges = force || !existingHome ||
           JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw) ||
           JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tournamentMeta);
 
-      if (mode === "slow") {
+      if (!force && mode === "slow") {
         homeHasChanges = homeHasChanges ||
           JSON.stringify(existingHome.updateTimestamps || {}) !== JSON.stringify({ [slug]: ts });
       }
@@ -467,7 +467,7 @@ export class Updater {
         const snapshot = { tourn: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
         const archiveKey = `ARCHIVE_${slug}`;
         const existingArchive = await this.env.LOL_KV.get(archiveKey, { type: "json" });
-        const archiveHasChanges = !existingArchive ||
+        const archiveHasChanges = force || !existingArchive ||
             JSON.stringify(existingArchive.rawMatches || []) !== JSON.stringify(raw);
 
         if (archiveHasChanges) {
