@@ -44,12 +44,6 @@ export class Updater {
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS);
     runtimeConfig.TOURNAMENTS = dateUtils.sortTournamentsByDate(runtimeConfig.TOURNAMENTS);
 
-    // 为每个锦标赛附加team_map
-    for (const tourn of (runtimeConfig.TOURNAMENTS || [])) {
-      const rawMatches = cache.rawMatches[tourn.slug] || [];
-      tourn.team_map = dataUtils.pickTeamMap(teamsRaw, tourn, rawMatches);
-    }
-
     // 确定需要更新的锦标赛
     const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force);
     if (candidates.length === 0) {
@@ -66,6 +60,12 @@ export class Updater {
 
     // 处理结果
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, runtimeConfig);
+
+    // 为每个锦标赛附加team_map（在数据抓取之后）
+    for (const tourn of (runtimeConfig.TOURNAMENTS || [])) {
+      const rawMatches = cache.rawMatches[tourn.slug] || [];
+      tourn.team_map = dataUtils.pickTeamMap(teamsRaw, tourn, rawMatches);
+    }
 
     // 加载模式覆盖配置
     const modeOverrides = await this.env.LOL_KV.get(KV_KEYS.MODE_OVERRIDES, { type: "json" }) || {};
