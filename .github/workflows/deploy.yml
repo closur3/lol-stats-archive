@@ -45,17 +45,21 @@ jobs:
             RESPONSE_TEXT=$(echo "$HTTP_BODY" | sed '$d')
             echo "HTTP $HTTP_CODE | Response: $RESPONSE_TEXT"
 
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Refresh UI succeeded."
+            if [ "$HTTP_CODE" = "200" ] && echo "$RESPONSE_TEXT" | grep -q "updated"; then
+              echo "✅ $RESPONSE_TEXT"
               exit 0
             fi
 
             if [ "$attempt" -lt "$MAX_RETRIES" ]; then
               WAIT=$((attempt * 5))
-              echo "⏳ Retrying in ${WAIT}s..."
+              if [ "$HTTP_CODE" = "200" ]; then
+                echo "⏳ HTML unchanged, retrying in ${WAIT}s..."
+              else
+                echo "⏳ HTTP $HTTP_CODE, retrying in ${WAIT}s..."
+              fi
               sleep $WAIT
             fi
           done
 
-          echo "❌ Refresh UI failed after $MAX_RETRIES attempts."
+          echo "❌ Refresh UI failed after $MAX_RETRIES attempts. Last response: $RESPONSE_TEXT"
           exit 1

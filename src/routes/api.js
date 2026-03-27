@@ -142,20 +142,27 @@ export class APIRouter {
       const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
       const existingHomeHTML = await env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
       const writePromises = [];
+      let homeChanged = false;
       if (existingHomeHTML !== fullPage) {
         writePromises.push(env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage));
+        homeChanged = true;
       }
 
       // 生成归档HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
       const existingArchiveHTML = await env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
+      let archiveChanged = false;
       if (existingArchiveHTML !== archiveHTML) {
         writePromises.push(env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML));
+        archiveChanged = true;
       }
 
       await Promise.all(writePromises);
 
-      return new Response("OK", { status: 200 });
+      const parts = [];
+      parts.push(homeChanged ? "Home updated" : "Home unchanged");
+      parts.push(archiveChanged ? "Archive updated" : "Archive unchanged");
+      return new Response(parts.join(", "), { status: 200 });
     } catch (err) {
       return new Response(`Render Error: ${err.message}`, { status: 500 });
     }
