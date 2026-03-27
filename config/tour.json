@@ -1,5 +1,15 @@
 [
     {
+        "slug": "lpl-2026-split-2",
+        "name": "LPL 2026 Split 2",
+        "league": "LPL",
+        "overview_page": [
+            "LPL/2026 Season/Split 2"
+        ],
+        "start_date": "2026-04-04",
+        "end_date": "2026-04-04"
+    },
+    {
         "slug": "lck-2026-rounds-1-4",
         "name": "LCK 2026 Rounds 1-4",
         "league": "LCK",
