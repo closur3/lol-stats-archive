@@ -91,9 +91,9 @@ export const PYTHON_STYLE = `
         .table-title, summary.arch-sum { flex-wrap: wrap; gap: 0; padding: 12px 15px 0 15px; }
         summary.arch-sum { display: flex; flex-direction: column; align-items: flex-start; padding: 0; min-height: 82px; }
         .table-title { display: flex; flex-direction: column; align-items: flex-start; padding: 0; background: #fff; border-bottom: none; width: 100%; border-radius: 12px 12px 0 0; }
-        .table-title > div:first-child { width: 100%; padding: 12px 15px 0 15px; display: flex; align-items: flex-start; flex: 1 1 0; gap: 6px; min-width: 0; }
+        .table-title > div:first-child { width: 100%; padding: 8px 15px; display: flex; align-items: flex-start; flex: 1 1 0; gap: 6px; min-width: 0; }
         .table-title > div:first-child a { white-space: normal; line-height: 1.4; word-break: break-word; }
-        .table-title .title-right-area { margin-top: 0 !important; padding: 0 15px !important; align-items: center; display: flex; flex: 1 1 0; justify-content: flex-end !important; }
+        .table-title .title-right-area { margin-top: 0 !important; padding: 8px 15px !important; align-items: center; display: flex; flex: 1 1 0; justify-content: flex-end !important; }
         .arch-title-wrapper { width: 100%; padding: 0 15px; display: flex; align-items: center; column-gap: 10px; flex: 1 1 0; }
         summary.arch-sum .title-right-area { margin-top: 0 !important; padding: 0 15px !important; align-items: center; flex: 1 1 0; }
         .arch-indicator { margin-right: 0; }
