@@ -28,37 +28,34 @@ jobs:
       - name: Refresh UI
         env:
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-          DEPLOY_SHA: ${{ github.sha }}
         run: |
           WORKER_URL="https://lol-stats.closur3.workers.dev"
-          MAX_ATTEMPTS=30
-          INTERVAL=1
-          CONFIRM_NEEDED=3
-          DEPLOY_SHORT_SHA="${DEPLOY_SHA:0:7}"
-          CONFIRM_COUNT=0
+          MAX_RETRIES=5
 
-          echo "Waiting 5s before polling..."
+          echo "Waiting 5s for worker cold start..."
           sleep 5
 
-          echo "Waiting for Worker to serve SHA: $DEPLOY_SHORT_SHA"
-          for i in $(seq 1 $MAX_ATTEMPTS); do
-            LIVE_SHORT_SHA=$(curl -sf "$WORKER_URL/logs" | grep -o 'class="footer-sha">@[0-9a-f]*' | grep -o '[0-9a-f]*$')
-            if [ "$LIVE_SHORT_SHA" = "$DEPLOY_SHORT_SHA" ]; then
-              CONFIRM_COUNT=$((CONFIRM_COUNT + 1))
-              echo "Attempt $i: matched ($CONFIRM_COUNT/$CONFIRM_NEEDED)"
-              if [ "$CONFIRM_COUNT" -ge "$CONFIRM_NEEDED" ]; then
-                echo "✅ Worker stable. Triggering /refresh-ui..."
-                curl -X POST "$WORKER_URL/refresh-ui" \
-                     -H "Authorization: Bearer $ADMIN_SECRET" \
-                     -w "\nHTTP Status: %{http_code}\n"
-                exit 0
-              fi
-            else
-              CONFIRM_COUNT=0
-              echo "Attempt $i/$MAX_ATTEMPTS: live=$LIVE_SHORT_SHA, expected=$DEPLOY_SHORT_SHA — retrying in ${INTERVAL}s"
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "--- Attempt $attempt/$MAX_RETRIES ---"
+            HTTP_BODY=$(curl -s -X POST "$WORKER_URL/refresh-ui" \
+                 -H "Authorization: Bearer $ADMIN_SECRET" \
+                 -w "\n%{http_code}" --max-time 60 --connect-timeout 10 2>&1) || true
+
+            HTTP_CODE=$(echo "$HTTP_BODY" | tail -1)
+            RESPONSE_TEXT=$(echo "$HTTP_BODY" | sed '$d')
+            echo "HTTP $HTTP_CODE | Response: $RESPONSE_TEXT"
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Refresh UI succeeded."
+              exit 0
             fi
-            sleep $INTERVAL
+
+            if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+              WAIT=$((attempt * 5))
+              echo "⏳ Retrying in ${WAIT}s..."
+              sleep $WAIT
+            fi
           done
 
-          echo "❌ Timed out. Worker did not stabilize."
+          echo "❌ Refresh UI failed after $MAX_RETRIES attempts."
           exit 1
