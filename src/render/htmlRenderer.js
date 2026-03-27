@@ -724,6 +724,19 @@ export class HTMLRenderer {
             ${renderTaskCard("⚡ Synchronization", "Force Update", "Trigger a full manual sync for all active tournaments.", "btn-force", "/force", "Refresh API")}
 
             <div class="wrapper">
+                <div class="table-title">⚙️ Mode Override</div>
+                <div class="section-body">
+                    <div class="tool-info-desc tool-info-desc-spaced">Manually set update mode for each active tournament. AUTO follows automatic detection.</div>
+                    <div id="mode-override-list" class="qr-list-container">
+                        <div class='tool-info-desc' style='text-align:center; padding: 20px 0;'>Loading...</div>
+                    </div>
+                    <div class="actions-row-end">
+                        <button class="primary-btn" id="btn-save-modes" onclick="saveModeOverrides()">Save Mode</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="wrapper">
                 <div class="table-title">🗃️ Quick Rebuild</div>
                 <div class="section-body">
                     <div class="tool-info-desc tool-info-desc-spaced">Select existing archives below to quickly refresh their data from Fandom.</div>
@@ -771,19 +784,6 @@ export class HTMLRenderer {
                     </div>
                     <div class="actions-row-end">
                         <button class="primary-btn" id="btn-manual-archive" onclick="submitManualArchive()">Save Metadata</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="wrapper">
-                <div class="table-title">⚙️ Mode Override</div>
-                <div class="section-body">
-                    <div class="tool-info-desc tool-info-desc-spaced">Manually set update mode for each active tournament. AUTO follows automatic detection.</div>
-                    <div id="mode-override-list" class="qr-list-container">
-                        <div class='tool-info-desc' style='text-align:center; padding: 20px 0;'>Loading...</div>
-                    </div>
-                    <div class="actions-row-end">
-                        <button class="primary-btn" id="btn-save-modes" onclick="saveModeOverrides()">Save Mode Overrides</button>
                     </div>
                 </div>
             </div>
