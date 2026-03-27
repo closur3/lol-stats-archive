@@ -179,8 +179,8 @@ export class APIRouter {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
-    if (!payload.slug || !payload.name || !payload.overview_page || !payload.league) {
-      return new Response("Missing required fields. Please provide slug, name, overview_page, and league.", { status: 400 });
+    if (!payload.slug || !payload.name || !payload.overview_page) {
+      return new Response("Missing required fields. Please provide slug, name, and overview_page.", { status: 400 });
     }
 
     try {
@@ -204,7 +204,7 @@ export class APIRouter {
           slug: payload.slug,
           name: payload.name,
           overview_page: overviewPages,
-          league: payload.league,
+          league: payload.league || null,
           start_date: payload.start_date || null,
           end_date: payload.end_date || null
         };

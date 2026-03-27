@@ -672,8 +672,7 @@ export class HTMLRenderer {
         return `
         <div class="qr-item">
             <label class="qr-label">
-                <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview='${overviewStr}' data-league="${t.league}" data-start="${startDate}" data-end="${endDate}">
-                <span class="qr-league">${t.league || 'UNKN'}</span>
+                <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview='${overviewStr}' data-start="${startDate}" data-end="${endDate}">
                 <span class="qr-name">${t.name}</span>
             </label>
             <div class="qr-actions">
@@ -1009,7 +1008,6 @@ export class HTMLRenderer {
                         slug: chk.value,
                         name: chk.getAttribute('data-name'),
                         overview_page: overviewPage,
-                        league: chk.getAttribute('data-league'),
                         start_date: chk.getAttribute('data-start') || null,
                         end_date: chk.getAttribute('data-end') || null
                     };
