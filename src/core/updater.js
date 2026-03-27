@@ -67,11 +67,14 @@ export class Updater {
       tourn.team_map = dataUtils.pickTeamMap(teamsRaw, tourn, rawMatches);
     }
 
-    // 加载模式覆盖配置
-    const modeOverrides = await this.env.LOL_KV.get(KV_KEYS.MODE_OVERRIDES, { type: "json" }) || {};
+    // 从 tournMeta 中提取 modeOverrides
+    const oldTournMeta = cache.meta?.tournaments || {};
+    const modeOverrides = {};
+    for (const [slug, meta] of Object.entries(oldTournMeta)) {
+      if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
+    }
 
     // 分析数据
-    const oldTournMeta = cache.meta?.tournaments || {};
     const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs, modeOverrides);
 
     // 生成日志
@@ -147,9 +150,10 @@ export class Updater {
 
       const currentMode = tMetaFromKV.mode;
       const startTs = tMetaFromKV.startTs || 0;
+      const isModeOverride = !!tMetaFromKV.modeOverride;
 
       const isMatchStarted = startTs > 0 && NOW >= startTs;
-      const threshold = (currentMode === "slow" && !isMatchStarted) ? SLOW_THRESHOLD : 0;
+      const threshold = (currentMode === "slow" && (isModeOverride || !isMatchStarted)) ? SLOW_THRESHOLD : 0;
 
       console.log(`[THRESHOLD] ${tournament.slug}: mode=${currentMode}, startTs=${startTs}, isMatchStarted=${isMatchStarted}, threshold=${threshold/1000/60}m, elapsed=${elapsed/1000/60}m`);
 

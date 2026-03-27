@@ -265,11 +265,10 @@ export class Analyzer {
 
       let nextMode;
       const modeOverride = modeOverrides[tournament.slug];
+      const isModeOverride = modeOverride === "fast" || modeOverride === "slow";
 
-      if (modeOverride === "fast") {
-        nextMode = "fast";
-      } else if (modeOverride === "slow") {
-        nextMode = "slow";
+      if (isModeOverride) {
+        nextMode = modeOverride;
       } else if (failedSlugs.has(tournament.slug)) {
         nextMode = previousTournamentMeta.mode || "fast";
       } else if (hasLiveMatch) {
@@ -294,13 +293,15 @@ export class Analyzer {
         }
       }
 
-      tournamentMeta[tournament.slug] = { 
+      const meta = { 
         mode: nextMode, 
         startTs: startTimestamp, 
         emoji, 
         matchIntervalHours, 
-        isStarted: isMatchStarted 
+        isStarted: isMatchStarted
       };
+      if (isModeOverride) meta.modeOverride = modeOverride;
+      tournamentMeta[tournament.slug] = meta;
     });
 
     let scheduleMap = {};

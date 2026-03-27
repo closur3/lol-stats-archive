@@ -410,23 +410,25 @@ export class APIRouter {
    */
   static async handleGetModeOverrides(request, env) {
     try {
-      const overrides = await env.LOL_KV.get(KV_KEYS.MODE_OVERRIDES, { type: "json" }) || {};
-
       const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
       const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
       const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
 
+      const overrides = {};
       const tournaments = rawHomes
         .filter(h => h && h.tourn)
         .map(h => {
           const slug = h.tourn.slug;
-          const currentMode = h.tournMeta?.[slug]?.mode || "fast";
+          const meta = h.tournMeta?.[slug] || {};
+          const currentMode = meta.mode || "fast";
+          const modeOverride = meta.modeOverride || "auto";
+          overrides[slug] = modeOverride;
           return {
             slug,
             name: h.tourn.name,
             league: h.tourn.league,
             currentMode,
-            override: overrides[slug] || "auto"
+            override: modeOverride
           };
         });
 
@@ -460,7 +462,24 @@ export class APIRouter {
         }
       }
 
-      await env.LOL_KV.put(KV_KEYS.MODE_OVERRIDES, JSON.stringify(cleanOverrides));
+      // 写入每个 HOME_${slug}.tournMeta.modeOverride
+      const writePromises = [];
+      for (const [slug, mode] of Object.entries(cleanOverrides)) {
+        const homeKey = KV_KEYS.HOME_PREFIX + slug;
+        const home = await env.LOL_KV.get(homeKey, { type: "json" });
+        if (home) {
+          if (!home.tournMeta) home.tournMeta = {};
+          if (!home.tournMeta[slug]) home.tournMeta[slug] = {};
+          if (mode === "auto") {
+            delete home.tournMeta[slug].modeOverride;
+          } else {
+            home.tournMeta[slug].modeOverride = mode;
+          }
+          writePromises.push(env.LOL_KV.put(homeKey, JSON.stringify(home)));
+        }
+      }
+      await Promise.all(writePromises);
+
       return new Response(JSON.stringify({ success: true, overrides: cleanOverrides }), {
         headers: { "content-type": "application/json" }
       });
