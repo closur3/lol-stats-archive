@@ -159,10 +159,10 @@ export class APIRouter {
 
       await Promise.all(writePromises);
 
-      const parts = [];
-      parts.push(homeChanged ? "Home updated" : "Home unchanged");
-      parts.push(archiveChanged ? "Archive updated" : "Archive unchanged");
-      return new Response(parts.join(", "), { status: 200 });
+      return new Response(
+        `OK homes=${homeEntries.length} writes=${writePromises.length} home=${homeChanged?"updated":"same"} archive=${archiveChanged?"updated":"same"}`,
+        { status: 200 }
+      );
     } catch (err) {
       return new Response(`Render Error: ${err.message}`, { status: 500 });
     }

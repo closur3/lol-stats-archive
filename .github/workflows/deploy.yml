@@ -6,6 +6,11 @@ on:
       - 'src/**'
       - 'package.json'
   workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -28,38 +33,67 @@ jobs:
       - name: Refresh UI
         env:
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          DEPLOY_SHA: ${{ github.sha }}
         run: |
           WORKER_URL="https://lol-stats.closur3.workers.dev"
-          MAX_RETRIES=5
+          DEPLOY_SHORT_SHA="${DEPLOY_SHA:0:7}"
+          START=$(date +%s)
 
-          echo "Waiting 5s for worker cold start..."
-          sleep 5
-
-          for attempt in $(seq 1 $MAX_RETRIES); do
-            echo "--- Attempt $attempt/$MAX_RETRIES ---"
-            HTTP_BODY=$(curl -s -X POST "$WORKER_URL/refresh-ui" \
-                 -H "Authorization: Bearer $ADMIN_SECRET" \
-                 -w "\n%{http_code}" --max-time 60 --connect-timeout 10 2>&1) || true
-
-            HTTP_CODE=$(echo "$HTTP_BODY" | tail -1)
-            RESPONSE_TEXT=$(echo "$HTTP_BODY" | sed '$d')
-            echo "HTTP $HTTP_CODE | Response: $RESPONSE_TEXT"
-
-            if [ "$HTTP_CODE" = "200" ] && echo "$RESPONSE_TEXT" | grep -q "updated"; then
-              echo "✅ $RESPONSE_TEXT"
-              exit 0
+          # Step 1: Wait for new code to be live (SHA on /logs page)
+          echo "=== Step 1: Verify deploy (SHA=$DEPLOY_SHORT_SHA) ==="
+          while true; do
+            ELAPSED=$(( $(date +%s) - START ))
+            if [ $ELAPSED -ge 90 ]; then
+              echo "❌ Deploy verification timed out after 90s"
+              exit 1
             fi
 
-            if [ "$attempt" -lt "$MAX_RETRIES" ]; then
-              WAIT=$((attempt * 5))
-              if [ "$HTTP_CODE" = "200" ]; then
-                echo "⏳ HTML unchanged, retrying in ${WAIT}s..."
-              else
-                echo "⏳ HTTP $HTTP_CODE, retrying in ${WAIT}s..."
-              fi
-              sleep $WAIT
+            LIVE_SHA=$(curl -sf --max-time 10 "$WORKER_URL/logs" \
+                 | grep -o 'footer-sha">@[0-9a-f]*' | grep -o '[0-9a-f]*$') || true
+
+            if [ "$LIVE_SHA" = "$DEPLOY_SHORT_SHA" ]; then
+              echo "✅ New code live after ${ELAPSED}s (SHA=$LIVE_SHA)"
+              break
             fi
+
+            echo "  waiting... (${ELAPSED}s, live=$LIVE_SHA)"
+            sleep 3
           done
 
-          echo "❌ Refresh UI failed after $MAX_RETRIES attempts. Last response: $RESPONSE_TEXT"
+          # Step 2: Call refresh-ui with retry
+          echo ""
+          echo "=== Step 2: Refresh UI ==="
+          for attempt in 1 2 3; do
+            echo "--- Attempt $attempt/3 ---"
+
+            HTTP_RAW=$(curl -s -X POST "$WORKER_URL/refresh-ui" \
+                 -H "Authorization: Bearer $ADMIN_SECRET" \
+                 -w "\n%{http_code}" --max-time 120 2>&1) || true
+
+            HTTP_CODE=$(echo "$HTTP_RAW" | tail -1)
+            BODY=$(echo "$HTTP_RAW" | sed '$d')
+            echo "HTTP $HTTP_CODE | $BODY"
+
+            case "$HTTP_CODE" in
+              200)
+                echo "✅ Refresh UI succeeded: $BODY"
+                exit 0
+                ;;
+              400)
+                echo "⚠️ No cache data (HOME_ keys missing)"
+                if [ $attempt -lt 3 ]; then
+                  echo "  Waiting for cron to populate data..."
+                  sleep 15
+                fi
+                ;;
+              *)
+                echo "⚠️ Unexpected HTTP $HTTP_CODE"
+                if [ $attempt -lt 3 ]; then
+                  sleep 5
+                fi
+                ;;
+            esac
+          done
+
+          echo "❌ Refresh UI failed after 3 attempts"
           exit 1
