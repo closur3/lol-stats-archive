@@ -326,7 +326,7 @@ jobs:
                   log("INFO", f"确认准入 | 赛事: {lp_name} | 联赛: {fmt_league(original_league)} -> {league_short}", GREEN)
 
                   final_output.append({
-                      "slug": lp_name.lower().replace(": ", ":").replace(" ", "-"),
+                      "slug": re.sub(r'[^a-z0-9]+', '-', lp_name.lower()).strip('-'),
                       "name": lp_name,
                       "league": league_short,
                       "overview_page": v.get("extra_ovs", [v["ov"]]),

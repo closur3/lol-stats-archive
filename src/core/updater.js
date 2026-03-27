@@ -440,10 +440,15 @@ export class Updater {
       // 数据变化检测
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
       const existingHome = await this.env.LOL_KV.get(homeKey, { type: "json" });
-      const homeHasChanges = !existingHome ||
+      const mode = tournamentMeta[slug]?.mode || "fast";
+      let homeHasChanges = !existingHome ||
           JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw) ||
-          JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tournamentMeta) ||
+          JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tournamentMeta);
+
+      if (mode === "slow") {
+        homeHasChanges = homeHasChanges ||
           JSON.stringify(existingHome.updateTimestamps || {}) !== JSON.stringify({ [slug]: ts });
+      }
 
       if (homeHasChanges) {
         console.log(`[KV] PUT ${homeKey}`);
