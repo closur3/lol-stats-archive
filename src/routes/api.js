@@ -412,33 +412,23 @@ export class APIRouter {
     try {
       const overrides = await env.LOL_KV.get(KV_KEYS.MODE_OVERRIDES, { type: "json" }) || {};
 
-      // 从 HOME_ KV 读取当前模式
-      const modeMap = {};
-      try {
-        const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
-        const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
-        const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-        rawHomes.forEach(h => {
-          if (h && h.tourn && h.tourn.slug) {
-            modeMap[h.tourn.slug] = h.tournMeta?.[h.tourn.slug]?.mode || "fast";
-          }
+      const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
+      const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
+      const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
+
+      const tournaments = rawHomes
+        .filter(h => h && h.tourn)
+        .map(h => {
+          const slug = h.tourn.slug;
+          const currentMode = h.tournMeta?.[slug]?.mode || "fast";
+          return {
+            slug,
+            name: h.tourn.name,
+            league: h.tourn.league,
+            currentMode,
+            override: overrides[slug] || "auto"
+          };
         });
-      } catch (e) {}
-
-      // 从 GitHub 获取赛事列表
-      const githubUser = env.GITHUB_USER || "closur3";
-      const githubRepo = env.GITHUB_REPO || "lol-stats-archive";
-      const ghUrl = `https://raw.githubusercontent.com/${githubUser}/${githubRepo}/main/config/tour.json`;
-      const ghRes = await fetch(ghUrl);
-      const tourList = ghRes.ok ? await ghRes.json() : [];
-
-      const tournaments = tourList.map(t => ({
-        slug: t.slug,
-        name: t.name,
-        league: t.league,
-        currentMode: modeMap[t.slug] || "fast",
-        override: overrides[t.slug] || "auto"
-      }));
 
       return new Response(JSON.stringify({ overrides, tournaments }), {
         headers: { "content-type": "application/json" }
