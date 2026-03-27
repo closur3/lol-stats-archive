@@ -43,6 +43,12 @@ export default {
       case "/manual-archive":
         return APIRouter.handleManualArchive(request, env);
       
+      case "/mode-overrides":
+        if (request.method === "POST") {
+          return APIRouter.handleSetModeOverrides(request, env);
+        }
+        return APIRouter.handleGetModeOverrides(request, env);
+      
       case "/logs":
         const logs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
         const html = HTMLRenderer.renderLogPage(logs, time, sha);

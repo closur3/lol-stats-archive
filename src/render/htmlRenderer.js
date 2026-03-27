@@ -774,6 +774,19 @@ export class HTMLRenderer {
                     </div>
                 </div>
             </div>
+
+            <div class="wrapper">
+                <div class="table-title">⚙️ Mode Override</div>
+                <div class="section-body">
+                    <div class="tool-info-desc tool-info-desc-spaced">Manually set update mode for each active tournament. AUTO follows automatic detection.</div>
+                    <div id="mode-override-list" class="qr-list-container">
+                        <div class='tool-info-desc' style='text-align:center; padding: 20px 0;'>Loading...</div>
+                    </div>
+                    <div class="actions-row-end">
+                        <button class="primary-btn" id="btn-save-modes" onclick="saveModeOverrides()">Save Mode Overrides</button>
+                    </div>
+                </div>
+            </div>
         </div>
         ${buildFooter}
 
@@ -1093,6 +1106,71 @@ export class HTMLRenderer {
                 // 滚动到 Manual Archive 区域
                 document.getElementById('ma-slug').scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
+
+            // 加载模式覆盖配置
+            async function loadModeOverrides() {
+                try {
+                    const res = await fetch('/mode-overrides');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const container = document.getElementById('mode-override-list');
+                    const tournaments = data.tournaments || [];
+
+                    if (tournaments.length === 0) {
+                        container.innerHTML = '<div class="tool-info-desc" style="text-align:center; padding: 20px 0;">No active tournaments found.</div>';
+                        return;
+                    }
+
+                    container.innerHTML = tournaments.map(t => {
+                        const modeIcon = t.currentMode === 'fast' ? '⚡' : '🐌';
+                        return '<div class="qr-item">' +
+                            '<label class="qr-label">' +
+                            '<span class="qr-league">' + (t.league || 'UNKN') + '</span>' +
+                            '<span class="qr-name">' + t.name + '</span>' +
+                            '<span class="qr-league" style="margin-left:8px;">' + modeIcon + t.currentMode + '</span>' +
+                            '</label>' +
+                            '<select class="form-input" data-slug="' + t.slug + '" style="width:auto;min-width:90px;">' +
+                            '<option value="auto"' + (t.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
+                            '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
+                            '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
+                            '</select>' +
+                            '</div>';
+                    }).join('');
+                } catch (e) {
+                    console.error('Failed to load mode overrides', e);
+                }
+            }
+
+            // 保存模式覆盖配置
+            async function saveModeOverrides() {
+                if (!requireAuth()) return;
+                const btn = document.getElementById('btn-save-modes');
+                const restoreBtn = setButtonBusy(btn, '⏳ Saving...');
+
+                const selects = document.querySelectorAll('#mode-override-list select[data-slug]');
+                const overrides = {};
+                selects.forEach(s => {
+                    overrides[s.getAttribute('data-slug')] = s.value;
+                });
+
+                try {
+                    const res = await sendAuthorizedPost('/mode-overrides', { 'Content-Type': 'application/json' }, JSON.stringify(overrides));
+                    if (checkAuthError(res.status)) { restoreBtn(); return; }
+                    if (res.ok) {
+                        showToast('✅ Mode overrides saved!');
+                    } else {
+                        const errText = await res.text();
+                        showToast('⚠️ Error: ' + errText, 'error');
+                    }
+                } catch (e) {
+                    showToast(NETWORK_ERROR_MSG, 'error');
+                } finally {
+                    restoreBtn();
+                }
+            }
+
+            // 页面加载时获取模式覆盖配置
+            loadModeOverrides();
         </script>
     </body>
     </html>`;

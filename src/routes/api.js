@@ -406,6 +406,70 @@ export class APIRouter {
   }
 
   /**
+   * 获取模式覆盖配置
+   */
+  static async handleGetModeOverrides(request, env) {
+    try {
+      const overrides = await env.LOL_KV.get(KV_KEYS.MODE_OVERRIDES, { type: "json" }) || {};
+
+      const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
+      const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
+      const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
+
+      const tournaments = rawHomes
+        .filter(h => h && h.tourn)
+        .map(h => {
+          const slug = h.tourn.slug;
+          const currentMode = h.tournMeta?.[slug]?.mode || "fast";
+          return {
+            slug,
+            name: h.tourn.name,
+            league: h.tourn.league,
+            currentMode,
+            override: overrides[slug] || "auto"
+          };
+        });
+
+      return new Response(JSON.stringify({ overrides, tournaments }), {
+        headers: { "content-type": "application/json" }
+      });
+    } catch (err) {
+      return new Response(`Error: ${err.message}`, { status: 500 });
+    }
+  }
+
+  /**
+   * 设置模式覆盖配置
+   */
+  static async handleSetModeOverrides(request, env) {
+    if (APIRouter.isUnauthorized(request, env)) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    try {
+      const body = await request.json();
+      if (!body || typeof body !== "object") {
+        return new Response("Invalid JSON payload", { status: 400 });
+      }
+
+      const validModes = ["auto", "fast", "slow"];
+      const cleanOverrides = {};
+      for (const [slug, mode] of Object.entries(body)) {
+        if (typeof slug === "string" && validModes.includes(mode)) {
+          cleanOverrides[slug] = mode;
+        }
+      }
+
+      await env.LOL_KV.put(KV_KEYS.MODE_OVERRIDES, JSON.stringify(cleanOverrides));
+      return new Response(JSON.stringify({ success: true, overrides: cleanOverrides }), {
+        headers: { "content-type": "application/json" }
+      });
+    } catch (err) {
+      return new Response(`Error: ${err.message}`, { status: 500 });
+    }
+  }
+
+  /**
    * 生成归档静态HTML
    */
   static async generateArchiveStaticHTML(env) {

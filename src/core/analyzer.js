@@ -9,7 +9,7 @@ export class Analyzer {
   /**
    * 运行完整分析
    */
-  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set()) {
+  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), modeOverrides = {}) {
     const globalStats = {};
     const tournamentMeta = {};
 
@@ -264,7 +264,13 @@ export class Analyzer {
       const isNearInterval = matchIntervalHours < 8;
 
       let nextMode;
-      if (failedSlugs.has(tournament.slug)) {
+      const modeOverride = modeOverrides[tournament.slug];
+
+      if (modeOverride === "fast") {
+        nextMode = "fast";
+      } else if (modeOverride === "slow") {
+        nextMode = "slow";
+      } else if (failedSlugs.has(tournament.slug)) {
         nextMode = previousTournamentMeta.mode || "fast";
       } else if (hasLiveMatch) {
         nextMode = "fast";

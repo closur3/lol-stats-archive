@@ -67,9 +67,12 @@ export class Updater {
     // 处理结果
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, runtimeConfig);
 
+    // 加载模式覆盖配置
+    const modeOverrides = await this.env.LOL_KV.get(KV_KEYS.MODE_OVERRIDES, { type: "json" }) || {};
+
     // 分析数据
     const oldTournMeta = cache.meta?.tournaments || {};
-    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs);
+    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs, modeOverrides);
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta);
