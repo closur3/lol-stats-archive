@@ -1128,7 +1128,7 @@ export class HTMLRenderer {
                             '<span style="width:20px;text-align:center;flex-shrink:0;">' + modeIcon + '</span>' +
                             '<span class="qr-name">' + t.name + '</span>' +
                             '</div>' +
-                            '<select class="form-input" data-slug="' + t.slug + '" style="width:auto;min-width:90px;padding:6px 10px;flex-shrink:0;">' +
+                            '<select class="mode-select" data-slug="' + t.slug + '">' +
                             '<option value="auto"' + (t.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
                             '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
                             '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +

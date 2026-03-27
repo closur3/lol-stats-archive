@@ -183,6 +183,8 @@ export const TOOLS_PAGE_STYLE = `
     .delete-btn:hover { background: #fef2f2; border-color: #fca5a5; }
     .secondary-btn { background: #fff; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; transition: 0.2s; font-family: inherit; margin: 0; white-space: nowrap; }
     .secondary-btn:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+    .mode-select { width: auto; min-width: 80px; padding: 6px 28px 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; font-family: inherit; color: #0f172a; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center; -webkit-appearance: none; appearance: none; cursor: pointer; flex-shrink: 0; }
+    .mode-select:focus { border-color: #2563eb; outline: none; }
 
     @media (max-width: 650px) { .form-grid { grid-template-columns: 1fr; gap: 12px; } .flex-row { flex-direction: column; align-items: stretch; text-align: left; } .primary-btn, .secondary-btn { width: 100%; } .actions-row-end { flex-direction: column; } .qr-list-container { grid-template-columns: 1fr; } }
 
