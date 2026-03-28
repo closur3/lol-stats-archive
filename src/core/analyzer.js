@@ -9,7 +9,7 @@ export class Analyzer {
   /**
    * 运行完整分析
    */
-  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), modeOverrides = {}) {
+  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), modeOverrides = {}, prevScheduleMap = {}) {
     const globalStats = {};
     const tournamentMeta = {};
 
@@ -25,6 +25,15 @@ export class Analyzer {
 
     const todayStr = dateUtils.getNow().date;
     const allFutureMatches = {};
+
+    const wasLiveSet = new Set();
+    Object.values(prevScheduleMap).forEach(dateMap => {
+      Object.values(dateMap).forEach(matchList => {
+        (matchList || []).forEach(m => {
+          if (m.is_live) wasLiveSet.add(`${m.t1}|${m.t2}|${m.ts}`);
+        });
+      });
+    });
 
     const buildResolveName = (teamMap = {}) => {
       const teamMapEntries = Object.entries(teamMap || {}).map(([key, value]) => ({ 
@@ -117,7 +126,9 @@ export class Analyzer {
           lastMatchStartTimestamp = timestamp;
         }
 
-        const isCrossDayKeep = dateUtils.isCrossDayKeep(matchDateStr, todayStr, isFinished, isLive);
+        const matchKey = `${team1Name}|${team2Name}|${timestamp}`;
+        const wasLive = isLive || wasLiveSet.has(matchKey);
+        const isCrossDayKeep = dateUtils.isCrossDayKeep(matchDateStr, todayStr, isFinished, isLive, wasLive);
 
         if (matchDateStr >= todayStr || isCrossDayKeep) {
           const bucketDate = matchDateStr;
@@ -132,6 +143,7 @@ export class Analyzer {
             bo: bestOf,
             is_finished: isFinished, 
             is_live: isLive,
+            was_live: wasLive,
             league: tournament.league, 
             slug: tournament.slug,
             tournIndex: tournamentIndex, 

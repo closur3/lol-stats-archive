@@ -97,17 +97,15 @@ export const dateUtils = {
   /**
    * 检查是否为跨天比赛
    */
-  isCrossDayKeep: (matchDateStr, todayStr, isFinished, isLive) => {
+  isCrossDayKeep: (matchDateStr, todayStr, isFinished, isLive, wasLive) => {
     if (matchDateStr >= todayStr) return false;
-    
     if (!isFinished && isLive) return true;
-    
-    if (isFinished) {
-      const matchDateUTC = new Date(matchDateStr + "T00:00:00Z");
-      const expireTs = matchDateUTC.getTime() + 48 * 60 * 60 * 1000;
-      return Date.now() < expireTs;
+    if (wasLive && isFinished) {
+      const nextDay = new Date(matchDateStr + "T00:00:00Z");
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      const nextDayStr = nextDay.toISOString().slice(0, 10);
+      return todayStr <= nextDayStr;
     }
-    
     return false;
   },
 

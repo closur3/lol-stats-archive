@@ -75,7 +75,7 @@ export class Updater {
     }
 
     // 分析数据
-    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs, modeOverrides);
+    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap);
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta);
@@ -108,7 +108,7 @@ export class Updater {
    * 加载缓存数据
    */
   async loadCachedData(tournaments) {
-    const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {} } };
+    const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {} }, prevScheduleMap: {} };
     
     const homeEntries = await Promise.all((tournaments || []).map(async t => {
       const data = await this.env.LOL_KV.get(KV_KEYS.HOME_PREFIX + t.slug, { type: "json" });
@@ -119,6 +119,7 @@ export class Updater {
       if (home && home.rawMatches) cache.rawMatches[slug] = home.rawMatches;
       if (home && home.updateTimestamps && home.updateTimestamps[slug]) cache.updateTimestamps[slug] = home.updateTimestamps[slug];
       if (home && home.tournMeta && home.tournMeta[slug]) cache.meta.tournaments[slug] = home.tournMeta[slug];
+      if (home && home.scheduleMap) cache.prevScheduleMap[slug] = home.scheduleMap;
     });
     
     return cache;
