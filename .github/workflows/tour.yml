@@ -301,11 +301,19 @@ jobs:
 
               log_div()
               log("INFO", "启动生命周期终审模块...")
-              for k, v in main_events.items():
-                  log("INFO", f"  排序检查 | Key: {k} | DateStart: {v['start']} | 赛事: {v['name']}")
+
+              def lifecycle_sort_key(v):
+                  if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
+                      return (0, -v["end"].toordinal())
+                  elif v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
+                      return (2, v["start"].toordinal())
+                  else:
+                      return (1, -v["end"].toordinal())
+
+              sorted_events = sorted(main_events.values(), key=lifecycle_sort_key)
 
               final_output = []
-              for v in main_events.values():
+              for v in sorted_events:
                   original_league = v.get("league_full", "")
 
                   if v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
