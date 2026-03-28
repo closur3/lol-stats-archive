@@ -22,39 +22,48 @@ export class FandomClient {
     }
 
     const API = "https://lol.fandom.com/api.php";
+    const MAX_LOGIN_RETRIES = 3;
 
-    try {
-      const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
-        headers: { "User-Agent": BOT_UA }
-      });
-      if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
+    for (let attempt = 1; attempt <= MAX_LOGIN_RETRIES; attempt++) {
+      try {
+        const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
+          headers: { "User-Agent": BOT_UA }
+        });
+        if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
 
-      const tokenData = await tokenResp.json();
-      const loginToken = tokenData?.query?.tokens?.logintoken;
-      if (!loginToken) throw new Error("Failed to get login token");
+        const tokenData = await tokenResp.json();
+        const loginToken = tokenData?.query?.tokens?.logintoken;
+        if (!loginToken) throw new Error("Failed to get login token");
 
-      const step1Cookie = dataUtils.extractCookies(tokenResp.headers);
+        const step1Cookie = dataUtils.extractCookies(tokenResp.headers);
 
-      const params = new URLSearchParams();
-      params.append("action", "login"); params.append("format", "json");
-      params.append("lgname", user); params.append("lgpassword", pass); params.append("lgtoken", loginToken);
+        const params = new URLSearchParams();
+        params.append("action", "login"); params.append("format", "json");
+        params.append("lgname", user); params.append("lgpassword", pass); params.append("lgtoken", loginToken);
 
-      const loginResp = await fetch(API, {
-        method: "POST", body: params,
-        headers: { "User-Agent": BOT_UA, "Cookie": step1Cookie }
-      });
-      const loginData = await loginResp.json();
+        const loginResp = await fetch(API, {
+          method: "POST", body: params,
+          headers: { "User-Agent": BOT_UA, "Cookie": step1Cookie }
+        });
+        const loginData = await loginResp.json();
 
-      if (loginData.login && loginData.login.result === "Success") {
-        const step2Cookie = dataUtils.extractCookies(loginResp.headers);
-        const finalCookie = `${step1Cookie}; ${step2Cookie}`;
-        return { cookie: finalCookie, username: loginData.login.lgusername };
-      } else {
-        throw new Error(`Login Failed`);
+        if (loginData.login && loginData.login.result === "Success") {
+          const step2Cookie = dataUtils.extractCookies(loginResp.headers);
+          const finalCookie = `${step1Cookie}; ${step2Cookie}`;
+          return { cookie: finalCookie, username: loginData.login.lgusername };
+        } else {
+          throw new Error(`Login Failed: ${loginData.login?.result || "unknown"}`);
+        }
+      } catch (e) {
+        console.error(`[Fandom Login] Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${e.message}`);
+        if (attempt < MAX_LOGIN_RETRIES) {
+          await new Promise(r => setTimeout(r, attempt * 2000));
+        }
       }
-    } catch (e) {
-      return null;
     }
+
+    console.error("[Fandom Login] All attempts failed, falling back to anonymous");
+    return null;
   }
 
   /**
