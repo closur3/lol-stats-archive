@@ -4,10 +4,11 @@
         "name": "LPL 2026 Split 2",
         "league": "LPL",
         "overview_page": [
-            "LPL/2026 Season/Split 2"
+            "LPL/2026 Season/Split 2",
+            "LPL/2026 Season/Split 2 Playoffs"
         ],
         "start_date": "2026-04-04",
-        "end_date": "2026-04-04"
+        "end_date": "2026-06-14"
     },
     {
         "slug": "lck-2026-rounds-1-4",
@@ -18,6 +19,17 @@
         ],
         "start_date": "2026-04-01",
         "end_date": "2026-05-31"
+    },
+    {
+        "slug": "lec-2026-spring",
+        "name": "LEC 2026 Spring",
+        "league": "LEC",
+        "overview_page": [
+            "LEC/2026 Season/Spring Season",
+            "LEC/2026 Season/Spring Playoffs"
+        ],
+        "start_date": "2026-03-28",
+        "end_date": "2026-06-07"
     },
     {
         "slug": "esports-world-cup-2026-online-qualifier-china",
