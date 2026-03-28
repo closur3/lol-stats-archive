@@ -301,6 +301,8 @@ jobs:
 
               log_div()
               log("INFO", "启动生命周期终审模块...")
+              for k, v in main_events.items():
+                  log("INFO", f"  排序检查 | Key: {k} | DateStart: {v['start']} | 赛事: {v['name']}")
 
               final_output = []
               for v in main_events.values():
