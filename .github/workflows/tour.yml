@@ -303,7 +303,12 @@ jobs:
               log("INFO", "启动生命周期终审模块...")
 
               def lifecycle_sort_key(v):
-                  return v["start"].toordinal()
+                  if today_dt > (v["end"] + timedelta(days=EXPIRE_DAYS)):
+                      return (0, v["end"].toordinal())
+                  elif v["start"] > (today_dt + timedelta(days=PREHEAT_DAYS)):
+                      return (2, v["start"].toordinal())
+                  else:
+                      return (1, v["start"].toordinal())
 
               sorted_events = sorted(main_events.values(), key=lifecycle_sort_key)
 
@@ -341,9 +346,16 @@ jobs:
 
               # 直接覆写（不合并）
               def sort_key(x):
-                  return x.get("start_date", "")
+                  start_date = x.get("start_date", "")
+                  end_date = x.get("end_date", "")
+                  slug = x.get("slug", "")
 
-              unique_res = sorted(final_output, key=sort_key)
+                  # 主要按 start_date 倒序
+                  # 次要按 end_date 倒序
+                  # 第三按 slug 字母顺序（确保稳定性）
+                  return (start_date, end_date, slug)
+
+              unique_res = sorted(final_output, key=sort_key, reverse=True)
 
               with open(TARGET_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
