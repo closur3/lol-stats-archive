@@ -344,6 +344,19 @@ jobs:
                       "end_date": str(v["end"]),
                   })
 
+              # 加载旧数据，保留未过期的跨年赛事
+              old_data = []
+              if os.path.exists(TARGET_FILE):
+                  with open(TARGET_FILE, "r", encoding="utf-8") as f:
+                      old_data = json.load(f)
+              new_slugs = {item["slug"] for item in final_output}
+              for old in old_data:
+                  if old["slug"] not in new_slugs:
+                      old_end = parse_date(old.get("end_date", ""))
+                      if old_end and today_dt <= (old_end + timedelta(days=EXPIRE_DAYS)):
+                          final_output.append(old)
+                          log("INFO", f"跨年保留 | {old['name']} | end={old.get('end_date', 'N/A')}", CYAN)
+
               # 直接覆写（不合并）
               def sort_key(x):
                   start_date = x.get("start_date", "")
