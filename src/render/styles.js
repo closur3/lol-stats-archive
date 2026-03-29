@@ -234,8 +234,8 @@ export const LOG_PAGE_STYLE = `
     .league-card-logs::-webkit-scrollbar { display: none; }
     .log-mini-row { display: flex; align-items: baseline; gap: 6px; padding: 6px 16px; border-bottom: 1px solid #f8fafc; font-size: 13px; }
     .log-mini-row:last-child { border-bottom: none; }
-    .log-mini-time { color: #94a3b8; font-size: 13px; white-space: nowrap; flex-shrink: 0; min-width: 95px; }
-    .log-mini-msg { color: #64748b; word-break: break-all; line-height: 1.4; font-size: 14px; }
+    .log-mini-time { color: #94a3b8; font-size: 13px; white-space: nowrap; flex-shrink: 0; min-width: 95px; font-weight: 500; }
+    .log-mini-msg { color: #64748b; word-break: break-all; line-height: 1.4; font-size: 14px; font-weight: 500; }
     .log-mini-msg .hl { color: #0f172a; font-weight: 700; }
     .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; grid-column: 1 / -1; }
     ${BUILD_FOOTER_STYLE}
