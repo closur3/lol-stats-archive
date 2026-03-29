@@ -219,12 +219,11 @@ export const dataUtils = {
   }
 };
 
-const LEAGUE_RE = /(?:🔄|🔍|⚙️|🚧|❌)\s*(?:\[.*?\]\s*\|?\s*)?([A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*)/g;
-
 export function extractLeagueNames(msg) {
   const names = new Set();
+  const re = /([A-Za-z][A-Za-z0-9]*(?:\s[A-Za-z][A-Za-z0-9]*)*)\s*[+*]\d+/g;
   let m;
-  while ((m = LEAGUE_RE.exec(msg)) !== null) names.add(m[1].trim());
+  while ((m = re.exec(msg)) !== null) names.add(m[1].trim());
   return [...names];
 }
 
