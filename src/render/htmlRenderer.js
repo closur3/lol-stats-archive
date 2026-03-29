@@ -1263,9 +1263,9 @@ export class HTMLRenderer {
             ${HTMLRenderer.renderActionBtn("/tools", "🧰", "Tools")}
         </div>
     </header>
-    <code class="logs-cards-container">
+    <div class="logs-cards-container">
         ${cardsHtml || '<div class="empty-logs">No logs found</div>'}
-    </code>
+    </div>
     ${buildFooter}
     ${HTMLRenderer.renderPythonJS()}
 </body>
