@@ -788,12 +788,14 @@ export class HTMLRenderer {
             if (adminToken) authOverlay.style.display = "none";
 
             // Group checkbox: select all in group
+            try {
             document.getElementById('chk-active-all').addEventListener('change', function() {
                 document.querySelectorAll('#active-list .qr-chk-active').forEach(c => c.checked = this.checked);
             });
             document.getElementById('chk-archived-all').addEventListener('change', function() {
                 document.querySelectorAll('.qr-chk-archived').forEach(c => c.checked = this.checked);
             });
+            } catch(e) { console.error('Init error:', e); }
 
             function setAuthOverlayVisible(visible) { authOverlay.style.display = visible ? "flex" : "none"; }
             function clearAuth() { sessionStorage.removeItem("admin_pwd"); adminToken = ""; authPwdInput.value = ""; setAuthOverlayVisible(true); }
