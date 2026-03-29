@@ -869,7 +869,12 @@ export class HTMLRenderer {
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 
-            function forceSelected() { if (!requireAuth()) return; runTask('/force', event.target, 'Running...'); }
+            function forceSelected() {
+                if (!requireAuth()) return;
+                var checked = document.querySelectorAll('#active-list .item-chk:checked');
+                if (checked.length === 0) { showToast("No items selected", "error"); return; }
+                runTask('/force', event.target, 'Running...');
+            }
 
             function rebuildSelected() {
                 if (!requireAuth()) return;
