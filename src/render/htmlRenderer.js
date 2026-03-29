@@ -1179,11 +1179,67 @@ export class HTMLRenderer {
    */
   static renderLogPage(logs, time, sha) {
     if (!Array.isArray(logs)) logs = [];
-    const logLevelClassMap = { ERROR: "lvl-err", SUCCESS: "lvl-ok" };
-    const entries = logs.map(log => {
-        const lvlClass = logLevelClassMap[log.l] || "lvl-inf";
-        return `<li class="log-entry"><code class="log-time utc-local" data-utc="${log.t}">${log.t}</code><span class="log-level ${lvlClass}">${log.l}</span><code class="log-msg">${log.m}</code></li>`;
+
+    function extractLeaguePart(msg, league) {
+      const sections = msg.split(/\s*\|\s*/);
+      const kept = [];
+      for (const sec of sections) {
+        const items = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:[+*]\d+)?\s*\([^)]*\)/g);
+        if (!items) { kept.push(sec); continue; }
+        const matched = items.filter(i => i.includes(league));
+        if (matched.length > 0) kept.push(sec.replace(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:[+*]\d+)?\s*\([^)]*\)(?:,\s*)?/g, "").trim() + " " + matched.join(", "));
+      }
+      return kept.join(" | ").replace(/\s+/g, " ").trim();
+    }
+
+    const leagueLogs = {};
+    logs.forEach(entry => {
+      const m = entry.m || "";
+      const leagueSet = new Set();
+      const regex = /(?:🔄|🔍|⚙️|🚧|❌)\s*(?:\[.*?\]\s*\|?\s*)?([A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*)/g;
+      let match;
+      while ((match = regex.exec(m)) !== null) leagueSet.add(match[1].trim());
+      leagueSet.forEach(name => {
+        if (!leagueLogs[name]) leagueLogs[name] = [];
+        leagueLogs[name].push({ t: entry.t, l: entry.l, m: extractLeaguePart(m, name) });
+      });
+    });
+
+    const leagueNames = Object.keys(leagueLogs).sort();
+    const cardsHtml = leagueNames.map(name => {
+      const entries = leagueLogs[name];
+      const lastEntry = entries[entries.length - 1];
+      const last = lastEntry.m || "";
+      const isSlow = last.includes("🐌");
+      const hasErr = last.includes("❌") || last.includes("🚧");
+      const hasSync = entries.some(e => e.m.includes("🔄"));
+      const dotCls = hasErr ? "dot-red" : hasSync ? "dot-green" : "dot-gray";
+      const modeCls = isSlow ? "mode-slow" : "mode-fast";
+
+      const syncCount = entries.filter(e => e.m.includes("🔄")).length;
+      const errCount = entries.filter(e => e.m.includes("❌") || e.m.includes("🚧")).length;
+      const lastTime = (lastEntry.t || "").split(" ")[1] || "";
+
+      const bars = entries.slice(-8).map(e => {
+        const cls = e.m.includes("🔄") ? "bar-sync" : e.m.includes("❌") ? "bar-err" : "bar-idle";
+        const h = e.m.includes("🔄") ? "100%" : e.m.includes("❌") ? "70%" : "30%";
+        return `<div class="bar ${cls}" style="height:${h}"></div>`;
+      }).join("");
+
+      const rows = entries.slice(-10).reverse().map(e => {
+        const t = e.t || "";
+        const msg = e.m.replace(/(\+\d+|\*\d+)/g, '<span class="hl">$1</span>');
+        return `<div class="log-mini-row"><span class="log-mini-time">${t}</span><span class="log-mini-msg">${msg}</span></div>`;
+      }).join("");
+
+      return `<div class="league-card">
+        <div class="league-card-header"><span class="league-card-name">${name}</span><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?"🐌120m":"⚡5m"}</span><div class="status-dot ${dotCls}"></div></div></div>
+        <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span><span>LAST <span class="stat-val">${lastTime}</span></span></div>
+        <div class="timeline">${bars}</div>
+        <div class="league-card-logs">${rows}</div>
+      </div>`;
     }).join("");
+
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
 
     return `<!DOCTYPE html>
@@ -1205,9 +1261,8 @@ export class HTMLRenderer {
             ${HTMLRenderer.renderActionBtn("/tools", "🧰", "Tools")}
         </div>
     </header>
-    <div class="container logs-container-tight">
-        <ul class="log-list">${entries}</ul>
-        ${logs.length === 0 ? '<div class="empty-logs">No logs found</div>' : ''}
+    <div class="logs-cards-container">
+        ${cardsHtml || '<div class="empty-logs">No logs found</div>'}
     </div>
     ${buildFooter}
     ${HTMLRenderer.renderPythonJS()}

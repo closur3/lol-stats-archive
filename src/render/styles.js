@@ -210,24 +210,39 @@ export const TOOLS_PAGE_STYLE = `
 // 日志页面样式
 export const LOG_PAGE_STYLE = `
     ${COMMON_STYLE}
-    body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; margin: 0; padding: 0; }
-    .main-header { flex-shrink: 0; margin-bottom: 20px; }
-    .container { flex: 1; min-height: 0; display: flex; flex-direction: column; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; overflow: hidden; transform: translateZ(0); }
-    .log-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; list-style: none; margin: 0; padding: 0; }
-    .log-entry { display: grid; grid-template-columns: min-content 90px 1fr; gap: 20px; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; align-items: center; }
-    .log-entry:nth-child(even) { background-color: #f8fafc; }
-
-    code.log-time, code.log-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace !important; background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; }
-    .log-time { color: #64748b; font-size: 13px; white-space: nowrap; font-weight: 400; }
-    .log-level { font-weight: 800; display: flex; justify-content: center; align-items: center; width: 100%; padding: 4px 0; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .lvl-inf { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
-    .lvl-ok { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
-    .lvl-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
-    code.log-msg { color: #334155; word-break: break-all; line-height: 1.6; font-weight: 600; white-space: pre-wrap; display: block; font-size: 14px; }
-
-    .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
-    .logs-container-tight { padding: 0; width: calc(100% - 30px); }
+    body { min-height: 100vh; min-height: 100dvh; background: #f1f5f9; }
+    .main-header { margin-bottom: 20px; }
+    .logs-cards-container { max-width: 1100px; width: 100%; padding: 0 15px 40px 15px; box-sizing: border-box; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .league-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); overflow: hidden; }
+    .league-card-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; }
+    .league-card-name { font-weight: 800; font-size: 15px; color: #0f172a; }
+    .league-card-status { display: flex; align-items: center; gap: 6px; }
+    .mode-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+    .mode-fast { background: #dbeafe; color: #1d4ed8; }
+    .mode-slow { background: #f2d49c; color: #9c5326; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green { background: #22c55e; }
+    .dot-red { background: #ef4444; }
+    .dot-gray { background: #cbd5e1; }
+    .card-stats { display: flex; gap: 16px; padding: 8px 16px; font-size: 11px; color: #94a3b8; border-bottom: 1px solid #f8fafc; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+    .stat-val { color: #0f172a; font-weight: 700; }
+    .timeline { display: flex; gap: 2px; height: 16px; align-items: flex-end; padding: 6px 16px 0 16px; border-bottom: 1px solid #f8fafc; }
+    .bar { flex: 1; border-radius: 2px 2px 0 0; min-width: 3px; }
+    .bar-sync { background: #22c55e; }
+    .bar-idle { background: #e2e8f0; }
+    .bar-err { background: #ef4444; }
+    .league-card-logs { display: flex; flex-direction: column; }
+    .log-mini-row { display: flex; align-items: baseline; gap: 6px; padding: 6px 16px; border-bottom: 1px solid #f8fafc; font-size: 12px; }
+    .log-mini-row:last-child { border-bottom: none; }
+    .log-mini-time { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #94a3b8; font-size: 11px; white-space: nowrap; flex-shrink: 0; min-width: 95px; }
+    .log-mini-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #64748b; word-break: break-all; line-height: 1.4; font-size: 13px; }
+    .log-mini-msg .hl { color: #0f172a; font-weight: 700; }
+    .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; grid-column: 1 / -1; }
     ${BUILD_FOOTER_STYLE}
 
-    @media (max-width: 650px) { .log-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 15px; } .log-time { font-size: 12px; } .log-level { display: inline-flex; width: auto; padding: 3px 8px; font-size: 11px; } code.log-msg { width: 100%; margin-top: 2px; font-size: 14px; } }
+    @media (max-width: 650px) {
+        .logs-cards-container { grid-template-columns: 1fr; padding: 0 10px 30px 10px; }
+        .league-card-header { padding: 10px 12px; }
+        .log-mini-row { padding: 5px 12px; }
+    }
 `;
