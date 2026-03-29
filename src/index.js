@@ -50,8 +50,16 @@ export default {
         return APIRouter.handleGetModeOverrides(request, env);
       
       case "/logs":
-        const logs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
-        const html = HTMLRenderer.renderLogPage(logs, time, sha);
+        const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
+        const leagueLogs = {};
+        await Promise.all(allHomeKeys.keys.filter(k => k.name !== KV_KEYS.HOME_STATIC_HTML).map(async k => {
+          const home = await env.LOL_KV.get(k.name, { type: "json" });
+          if (home && home.logs && home.logs.length > 0) {
+            const name = home.tourn?.league || home.tourn?.name || k.name.replace(KV_KEYS.HOME_PREFIX, "");
+            leagueLogs[name] = home.logs;
+          }
+        }));
+        const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha);
         return new Response(html, { 
           headers: { "content-type": "text/html;charset=utf-8" } 
         });
@@ -67,15 +75,6 @@ export default {
   async scheduled(event, env, ctx) {
     console.log("Scheduled event triggered");
     const updater = new Updater(env);
-    const logger = await updater.runUpdate(false);
-    
-    // 记录日志（仅当日志非空时）
-    const newLogs = logger.export();
-    if (newLogs.length > 0) {
-      const oldLogs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
-      let combinedLogs = [...newLogs, ...oldLogs];
-      if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-      await env.LOL_KV.put(KV_KEYS.LOGS, JSON.stringify(combinedLogs));
-    }
+    await updater.runUpdate(false);
   }
 };

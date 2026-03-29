@@ -218,3 +218,51 @@ export const dataUtils = {
     Round: ["Round"]
   }
 };
+
+const LEAGUE_RE = /(?:🔄|🔍|⚙️|🚧|❌)\s*(?:\[.*?\]\s*\|?\s*)?([A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*)/g;
+
+export function extractLeagueNames(msg) {
+  const names = new Set();
+  let m;
+  while ((m = LEAGUE_RE.exec(msg)) !== null) names.add(m[1].trim());
+  return [...names];
+}
+
+export function buildLeagueSlugMap(tournaments) {
+  const map = {};
+  (tournaments || []).forEach(t => {
+    const name = t.league || t.name || "";
+    if (name) map[name] = t.slug;
+  });
+  return map;
+}
+
+export async function appendLogsToLeagueHomes(env, newLogs, leagueSlugMap) {
+  if (!newLogs || newLogs.length === 0) return;
+  const KV_PREFIX = "HOME_";
+  const MAX_LEAGUE_LOGS = 10;
+
+  // collect logs per slug
+  const bySlug = {};
+  newLogs.forEach(entry => {
+    const leagues = extractLeagueNames(entry.m);
+    leagues.forEach(name => {
+      const slug = leagueSlugMap[name];
+      if (slug) {
+        if (!bySlug[slug]) bySlug[slug] = [];
+        bySlug[slug].push(entry);
+      }
+    });
+  });
+
+  // read, append, write
+  const writes = Object.entries(bySlug).map(async ([slug, entries]) => {
+    const key = KV_PREFIX + slug;
+    const home = await env.LOL_KV.get(key, { type: "json" });
+    if (!home) return;
+    const oldLogs = home.logs || [];
+    home.logs = [...entries, ...oldLogs].slice(0, MAX_LEAGUE_LOGS);
+    await env.LOL_KV.put(key, JSON.stringify(home));
+  });
+  await Promise.all(writes);
+}

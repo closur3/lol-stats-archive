@@ -49,16 +49,7 @@ export class APIRouter {
     
     try {
       const updater = new Updater(env);
-      const logger = await updater.runUpdate(true);
-      
-      // 记录日志
-      const newLogs = logger.export();
-      if (newLogs.length > 0) {
-        const oldLogs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
-        let combinedLogs = [...newLogs, ...oldLogs];
-        if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-        await env.LOL_KV.put(KV_KEYS.LOGS, JSON.stringify(combinedLogs));
-      }
+      await updater.runUpdate(true);
       
       return new Response("OK", { status: 200 });
     } catch (err) {
@@ -237,27 +228,9 @@ export class APIRouter {
         throw new Error("No matches found from Fandom API");
       }
 
-      // 记录日志
-      const newLogs = logger.logs;
-      if (newLogs.length > 0) {
-        const oldLogs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
-        let combinedLogs = [...newLogs, ...oldLogs];
-        if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-        await env.LOL_KV.put(KV_KEYS.LOGS, JSON.stringify(combinedLogs));
-      }
-
       return new Response("OK", { status: 200 });
     } catch (err) {
       logger.error(`🔴 [ERR!] | ❌ ${payload.name}(Fail) | ${err.message}`);
-      
-      // 记录日志
-      const newLogs = logger.logs;
-      if (newLogs.length > 0) {
-        const oldLogs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
-        let combinedLogs = [...newLogs, ...oldLogs];
-        if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-        await env.LOL_KV.put(KV_KEYS.LOGS, JSON.stringify(combinedLogs));
-      }
       
       return new Response(`Error: ${err.message}`, { status: 500 });
     }
@@ -298,15 +271,6 @@ export class APIRouter {
       }
 
       logger.success(`🗑️ [DELETE] | 📦 ${payload.name}`);
-      
-      // 记录日志
-      const newLogs = logger.logs;
-      if (newLogs.length > 0) {
-        const oldLogs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
-        let combinedLogs = [...newLogs, ...oldLogs];
-        if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-        await env.LOL_KV.put(KV_KEYS.LOGS, JSON.stringify(combinedLogs));
-      }
 
       return new Response("OK", { status: 200 });
     } catch (err) {
@@ -387,15 +351,6 @@ export class APIRouter {
       }
 
       logger.success(`📦 [MANUAL] | 📝 ${payload.name}`);
-      
-      // 记录日志
-      const newLogs = logger.logs;
-      if (newLogs.length > 0) {
-        const oldLogs = await env.LOL_KV.get(KV_KEYS.LOGS, { type: "json" }) || [];
-        let combinedLogs = [...newLogs, ...oldLogs];
-        if (combinedLogs.length > 100) combinedLogs = combinedLogs.slice(0, 100);
-        await env.LOL_KV.put(KV_KEYS.LOGS, JSON.stringify(combinedLogs));
-      }
 
       return new Response("OK", { status: 200 });
     } catch (err) {

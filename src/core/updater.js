@@ -3,7 +3,7 @@ import { FandomClient } from '../api/fandomClient.js';
 import { Analyzer } from './analyzer.js';
 import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { dateUtils } from '../utils/dateUtils.js';
-import { dataUtils } from '../utils/dataUtils.js';
+import { dataUtils, extractLeagueNames, buildLeagueSlugMap, appendLogsToLeagueHomes } from '../utils/dataUtils.js';
 import { KV_KEYS, SLOW_THRESHOLD, MATCH_EXPIRY_HOURS } from '../utils/constants.js';
 
 /**
@@ -434,6 +434,10 @@ export class Updater {
       const teamMap = tournament.team_map || {};
       const { team_map: _, ...tournamentStored } = tournament;
 
+      // 数据变化检测
+      const homeKey = KV_KEYS.HOME_PREFIX + slug;
+      const existingHome = await this.env.LOL_KV.get(homeKey, { type: "json" });
+
       const homeSnapshot = {
         tourn: tournamentStored,
         rawMatches: raw,
@@ -442,12 +446,10 @@ export class Updater {
         timeGrid: grid,
         scheduleMap: scheduleBySlug[slug] || {},
         tournMeta: tournamentMeta,
-        team_map: teamMap
+        team_map: teamMap,
+        logs: (existingHome && existingHome.logs) || []
       };
 
-      // 数据变化检测
-      const homeKey = KV_KEYS.HOME_PREFIX + slug;
-      const existingHome = await this.env.LOL_KV.get(homeKey, { type: "json" });
       const mode = tournamentMeta[slug]?.mode || "fast";
       let homeHasChanges = force || !existingHome ||
           JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw) ||
@@ -492,6 +494,13 @@ export class Updater {
       } catch (e) {
         console.error("Error generating archive HTML:", e);
       }
+    }
+
+    // 分发日志到各联赛 HOME_ 键
+    const newLogs = this.logger.export();
+    if (newLogs.length > 0) {
+      const leagueSlugMap = buildLeagueSlugMap(runtimeConfig.TOURNAMENTS);
+      await appendLogsToLeagueHomes(this.env, newLogs, leagueSlugMap);
     }
   }
 

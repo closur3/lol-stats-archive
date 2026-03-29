@@ -1177,8 +1177,8 @@ export class HTMLRenderer {
   /**
    * 渲染日志页面
    */
-  static renderLogPage(logs, time, sha) {
-    if (!Array.isArray(logs)) logs = [];
+  static renderLogPage(leagueLogs, time, sha) {
+    if (!leagueLogs || typeof leagueLogs !== "object") leagueLogs = {};
 
     function extractLeaguePart(msg, league) {
       const sections = msg.split(/\s*\|\s*/);
@@ -1192,22 +1192,9 @@ export class HTMLRenderer {
       return kept.join(" | ").replace(/\s+/g, " ").trim();
     }
 
-    const leagueLogs = {};
-    logs.forEach(entry => {
-      const m = entry.m || "";
-      const leagueSet = new Set();
-      const regex = /(?:🔄|🔍|⚙️|🚧|❌)\s*(?:\[.*?\]\s*\|?\s*)?([A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*)/g;
-      let match;
-      while ((match = regex.exec(m)) !== null) leagueSet.add(match[1].trim());
-      leagueSet.forEach(name => {
-        if (!leagueLogs[name]) leagueLogs[name] = [];
-        leagueLogs[name].push({ t: entry.t, l: entry.l, m: extractLeaguePart(m, name) });
-      });
-    });
-
     const leagueNames = Object.keys(leagueLogs).sort();
     const cardsHtml = leagueNames.map(name => {
-      const entries = leagueLogs[name];
+      const entries = leagueLogs[name].map(e => ({ ...e, m: extractLeaguePart(e.m || "", name) }));
       const lastEntry = entries[entries.length - 1];
       const last = lastEntry.m || "";
       const isSlow = last.includes("🐌");
