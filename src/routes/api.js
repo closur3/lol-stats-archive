@@ -4,6 +4,7 @@ import { Updater } from '../core/updater.js';
 import { GitHubClient } from '../api/githubClient.js';
 import { FandomClient } from '../api/fandomClient.js';
 import { dataUtils } from '../utils/dataUtils.js';
+import { dateUtils } from '../utils/dateUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
 
 /**
@@ -403,12 +404,8 @@ export class APIRouter {
           };
         });
 
-      tournaments.sort((a, b) => {
-        if (a.start_date !== b.start_date) return (b.start_date || '').localeCompare(a.start_date || '');
-        return a.slug.localeCompare(b.slug);
-      });
-
-      return new Response(JSON.stringify({ overrides, tournaments }), {
+      const sorted = dateUtils.sortTournamentsByDate(tournaments);
+      return new Response(JSON.stringify({ overrides, tournaments: sorted }), {
         headers: { "content-type": "application/json" }
       });
     } catch (err) {
