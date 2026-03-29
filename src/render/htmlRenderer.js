@@ -957,10 +957,10 @@ export class HTMLRenderer {
 
     const leagueNames = Object.keys(leagueLogs);
     const cardsHtml = leagueNames.map(name => {
-      const entries = (leagueLogs[name] || []).map(e => ({ ...e, m: extractLeaguePart(e.m || "", name) }));
-      const lastEntry = entries[entries.length - 1];
+      const entries = (leagueLogs[name].logs || []).map(e => ({ ...e, m: extractLeaguePart(e.m || "", name) }));
+      const lastEntry = entries[0];
       const last = lastEntry.m || "";
-      const isSlow = last.includes("🐌");
+      const isSlow = leagueLogs[name].mode === "slow";
       const hasErr = last.includes("❌") || last.includes("🚧");
       const hasSync = entries.some(e => e.m.includes("🔄"));
       const dotCls = hasErr ? "dot-red" : hasSync ? "dot-green" : "dot-gray";
