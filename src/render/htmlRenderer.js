@@ -952,6 +952,7 @@ export class HTMLRenderer {
                 } catch (e) { showResult(false, NETWORK_ERROR_MSG); }
             }
 
+            console.log('Script loaded, unlockTools:', typeof unlockTools);
             loadModeOverrides();
         </script>
     </body>
