@@ -652,19 +652,9 @@ export class HTMLRenderer {
    */
   static renderToolsPage(time, sha, existingArchives = []) {
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
-    const renderTaskCard = (panelTitle, actionTitle, actionDesc, btnId, endpoint, btnText) => `
-            <div class="wrapper">
-                <div class="table-title">${panelTitle}</div>
-                <div class="section-body section-body-compact flex-row">
-                    <div>
-                        <div class="tool-info-title">${actionTitle}</div>
-                        <div class="tool-info-desc">${actionDesc}</div>
-                    </div>
-                    <button class="primary-btn" id="${btnId}" onclick="runTask('${endpoint}', '${btnId}')">${btnText}</button>
-                </div>
-            </div>`;
 
-    // 构建复选框列表（带删除和填充按钮）
+    // Active items (rendered by JS after mode override data loads)
+    // Archived items
     let archiveListHtml = existingArchives.map(t => {
         const overviewStr = Array.isArray(t.overview_page) ? JSON.stringify(t.overview_page) : JSON.stringify([t.overview_page]);
         const startDate = t.start_date || '';
@@ -672,16 +662,16 @@ export class HTMLRenderer {
         return `
         <div class="qr-item">
             <label class="qr-label">
-                <input type="checkbox" class="qr-chk form-checkbox" value="${t.slug}" data-name="${t.name}" data-overview='${overviewStr}' data-league="${t.league}" data-start="${startDate}" data-end="${endDate}">
+                <input type="checkbox" class="qr-chk form-checkbox qr-chk-archived" value="${t.slug}" data-name="${t.name}" data-overview='${overviewStr}' data-league="${t.league}" data-start="${startDate}" data-end="${endDate}">
                 <span class="qr-name">${t.name}</span>
             </label>
             <div class="qr-actions">
-                <button class="fill-btn" onclick="fillArchive('${t.slug}')" title="Fill to Manual Archive">📋</button>
+                <button class="fill-btn" onclick="fillArchive('${t.slug}')" title="Fill">📋</button>
                 <button class="delete-btn" onclick="deleteArchive('${t.slug}', '${t.name}')" title="Delete">🗑️</button>
             </div>
         </div>
     `}).join("");
-    if (!archiveListHtml) archiveListHtml = "<div class='tool-info-desc' style='text-align:center; padding: 20px 0;'>No existing archives found.</div>";
+    if (!archiveListHtml) archiveListHtml = "<div style='text-align:center; padding: 12px 0; color:#94a3b8; font-size:12px;'>No archives</div>";
 
     return `<!DOCTYPE html>
     <html>
@@ -716,42 +706,42 @@ export class HTMLRenderer {
         </header>
 
         <div class="container">
-            ${renderTaskCard("🎨 UI Customization", "Local UI Refresh", "Regenerate static HTML using existing cached data. No API calls.", "btn-refresh", "/refresh-ui", "Refresh HTML")}
-
-            ${renderTaskCard("⚡ Synchronization", "Force Update", "Trigger a full manual sync for all active tournaments.", "btn-force", "/force", "Refresh API")}
 
             <div class="wrapper">
-                <div class="table-title">⚙️ Mode Override</div>
+                <div class="table-title">⚙️ Operations</div>
                 <div class="section-body">
-                    <div class="tool-info-desc tool-info-desc-spaced">Manually set update mode for each active tournament. AUTO follows automatic detection.</div>
-                    <div id="mode-override-list" class="qr-list-container">
-                        <div class='tool-info-desc' style='text-align:center; padding: 20px 0;'>Loading...</div>
-                    </div>
-                    <div class="actions-row-end">
-                        <button class="primary-btn" id="btn-save-modes" onclick="saveModeOverrides()">Save Mode</button>
-                    </div>
-                </div>
-            </div>
 
-            <div class="wrapper">
-                <div class="table-title">🗃️ Quick Rebuild</div>
-                <div class="section-body">
-                    <div class="tool-info-desc tool-info-desc-spaced">Select existing archives below to quickly refresh their data from Fandom.</div>
+                    <div class="group-header">
+                        <input type="checkbox" class="group-chk" id="chk-active-all">
+                        <span class="group-label">Active</span>
+                    </div>
+                    <div id="active-list" class="qr-list-container">
+                        <div style='text-align:center; padding: 12px 0; color:#94a3b8; font-size:12px;'>Loading...</div>
+                    </div>
+                    <div class="actions-row-end" style="margin-top: 12px;">
+                        <button class="secondary-btn" onclick="saveModeOverrides()">Save Modes</button>
+                        <button class="primary-btn" onclick="forceSelected()">Force</button>
+                    </div>
+
+                    <hr style="border:none; border-top:1px solid #f1f5f9; margin: 16px 0;">
+
+                    <div class="group-header">
+                        <input type="checkbox" class="group-chk" id="chk-archived-all">
+                        <span class="group-label">Archived</span>
+                    </div>
                     <div class="qr-list-container">
                         ${archiveListHtml}
                     </div>
-                    <div class="actions-row-end" style="gap: 12px; margin-top: 15px;">
-                        <button class="secondary-btn" onclick="toggleSelectAllArchives()">Select All</button>
-                        <button class="primary-btn" id="btn-quick-rebuild" onclick="rebuildSelected()">Rebuild</button>
+                    <div class="actions-row-end" style="margin-top: 12px;">
+                        <button class="primary-btn" onclick="rebuildSelected()">Rebuild</button>
                     </div>
+
                 </div>
             </div>
 
             <div class="wrapper">
                 <div class="table-title">📦 Manual Archive</div>
                 <div class="section-body">
-                    <div class="tool-info-desc tool-info-desc-spaced">Manually add tournament metadata. This only stores configuration without fetching data from Fandom.</div>
-
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="tool-label">Slug</label>
@@ -763,8 +753,7 @@ export class HTMLRenderer {
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Overview Page</label>
-                            <input type="text" id="ma-overview" placeholder='LPL/2026 Season/Split 1 or ["Page1", "Page2"]' class="form-input">
-                            <span style="font-size:11px; color:#64748b; margin-top:4px;">Comma-separated or JSON array</span>
+                            <input type="text" id="ma-overview" placeholder='LPL/2026 Season/Split 1' class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">League</label>
@@ -791,21 +780,181 @@ export class HTMLRenderer {
             const authOverlay = document.getElementById("auth-overlay");
             const authPwdInput = document.getElementById("auth-pwd");
             const toastContainer = document.getElementById("toast-container");
-            const rebuildInputIds = ["slug", "name", "overview", "league"];
-            const rebuildInputs = Object.fromEntries(
-                rebuildInputIds.map((key) => [key, document.getElementById("rb-" + key)])
-            );
             const TOAST_DURATION_MS = 3000;
             const REDIRECT_DELAY_MS = 1500;
             const AUTH_ERROR_MSG = "Session expired or incorrect password.";
             const NETWORK_ERROR_MSG = "❌ Network connection failed";
-            const REBUILD_REQUIRED_MSG = "⚠️ Please fill in all 4 fields.";
             let adminToken = sessionStorage.getItem("admin_pwd") || "";
             if (adminToken) authOverlay.style.display = "none";
 
-            function setAuthOverlayVisible(visible) {
-                authOverlay.style.display = visible ? "flex" : "none";
+            // Group checkbox: select all in group
+            document.getElementById('chk-active-all').addEventListener('change', function() {
+                document.querySelectorAll('#active-list .qr-chk-active').forEach(c => c.checked = this.checked);
+            });
+            document.getElementById('chk-archived-all').addEventListener('change', function() {
+                document.querySelectorAll('.qr-chk-archived').forEach(c => c.checked = this.checked);
+            });
+
+            function setAuthOverlayVisible(visible) { authOverlay.style.display = visible ? "flex" : "none"; }
+            function clearAuth() { sessionStorage.removeItem("admin_pwd"); adminToken = ""; authPwdInput.value = ""; setAuthOverlayVisible(true); }
+            function showToast(msg, type = 'success') {
+                const toast = document.createElement('div');
+                toast.className = 'toast ' + type; toast.innerText = msg;
+                toastContainer.appendChild(toast); void toast.offsetWidth; toast.classList.add('show');
+                setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, TOAST_DURATION_MS);
             }
+            function unlockTools() { const pwd = authPwdInput.value.trim(); if (pwd) { adminToken = pwd; sessionStorage.setItem('admin_pwd', pwd); setAuthOverlayVisible(false); } }
+            function checkAuthError(status) { if (status === 401) { showToast(AUTH_ERROR_MSG, "error"); clearAuth(); return true; } return false; }
+            function requireAuth() { if (adminToken) return true; setAuthOverlayVisible(true); return false; }
+            function getAuthHeaders(extra = {}) { return { 'Authorization': 'Bearer ' + adminToken, ...extra }; }
+            function setButtonBusy(btn, busyText) {
+                const originalText = btn.innerHTML; btn.innerHTML = busyText; btn.style.pointerEvents = 'none'; btn.style.opacity = '0.7';
+                return () => { btn.innerHTML = originalText; btn.style.pointerEvents = 'auto'; btn.style.opacity = '1'; };
+            }
+            async function sendAuthorizedPost(url, extraHeaders, body) {
+                return fetch(url, { method: 'POST', headers: getAuthHeaders(extraHeaders), body });
+            }
+            function showResult(ok, text) { showToast(text, ok ? 'success' : 'error'); }
+
+            async function runTask(url, btnEl, busyText) {
+                if (!requireAuth()) return;
+                const restore = setButtonBusy(btnEl, busyText || '...');
+                try {
+                    const res = await sendAuthorizedPost(url, {}, null);
+                    if (checkAuthError(res.status)) return;
+                    showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
+                } catch (e) { showResult(false, NETWORK_ERROR_MSG); }
+                finally { restore(); }
+            }
+
+            // Mode overrides
+            async function loadModeOverrides() {
+                try {
+                    const res = await fetch('/mode-overrides');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const container = document.getElementById('active-list');
+                    const tournaments = data.tournaments || [];
+                    if (tournaments.length === 0) { container.innerHTML = '<div style="text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;">No active tournaments</div>'; return; }
+                    container.innerHTML = tournaments.map(t => {
+                        const modeIcon = t.currentMode === 'fast' ? '⚡' : '🐌';
+                        return '<div class="qr-item">' +
+                            '<label class="qr-label">' +
+                            '<input type="checkbox" class="form-checkbox qr-chk-active" value="' + t.slug + '">' +
+                            '<span class="qr-name">' + t.name + ' ' + modeIcon + '</span>' +
+                            '</label>' +
+                            '<div class="qr-actions">' +
+                            '<select class="mode-select" data-slug="' + t.slug + '">' +
+                            '<option value="auto"' + (t.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
+                            '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
+                            '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
+                            '</select>' +
+                            '<button class="icon-btn" onclick="runTask(\'/force\', this, \'..\')" title="Force">🔄</button>' +
+                            '<button class="fill-btn" onclick="fillArchive(\'' + t.slug + '\')" title="Fill">📋</button>' +
+                            '<button class="delete-btn" onclick="deleteArchive(\'' + t.slug + '\', \'' + t.name + '\')" title="Delete">🗑️</button>' +
+                            '</div>' +
+                            '</div>';
+                    }).join('');
+                } catch (e) { console.error('Failed to load mode overrides', e); }
+            }
+
+            async function saveModeOverrides() {
+                if (!requireAuth()) return;
+                const selects = document.querySelectorAll('#active-list select[data-slug]');
+                const overrides = {};
+                selects.forEach(s => { overrides[s.dataset.slug] = s.value; });
+                try {
+                    const res = await sendAuthorizedPost('/mode-overrides', { 'Content-Type': 'application/json' }, JSON.stringify(overrides));
+                    if (checkAuthError(res.status)) return;
+                    const data = await res.json();
+                    showResult(res.ok, res.ok ? '✅ Saved' : '❌ ' + (data.error || 'Failed'));
+                    if (res.ok) loadModeOverrides();
+                } catch (e) { showResult(false, NETWORK_ERROR_MSG); }
+            }
+
+            async function forceSelected() {
+                const checked = document.querySelectorAll('#active-list .qr-chk-active:checked');
+                if (checked.length === 0) {
+                    // Force all
+                    const btn = event.target;
+                    await runTask('/force', btn, 'Running...');
+                    return;
+                }
+                // Force selected (currently force is always all, so just call /force)
+                const btn = event.target;
+                await runTask('/force', btn, 'Running...');
+            }
+
+            async function toggleSelectAllArchives() {
+                const allChecked = [...document.querySelectorAll('.qr-chk-archived')].every(c => c.checked);
+                document.querySelectorAll('.qr-chk-archived').forEach(c => c.checked = !allChecked);
+            }
+
+            async function rebuildSelected() {
+                if (!requireAuth()) return;
+                const checked = document.querySelectorAll('.qr-chk-archived:checked');
+                if (checked.length === 0) { showToast("No archives selected", "error"); return; }
+                const selected = [...checked].map(c => ({ slug: c.value, name: c.dataset.name, overview: c.dataset.overview, league: c.dataset.league, start_date: c.dataset.start, end_date: c.dataset.end }));
+                const btn = event.target;
+                const restore = setButtonBusy(btn, 'Rebuilding...');
+                let success = 0, fail = 0;
+                for (const s of selected) {
+                    try {
+                        const res = await sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(s));
+                        if (res.ok) success++; else { fail++; if (checkAuthError(res.status)) return; }
+                    } catch (e) { fail++; }
+                }
+                restore();
+                showResult(fail === 0, success + '/' + (success + fail) + ' rebuilt');
+            }
+
+            function fillArchive(slug) {
+                const chk = document.querySelector('.qr-chk-archived[value="' + slug + '"]');
+                if (!chk) return;
+                document.getElementById('ma-slug').value = chk.value;
+                document.getElementById('ma-name').value = chk.dataset.name || '';
+                document.getElementById('ma-overview').value = chk.dataset.overview || '';
+                document.getElementById('ma-league').value = chk.dataset.league || '';
+                document.getElementById('ma-start').value = chk.dataset.start || '';
+                document.getElementById('ma-end').value = chk.dataset.end || '';
+            }
+
+            async function deleteArchive(slug, name) {
+                if (!requireAuth()) return;
+                if (!confirm('Delete ' + name + '?')) return;
+                try {
+                    const res = await sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug, name }));
+                    if (checkAuthError(res.status)) return;
+                    showResult(res.ok, res.ok ? '🗑️ Deleted' : '❌ Failed');
+                    if (res.ok) location.reload();
+                } catch (e) { showResult(false, NETWORK_ERROR_MSG); }
+            }
+
+            async function submitManualArchive() {
+                if (!requireAuth()) return;
+                const payload = {
+                    slug: document.getElementById('ma-slug').value.trim(),
+                    name: document.getElementById('ma-name').value.trim(),
+                    overview: document.getElementById('ma-overview').value.trim(),
+                    league: document.getElementById('ma-league').value.trim(),
+                    start_date: document.getElementById('ma-start').value.trim(),
+                    end_date: document.getElementById('ma-end').value.trim()
+                };
+                if (!payload.slug || !payload.name || !payload.overview || !payload.league) { showToast("⚠️ Slug, Name, Overview, League required", "error"); return; }
+                try {
+                    const res = await sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload));
+                    if (checkAuthError(res.status)) return;
+                    const data = await res.json();
+                    showResult(res.ok, res.ok ? '📦 Saved' : '❌ ' + (data.error || 'Failed'));
+                    if (res.ok) setTimeout(() => location.reload(), REDIRECT_DELAY_MS);
+                } catch (e) { showResult(false, NETWORK_ERROR_MSG); }
+            }
+
+            loadModeOverrides();
+        </script>
+    </body>
+    </html>`;
+  }
 
             function clearAuth() {
                 sessionStorage.removeItem("admin_pwd");
