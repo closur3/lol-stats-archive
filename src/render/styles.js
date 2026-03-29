@@ -213,7 +213,7 @@ export const LOG_PAGE_STYLE = `
     body { min-height: 100vh; min-height: 100dvh; background: #f1f5f9; }
     .main-header { margin-bottom: 20px; }
     .logs-cards-container { max-width: 1100px; width: 100%; padding: 0 15px 40px 15px; box-sizing: border-box; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .league-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); overflow: hidden; }
+    .league-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); overflow: hidden; height: 300px; display: flex; flex-direction: column; }
     .league-card-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; }
     .league-card-name { font-weight: 800; font-size: 15px; color: #0f172a; }
     .league-card-status { display: flex; align-items: center; gap: 6px; }
@@ -231,12 +231,12 @@ export const LOG_PAGE_STYLE = `
     .bar-sync { background: #22c55e; }
     .bar-idle { background: #e2e8f0; }
     .bar-err { background: #ef4444; }
-    .league-card-logs { display: flex; flex-direction: column; max-height: calc(6 * 30px); overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+    .league-card-logs { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
     .league-card-logs::-webkit-scrollbar { display: none; }
     .log-mini-row { display: flex; align-items: baseline; gap: 6px; padding: 6px 16px; border-bottom: 1px solid #f8fafc; font-size: 12px; }
     .log-mini-row:last-child { border-bottom: none; }
     .log-mini-time { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #94a3b8; font-size: 11px; white-space: nowrap; flex-shrink: 0; min-width: 95px; }
-    .log-mini-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #64748b; word-break: break-all; line-height: 1.4; font-size: 13px; }
+    .log-mini-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #64748b; word-break: break-all; line-height: 1.4; font-size: 13px; background: transparent; border: none; padding: 0; margin: 0; }
     .log-mini-msg .hl { color: #0f172a; font-weight: 700; }
     .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; grid-column: 1 / -1; }
     ${BUILD_FOOTER_STYLE}
