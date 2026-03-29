@@ -236,7 +236,8 @@ export const LOG_PAGE_STYLE = `
     .log-mini-row { display: flex; align-items: baseline; gap: 6px; padding: 6px 16px; border-bottom: 1px solid #f8fafc; font-size: 12px; }
     .log-mini-row:last-child { border-bottom: none; }
     .log-mini-time { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #94a3b8; font-size: 11px; white-space: nowrap; flex-shrink: 0; min-width: 95px; }
-    .log-mini-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #64748b; word-break: break-all; line-height: 1.4; font-size: 13px; background: transparent; border: none; padding: 0; margin: 0; }
+    .log-mini-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #64748b; word-break: break-all; line-height: 1.4; font-size: 13px; }
+    code.log-mini-msg { background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; }
     .log-mini-msg .hl { color: #0f172a; font-weight: 700; }
     .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; grid-column: 1 / -1; }
     ${BUILD_FOOTER_STYLE}
