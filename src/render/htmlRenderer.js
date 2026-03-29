@@ -850,6 +850,10 @@ export class HTMLRenderer {
                             '</div>' +
                             '</div>';
                     }).join('');
+                    var activeSlugs = tournaments.map(function(t) { return t.slug; });
+                    document.querySelectorAll('.qr-chk-archived').forEach(function(c) {
+                        if (activeSlugs.indexOf(c.value) >= 0) c.closest('.item').style.display = 'none';
+                    });
                 }).catch(function() {});
             }
 
