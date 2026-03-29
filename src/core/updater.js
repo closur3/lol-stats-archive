@@ -498,6 +498,7 @@ export class Updater {
 
     // 分发日志到各联赛 HOME_ 键
     const newLogs = this.logger.export();
+    console.log(`[LOG_DIST] Logger has ${newLogs.length} entries`);
     if (newLogs.length > 0) {
       const leagueSlugMap = buildLeagueSlugMap(runtimeConfig.TOURNAMENTS);
       await appendLogsToLeagueHomes(this.env, newLogs, leagueSlugMap);
