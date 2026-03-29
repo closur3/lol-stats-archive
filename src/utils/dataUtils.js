@@ -250,12 +250,9 @@ export async function appendLogsToLeagueHomes(env, newLogs, leagueSlugMap) {
       if (slug) {
         if (!bySlug[slug]) bySlug[slug] = [];
         bySlug[slug].push(entry);
-      } else {
-        console.log(`[LOG_DIST] No slug for league: "${name}", map: ${JSON.stringify(leagueSlugMap)}`);
       }
     });
   });
-  console.log(`[LOG_DIST] ${newLogs.length} entries → ${Object.keys(bySlug).length} slugs: ${Object.keys(bySlug).join(", ")}`);
 
   // read, append, write
   const writes = Object.entries(bySlug).map(async ([slug, entries]) => {

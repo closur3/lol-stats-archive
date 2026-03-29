@@ -5,6 +5,7 @@ import { APIRouter } from './routes/api.js';
 import { Updater } from './core/updater.js';
 import { HTMLRenderer } from './render/htmlRenderer.js';
 import { KV_KEYS } from './utils/constants.js';
+import { dateUtils } from './utils/dateUtils.js';
 
 /**
  * 主Worker入口
@@ -51,14 +52,20 @@ export default {
       
       case "/logs":
         const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
-        const leagueLogs = {};
+        const homes = [];
         await Promise.all(allHomeKeys.keys.filter(k => k.name !== KV_KEYS.HOME_STATIC_HTML).map(async k => {
           const home = await env.LOL_KV.get(k.name, { type: "json" });
-          if (home && home.logs && home.logs.length > 0) {
-            const name = home.tourn?.league || home.tourn?.name || k.name.replace(KV_KEYS.HOME_PREFIX, "");
+          if (home && home.logs && home.logs.length > 0) homes.push(home);
+        }));
+        const sortedHomes = dateUtils.sortTournamentsByDate(homes.map(h => h.tourn || {}));
+        const leagueLogs = {};
+        sortedHomes.forEach(t => {
+          const home = homes.find(h => h.tourn?.slug === t.slug);
+          if (home) {
+            const name = t.league || t.name || t.slug;
             leagueLogs[name] = home.logs;
           }
-        }));
+        });
         const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha);
         return new Response(html, { 
           headers: { "content-type": "text/html;charset=utf-8" } 

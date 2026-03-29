@@ -1192,9 +1192,9 @@ export class HTMLRenderer {
       return kept.join(" | ").replace(/\s+/g, " ").trim();
     }
 
-    const leagueNames = Object.keys(leagueLogs).sort();
+    const leagueNames = Object.keys(leagueLogs);
     const cardsHtml = leagueNames.map(name => {
-      const entries = leagueLogs[name].map(e => ({ ...e, m: extractLeaguePart(e.m || "", name) }));
+      const entries = (leagueLogs[name] || []).map(e => ({ ...e, m: extractLeaguePart(e.m || "", name) }));
       const lastEntry = entries[entries.length - 1];
       const last = lastEntry.m || "";
       const isSlow = last.includes("🐌");
