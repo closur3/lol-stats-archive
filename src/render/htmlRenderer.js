@@ -872,7 +872,7 @@ export class HTMLRenderer {
             function forceSelected() {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('#active-list .item-chk:checked');
-                if (checked.length === 0) { showToast("No items selected", "error"); return; }
+                if (checked.length === 0) { showToast("No active selected", "error"); return; }
                 var slugs = Array.from(checked).map(function(c) { return c.value; });
                 var btn = event.target;
                 var restore = setButtonBusy(btn, 'Running...');
