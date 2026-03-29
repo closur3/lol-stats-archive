@@ -840,22 +840,22 @@ export class HTMLRenderer {
                     if (tournaments.length === 0) { container.innerHTML = '<div style="text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;">No active tournaments</div>'; return; }
                     container.innerHTML = tournaments.map(t => {
                         const modeIcon = t.currentMode === 'fast' ? '⚡' : '🐌';
-                        return '<div class="qr-item">' +
-                            '<label class="qr-label">' +
-                            '<input type="checkbox" class="form-checkbox qr-chk-active" value="' + t.slug + '">' +
-                            '<span class="qr-name">' + t.name + ' ' + modeIcon + '</span>' +
-                            '</label>' +
-                            '<div class="qr-actions">' +
-                            '<select class="mode-select" data-slug="' + t.slug + '">' +
-                            '<option value="auto"' + (t.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
-                            '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
-                            '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
-                            '</select>' +
-                            '<button class="icon-btn" onclick="runTask(\'/force\', this, \'..\')" title="Force">🔄</button>' +
-                            '<button class="fill-btn" onclick="fillArchive(\'' + t.slug + '\')" title="Fill">📋</button>' +
-                            '<button class="delete-btn" onclick="deleteArchive(\'' + t.slug + '\', \'' + t.name + '\')" title="Delete">🗑️</button>' +
-                            '</div>' +
-                            '</div>';
+                        return `<div class="qr-item">
+                            <label class="qr-label">
+                                <input type="checkbox" class="form-checkbox qr-chk-active" value="${t.slug}">
+                                <span class="qr-name">${t.name} ${modeIcon}</span>
+                            </label>
+                            <div class="qr-actions">
+                                <select class="mode-select" data-slug="${t.slug}">
+                                    <option value="auto"${t.override === 'auto' ? ' selected' : ''}>AUTO</option>
+                                    <option value="fast"${t.override === 'fast' ? ' selected' : ''}>FAST</option>
+                                    <option value="slow"${t.override === 'slow' ? ' selected' : ''}>SLOW</option>
+                                </select>
+                                <button class="icon-btn" onclick="runTask('/force', this, '..')" title="Force">🔄</button>
+                                <button class="fill-btn" onclick="fillArchive('${t.slug}')" title="Fill">📋</button>
+                                <button class="delete-btn" onclick="deleteArchive('${t.slug}', '${t.name.replace(/'/g, "\\'")}')" title="Delete">🗑️</button>
+                            </div>
+                        </div>`;
                     }).join('');
                 } catch (e) { console.error('Failed to load mode overrides', e); }
             }
