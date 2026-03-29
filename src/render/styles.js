@@ -5,7 +5,8 @@
 // 基础通用样式
 export const COMMON_STYLE = `
     * { box-sizing: border-box; }
-    body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; }
+    body, code, input, button, select, textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    body { background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: 100%; }
     .header-left { display: flex; align-items: center; gap: 12px; }
     .header-logo { font-size: 1.8rem; }
@@ -135,7 +136,7 @@ export const PYTHON_STYLE = `
 // 页脚样式
 export const BUILD_FOOTER_STYLE = `
     .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; }
-    .build-footer code { background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; color: inherit; }
+
     .build-footer .footer-label { font-weight: 500; }
     .build-footer .footer-time, .build-footer .footer-sha { color: #64748b; font-weight: 700; }
     .build-footer a { color: inherit; text-decoration: none; opacity: 1; transition: filter 0.2s ease; }

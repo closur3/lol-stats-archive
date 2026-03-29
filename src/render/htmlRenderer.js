@@ -258,7 +258,7 @@ export class HTMLRenderer {
    */
   static renderBuildFooter(time, sha) {
     const shortSha = (sha || "").slice(0, 7) || "unknown";
-    return `<div class="build-footer"><code class="footer-label">deployed:</code> <code class="footer-time">${time || "N/A"}</code> <a href="${GITHUB_COMMIT_BASE}${sha}" target="_blank"><code class="footer-sha">@${shortSha}</code></a></div>`;
+    return `<div class="build-footer"><span class="footer-label">deployed:</span> <span class="footer-time">${time || "N/A"}</span> <a href="${GITHUB_COMMIT_BASE}${sha}" target="_blank"><span class="footer-sha">@${shortSha}</span></a></div>`;
   }
 
   /**
