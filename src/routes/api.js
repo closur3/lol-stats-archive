@@ -398,9 +398,15 @@ export class APIRouter {
             name: h.tourn.name,
             league: h.tourn.league,
             currentMode,
-            override: modeOverride
+            override: modeOverride,
+            start_date: h.tourn.start_date || ''
           };
         });
+
+      tournaments.sort((a, b) => {
+        if (a.start_date !== b.start_date) return (b.start_date || '').localeCompare(a.start_date || '');
+        return a.slug.localeCompare(b.slug);
+      });
 
       return new Response(JSON.stringify({ overrides, tournaments }), {
         headers: { "content-type": "application/json" }
