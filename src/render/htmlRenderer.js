@@ -1207,7 +1207,7 @@ export class HTMLRenderer {
       const lastTime = lastEntry.t || "";
       const lastUtcIso = lastTime.length >= 16 ? `20${lastTime.slice(0,8)}T${lastTime.slice(9)}:00Z` : "";
 
-      const bars = entries.slice(-10).map(e => {
+      const bars = entries.slice(-10).reverse().map(e => {
         const cls = e.m.includes("🔄") ? "bar-sync" : e.m.includes("❌") ? "bar-err" : "bar-idle";
         const h = e.m.includes("🔄") ? "100%" : e.m.includes("❌") ? "70%" : "30%";
         return `<div class="bar ${cls}" style="height:${h}"></div>`;
