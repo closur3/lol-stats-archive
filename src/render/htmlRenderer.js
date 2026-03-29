@@ -1120,16 +1120,18 @@ export class HTMLRenderer {
 
                     container.innerHTML = tournaments.map(t => {
                         const modeIcon = t.currentMode === 'fast' ? '⚡' : '🐌';
-                        return '<div class="qr-item" style="justify-content:space-between;padding:8px 12px;">' +
-                            '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
+                        return '<div class="qr-item">' +
+                            '<label class="qr-label">' +
                             '<span style="width:20px;text-align:center;flex-shrink:0;">' + modeIcon + '</span>' +
                             '<span class="qr-name">' + t.name + '</span>' +
-                            '</div>' +
+                            '</label>' +
+                            '<div class="qr-actions">' +
                             '<select class="mode-select" data-slug="' + t.slug + '">' +
                             '<option value="auto"' + (t.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
                             '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
                             '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
                             '</select>' +
+                            '</div>' +
                             '</div>';
                     }).join('');
                 } catch (e) {
