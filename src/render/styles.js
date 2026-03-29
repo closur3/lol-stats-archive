@@ -231,7 +231,8 @@ export const LOG_PAGE_STYLE = `
     .bar-sync { background: #22c55e; }
     .bar-idle { background: #e2e8f0; }
     .bar-err { background: #ef4444; }
-    .league-card-logs { display: flex; flex-direction: column; }
+    .league-card-logs { display: flex; flex-direction: column; max-height: calc(6 * 30px); overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+    .league-card-logs::-webkit-scrollbar { display: none; }
     .log-mini-row { display: flex; align-items: baseline; gap: 6px; padding: 6px 16px; border-bottom: 1px solid #f8fafc; font-size: 12px; }
     .log-mini-row:last-child { border-bottom: none; }
     .log-mini-time { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #94a3b8; font-size: 11px; white-space: nowrap; flex-shrink: 0; min-width: 95px; }

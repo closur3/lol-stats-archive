@@ -1218,7 +1218,8 @@ export class HTMLRenderer {
 
       const syncCount = entries.filter(e => e.m.includes("🔄")).length;
       const errCount = entries.filter(e => e.m.includes("❌") || e.m.includes("🚧")).length;
-      const lastTime = (lastEntry.t || "").split(" ")[1] || "";
+      const lastTime = lastEntry.t || "";
+      const lastUtcIso = lastTime.length >= 16 ? `20${lastTime.slice(0,8)}T${lastTime.slice(9)}:00Z` : "";
 
       const bars = entries.slice(-8).map(e => {
         const cls = e.m.includes("🔄") ? "bar-sync" : e.m.includes("❌") ? "bar-err" : "bar-idle";
@@ -1226,15 +1227,16 @@ export class HTMLRenderer {
         return `<div class="bar ${cls}" style="height:${h}"></div>`;
       }).join("");
 
-      const rows = entries.slice(-10).reverse().map(e => {
+      const rows = entries.slice(-10).map(e => {
         const t = e.t || "";
+        const utcIso = t.length >= 16 ? `20${t.slice(0,8)}T${t.slice(9)}:00Z` : "";
         const msg = e.m.replace(/(\+\d+|\*\d+)/g, '<span class="hl">$1</span>');
-        return `<div class="log-mini-row"><span class="log-mini-time">${t}</span><span class="log-mini-msg">${msg}</span></div>`;
+        return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${t}</span><code class="log-mini-msg">${msg}</code></div>`;
       }).join("");
 
       return `<div class="league-card">
         <div class="league-card-header"><span class="league-card-name">${name}</span><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?"🐌120m":"⚡5m"}</span><div class="status-dot ${dotCls}"></div></div></div>
-        <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span><span>LAST <span class="stat-val">${lastTime}</span></span></div>
+        <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span><span>LAST <span class="stat-val utc-local" data-utc="${lastUtcIso}" data-format="datetime">${lastTime}</span></span></div>
         <div class="timeline">${bars}</div>
         <div class="league-card-logs">${rows}</div>
       </div>`;
