@@ -194,8 +194,8 @@ export const TOOLS_PAGE_STYLE = `
     /* Clean Glass Auth Overlay */
     #auth-overlay { position: fixed; inset: 0; background: rgba(241,245,249,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999; }
     .auth-card { background: #fff; padding: 35px 30px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); width: 340px; text-align: center; box-sizing: border-box; border: 1px solid #e2e8f0; }
-    .auth-icon { font-size: 32px; margin-bottom: 12px; }
-    .auth-title { font-size: 18px; font-weight: 800; margin-bottom: 25px; color: #0f172a; }
+    .auth-icon { font-size: 32px; margin-bottom: 20px; }
+    .auth-title { font-size: 18px; font-weight: 800; margin-bottom: 20px; color: #0f172a; }
     .auth-btn { width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
     .auth-input { text-align: center; letter-spacing: 2px; margin-bottom: 20px; padding: 12px; }
 
