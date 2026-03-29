@@ -653,25 +653,23 @@ export class HTMLRenderer {
   static renderToolsPage(time, sha, existingArchives = []) {
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
 
-    // Active items (rendered by JS after mode override data loads)
-    // Archived items
     let archiveListHtml = existingArchives.map(t => {
         const overviewStr = Array.isArray(t.overview_page) ? JSON.stringify(t.overview_page) : JSON.stringify([t.overview_page]);
         const startDate = t.start_date || '';
         const endDate = t.end_date || '';
         return `
-        <div class="qr-item">
-            <label class="qr-label">
-                <input type="checkbox" class="qr-chk form-checkbox qr-chk-archived" value="${t.slug}" data-name="${t.name}" data-overview='${overviewStr}' data-league="${t.league}" data-start="${startDate}" data-end="${endDate}">
-                <span class="qr-name">${t.name}</span>
+        <div class="item">
+            <label class="item-left">
+                <input type="checkbox" class="item-chk qr-chk-archived" value="${t.slug}" data-name="${t.name}" data-overview='${overviewStr}' data-league="${t.league}" data-start="${startDate}" data-end="${endDate}">
+                <span class="item-name">${t.name}</span>
             </label>
-            <div class="qr-actions">
-                <button class="fill-btn" onclick="fillArchive('${t.slug}')" title="Fill">📋</button>
-                <button class="delete-btn" onclick="deleteArchive('${t.slug}', '${t.name}')" title="Delete">🗑️</button>
+            <div class="item-right">
+                <button class="icon-btn icon-btn-fill" onclick="fillArchive('${t.slug}')" title="Fill">📋</button>
+                <button class="icon-btn icon-btn-del" onclick="deleteArchive('${t.slug}', '${t.name}')" title="Delete">🗑️</button>
             </div>
-        </div>
-    `}).join("");
-    if (!archiveListHtml) archiveListHtml = "<div style='text-align:center; padding: 12px 0; color:#94a3b8; font-size:12px;'>No archives</div>";
+        </div>`;
+    }).join("");
+    if (!archiveListHtml) archiveListHtml = "<div style='text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;'>No archives</div>";
 
     return `<!DOCTYPE html>
     <html>
@@ -708,31 +706,32 @@ export class HTMLRenderer {
         <div class="container">
 
             <div class="wrapper">
-                <div class="table-title">⚙️ Operations</div>
-                <div class="section-body">
+                <div class="table-title"><span>⚙️ Operations</span></div>
+                <div class="section-body ops-body">
 
                     <div class="group-header">
                         <input type="checkbox" class="group-chk" id="chk-active-all">
                         <span class="group-label">Active</span>
                     </div>
-                    <div id="active-list" class="qr-list-container">
-                        <div style='text-align:center; padding: 12px 0; color:#94a3b8; font-size:12px;'>Loading...</div>
+                    <div id="active-list" class="list">
+                        <div style="text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;">Loading...</div>
                     </div>
-                    <div class="actions-row-end" style="margin-top: 12px;">
-                        <button class="secondary-btn" onclick="saveModeOverrides()">Save Modes</button>
+                    <div class="ops-actions">
+                        <button class="secondary-btn" onclick="runTask('/refresh-ui', this, 'Refreshing...')">Refresh HTML</button>
+                        <button class="primary-btn" onclick="saveModeOverrides()">Save Modes</button>
                         <button class="primary-btn" onclick="forceSelected()">Force</button>
                     </div>
 
-                    <hr style="border:none; border-top:1px solid #f1f5f9; margin: 16px 0;">
+                    <div class="item-sep"></div>
 
                     <div class="group-header">
                         <input type="checkbox" class="group-chk" id="chk-archived-all">
                         <span class="group-label">Archived</span>
                     </div>
-                    <div class="qr-list-container">
+                    <div class="list">
                         ${archiveListHtml}
                     </div>
-                    <div class="actions-row-end" style="margin-top: 12px;">
+                    <div class="ops-actions">
                         <button class="primary-btn" onclick="rebuildSelected()">Rebuild</button>
                     </div>
 
@@ -753,7 +752,7 @@ export class HTMLRenderer {
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Overview Page</label>
-                            <input type="text" id="ma-overview" placeholder='LPL/2026 Season/Split 1' class="form-input">
+                            <input type="text" id="ma-overview" placeholder="LPL/2026 Season/Split 1" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="tool-label">League</label>
@@ -769,7 +768,7 @@ export class HTMLRenderer {
                         </div>
                     </div>
                     <div class="actions-row-end">
-                        <button class="primary-btn" id="btn-manual-archive" onclick="submitManualArchive()">Save Metadata</button>
+                        <button class="primary-btn" onclick="submitManualArchive()">Save Metadata</button>
                     </div>
                 </div>
             </div>
@@ -777,34 +776,155 @@ export class HTMLRenderer {
         ${buildFooter}
 
         <script>
-            const authOverlay = document.getElementById("auth-overlay");
-            const authPwdInput = document.getElementById("auth-pwd");
-            const toastContainer = document.getElementById("toast-container");
-            const TOAST_DURATION_MS = 3000;
-            const REDIRECT_DELAY_MS = 1500;
-            const AUTH_ERROR_MSG = "Session expired or incorrect password.";
-            const NETWORK_ERROR_MSG = "❌ Network connection failed";
-            let adminToken = sessionStorage.getItem("admin_pwd") || "";
+            var authOverlay = document.getElementById("auth-overlay");
+            var authPwdInput = document.getElementById("auth-pwd");
+            var toastContainer = document.getElementById("toast-container");
+            var TOAST_DURATION_MS = 3000;
+            var REDIRECT_DELAY_MS = 1500;
+            var AUTH_ERROR_MSG = "Session expired or incorrect password.";
+            var NETWORK_ERROR_MSG = "❌ Network connection failed";
+            var adminToken = sessionStorage.getItem("admin_pwd") || "";
             if (adminToken) authOverlay.style.display = "none";
 
-            // Group checkbox: select all in group
-            try {
             document.getElementById('chk-active-all').addEventListener('change', function() {
-                document.querySelectorAll('#active-list .qr-chk-active').forEach(c => c.checked = this.checked);
+                document.querySelectorAll('#active-list .item-chk').forEach(function(c) { c.checked = this.checked; }.bind(this));
             });
             document.getElementById('chk-archived-all').addEventListener('change', function() {
-                document.querySelectorAll('.qr-chk-archived').forEach(c => c.checked = this.checked);
+                document.querySelectorAll('.qr-chk-archived').forEach(function(c) { c.checked = this.checked; }.bind(this));
             });
-            } catch(e) { console.error('Init error:', e); }
 
-            function setAuthOverlayVisible(visible) { authOverlay.style.display = visible ? "flex" : "none"; }
+            function setAuthOverlayVisible(v) { authOverlay.style.display = v ? "flex" : "none"; }
             function clearAuth() { sessionStorage.removeItem("admin_pwd"); adminToken = ""; authPwdInput.value = ""; setAuthOverlayVisible(true); }
-            function showToast(msg, type = 'success') {
-                const toast = document.createElement('div');
+            function showToast(msg, type) {
+                type = type || 'success';
+                var toast = document.createElement('div');
                 toast.className = 'toast ' + type; toast.innerText = msg;
                 toastContainer.appendChild(toast); void toast.offsetWidth; toast.classList.add('show');
-                setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, TOAST_DURATION_MS);
+                setTimeout(function() { toast.classList.remove('show'); setTimeout(function() { toast.remove(); }, 300); }, TOAST_DURATION_MS);
             }
+            function unlockTools() { var pwd = authPwdInput.value.trim(); if (pwd) { adminToken = pwd; sessionStorage.setItem('admin_pwd', pwd); setAuthOverlayVisible(false); } }
+            function checkAuthError(status) { if (status === 401) { showToast(AUTH_ERROR_MSG, "error"); clearAuth(); return true; } return false; }
+            function requireAuth() { if (adminToken) return true; setAuthOverlayVisible(true); return false; }
+            function getAuthHeaders(extra) { return Object.assign({ 'Authorization': 'Bearer ' + adminToken }, extra || {}); }
+            function setButtonBusy(btn, busyText) {
+                var originalText = btn.innerHTML; btn.innerHTML = busyText; btn.style.pointerEvents = 'none'; btn.style.opacity = '0.7';
+                return function() { btn.innerHTML = originalText; btn.style.pointerEvents = 'auto'; btn.style.opacity = '1'; };
+            }
+            function sendAuthorizedPost(url, extraHeaders, body) {
+                return fetch(url, { method: 'POST', headers: getAuthHeaders(extraHeaders), body: body });
+            }
+            function showResult(ok, text) { showToast(text, ok ? 'success' : 'error'); }
+
+            function runTask(url, btnEl, busyText) {
+                if (!requireAuth()) return;
+                var restore = setButtonBusy(btnEl, busyText || '...');
+                fetch(url, { method: 'POST', headers: getAuthHeaders() }).then(function(res) {
+                    if (checkAuthError(res.status)) return;
+                    showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
+                }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
+            }
+
+            function loadModeOverrides() {
+                fetch('/mode-overrides').then(function(res) { if (!res.ok) return; return res.json(); }).then(function(data) {
+                    if (!data) return;
+                    var container = document.getElementById('active-list');
+                    var tournaments = data.tournaments || [];
+                    if (tournaments.length === 0) { container.innerHTML = '<div style="text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;">No active tournaments</div>'; return; }
+                    container.innerHTML = tournaments.map(function(t) {
+                        var modeIcon = t.currentMode === 'fast' ? '⚡' : '🐌';
+                        var slug = t.slug, name = t.name.replace(/'/g, '&apos;');
+                        return '<div class="item">' +
+                            '<label class="item-left">' +
+                            '<input type="checkbox" class="item-chk">' +
+                            '<span class="item-name">' + t.name + ' ' + modeIcon + '</span>' +
+                            '</label>' +
+                            '<div class="item-right">' +
+                            '<select class="mode-select" data-slug="' + slug + '">' +
+                            '<option value="auto"' + (t.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
+                            '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
+                            '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
+                            '</select>' +
+                            '<button class="icon-btn" onclick="runTask(&apos;/force&apos;, this, &apos;..&apos;)" title="Force">🔄</button>' +
+                            '<button class="icon-btn icon-btn-fill" onclick="fillArchive(&apos;' + slug + '&apos;)" title="Fill">📋</button>' +
+                            '<button class="icon-btn icon-btn-del" onclick="deleteArchive(&apos;' + slug + '&apos;, &apos;' + name + '&apos;)" title="Delete">🗑️</button>' +
+                            '</div>' +
+                            '</div>';
+                    }).join('');
+                }).catch(function() {});
+            }
+
+            function saveModeOverrides() {
+                if (!requireAuth()) return;
+                var selects = document.querySelectorAll('#active-list select[data-slug]');
+                var overrides = {};
+                selects.forEach(function(s) { overrides[s.dataset.slug] = s.value; });
+                sendAuthorizedPost('/mode-overrides', { 'Content-Type': 'application/json' }, JSON.stringify(overrides)).then(function(res) {
+                    if (checkAuthError(res.status)) return;
+                    showResult(res.ok, res.ok ? '✅ Saved' : '❌ Failed');
+                    if (res.ok) loadModeOverrides();
+                }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
+            }
+
+            function forceSelected() { if (!requireAuth()) return; runTask('/force', event.target, 'Running...'); }
+
+            function rebuildSelected() {
+                if (!requireAuth()) return;
+                var checked = document.querySelectorAll('.qr-chk-archived:checked');
+                if (checked.length === 0) { showToast("No archives selected", "error"); return; }
+                var selected = Array.from(checked).map(function(c) { return { slug: c.value, name: c.dataset.name, overview: c.dataset.overview, league: c.dataset.league, start_date: c.dataset.start, end_date: c.dataset.end }; });
+                var btn = event.target;
+                var restore = setButtonBusy(btn, 'Rebuilding...');
+                var success = 0, fail = 0;
+                var promises = selected.map(function(s) {
+                    return sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(s)).then(function(res) { if (res.ok) success++; else { fail++; if (checkAuthError(res.status)) return; } }).catch(function() { fail++; });
+                });
+                Promise.all(promises).then(function() { restore(); showResult(fail === 0, success + '/' + (success + fail) + ' rebuilt'); });
+            }
+
+            function fillArchive(slug) {
+                var chk = document.querySelector('.qr-chk-archived[value="' + slug + '"]');
+                if (!chk) return;
+                document.getElementById('ma-slug').value = chk.value;
+                document.getElementById('ma-name').value = chk.dataset.name || '';
+                document.getElementById('ma-overview').value = chk.dataset.overview || '';
+                document.getElementById('ma-league').value = chk.dataset.league || '';
+                document.getElementById('ma-start').value = chk.dataset.start || '';
+                document.getElementById('ma-end').value = chk.dataset.end || '';
+            }
+
+            function deleteArchive(slug, name) {
+                if (!requireAuth()) return;
+                if (!confirm('Delete ' + name + '?')) return;
+                sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug: slug, name: name })).then(function(res) {
+                    if (checkAuthError(res.status)) return;
+                    showResult(res.ok, res.ok ? '🗑️ Deleted' : '❌ Failed');
+                    if (res.ok) location.reload();
+                }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
+            }
+
+            function submitManualArchive() {
+                if (!requireAuth()) return;
+                var payload = {
+                    slug: document.getElementById('ma-slug').value.trim(),
+                    name: document.getElementById('ma-name').value.trim(),
+                    overview: document.getElementById('ma-overview').value.trim(),
+                    league: document.getElementById('ma-league').value.trim(),
+                    start_date: document.getElementById('ma-start').value.trim(),
+                    end_date: document.getElementById('ma-end').value.trim()
+                };
+                if (!payload.slug || !payload.name || !payload.overview || !payload.league) { showToast("⚠️ Slug, Name, Overview, League required", "error"); return; }
+                sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload)).then(function(res) {
+                    if (checkAuthError(res.status)) return;
+                    showResult(res.ok, res.ok ? '📦 Saved' : '❌ Failed');
+                    if (res.ok) setTimeout(function() { location.reload(); }, REDIRECT_DELAY_MS);
+                }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
+            }
+
+            loadModeOverrides();
+        </script>
+    </body>
+    </html>`;
+  }
             function unlockTools() { const pwd = authPwdInput.value.trim(); if (pwd) { adminToken = pwd; sessionStorage.setItem('admin_pwd', pwd); setAuthOverlayVisible(false); } }
             function checkAuthError(status) { if (status === 401) { showToast(AUTH_ERROR_MSG, "error"); clearAuth(); return true; } return false; }
             function requireAuth() { if (adminToken) return true; setAuthOverlayVisible(true); return false; }

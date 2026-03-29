@@ -160,6 +160,25 @@ export const TOOLS_PAGE_STYLE = `
     .tool-info-desc-spaced { margin-bottom: 20px; }
     .actions-row-end { display: flex; justify-content: flex-end; }
 
+    .ops-body .list { display: flex; flex-direction: column; gap: 4px; }
+    .ops-body .item { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 6px; transition: 0.2s; border: 1px solid transparent; }
+    .ops-body .item:hover { background: #f8fafc; border-color: #e2e8f0; }
+    .ops-body .item-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
+    .ops-body .item-chk { width: 16px; height: 16px; accent-color: #2563eb; flex-shrink: 0; }
+    .ops-body .item-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ops-body .item-right { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
+    .ops-body .group-header { display: flex; align-items: center; gap: 8px; padding: 12px 12px 6px 12px; }
+    .ops-body .group-chk { width: 16px; height: 16px; accent-color: #2563eb; flex-shrink: 0; cursor: pointer; }
+    .ops-body .group-label { font-size: 12px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; flex: 1; }
+    .ops-body .item-sep { height: 1px; background: #f1f5f9; margin: 4px 0; }
+    .ops-body .ops-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px; }
+    .ops-body .icon-btn { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 14px; transition: 0.2s; }
+    .ops-body .icon-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+    .ops-body .icon-btn-fill { color: #2563eb; }
+    .ops-body .icon-btn-fill:hover { background: #eff6ff; border-color: #93c5fd; }
+    .ops-body .icon-btn-del { color: #dc2626; }
+    .ops-body .icon-btn-del:hover { background: #fef2f2; border-color: #fca5a5; }
+
     .primary-btn { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; transition: 0.2s; margin: 0; white-space: nowrap; }
     .primary-btn:hover { background: #1d4ed8; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
 
