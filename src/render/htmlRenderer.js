@@ -699,7 +699,6 @@ export class HTMLRenderer {
         <div id="auth-overlay">
             <div class="auth-card">
                 <div class="auth-icon">🔐</div>
-                <div class="auth-title">Authentication</div>
                 <input type="password" id="auth-pwd" class="form-input auth-input" placeholder="Password" onkeypress="if(event.key==='Enter') unlockTools()">
                 <button class="primary-btn auth-btn" onclick="unlockTools()">Unlock</button>
             </div>
