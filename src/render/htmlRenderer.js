@@ -699,8 +699,7 @@ export class HTMLRenderer {
         <div id="auth-overlay">
             <div class="auth-card">
                 <div class="auth-icon">🔐</div>
-                <div class="auth-title">Admin Authentication</div>
-                <div class="auth-subtitle">Please verify your identity to access tools.</div>
+                <div class="auth-title">Authentication</div>
                 <input type="password" id="auth-pwd" class="form-input auth-input" placeholder="Password" onkeypress="if(event.key==='Enter') unlockTools()">
                 <button class="primary-btn auth-btn" onclick="unlockTools()">Unlock</button>
             </div>
@@ -1208,7 +1207,7 @@ export class HTMLRenderer {
       const lastTime = lastEntry.t || "";
       const lastUtcIso = lastTime.length >= 16 ? `20${lastTime.slice(0,8)}T${lastTime.slice(9)}:00Z` : "";
 
-      const bars = entries.slice(-8).map(e => {
+      const bars = entries.slice(-10).map(e => {
         const cls = e.m.includes("🔄") ? "bar-sync" : e.m.includes("❌") ? "bar-err" : "bar-idle";
         const h = e.m.includes("🔄") ? "100%" : e.m.includes("❌") ? "70%" : "30%";
         return `<div class="bar ${cls}" style="height:${h}"></div>`;
