@@ -1231,7 +1231,7 @@ export class HTMLRenderer {
         const t = e.t || "";
         const utcIso = t.length >= 16 ? `20${t.slice(0,8)}T${t.slice(9)}:00Z` : "";
         const msg = e.m.replace(/(\+\d+|\*\d+)/g, '<span class="hl">$1</span>');
-        return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${t}</span><code class="log-mini-msg">${msg}</code></div>`;
+        return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${t}</span><span class="log-mini-msg">${msg}</span></div>`;
       }).join("");
 
       return `<div class="league-card">
@@ -1263,9 +1263,9 @@ export class HTMLRenderer {
             ${HTMLRenderer.renderActionBtn("/tools", "🧰", "Tools")}
         </div>
     </header>
-    <div class="logs-cards-container">
+    <code class="logs-cards-container">
         ${cardsHtml || '<div class="empty-logs">No logs found</div>'}
-    </div>
+    </code>
     ${buildFooter}
     ${HTMLRenderer.renderPythonJS()}
 </body>

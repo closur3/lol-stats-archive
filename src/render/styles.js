@@ -212,7 +212,8 @@ export const LOG_PAGE_STYLE = `
     ${COMMON_STYLE}
     body { min-height: 100vh; min-height: 100dvh; background: #f1f5f9; }
     .main-header { margin-bottom: 20px; }
-    .logs-cards-container { max-width: 1100px; width: 100%; padding: 0 15px 40px 15px; box-sizing: border-box; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .logs-cards-container { max-width: 1100px; width: 100%; padding: 0 15px 40px 15px; box-sizing: border-box; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    code.logs-cards-container { background: transparent; border: none; padding: 0 15px 40px 15px; margin: 0; letter-spacing: 0; display: grid; }
     .league-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); overflow: hidden; height: 300px; display: flex; flex-direction: column; }
     .league-card-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; }
     .league-card-name { font-weight: 800; font-size: 15px; color: #0f172a; }
@@ -237,7 +238,6 @@ export const LOG_PAGE_STYLE = `
     .log-mini-row:last-child { border-bottom: none; }
     .log-mini-time { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #94a3b8; font-size: 11px; white-space: nowrap; flex-shrink: 0; min-width: 95px; }
     .log-mini-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #64748b; word-break: break-all; line-height: 1.4; font-size: 13px; }
-    code.log-mini-msg { background: transparent; border: none; padding: 0; margin: 0; letter-spacing: 0; }
     .log-mini-msg .hl { color: #0f172a; font-weight: 700; }
     .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; grid-column: 1 / -1; }
     ${BUILD_FOOTER_STYLE}
