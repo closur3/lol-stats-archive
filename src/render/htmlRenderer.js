@@ -31,8 +31,8 @@ export class HTMLRenderer {
     const STYLE_VS_TEXT = 'style="color:#94a3b8;font-size:13px;font-weight:700;margin:0 2px;"';
     const STYLE_SCH_GROUP_HEADER = 'style="background:#f8fafc"';
     const STYLE_SCH_GROUP_ROW = 'style="width:100%; padding:0 10px; box-sizing:border-box"';
-    const STYLE_SCH_GROUP_NAME = 'style="font-weight:800"';
-    const STYLE_SCH_GROUP_BLOCK = 'style="font-weight:800; opacity:0.7"';
+    const STYLE_SCH_GROUP_NAME = 'style="font-weight:700"';
+    const STYLE_SCH_GROUP_BLOCK = 'style="font-weight:700; opacity:0.7"';
     const STYLE_SCH_MID_CELL = 'style="display:flex;justify-content:center;align-items:center;width:34px;transition:background 0.2s;"';
     const STYLE_TBD_TEAM = 'style="color:#9ca3af"';
 
