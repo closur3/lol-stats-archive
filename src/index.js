@@ -63,7 +63,9 @@ export default {
           const home = homes.find(h => h.tourn?.slug === t.slug);
           if (home) {
             const name = t.league || t.name || t.slug;
-            leagueLogs[name] = home.logs;
+            const slug = t.slug;
+            const meta = home.tournMeta?.[slug] || {};
+            leagueLogs[name] = { logs: home.logs, mode: meta.mode || "fast" };
           }
         });
         const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha);
