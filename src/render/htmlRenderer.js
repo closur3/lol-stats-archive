@@ -719,7 +719,7 @@ export class HTMLRenderer {
                     <div class="ops-actions">
                         <button class="secondary-btn" onclick="runTask('/refresh-ui', this, 'Refreshing...')">Refresh HTML</button>
                         <button class="primary-btn" onclick="saveModeOverrides()">Save Modes</button>
-                        <button class="primary-btn" onclick="forceSelected()">Force</button>
+                        <button class="primary-btn" onclick="forceSelected()">Force Update</button>
                     </div>
 
                     <div class="item-sep"></div>
@@ -873,7 +873,13 @@ export class HTMLRenderer {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('#active-list .item-chk:checked');
                 if (checked.length === 0) { showToast("No items selected", "error"); return; }
-                runTask('/force', event.target, 'Running...');
+                var slugs = Array.from(checked).map(function(c) { return c.value; });
+                var btn = event.target;
+                var restore = setButtonBusy(btn, 'Running...');
+                sendAuthorizedPost('/force', { 'Content-Type': 'application/json' }, JSON.stringify({ slugs: slugs })).then(function(res) {
+                    if (checkAuthError(res.status)) return;
+                    showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
+                }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
             }
 
             function rebuildSelected() {

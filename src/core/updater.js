@@ -19,7 +19,7 @@ export class Updater {
   /**
    * 运行更新任务
    */
-  async runUpdate(force = false) {
+  async runUpdate(force = false, forceSlugs = null) {
     const NOW = Date.now();
     const UPDATE_ROUNDS = 1;
 
@@ -45,7 +45,7 @@ export class Updater {
     runtimeConfig.TOURNAMENTS = dateUtils.sortTournamentsByDate(runtimeConfig.TOURNAMENTS);
 
     // 确定需要更新的锦标赛
-    const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force);
+    const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force, forceSlugs);
     if (candidates.length === 0) {
       console.log(`[SKIP] All tournaments skipped`);
       return this.logger;
@@ -128,10 +128,11 @@ export class Updater {
   /**
    * 确定需要更新的候选锦标赛
    */
-  determineCandidates(tournaments, cache, NOW, force) {
+  determineCandidates(tournaments, cache, NOW, force, forceSlugs = null) {
     const candidates = [];
     
     tournaments.forEach(tournament => {
+      const isForceTarget = force && (!forceSlugs || forceSlugs.has(tournament.slug));
       const lastTs = cache.updateTimestamps[tournament.slug] || 0;
       const elapsed = NOW - lastTs;
 
@@ -158,7 +159,7 @@ export class Updater {
 
       console.log(`[THRESHOLD] ${tournament.slug}: mode=${currentMode}, startTs=${startTs}, isMatchStarted=${isMatchStarted}, threshold=${threshold/1000/60}m, elapsed=${elapsed/1000/60}m`);
 
-      if (force || elapsed >= threshold) {
+      if (isForceTarget || elapsed >= threshold) {
         candidates.push({
           slug: tournament.slug, 
           overview_page: tournament.overview_page, 

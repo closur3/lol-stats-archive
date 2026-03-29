@@ -48,8 +48,16 @@ export class APIRouter {
     }
     
     try {
+      let forceSlugs = null;
+      try {
+        const body = await request.clone().json();
+        if (body && Array.isArray(body.slugs) && body.slugs.length > 0) {
+          forceSlugs = new Set(body.slugs);
+        }
+      } catch (e) {}
+
       const updater = new Updater(env);
-      await updater.runUpdate(true);
+      await updater.runUpdate(true, forceSlugs);
       
       return new Response("OK", { status: 200 });
     } catch (err) {
