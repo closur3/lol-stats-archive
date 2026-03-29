@@ -76,33 +76,13 @@ export const dataUtils = {
    */
   sortTournamentsByDate: (tournaments) => {
     if (!tournaments || !Array.isArray(tournaments)) return [];
-    
     return [...tournaments].sort((a, b) => {
-      // 支持两种结构：直接是 tourn 对象，或者包含 tourn 属性
-      const aTourn = a.tourn || a;
-      const bTourn = b.tourn || b;
-      
-      const aStart = aTourn.start_date || '';
-      const bStart = bTourn.start_date || '';
-      const aEnd = aTourn.end_date || '';
-      const bEnd = bTourn.end_date || '';
-
-      // 主要排序：start_date 倒序（日期越晚越靠前）
-      if (aStart !== bStart) {
-        if (!aStart) return 1; // 没有日期的排后面
-        if (!bStart) return -1;
-        return bStart.localeCompare(aStart);
-      }
-
-      // 第二排序：end_date 倒序
-      if (aEnd !== bEnd) {
-        if (!aEnd) return 1;
-        if (!bEnd) return -1;
-        return bEnd.localeCompare(aEnd);
-      }
-
-      // 第三排序：slug 字母顺序（确保稳定性）
-      return (aTourn.slug || '').localeCompare(bTourn.slug || '');
+      const aT = a.tourn || a, bT = b.tourn || b;
+      const aS = aT.start_date || '', bS = bT.start_date || '';
+      const aE = aT.end_date || '', bE = bT.end_date || '';
+      if (aS !== bS) { if (!aS) return 1; if (!bS) return -1; return bS.localeCompare(aS); }
+      if (aE !== bE) { if (!aE) return 1; if (!bE) return -1; return bE.localeCompare(aE); }
+      return (aT.slug || '').localeCompare(bT.slug || '');
     });
   },
 

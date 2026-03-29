@@ -84,23 +84,7 @@ export class APIRouter {
       const homeEntries = rawHomes.filter(h => h && h.tourn);
 
       // 排序锦标赛
-      const sortedTourns = homeEntries.map(h => h.tourn).sort((matchA, matchB) => {
-        const aStart = matchA.start_date || '';
-        const bStart = matchB.start_date || '';
-        const aEnd = matchA.end_date || '';
-        const bEnd = matchB.end_date || '';
-        if (aStart !== bStart) {
-          if (!aStart) return 1;
-          if (!bStart) return -1;
-          return bStart.localeCompare(aStart);
-        }
-        if (aEnd !== bEnd) {
-          if (!aEnd) return 1;
-          if (!bEnd) return -1;
-          return bEnd.localeCompare(aEnd);
-        }
-          return (matchA.slug || '').localeCompare(matchB.slug || '');
-      });
+      const sortedTourns = dateUtils.sortTournamentsByDate(homeEntries.map(h => h.tourn));
       const runtimeConfig = { TOURNAMENTS: sortedTourns };
 
       const globalStats = {};
