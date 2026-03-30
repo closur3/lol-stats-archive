@@ -283,6 +283,15 @@ export class Updater {
           return !activeSlugs.has(slug);
         });
       for (const key of staleLogKeys) await this.env.LOL_KV.delete(key);
+
+      const allRevKeys = await this.env.LOL_KV.list({ prefix: "REV_" });
+      const staleRevKeys = allRevKeys.keys
+        .map(k => k.name)
+        .filter(n => {
+          const slug = n.slice("REV_".length);
+          return !activeSlugs.has(slug);
+        });
+      for (const key of staleRevKeys) await this.env.LOL_KV.delete(key);
     } catch (e) {}
   }
 

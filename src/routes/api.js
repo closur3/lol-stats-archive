@@ -258,6 +258,7 @@ export class APIRouter {
       
       await env.LOL_KV.delete(`ARCHIVE_${payload.slug}`);
       await env.LOL_KV.delete(`LOG_${payload.slug}`);
+      await env.LOL_KV.delete(`REV_${payload.slug}`);
 
       // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
