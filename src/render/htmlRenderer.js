@@ -849,7 +849,7 @@ export class HTMLRenderer {
                             '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
                             '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
                             '</select>' +
-                            '<button class="icon-btn" onclick="runTask(&apos;/force&apos;, this, &apos;🔄&apos;)" title="Force">🔄</button>' +
+                            '<button class="icon-btn" onclick="forceOne(&apos;' + slug + '&apos;, this)" title="Force">🔄</button>' +
                             '<button class="icon-btn icon-btn-fill" onclick="fillArchive(&apos;' + slug + '&apos;)" title="Fill">📋</button>' +
                             '<button class="icon-btn icon-btn-del" onclick="deleteArchive(&apos;' + slug + '&apos;, &apos;' + name + '&apos;)" title="Delete">🗑️</button>' +
                             '</div>' +
@@ -882,6 +882,15 @@ export class HTMLRenderer {
                 var btn = event.target;
                 var restore = setButtonBusy(btn, 'Running...');
                 sendAuthorizedPost('/force', { 'Content-Type': 'application/json' }, JSON.stringify({ slugs: slugs })).then(function(res) {
+                    if (checkAuthError(res.status)) return;
+                    showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
+                }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
+            }
+
+            function forceOne(slug, btnEl) {
+                if (!requireAuth()) return;
+                var restore = setButtonBusy(btnEl, '🔄');
+                sendAuthorizedPost('/force', { 'Content-Type': 'application/json' }, JSON.stringify({ slugs: [slug] })).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
