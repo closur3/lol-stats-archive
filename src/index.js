@@ -105,7 +105,6 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    console.log("Scheduled event triggered");
     const updater = new Updater(env);
     await updater.runScheduledUpdate();
   }

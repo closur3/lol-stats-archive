@@ -205,7 +205,6 @@ export class Updater {
 
     // 确定需要更新的锦标赛
     const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force, forceSlugs, bypassThreshold);
-    console.log(`[UPDATE] candidates=${candidates.length}`);
     if (candidates.length === 0) {
       console.log(`[SKIP] All tournaments skipped`);
       return this.logger;
@@ -217,7 +216,6 @@ export class Updater {
 
     // 执行数据抓取
     const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force || fullFetch, updateRounds);
-    console.log(`[UPDATE] fetch results=${results.length}`);
 
     // 处理结果
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, runtimeConfig);
@@ -329,6 +327,9 @@ export class Updater {
       const tMetaFromKV = (cache.meta?.tournaments && cache.meta.tournaments[tournament.slug]);
 
       if (!tMetaFromKV) {
+        if (!bypassThreshold) {
+          console.log(`[THRESHOLD] ${tournament.slug} no-kv -> pass`);
+        }
         candidates.push({
           slug: tournament.slug, 
           overview_page: tournament.overview_page, 
@@ -347,6 +348,9 @@ export class Updater {
       const threshold = (currentMode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
 
       if (isForceTarget || bypassThreshold || elapsed >= threshold) {
+        if (!bypassThreshold) {
+          console.log(`[THRESHOLD] ${tournament.slug} ${currentMode} e=${(elapsed/60000).toFixed(1)}m th=${(threshold/60000).toFixed(1)}m -> pass`);
+        }
         candidates.push({
           slug: tournament.slug, 
           overview_page: tournament.overview_page, 
@@ -354,6 +358,10 @@ export class Updater {
           mode: currentMode,
           start_date: tournament.start_date || null
         });
+      } else {
+        if (!bypassThreshold) {
+          console.log(`[THRESHOLD] ${tournament.slug} ${currentMode} e=${(elapsed/60000).toFixed(1)}m th=${(threshold/60000).toFixed(1)}m -> skip`);
+        }
       }
     });
 
