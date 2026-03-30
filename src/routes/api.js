@@ -48,14 +48,24 @@ export class APIRouter {
       return new Response("Unauthorized", { status: 401 });
     }
     
+    let forceSlugs = null;
     try {
-      let forceSlugs = null;
       try {
-        const body = await request.clone().json();
-        if (body && Array.isArray(body.slugs) && body.slugs.length > 0) {
-          forceSlugs = new Set(body.slugs);
+        const body = await request.json();
+        if (!body || !Array.isArray(body.slugs)) {
+          return new Response("Missing required field: slugs[]", { status: 400 });
         }
-      } catch (e) {}
+        const cleanSlugs = body.slugs
+          .filter(s => typeof s === "string")
+          .map(s => s.trim())
+          .filter(Boolean);
+        if (cleanSlugs.length === 0) {
+          return new Response("Missing required field: slugs[]", { status: 400 });
+        }
+        forceSlugs = new Set(cleanSlugs);
+      } catch (e) {
+        return new Response("Invalid JSON payload", { status: 400 });
+      }
 
       const updater = new Updater(env);
       await updater.runUpdate(true, forceSlugs);

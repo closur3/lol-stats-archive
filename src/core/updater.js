@@ -140,8 +140,13 @@ export class Updater {
    */
   determineCandidates(tournaments, cache, NOW, force, forceSlugs = null) {
     const candidates = [];
+    const hasForceScope = force && forceSlugs && forceSlugs.size > 0;
     
     tournaments.forEach(tournament => {
+      if (hasForceScope && !forceSlugs.has(tournament.slug)) {
+        return;
+      }
+
       const isForceTarget = force && (!forceSlugs || forceSlugs.has(tournament.slug));
       const lastTs = cache.updateTimestamps[tournament.slug] || 0;
       const elapsed = NOW - lastTs;
