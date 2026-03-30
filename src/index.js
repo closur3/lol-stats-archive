@@ -76,18 +76,18 @@ export default {
           if (home && home.tourn && home.tourn.slug) homes.push(home);
         }));
         const sortedHomes = dateUtils.sortTournamentsByDate(homes.map(h => h.tourn || {}));
-        const leagueLogs = {};
-        await Promise.all(sortedHomes.map(async t => {
+        const leagueLogs = [];
+        for (const t of sortedHomes) {
           const home = homes.find(h => h.tourn?.slug === t.slug);
-          if (!home) return;
+          if (!home) continue;
           const name = t.league || t.name || t.slug;
           const slug = t.slug;
           const meta = home.tournMeta?.[slug] || {};
           const logs = await env.LOL_KV.get(`LOG_${slug}`, { type: "json" }) || [];
           if (logs.length > 0) {
-            leagueLogs[name] = { logs, mode: meta.mode || "fast" };
+            leagueLogs.push({ name, logs, mode: meta.mode || "fast" });
           }
-        }));
+        }
         const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha);
         return new Response(html, { 
           headers: { "content-type": "text/html;charset=utf-8" } 

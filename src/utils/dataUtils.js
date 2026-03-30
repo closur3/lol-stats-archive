@@ -72,21 +72,6 @@ export const dataUtils = {
   },
 
   /**
-   * 排序锦标赛（按日期倒序）
-   */
-  sortTournamentsByDate: (tournaments) => {
-    if (!tournaments || !Array.isArray(tournaments)) return [];
-    return [...tournaments].sort((a, b) => {
-      const aT = a.tourn || a, bT = b.tourn || b;
-      const aS = aT.start_date || '', bS = bT.start_date || '';
-      const aE = aT.end_date || '', bE = bT.end_date || '';
-      if (aS !== bS) { if (!aS) return 1; if (!bS) return -1; return bS.localeCompare(aS); }
-      if (aE !== bE) { if (!aE) return 1; if (!bE) return -1; return bE.localeCompare(aE); }
-      return (aT.slug || '').localeCompare(bT.slug || '');
-    });
-  },
-
-  /**
    * 检查是否为扁平队伍映射
    */
   isFlatTeamMap: (obj) => {

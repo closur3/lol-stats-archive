@@ -955,7 +955,7 @@ export class HTMLRenderer {
     </html>`;
   }
   static renderLogPage(leagueLogs, time, sha) {
-    if (!leagueLogs || typeof leagueLogs !== "object") leagueLogs = {};
+    if (!leagueLogs) leagueLogs = [];
 
     function extractLeaguePart(msg, league) {
       const sections = msg.split(/\s*\|\s*/);
@@ -969,12 +969,16 @@ export class HTMLRenderer {
       return kept.join(" | ").replace(/\s+/g, " ").trim();
     }
 
-    const leagueNames = Object.keys(leagueLogs);
-    const cardsHtml = leagueNames.map(name => {
-      const entries = (leagueLogs[name].logs || []).map(e => ({ ...e, m: extractLeaguePart(e.m || "", name) }));
+    const leagueItems = Array.isArray(leagueLogs)
+      ? leagueLogs
+      : Object.keys(leagueLogs).map(name => ({ name, ...(leagueLogs[name] || {}) }));
+
+    const cardsHtml = leagueItems.map(item => {
+      const name = item.name || "";
+      const entries = (item.logs || []).map(e => ({ ...e, m: extractLeaguePart(e.m || "", name) }));
       const lastEntry = entries[0];
       const last = lastEntry.m || "";
-      const isSlow = leagueLogs[name].mode === "slow";
+      const isSlow = item.mode === "slow";
       const hasErr = last.includes("❌") || last.includes("🚧");
       const hasSync = entries.some(e => e.m.includes("🔄"));
       const dotCls = hasErr ? "dot-red" : hasSync ? "dot-green" : "dot-gray";

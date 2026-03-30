@@ -1,6 +1,6 @@
 import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { KV_KEYS } from '../utils/constants.js';
-import { dataUtils } from '../utils/dataUtils.js';
+import { dateUtils } from '../utils/dateUtils.js';
 
 /**
  * 工具页面路由处理
@@ -18,7 +18,7 @@ export class ToolsRouter {
         const dataKeys = allKeys.keys.filter(k => k.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
         const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
         existingArchives = rawSnapshots.filter(s => s && s.tourn).map(s => s.tourn);
-        existingArchives = dataUtils.sortTournamentsByDate(existingArchives);
+        existingArchives = dateUtils.sortTournamentsByDate(existingArchives);
       } catch(e) {
         console.error("Error fetching archives for tools page", e);
       }

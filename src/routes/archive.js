@@ -1,6 +1,6 @@
 import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { Analyzer } from '../core/analyzer.js';
-import { dataUtils } from '../utils/dataUtils.js';
+import { dateUtils } from '../utils/dateUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
 
 /**
@@ -39,7 +39,7 @@ export class ArchiveRouter {
       const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
       let validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
-      validSnapshots = dataUtils.sortTournamentsByDate(validSnapshots);
+      validSnapshots = dateUtils.sortTournamentsByDate(validSnapshots);
 
       const combined = validSnapshots.map(snap => {
         const tournamentWithMap = { ...snap.tourn, team_map: snap.team_map || {} };
