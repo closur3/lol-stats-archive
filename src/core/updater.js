@@ -586,8 +586,8 @@ export class Updater {
     });
     if (logWrites.length > 0) await Promise.all(logWrites);
 
-    // 只有全量更新且有数据变化时才重新生成归档HTML
-    if (!scopedOnly && syncItems.length > 0) {
+    // 只有有数据变化时才重新生成归档HTML
+    if (syncItems.length > 0) {
       try {
         const archiveHTML = await this.generateArchiveStaticHTML();
         const existingArchiveHTML = await this.env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
@@ -600,8 +600,8 @@ export class Updater {
       }
     }
 
-    // 单联赛 force 也要刷新首页静态HTML（基于已有 HOME_ 缓存重组，不触发全量分析）
-    if (scopedOnly) {
+    // 单联赛 force：仅在有数据变化时刷新首页静态HTML（基于已有 HOME_ 缓存重组，不触发全量分析）
+    if (scopedOnly && syncItems.length > 0) {
       await this.refreshHomeStaticFromCache();
     }
 
