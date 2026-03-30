@@ -82,7 +82,7 @@ export class Updater {
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta);
 
     // 保存数据
-    await this.saveData(runtimeConfig, cache, analysis, syncItems, force, leagueLogEntries);
+    await this.saveData(runtimeConfig, cache, analysis, syncItems, force, forceSlugs, leagueLogEntries);
 
     return this.logger;
   }
@@ -473,7 +473,7 @@ export class Updater {
   /**
    * 保存数据
    */
-  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, leagueLogEntries = {}) {
+  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}) {
     // 保存首页静态HTML
     try {
       const homeFragment = HTMLRenderer.renderContentOnly(
@@ -506,6 +506,7 @@ export class Updater {
     const writePromises = [];
     for (const tournament of runtimeConfig.TOURNAMENTS) {
       const slug = tournament.slug;
+      const isForceTarget = force && (!forceSlugs || forceSlugs.has(slug));
       const raw = cache.rawMatches[slug] || [];
       const ts = cache.updateTimestamps[slug] || 0;
       const stats = analysis.globalStats[slug] || {};
@@ -527,12 +528,11 @@ export class Updater {
         timeGrid: grid,
         scheduleMap: scheduleBySlug[slug] || {},
         tournMeta: tournamentMeta,
-        team_map: teamMap,
-        logs: (existingHome && existingHome.logs) || []
+        team_map: teamMap
       };
 
       const mode = tournamentMeta[slug]?.mode || "fast";
-      let homeHasChanges = force || !existingHome ||
+      let homeHasChanges = isForceTarget || !existingHome ||
           JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw) ||
           JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tournamentMeta);
 
@@ -551,7 +551,7 @@ export class Updater {
         const snapshot = { tourn: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
         const archiveKey = `ARCHIVE_${slug}`;
         const existingArchive = await this.env.LOL_KV.get(archiveKey, { type: "json" });
-        const archiveHasChanges = force || !existingArchive ||
+        const archiveHasChanges = isForceTarget || !existingArchive ||
             JSON.stringify(existingArchive.rawMatches || []) !== JSON.stringify(raw);
 
         if (archiveHasChanges) {
