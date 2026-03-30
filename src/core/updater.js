@@ -600,6 +600,60 @@ export class Updater {
       }
     }
 
+    // 单联赛 force 也要刷新首页静态HTML（基于已有 HOME_ 缓存重组，不触发全量分析）
+    if (scopedOnly) {
+      await this.refreshHomeStaticFromCache();
+    }
+
+  }
+
+  /**
+   * 基于 HOME_ 缓存重建首页静态HTML（轻量，不重新抓取/分析全联赛）
+   */
+  async refreshHomeStaticFromCache() {
+    const allHomeKeys = await this.env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
+    const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
+    const rawHomes = await Promise.all(dataKeys.map(k => this.env.LOL_KV.get(k, { type: "json" })));
+    const homeEntries = rawHomes.filter(h => h && h.tourn);
+    if (homeEntries.length === 0) return;
+
+    const sortedTourns = dateUtils.sortTournamentsByDate(homeEntries.map(h => h.tourn));
+    const runtimeConfig = { TOURNAMENTS: sortedTourns };
+    const globalStats = {};
+    const timeGrid = {};
+    const scheduleMap = {};
+    const tournMeta = {};
+
+    homeEntries.forEach(home => {
+      const slug = home.tourn?.slug;
+      if (!slug) return;
+      if (home.stats) globalStats[slug] = home.stats;
+      if (home.timeGrid) timeGrid[slug] = home.timeGrid;
+      if (home.tournMeta && home.tournMeta[slug]) tournMeta[slug] = home.tournMeta[slug];
+
+      const sch = home.scheduleMap || {};
+      Object.keys(sch).forEach(date => {
+        if (!scheduleMap[date]) scheduleMap[date] = [];
+        scheduleMap[date].push(...sch[date]);
+      });
+    });
+
+    Object.keys(scheduleMap).forEach(date => {
+      scheduleMap[date].sort((a, b) => {
+        if (a.tournIndex !== b.tournIndex) return a.tournIndex - b.tournIndex;
+        return (a.time || "").localeCompare(b.time || "");
+      });
+    });
+
+    const homeFragment = HTMLRenderer.renderContentOnly(
+      globalStats, timeGrid, scheduleMap, runtimeConfig, false, tournMeta
+    );
+    const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
+    const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
+    if (existingHomeHTML !== fullPage) {
+      console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
+      await this.env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage);
+    }
   }
 
   /**
