@@ -166,7 +166,8 @@ export class Updater {
     const bypassThreshold = !!options.bypassThreshold;
     const fullFetch = !!options.fullFetch;
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
-    console.log(`[UPDATE] start force=${!!force} scoped=${!!(forceSlugs && forceSlugs.size > 0)} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
+    const isScopedRun = !!(forceSlugs && forceSlugs.size > 0);
+    console.log(`[UPDATE] start force=${!!force} scoped=${isScopedRun} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
     const NOW = Date.now();
     const UPDATE_ROUNDS = 1;
 
@@ -223,8 +224,7 @@ export class Updater {
       if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
     }
 
-    const isScopedForce = force && forceSlugs && forceSlugs.size > 0;
-    const scopedRuntimeConfig = isScopedForce
+    const scopedRuntimeConfig = isScopedRun
       ? { TOURNAMENTS: (runtimeConfig.TOURNAMENTS || []).filter(t => forceSlugs.has(t.slug)) }
       : runtimeConfig;
 
@@ -236,7 +236,7 @@ export class Updater {
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournMeta);
 
     // 保存数据
-    await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, isScopedForce);
+    await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, isScopedRun);
 
     return this.logger;
   }
@@ -294,10 +294,10 @@ export class Updater {
    */
   determineCandidates(tournaments, cache, NOW, force, forceSlugs = null, bypassThreshold = false) {
     const candidates = [];
-    const hasForceScope = force && forceSlugs && forceSlugs.size > 0;
+    const hasScope = !!(forceSlugs && forceSlugs.size > 0);
     
     tournaments.forEach(tournament => {
-      if (hasForceScope && !forceSlugs.has(tournament.slug)) {
+      if (hasScope && !forceSlugs.has(tournament.slug)) {
         return;
       }
 
