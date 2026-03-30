@@ -45,21 +45,16 @@ export class Updater {
    */
   async runScheduledUpdate() {
     const startedAt = Date.now();
-    console.log("[CRON] runScheduledUpdate start");
     const runtimeConfig = await this.loadRuntimeConfig();
     if (!runtimeConfig) {
       this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
-      console.log("[CRON] runtimeConfig load failed");
       return this.logger;
     }
-    console.log(`[CRON] tournaments=${(runtimeConfig.TOURNAMENTS || []).length}`);
 
     const NOW = Date.now();
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
     const { changedSlugs, hasErrors } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
-    console.log(`[CRON] rev-check done changed=${changedSlugs.size} hasErrors=${hasErrors}`);
-
-    if (hasErrors) console.log("[REV-GATE] Revision check had partial errors, no fallback");
+    console.log(`[CRON] rev-check changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
 
     if (changedSlugs.size === 0) {
       console.log("[REV-GATE] No revision change, skip cron update");
@@ -67,7 +62,6 @@ export class Updater {
     }
 
     console.log(`[REV-GATE] Changed slugs: ${Array.from(changedSlugs).join(", ")}`);
-    console.log(`[CRON] runScheduledUpdate finish elapsedMs=${Date.now() - startedAt}`);
     return this.runUpdate(false, changedSlugs, {
       bypassThreshold: true,
       fullFetch: true,
@@ -90,10 +84,8 @@ export class Updater {
    * 比较 overview_page 最新 revision，找出发生编辑的联赛
    */
   async detectRevisionChanges(tournaments, cache, NOW) {
-    const startedAt = Date.now();
     const changedSlugs = new Set();
     let hasErrors = false;
-    console.log(`[REV] detect start tournaments=${(tournaments || []).length}`);
 
     for (const tournament of tournaments || []) {
       const slug = tournament?.slug;
@@ -107,8 +99,6 @@ export class Updater {
       if (pages.length === 0) continue;
       // revid gate 只看 Data: 页面，避免被 Overview 页面的无关编辑触发
       const dataPages = Array.from(new Set(pages.map(p => p.startsWith("Data:") ? p : `Data:${p}`)));
-      console.log(`[REV] ${slug}: pages=${dataPages.length} (Data namespace only)`);
-
       const tMetaFromKV = cache?.meta?.tournaments?.[slug];
       const lastTs = cache?.updateTimestamps?.[slug] || 0;
       const elapsed = NOW - lastTs;
@@ -123,9 +113,7 @@ export class Updater {
         threshold = (mode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
       }
 
-      console.log(`[REV-THRESHOLD] ${slug}: mode=${mode}, threshold=${threshold / 1000 / 60}m, elapsed=${elapsed / 1000 / 60}m`);
       if (elapsed < threshold) {
-        console.log(`[REV-SKIP] ${slug}: elapsed=${elapsed / 1000 / 60}m < threshold=${threshold / 1000 / 60}m`);
         continue;
       }
 
@@ -136,12 +124,12 @@ export class Updater {
       let slugChanged = false;
       let okCount = 0;
       let errCount = 0;
+      const changedPages = [];
 
       for (const page of dataPages) {
         try {
           const latest = await FandomClient.fetchLatestRevision(page);
           if (latest?.missing) {
-            console.log(`[REV] ${slug}: query=${page} resolved=${latest.title} missing=true`);
             continue;
           }
           const title = latest.title || page;
@@ -155,9 +143,7 @@ export class Updater {
           const prevRev = prevPages?.[title]?.revid;
           if (!prevRev || Number(prevRev) !== Number(latest.revid)) {
             slugChanged = true;
-            console.log(`[REV] ${slug}: ${title} ${prevRev || "none"} -> ${latest.revid}`);
-          } else {
-            console.log(`[REV] ${slug}: ${title} unchanged=${latest.revid}`);
+            changedPages.push(`${title}:${prevRev || "none"}->${latest.revid}`);
           }
         } catch (e) {
           errCount++;
@@ -171,15 +157,17 @@ export class Updater {
       const nextRecord = { slug, pages: nextPages || {} };
       const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
       if (shouldWriteRev) {
-        console.log(`[REV] ${slug}: save REV_${slug} pages=${Object.keys(nextPages).length}`);
         await this.env.LOL_KV.put(revKey, JSON.stringify(nextRecord));
       }
 
-      if (slugChanged) changedSlugs.add(slug);
-      console.log(`[REV] ${slug}: changed=${slugChanged} ok=${okCount} err=${errCount} writeRev=${shouldWriteRev}`);
+      if (slugChanged) {
+        changedSlugs.add(slug);
+        console.log(`[REV] ${slug}: changed pages=${changedPages.length}${changedPages.length ? ` | ${changedPages.join(", ")}` : ""}`);
+      } else if (errCount > 0) {
+        console.log(`[REV] ${slug}: partial errors ok=${okCount} err=${errCount}`);
+      }
     }
 
-    console.log(`[REV] detect finish changed=${changedSlugs.size} hasErrors=${hasErrors} elapsedMs=${Date.now() - startedAt}`);
     return { changedSlugs, hasErrors };
   }
 
@@ -341,7 +329,6 @@ export class Updater {
       const tMetaFromKV = (cache.meta?.tournaments && cache.meta.tournaments[tournament.slug]);
 
       if (!tMetaFromKV) {
-        console.log(`[THRESHOLD] ${tournament.slug}: NO_KV_DATA, use fast mode, threshold=0`);
         candidates.push({
           slug: tournament.slug, 
           overview_page: tournament.overview_page, 
@@ -359,8 +346,6 @@ export class Updater {
       const isMatchStarted = startTs > 0 && NOW >= startTs;
       const threshold = (currentMode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
 
-      console.log(`[THRESHOLD] ${tournament.slug}: mode=${currentMode}, startTs=${startTs}, isMatchStarted=${isMatchStarted}, threshold=${threshold/1000/60}m, elapsed=${elapsed/1000/60}m`);
-
       if (isForceTarget || bypassThreshold || elapsed >= threshold) {
         candidates.push({
           slug: tournament.slug, 
@@ -369,8 +354,6 @@ export class Updater {
           mode: currentMode,
           start_date: tournament.start_date || null
         });
-      } else {
-        console.log(`[SKIP] ${tournament.slug}: mode=${currentMode}, elapsed=${elapsed/1000/60}m < threshold=${threshold/1000/60}m`);
       }
     });
 

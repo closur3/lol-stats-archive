@@ -69,7 +69,6 @@ export class Analyzer {
 
     (runtimeConfig.TOURNAMENTS || []).forEach((tournament, tournamentIndex) => {
       const rawMatches = allRawMatches[tournament.slug] || [];
-      console.log(`[ANALYSIS] ${tournament.slug}: rawMatches.length=${rawMatches.length}`);
       const resolveName = buildResolveName(tournament.team_map);
       const stats = {};
       let nextMatchStartTimestamp = Infinity;
