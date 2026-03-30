@@ -5,7 +5,7 @@
 // 基础通用样式
 export const COMMON_STYLE = `
     * { box-sizing: border-box; }
-    body, code, input, button, select, textarea { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    body, code, input, button, select, textarea { font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
     body { background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; }
     .main-header { background: #fff; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: 100%; }
     .header-left { display: flex; align-items: center; gap: 12px; }
