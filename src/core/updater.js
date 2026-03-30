@@ -30,13 +30,12 @@ export class Updater {
     }
     console.log(`[CRON] tournaments=${(runtimeConfig.TOURNAMENTS || []).length}`);
 
-    const { changedSlugs, hasErrors } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || []);
+    const NOW = Date.now();
+    const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
+    const { changedSlugs, hasErrors } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
     console.log(`[CRON] rev-check done changed=${changedSlugs.size} hasErrors=${hasErrors}`);
 
-    if (hasErrors) {
-      console.log("[REV-GATE] Check failed, fallback to threshold cron");
-      return this.runUpdate(false);
-    }
+    if (hasErrors) console.log("[REV-GATE] Revision check had partial errors, no fallback");
 
     if (changedSlugs.size === 0) {
       console.log("[REV-GATE] No revision change, skip cron update");
@@ -66,7 +65,7 @@ export class Updater {
   /**
    * 比较 overview_page 最新 revision，找出发生编辑的联赛
    */
-  async detectRevisionChanges(tournaments) {
+  async detectRevisionChanges(tournaments, cache, NOW) {
     const startedAt = Date.now();
     const changedSlugs = new Set();
     let hasErrors = false;
@@ -85,6 +84,26 @@ export class Updater {
       // revid gate 只看 Data: 页面，避免被 Overview 页面的无关编辑触发
       const dataPages = Array.from(new Set(pages.map(p => p.startsWith("Data:") ? p : `Data:${p}`)));
       console.log(`[REV] ${slug}: pages=${dataPages.length} (Data namespace only)`);
+
+      const tMetaFromKV = cache?.meta?.tournaments?.[slug];
+      const lastTs = cache?.updateTimestamps?.[slug] || 0;
+      const elapsed = NOW - lastTs;
+      let threshold = 0;
+      let mode = "fast";
+
+      if (tMetaFromKV) {
+        mode = tMetaFromKV.mode || "fast";
+        const startTs = tMetaFromKV.startTs || 0;
+        const isModeOverride = !!tMetaFromKV.modeOverride;
+        const isMatchStarted = startTs > 0 && NOW >= startTs;
+        threshold = (mode === "slow" && (isModeOverride || !isMatchStarted)) ? SLOW_THRESHOLD : 0;
+      }
+
+      console.log(`[REV-THRESHOLD] ${slug}: mode=${mode}, threshold=${threshold / 1000 / 60}m, elapsed=${elapsed / 1000 / 60}m`);
+      if (elapsed < threshold) {
+        console.log(`[REV-SKIP] ${slug}: elapsed=${elapsed / 1000 / 60}m < threshold=${threshold / 1000 / 60}m`);
+        continue;
+      }
 
       const revKey = `REV_${slug}`;
       const prev = await this.env.LOL_KV.get(revKey, { type: "json" });
@@ -122,20 +141,14 @@ export class Updater {
         }
       }
 
-      if (errCount > 0 && okCount === 0) {
-        hasErrors = true;
-      }
+      if (errCount > 0 && okCount === 0) hasErrors = true;
 
-      const prevStr = JSON.stringify(prevPages || {});
-      const nextStr = JSON.stringify(nextPages || {});
-      const shouldWriteRev = Object.keys(nextPages).length > 0 && (!prev || slugChanged || prevStr !== nextStr);
+      const prevNormalized = { slug, pages: prevPages || {} };
+      const nextRecord = { slug, pages: nextPages || {} };
+      const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
       if (shouldWriteRev) {
         console.log(`[REV] ${slug}: save REV_${slug} pages=${Object.keys(nextPages).length}`);
-        await this.env.LOL_KV.put(revKey, JSON.stringify({
-          slug,
-          checkedAt: Date.now(),
-          pages: nextPages
-        }));
+        await this.env.LOL_KV.put(revKey, JSON.stringify(nextRecord));
       }
 
       if (slugChanged) changedSlugs.add(slug);
