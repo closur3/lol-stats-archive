@@ -73,19 +73,21 @@ export default {
         const homes = [];
         await Promise.all(allHomeKeys.keys.filter(k => k.name !== KV_KEYS.HOME_STATIC_HTML).map(async k => {
           const home = await env.LOL_KV.get(k.name, { type: "json" });
-          if (home && home.logs && home.logs.length > 0) homes.push(home);
+          if (home && home.tourn && home.tourn.slug) homes.push(home);
         }));
         const sortedHomes = dateUtils.sortTournamentsByDate(homes.map(h => h.tourn || {}));
         const leagueLogs = {};
-        sortedHomes.forEach(t => {
+        await Promise.all(sortedHomes.map(async t => {
           const home = homes.find(h => h.tourn?.slug === t.slug);
-          if (home) {
-            const name = t.league || t.name || t.slug;
-            const slug = t.slug;
-            const meta = home.tournMeta?.[slug] || {};
-            leagueLogs[name] = { logs: home.logs, mode: meta.mode || "fast" };
+          if (!home) return;
+          const name = t.league || t.name || t.slug;
+          const slug = t.slug;
+          const meta = home.tournMeta?.[slug] || {};
+          const logs = await env.LOL_KV.get(`LOG_${slug}`, { type: "json" }) || [];
+          if (logs.length > 0) {
+            leagueLogs[name] = { logs, mode: meta.mode || "fast" };
           }
-        });
+        }));
         const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha);
         return new Response(html, { 
           headers: { "content-type": "text/html;charset=utf-8" } 

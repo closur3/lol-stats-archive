@@ -3,7 +3,7 @@ import { FandomClient } from '../api/fandomClient.js';
 import { Analyzer } from './analyzer.js';
 import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { dateUtils } from '../utils/dateUtils.js';
-import { dataUtils, extractLeagueNames, buildLeagueSlugMap, appendLogsToLeagueHomes } from '../utils/dataUtils.js';
+import { dataUtils } from '../utils/dataUtils.js';
 import { KV_KEYS, SLOW_THRESHOLD, MATCH_EXPIRY_HOURS } from '../utils/constants.js';
 
 /**
@@ -79,9 +79,10 @@ export class Updater {
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta);
+    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta);
 
     // 保存数据
-    await this.saveData(runtimeConfig, cache, analysis, syncItems, force);
+    await this.saveData(runtimeConfig, cache, analysis, syncItems, force, leagueLogEntries);
 
     return this.logger;
   }
@@ -101,6 +102,15 @@ export class Updater {
           return !activeSlugs.has(slug);
         });
       for (const key of staleKeys) await this.env.LOL_KV.delete(key);
+
+      const allLogKeys = await this.env.LOL_KV.list({ prefix: "LOG_" });
+      const staleLogKeys = allLogKeys.keys
+        .map(k => k.name)
+        .filter(n => {
+          const slug = n.slice("LOG_".length);
+          return !activeSlugs.has(slug);
+        });
+      for (const key of staleLogKeys) await this.env.LOL_KV.delete(key);
     } catch (e) {}
   }
 
@@ -391,9 +401,79 @@ export class Updater {
   }
 
   /**
+   * 构建联赛级独立日志
+   */
+  buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta) {
+    const nowShort = dateUtils.getNow().short;
+    const isAnon = (!authContext || authContext.isAnonymous);
+    const authPrefix = isAnon ? "👻 " : "";
+    const bySlug = {};
+
+    const getDisplayName = (slug) => {
+      const t = (runtimeConfig.TOURNAMENTS || []).find(it => it.slug === slug);
+      return t ? (t.league || t.name || slug.toUpperCase()) : slug;
+    };
+
+    const getCountdown = (slug) => {
+      const metaNow = analysis.tournMeta[slug] || oldTournMeta[slug] || { mode: "fast" };
+      const mode = metaNow.mode;
+      const modeIcon = mode === "slow" ? "🐌" : "⚡";
+      const countdownMins = mode === "slow"
+        ? Math.ceil(SLOW_THRESHOLD / 60000)
+        : Number(this.env.CRON_INTERVAL_MINUTES) || 5;
+      return { modeIcon, countdownMins };
+    };
+
+    const modeSwitchBySlug = {};
+    Object.keys(analysis.tournMeta || {}).forEach(slug => {
+      const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
+      const newMode = analysis.tournMeta[slug].mode;
+      if (oldMode !== newMode) {
+        modeSwitchBySlug[slug] = oldMode === "fast" ? "⚡->🐌" : "🐌->⚡";
+      }
+    });
+
+    const pushEntry = (slug, level, message) => {
+      if (!slug) return;
+      bySlug[slug] = { t: nowShort, l: level, m: message };
+    };
+
+    syncItems.forEach(item => {
+      const cd = getCountdown(item.slug);
+      const prefix = item.type === "delta" ? "+" : "*";
+      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${prefix}${item.count} (${cd.modeIcon}${cd.countdownMins}m)`;
+      if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${getDisplayName(item.slug)}(${modeSwitchBySlug[item.slug]})`;
+      pushEntry(item.slug, "SUCCESS", msg);
+    });
+
+    idleItems.forEach(item => {
+      if (bySlug[item.slug]) return;
+      const cd = getCountdown(item.slug);
+      const prefix = item.type === "delta" ? "+" : "*";
+      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ${prefix}${item.count} (${cd.modeIcon}${cd.countdownMins}m) | 🟰 Identical`;
+      if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${getDisplayName(item.slug)}(${modeSwitchBySlug[item.slug]})`;
+      pushEntry(item.slug, "SUCCESS", msg);
+    });
+
+    breakers.forEach(b => {
+      const slug = String(b || "").split("(")[0];
+      const name = getDisplayName(slug);
+      pushEntry(slug, "ERROR", `🔴 [ERR!] | ${authPrefix}🚧 ${name}(Drop)`);
+    });
+
+    apiErrors.forEach(e => {
+      const slug = String(e || "").split("(")[0];
+      const name = getDisplayName(slug);
+      pushEntry(slug, "ERROR", `🔴 [ERR!] | ${authPrefix}❌ ${name}(Fail)`);
+    });
+
+    return bySlug;
+  }
+
+  /**
    * 保存数据
    */
-  async saveData(runtimeConfig, cache, analysis, syncItems, force = false) {
+  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, leagueLogEntries = {}) {
     // 保存首页静态HTML
     try {
       const homeFragment = HTMLRenderer.renderContentOnly(
@@ -483,6 +563,17 @@ export class Updater {
 
     await Promise.all(writePromises);
 
+    // 联赛级日志写入独立键（LOG_<slug>），避免影响 HOME_ 写入规则
+    const logEntries = leagueLogEntries || {};
+    const logWrites = Object.entries(logEntries).map(async ([slug, entry]) => {
+      if (!slug || !entry) return;
+      const logKey = `LOG_${slug}`;
+      const oldLogs = await this.env.LOL_KV.get(logKey, { type: "json" }) || [];
+      const nextLogs = [entry, ...oldLogs].slice(0, 10);
+      await this.env.LOL_KV.put(logKey, JSON.stringify(nextLogs));
+    });
+    if (logWrites.length > 0) await Promise.all(logWrites);
+
     // 只有当有数据变化时才重新生成归档HTML
     if (syncItems.length > 0) {
       try {
@@ -497,12 +588,6 @@ export class Updater {
       }
     }
 
-    // 分发日志到各联赛 HOME_ 键
-    const newLogs = this.logger.export();
-    if (newLogs.length > 0) {
-      const leagueSlugMap = buildLeagueSlugMap(runtimeConfig.TOURNAMENTS);
-      await appendLogsToLeagueHomes(this.env, newLogs, leagueSlugMap);
-    }
   }
 
   /**
