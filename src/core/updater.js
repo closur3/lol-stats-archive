@@ -114,8 +114,10 @@ export class Updater {
       }
 
       if (elapsed < threshold) {
+        console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> skip`);
         continue;
       }
+      console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> pass`);
 
       const revKey = `REV_${slug}`;
       const prev = await this.env.LOL_KV.get(revKey, { type: "json" });
