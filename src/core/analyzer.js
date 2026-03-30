@@ -9,7 +9,7 @@ export class Analyzer {
   /**
    * 运行完整分析
    */
-  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), modeOverrides = {}, prevScheduleMap = {}) {
+  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), modeOverrides = {}, prevScheduleMap = {}, maxScheduleDays = 8) {
     const globalStats = {};
     const tournamentMeta = {};
 
@@ -318,7 +318,7 @@ export class Analyzer {
 
     let scheduleMap = {};
     const sortedFutureDates = Object.keys(allFutureMatches).sort();
-        sortedFutureDates.slice(0, 8).forEach(date => {
+    sortedFutureDates.slice(0, maxScheduleDays).forEach(date => {
       scheduleMap[date] = allFutureMatches[date].sort((matchA, matchB) => {
         if (matchA.tournIndex !== matchB.tournIndex) return matchA.tournIndex - matchB.tournIndex;
         return matchA.time.localeCompare(matchB.time);

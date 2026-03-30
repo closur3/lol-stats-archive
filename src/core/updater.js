@@ -34,6 +34,12 @@ export class Updater {
     return Math.floor(rounds);
   }
 
+  getMaxScheduleDays() {
+    const days = Number(this.env.MAX_SCHEDULE_DAYS);
+    if (!Number.isFinite(days) || days <= 0) return 8;
+    return Math.floor(days);
+  }
+
   /**
    * Cron入口：先做revid轻量检测，再决定是否触发更新
    */
@@ -247,7 +253,7 @@ export class Updater {
       : runtimeConfig;
 
     // 分析数据
-    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, scopedRuntimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap);
+    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, scopedRuntimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap, this.getMaxScheduleDays());
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournMeta);
@@ -788,6 +794,7 @@ export class Updater {
    * 基于 HOME_ 缓存重建首页静态HTML（轻量，不重新抓取/分析全联赛）
    */
   async refreshHomeStaticFromCache() {
+    const maxScheduleDays = this.getMaxScheduleDays();
     const allHomeKeys = await this.env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
     const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
     const rawHomes = await Promise.all(dataKeys.map(k => this.env.LOL_KV.get(k, { type: "json" })));
@@ -822,8 +829,13 @@ export class Updater {
       });
     });
 
+    const limitedScheduleMap = {};
+    Object.keys(scheduleMap).sort().slice(0, maxScheduleDays).forEach(date => {
+      limitedScheduleMap[date] = scheduleMap[date];
+    });
+
     const homeFragment = HTMLRenderer.renderContentOnly(
-      globalStats, timeGrid, scheduleMap, runtimeConfig, false, tournMeta
+      globalStats, timeGrid, limitedScheduleMap, runtimeConfig, false, tournMeta
     );
     const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
     const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);

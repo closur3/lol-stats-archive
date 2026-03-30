@@ -367,6 +367,7 @@ export class APIRouter {
    */
   static async rebuildStaticPagesFromCache(env) {
     try {
+      const maxScheduleDays = Math.max(1, Math.floor(Number(env.MAX_SCHEDULE_DAYS) || 8));
       const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
       const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
       const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
@@ -402,12 +403,17 @@ export class APIRouter {
         });
       });
 
+      const limitedScheduleMap = {};
+      Object.keys(scheduleMap).sort().slice(0, maxScheduleDays).forEach(date => {
+        limitedScheduleMap[date] = scheduleMap[date];
+      });
+
       if (Object.keys(globalStats).length === 0) {
         return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };
       }
 
       const homeFragment = HTMLRenderer.renderContentOnly(
-        globalStats, timeGrid, scheduleMap,
+        globalStats, timeGrid, limitedScheduleMap,
         runtimeConfig || { TOURNAMENTS: [] },
         false, tournMeta
       );

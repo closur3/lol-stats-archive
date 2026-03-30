@@ -10,6 +10,7 @@ declare namespace Cloudflare {
     CRON_INTERVAL_MINUTES: string;
     SLOW_THRESHOLD_MINUTES: string;
     UPDATE_ROUNDS: string;
+    MAX_SCHEDULE_DAYS: string;
     GITHUB_TIME?: string;
     GITHUB_SHA?: string;
   }
