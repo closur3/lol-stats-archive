@@ -73,7 +73,7 @@ export const PYTHON_STYLE = `
     .sch-group-header .spine-r { justify-content: flex-start; padding-left: 2px; opacity: 0.7; }
     .sch-group-header:first-child { border-top: none; }
     .sch-row { display: flex; align-items: stretch; padding: 0; border-bottom: 1px solid #f8fafc; font-size: 14px; color: #334155; min-height: 36px; flex: 0 0 auto; }
-    .sch-time { width: 54px; color: #94a3b8; font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0; }
+    .sch-time { width: 54px; color: #94a3b8; font-size: 12px; display: flex; align-items: center; justify-content: center; padding: 0; }
     .sch-tag-col { width: 54px; display: flex; align-items: center; justify-content: center; padding: 0; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
     .sch-tag-col .sch-pill { font-size: 12px; }
