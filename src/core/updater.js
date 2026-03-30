@@ -495,7 +495,7 @@ export class Updater {
           }
         } else {
           if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
-            breakers.push(`${slug}(Drop)`);
+            breakers.push(`${slug}(Drop ${oldData.length}->${newData.length})`);
             failedSlugs.add(slug);
           } else {
             cache.rawMatches[slug] = newData;
