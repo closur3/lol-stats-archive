@@ -8,6 +8,8 @@ declare namespace Cloudflare {
     FANDOM_PASS?: string;
     ADMIN_SECRET?: string;
     CRON_INTERVAL_MINUTES: string;
+    SLOW_THRESHOLD_MINUTES: string;
+    UPDATE_ROUNDS: string;
     GITHUB_TIME?: string;
     GITHUB_SHA?: string;
   }

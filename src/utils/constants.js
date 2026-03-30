@@ -3,7 +3,6 @@ export const BOT_UA = `LoLStatsWorker/2026 (User:HsuX)`;
 export const GITHUB_COMMIT_BASE = "https://github.com/closur3/lol-stats-archive/commit/";
 
 // 时间相关常量 (纯UTC)
-export const SLOW_THRESHOLD = 120 * 60 * 1000; // 2小时（毫秒）
 export const MATCH_EXPIRY_HOURS = 48; // 跨天比赛保留时间
 export const FETCH_DELAY_MS = 2000; // API请求间隔
 export const MAX_RETRIES = 3; // 最大重试次数

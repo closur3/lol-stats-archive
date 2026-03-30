@@ -954,8 +954,10 @@ export class HTMLRenderer {
     </body>
     </html>`;
   }
-  static renderLogPage(leagueLogs, time, sha) {
+  static renderLogPage(leagueLogs, time, sha, options = {}) {
     if (!leagueLogs) leagueLogs = [];
+    const slowThresholdMinutes = Number(options.slowThresholdMinutes) || 60;
+    const cronIntervalMinutes = Number(options.cronIntervalMinutes) || 3;
 
     function extractLeaguePart(msg, league) {
       const sections = msg.split(/\s*\|\s*/);
@@ -1003,7 +1005,7 @@ export class HTMLRenderer {
       }).join("");
 
       return `<div class="league-card">
-        <div class="league-card-header"><span class="league-card-name">${name}</span><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?"🐌120m":"⚡5m"}</span><div class="status-dot ${dotCls}"></div></div></div>
+        <div class="league-card-header"><span class="league-card-name">${name}</span><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?`🐌${slowThresholdMinutes}m`:`⚡${cronIntervalMinutes}m`}</span><div class="status-dot ${dotCls}"></div></div></div>
         <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span><span>LAST <span class="stat-val utc-local" data-utc="${lastUtcIso}" data-format="datetime">${lastTime}</span></span></div>
         <div class="timeline">${bars}</div>
         <div class="league-card-logs">${rows}</div>

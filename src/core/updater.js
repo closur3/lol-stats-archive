@@ -4,7 +4,7 @@ import { Analyzer } from './analyzer.js';
 import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
-import { KV_KEYS, SLOW_THRESHOLD, MATCH_EXPIRY_HOURS } from '../utils/constants.js';
+import { KV_KEYS } from '../utils/constants.js';
 
 /**
  * 更新管理器
@@ -14,6 +14,24 @@ export class Updater {
     this.env = env;
     this.githubClient = new GitHubClient(env);
     this.logger = new Logger();
+  }
+
+  getSlowThresholdMs() {
+    const mins = Number(this.env.SLOW_THRESHOLD_MINUTES);
+    if (!Number.isFinite(mins) || mins <= 0) return 120 * 60 * 1000;
+    return Math.round(mins * 60 * 1000);
+  }
+
+  getCronIntervalMinutes() {
+    const mins = Number(this.env.CRON_INTERVAL_MINUTES);
+    if (!Number.isFinite(mins) || mins <= 0) return 3;
+    return Math.round(mins);
+  }
+
+  getUpdateRounds() {
+    const rounds = Number(this.env.UPDATE_ROUNDS);
+    if (!Number.isFinite(rounds) || rounds <= 0) return 1;
+    return Math.floor(rounds);
   }
 
   /**
@@ -96,7 +114,7 @@ export class Updater {
         const startTs = tMetaFromKV.startTs || 0;
         const isModeOverride = !!tMetaFromKV.modeOverride;
         const isMatchStarted = startTs > 0 && NOW >= startTs;
-        threshold = (mode === "slow" && (isModeOverride || !isMatchStarted)) ? SLOW_THRESHOLD : 0;
+        threshold = (mode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
       }
 
       console.log(`[REV-THRESHOLD] ${slug}: mode=${mode}, threshold=${threshold / 1000 / 60}m, elapsed=${elapsed / 1000 / 60}m`);
@@ -169,7 +187,7 @@ export class Updater {
     const isScopedRun = !!(forceSlugs && forceSlugs.size > 0);
     console.log(`[UPDATE] start force=${!!force} scoped=${isScopedRun} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
     const NOW = Date.now();
-    const UPDATE_ROUNDS = 1;
+    const updateRounds = this.getUpdateRounds();
 
     // 加载配置
     let runtimeConfig = null;
@@ -204,7 +222,7 @@ export class Updater {
     const fandomClient = new FandomClient(authContext);
 
     // 执行数据抓取
-    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force || fullFetch);
+    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force || fullFetch, updateRounds);
     console.log(`[UPDATE] fetch results=${results.length}`);
 
     // 处理结果
@@ -324,7 +342,7 @@ export class Updater {
       const isModeOverride = !!tMetaFromKV.modeOverride;
 
       const isMatchStarted = startTs > 0 && NOW >= startTs;
-      const threshold = (currentMode === "slow" && (isModeOverride || !isMatchStarted)) ? SLOW_THRESHOLD : 0;
+      const threshold = (currentMode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
 
       console.log(`[THRESHOLD] ${tournament.slug}: mode=${currentMode}, startTs=${startTs}, isMatchStarted=${isMatchStarted}, threshold=${threshold/1000/60}m, elapsed=${elapsed/1000/60}m`);
 
@@ -347,13 +365,14 @@ export class Updater {
   /**
    * 抓取比赛数据
    */
-  async fetchMatchData(fandomClient, candidates, cache, NOW, force) {
+  async fetchMatchData(fandomClient, candidates, cache, NOW, force, updateRounds = 1) {
     const pastDateObj = new Date(NOW - 48 * 60 * 60 * 1000);
     const futureDateObj = new Date(NOW + 48 * 60 * 60 * 1000);
     const deltaStartUTC = pastDateObj.toISOString().slice(0, 10);
     const deltaEndUTC = futureDateObj.toISOString().slice(0, 10);
 
-    const batch = candidates.slice(0, Math.ceil(candidates.length / 1));
+    const rounds = Math.max(1, Number(updateRounds) || 1);
+    const batch = candidates.slice(0, Math.ceil(candidates.length / rounds));
     const results = [];
 
     for (const c of batch) {
@@ -501,8 +520,8 @@ export class Updater {
       const mode = metaNow.mode;
       const modeIcon = mode === "slow" ? "🐌" : "⚡";
       const countdownMins = mode === "slow"
-        ? Math.ceil(SLOW_THRESHOLD / 60000)
-        : Number(this.env.CRON_INTERVAL_MINUTES) || 5; // 从环境变量读取，默认5分钟
+        ? Math.ceil(this.getSlowThresholdMs() / 60000)
+        : this.getCronIntervalMinutes();
       return { modeIcon, countdownMins, mode };
     };
 
@@ -578,8 +597,8 @@ export class Updater {
       const mode = metaNow.mode;
       const modeIcon = mode === "slow" ? "🐌" : "⚡";
       const countdownMins = mode === "slow"
-        ? Math.ceil(SLOW_THRESHOLD / 60000)
-        : Number(this.env.CRON_INTERVAL_MINUTES) || 5;
+        ? Math.ceil(this.getSlowThresholdMs() / 60000)
+        : this.getCronIntervalMinutes();
       return { modeIcon, countdownMins };
     };
 

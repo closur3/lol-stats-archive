@@ -7,7 +7,9 @@ compatibility_flags = ["nodejs_compat"]
 GITHUB_USER = "closur3"
 GITHUB_REPO = "lol-stats-archive"
 FANDOM_USER = "HsuX"
-CRON_INTERVAL_MINUTES = "5"
+CRON_INTERVAL_MINUTES = "3"
+SLOW_THRESHOLD_MINUTES = "60"
+UPDATE_ROUNDS = "1"
 
 [[kv_namespaces]]
 binding = "LOL_KV"
@@ -19,7 +21,7 @@ enabled = true
 invocation_logs = true
 
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/3 * * * *"]
 
 # 构建配置
 [build]

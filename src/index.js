@@ -88,7 +88,10 @@ export default {
             leagueLogs.push({ name, logs, mode: meta.mode || "fast" });
           }
         }
-        const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha);
+        const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha, {
+          slowThresholdMinutes: Number(env.SLOW_THRESHOLD_MINUTES) || 60,
+          cronIntervalMinutes: Number(env.CRON_INTERVAL_MINUTES) || 3
+        });
         return new Response(html, { 
           headers: { "content-type": "text/html;charset=utf-8" } 
         });
