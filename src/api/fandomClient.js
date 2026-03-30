@@ -67,6 +67,49 @@ export class FandomClient {
   }
 
   /**
+   * 获取页面最新 revision（用于轻量变更检测）
+   */
+  static async fetchLatestRevision(pageTitle, maxRetries = 3) {
+    const API = "https://lol.fandom.com/api.php";
+    const params = new URLSearchParams({
+      action: "query",
+      prop: "revisions",
+      titles: pageTitle,
+      rvlimit: "1",
+      rvprop: "ids|timestamp",
+      format: "json"
+    });
+
+    let attempt = 1;
+    while (attempt <= maxRetries) {
+      try {
+        const resp = await fetch(`${API}?${params.toString()}`, {
+          headers: { "User-Agent": BOT_UA, "Accept": "application/json" }
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const pagesObj = data?.query?.pages || {};
+        const firstPage = Object.values(pagesObj)[0];
+        const rev = firstPage?.revisions?.[0];
+        if (!firstPage || !rev || typeof rev.revid !== "number") {
+          throw new Error("Invalid revision payload");
+        }
+        return {
+          pageid: firstPage.pageid,
+          title: firstPage.title || pageTitle,
+          revid: rev.revid,
+          parentid: rev.parentid || null,
+          timestamp: rev.timestamp || null
+        };
+      } catch (e) {
+        if (attempt >= maxRetries) throw e;
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+        attempt++;
+      }
+    }
+  }
+
+  /**
    * 带重试的fetch
    */
   async fetchWithRetry(url, maxRetries = MAX_RETRIES) {

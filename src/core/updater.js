@@ -17,9 +17,120 @@ export class Updater {
   }
 
   /**
+   * Cron入口：先做revid轻量检测，再决定是否触发更新
+   */
+  async runScheduledUpdate() {
+    const startedAt = Date.now();
+    console.log("[CRON] runScheduledUpdate start");
+    const runtimeConfig = await this.loadRuntimeConfig();
+    if (!runtimeConfig) {
+      this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
+      console.log("[CRON] runtimeConfig load failed");
+      return this.logger;
+    }
+    console.log(`[CRON] tournaments=${(runtimeConfig.TOURNAMENTS || []).length}`);
+
+    const { changedSlugs, hasErrors } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || []);
+    console.log(`[CRON] rev-check done changed=${changedSlugs.size} hasErrors=${hasErrors}`);
+
+    if (hasErrors) {
+      console.log("[REV-GATE] Check failed, fallback to threshold cron");
+      return this.runUpdate(false);
+    }
+
+    if (changedSlugs.size === 0) {
+      console.log("[REV-GATE] No revision change, skip cron update");
+      return this.logger;
+    }
+
+    console.log(`[REV-GATE] Changed slugs: ${Array.from(changedSlugs).join(", ")}`);
+    console.log(`[CRON] runScheduledUpdate finish elapsedMs=${Date.now() - startedAt}`);
+    return this.runUpdate(true, changedSlugs);
+  }
+
+  /**
+   * 加载运行时配置
+   */
+  async loadRuntimeConfig() {
+    try {
+      const tourns = await this.githubClient.fetchJson("config/tour.json");
+      if (tourns) return { TOURNAMENTS: tourns };
+    } catch (e) {}
+    return null;
+  }
+
+  /**
+   * 比较 overview_page 最新 revision，找出发生编辑的联赛
+   */
+  async detectRevisionChanges(tournaments) {
+    const startedAt = Date.now();
+    const changedSlugs = new Set();
+    let hasErrors = false;
+    console.log(`[REV] detect start tournaments=${(tournaments || []).length}`);
+
+    for (const tournament of tournaments || []) {
+      const slug = tournament?.slug;
+      if (!slug) continue;
+
+      const pages = (Array.isArray(tournament.overview_page) ? tournament.overview_page : [tournament.overview_page])
+        .filter(p => typeof p === "string")
+        .map(p => p.trim())
+        .filter(Boolean);
+
+      if (pages.length === 0) continue;
+      console.log(`[REV] ${slug}: pages=${pages.length}`);
+
+      const revKey = `REV_${slug}`;
+      const prev = await this.env.LOL_KV.get(revKey, { type: "json" });
+      const prevPages = prev?.pages || {};
+      const nextPages = {};
+      let slugChanged = false;
+
+      for (const page of pages) {
+        try {
+          const latest = await FandomClient.fetchLatestRevision(page);
+          const title = latest.title || page;
+          nextPages[title] = {
+            revid: latest.revid,
+            timestamp: latest.timestamp,
+            pageid: latest.pageid
+          };
+
+          const prevRev = prevPages?.[title]?.revid;
+          if (!prevRev || Number(prevRev) !== Number(latest.revid)) {
+            slugChanged = true;
+            console.log(`[REV] ${slug}: ${title} ${prevRev || "none"} -> ${latest.revid}`);
+          } else {
+            console.log(`[REV] ${slug}: ${title} unchanged=${latest.revid}`);
+          }
+        } catch (e) {
+          hasErrors = true;
+          console.log(`[REV] ${slug}: ${page} check failed: ${e.message}`);
+        }
+      }
+
+      if (Object.keys(nextPages).length > 0) {
+        console.log(`[REV] ${slug}: save REV_${slug} pages=${Object.keys(nextPages).length}`);
+        await this.env.LOL_KV.put(revKey, JSON.stringify({
+          slug,
+          checkedAt: Date.now(),
+          pages: nextPages
+        }));
+      }
+
+      if (slugChanged) changedSlugs.add(slug);
+      console.log(`[REV] ${slug}: changed=${slugChanged}`);
+    }
+
+    console.log(`[REV] detect finish changed=${changedSlugs.size} hasErrors=${hasErrors} elapsedMs=${Date.now() - startedAt}`);
+    return { changedSlugs, hasErrors };
+  }
+
+  /**
    * 运行更新任务
    */
   async runUpdate(force = false, forceSlugs = null) {
+    console.log(`[UPDATE] start force=${!!force} scoped=${!!(forceSlugs && forceSlugs.size > 0)} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
     const NOW = Date.now();
     const UPDATE_ROUNDS = 1;
 
@@ -28,8 +139,7 @@ export class Updater {
     let teamsRaw = null;
     try {
       teamsRaw = await this.githubClient.fetchJson("config/teams.json");
-      const tourns = await this.githubClient.fetchJson("config/tour.json");
-      if (tourns) runtimeConfig = { TOURNAMENTS: tourns };
+      runtimeConfig = await this.loadRuntimeConfig();
     } catch (e) {}
 
     if (!runtimeConfig) {
@@ -46,6 +156,7 @@ export class Updater {
 
     // 确定需要更新的锦标赛
     const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force, forceSlugs);
+    console.log(`[UPDATE] candidates=${candidates.length}`);
     if (candidates.length === 0) {
       console.log(`[SKIP] All tournaments skipped`);
       return this.logger;
@@ -57,9 +168,11 @@ export class Updater {
 
     // 执行数据抓取
     const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force);
+    console.log(`[UPDATE] fetch results=${results.length}`);
 
     // 处理结果
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, runtimeConfig);
+    console.log(`[UPDATE] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
 
     // 为每个锦标赛附加team_map（在数据抓取之后）
     for (const tourn of (runtimeConfig.TOURNAMENTS || [])) {
