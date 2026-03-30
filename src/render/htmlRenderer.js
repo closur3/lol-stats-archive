@@ -849,7 +849,7 @@ export class HTMLRenderer {
                             '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
                             '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
                             '</select>' +
-                            '<button class="icon-btn" onclick="runTask(&apos;/force&apos;, this, &apos;..&apos;)" title="Force">🔄</button>' +
+                            '<button class="icon-btn" onclick="runTask(&apos;/force&apos;, this, &apos;🔄&apos;)" title="Force">🔄</button>' +
                             '<button class="icon-btn icon-btn-fill" onclick="fillArchive(&apos;' + slug + '&apos;)" title="Fill">📋</button>' +
                             '<button class="icon-btn icon-btn-del" onclick="deleteArchive(&apos;' + slug + '&apos;, &apos;' + name + '&apos;)" title="Delete">🗑️</button>' +
                             '</div>' +
