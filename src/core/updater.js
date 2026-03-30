@@ -82,7 +82,9 @@ export class Updater {
         .filter(Boolean);
 
       if (pages.length === 0) continue;
-      console.log(`[REV] ${slug}: pages=${pages.length}`);
+      // revid gate 只看 Data: 页面，避免被 Overview 页面的无关编辑触发
+      const dataPages = Array.from(new Set(pages.map(p => p.startsWith("Data:") ? p : `Data:${p}`)));
+      console.log(`[REV] ${slug}: pages=${dataPages.length} (Data namespace only)`);
 
       const revKey = `REV_${slug}`;
       const prev = await this.env.LOL_KV.get(revKey, { type: "json" });
@@ -90,7 +92,7 @@ export class Updater {
       const nextPages = {};
       let slugChanged = false;
 
-      for (const page of pages) {
+      for (const page of dataPages) {
         try {
           const latest = await FandomClient.fetchLatestRevision(page);
           const title = latest.title || page;
