@@ -53,8 +53,8 @@ export class Updater {
 
     const NOW = Date.now();
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
-    const { changedSlugs, hasErrors } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
-    console.log(`[CRON] rev-check changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
+    const { changedSlugs, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
+    console.log(`[CRON] rev-check checked=${checkedSlugs} th-skip=${thresholdSkippedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
 
     if (changedSlugs.size === 0) {
       console.log("[REV-GATE] No revision change, skip cron update");
@@ -86,6 +86,8 @@ export class Updater {
   async detectRevisionChanges(tournaments, cache, NOW) {
     const changedSlugs = new Set();
     let hasErrors = false;
+    let checkedSlugs = 0;
+    let thresholdSkippedSlugs = 0;
 
     for (const tournament of tournaments || []) {
       const slug = tournament?.slug;
@@ -115,9 +117,11 @@ export class Updater {
 
       if (elapsed < threshold) {
         console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> skip`);
+        thresholdSkippedSlugs++;
         continue;
       }
-      console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> pass`);
+      console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> check`);
+      checkedSlugs++;
 
       const revKey = `REV_${slug}`;
       const prev = await this.env.LOL_KV.get(revKey, { type: "json" });
@@ -170,7 +174,7 @@ export class Updater {
       }
     }
 
-    return { changedSlugs, hasErrors };
+    return { changedSlugs, hasErrors, checkedSlugs, thresholdSkippedSlugs };
   }
 
   /**
