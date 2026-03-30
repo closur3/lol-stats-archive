@@ -45,7 +45,11 @@ export class Updater {
 
     console.log(`[REV-GATE] Changed slugs: ${Array.from(changedSlugs).join(", ")}`);
     console.log(`[CRON] runScheduledUpdate finish elapsedMs=${Date.now() - startedAt}`);
-    return this.runUpdate(true, changedSlugs);
+    return this.runUpdate(false, changedSlugs, {
+      bypassThreshold: true,
+      fullFetch: true,
+      forceWrite: false
+    });
   }
 
   /**
@@ -129,7 +133,10 @@ export class Updater {
   /**
    * 运行更新任务
    */
-  async runUpdate(force = false, forceSlugs = null) {
+  async runUpdate(force = false, forceSlugs = null, options = {}) {
+    const bypassThreshold = !!options.bypassThreshold;
+    const fullFetch = !!options.fullFetch;
+    const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     console.log(`[UPDATE] start force=${!!force} scoped=${!!(forceSlugs && forceSlugs.size > 0)} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
     const NOW = Date.now();
     const UPDATE_ROUNDS = 1;
@@ -155,7 +162,7 @@ export class Updater {
     runtimeConfig.TOURNAMENTS = dateUtils.sortTournamentsByDate(runtimeConfig.TOURNAMENTS);
 
     // 确定需要更新的锦标赛
-    const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force, forceSlugs);
+    const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force, forceSlugs, bypassThreshold);
     console.log(`[UPDATE] candidates=${candidates.length}`);
     if (candidates.length === 0) {
       console.log(`[SKIP] All tournaments skipped`);
@@ -167,7 +174,7 @@ export class Updater {
     const fandomClient = new FandomClient(authContext);
 
     // 执行数据抓取
-    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force);
+    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force || fullFetch);
     console.log(`[UPDATE] fetch results=${results.length}`);
 
     // 处理结果
@@ -200,7 +207,7 @@ export class Updater {
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournMeta);
 
     // 保存数据
-    await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, force, forceSlugs, leagueLogEntries, isScopedForce);
+    await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, isScopedForce);
 
     return this.logger;
   }
@@ -256,7 +263,7 @@ export class Updater {
   /**
    * 确定需要更新的候选锦标赛
    */
-  determineCandidates(tournaments, cache, NOW, force, forceSlugs = null) {
+  determineCandidates(tournaments, cache, NOW, force, forceSlugs = null, bypassThreshold = false) {
     const candidates = [];
     const hasForceScope = force && forceSlugs && forceSlugs.size > 0;
     
@@ -292,7 +299,7 @@ export class Updater {
 
       console.log(`[THRESHOLD] ${tournament.slug}: mode=${currentMode}, startTs=${startTs}, isMatchStarted=${isMatchStarted}, threshold=${threshold/1000/60}m, elapsed=${elapsed/1000/60}m`);
 
-      if (isForceTarget || elapsed >= threshold) {
+      if (isForceTarget || bypassThreshold || elapsed >= threshold) {
         candidates.push({
           slug: tournament.slug, 
           overview_page: tournament.overview_page, 
