@@ -840,7 +840,7 @@ export class HTMLRenderer {
                         var slug = t.slug, name = t.name.replace(/'/g, '&apos;');
                         return '<div class="item">' +
                             '<label class="item-left">' +
-                            '<input type="checkbox" class="item-chk">' +
+                            '<input type="checkbox" class="item-chk" value="' + slug + '">' +
                             '<span class="item-name">' + t.name + ' ' + modeIcon + '</span>' +
                             '</label>' +
                             '<div class="item-right">' +
