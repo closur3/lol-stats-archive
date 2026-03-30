@@ -17,6 +17,21 @@ export default {
     const sha = env.GITHUB_SHA;
 
     switch (url.pathname) {
+      case "/version":
+        return new Response(
+          JSON.stringify({
+            sha: sha || "",
+            time: time || "",
+            now: new Date().toISOString()
+          }),
+          {
+            headers: {
+              "content-type": "application/json;charset=utf-8",
+              "cache-control": "no-store, no-cache, must-revalidate"
+            }
+          }
+        );
+
       case "/":
         return HomeRouter.handleHome(request, env);
       
@@ -34,6 +49,9 @@ export default {
       
       case "/refresh-ui":
         return APIRouter.handleRefreshUI(request, env);
+
+      case "/deploy-refresh":
+        return APIRouter.handleDeployRefresh(request, env);
       
       case "/rebuild-archive":
         return APIRouter.handleRebuildArchive(request, env);

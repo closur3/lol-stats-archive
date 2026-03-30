@@ -717,7 +717,7 @@ export class HTMLRenderer {
                         <div style="text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;">Loading...</div>
                     </div>
                     <div class="ops-actions">
-                        <button class="secondary-btn" onclick="runTask('/refresh-ui', this, 'Refreshing...')">Refresh HTML</button>
+                        <button class="secondary-btn" onclick="runTask('/refresh-ui', this, 'Refreshing...')">Refresh UI</button>
                         <button class="primary-btn" onclick="saveModeOverrides()">Save Modes</button>
                         <button class="primary-btn" onclick="forceSelected()">Force Update</button>
                     </div>

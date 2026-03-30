@@ -39,17 +39,29 @@ jobs:
           DEPLOY_SHORT_SHA="${DEPLOY_SHA:0:7}"
           START=$(date +%s)
 
-          # Step 1: Wait for new code to be live (SHA on /logs page)
-          echo "=== Step 1: Verify deploy (SHA=$DEPLOY_SHORT_SHA) ==="
+          call_post_json() {
+            local endpoint="$1"
+            local body="$2"
+            curl -sS -X POST "$WORKER_URL/$endpoint?cb=$(date +%s)" \
+              -H "Authorization: Bearer $ADMIN_SECRET" \
+              -H "Cache-Control: no-cache" \
+              -H "Content-Type: application/json" \
+              -d "$body" \
+              -w "\n%{http_code}" --max-time 240 2>&1 || true
+          }
+
+          # Step 1: Wait for new code to be live (/version no-store)
+          echo "=== Step 1: Verify deploy (/version, SHA=$DEPLOY_SHORT_SHA) ==="
           while true; do
             ELAPSED=$(( $(date +%s) - START ))
-            if [ $ELAPSED -ge 90 ]; then
-              echo "❌ Deploy verification timed out after 90s"
+            if [ $ELAPSED -ge 120 ]; then
+              echo "❌ Deploy verification timed out after 120s"
               exit 1
             fi
 
-            LIVE_SHA=$(curl -sf --max-time 10 "$WORKER_URL/logs" \
-                 | grep -o 'footer-sha">@[0-9a-f]*' | grep -o '[0-9a-f]*$') || true
+            VERSION_JSON=$(curl -sf --max-time 10 "$WORKER_URL/version?cb=$(date +%s)" \
+                 -H "Cache-Control: no-cache") || true
+            LIVE_SHA=$(echo "$VERSION_JSON" | sed -n 's/.*"sha":"\([^"]*\)".*/\1/p' | cut -c1-7)
 
             if [ "$LIVE_SHA" = "$DEPLOY_SHORT_SHA" ]; then
               echo "✅ New code live after ${ELAPSED}s (SHA=$LIVE_SHA)"
@@ -60,40 +72,24 @@ jobs:
             sleep 3
           done
 
-          # Step 2: Call refresh-ui with retry
+          # Step 2: One-shot deploy refresh (server-side retry only)
           echo ""
-          echo "=== Step 2: Refresh UI ==="
-          for attempt in 1 2 3; do
-            echo "--- Attempt $attempt/3 ---"
-
-            HTTP_RAW=$(curl -s -X POST "$WORKER_URL/refresh-ui" \
-                 -H "Authorization: Bearer $ADMIN_SECRET" \
-                 -w "\n%{http_code}" --max-time 120 2>&1) || true
-
+          echo "=== Step 2: Deploy Refresh ==="
+          PAYLOAD='{"maxWaitMs":300000,"pollMs":5000}'
+          for attempt in 1 2; do
+            echo "--- deploy-refresh attempt $attempt/2 ---"
+            HTTP_RAW=$(call_post_json "deploy-refresh" "$PAYLOAD")
             HTTP_CODE=$(echo "$HTTP_RAW" | tail -1)
             BODY=$(echo "$HTTP_RAW" | sed '$d')
             echo "HTTP $HTTP_CODE | $BODY"
-
-            case "$HTTP_CODE" in
-              200)
-                echo "✅ Refresh UI succeeded: $BODY"
-                exit 0
-                ;;
-              400)
-                echo "⚠️ No cache data (HOME_ keys missing)"
-                if [ $attempt -lt 3 ]; then
-                  echo "  Waiting for cron to populate data..."
-                  sleep 15
-                fi
-                ;;
-              *)
-                echo "⚠️ Unexpected HTTP $HTTP_CODE"
-                if [ $attempt -lt 3 ]; then
-                  sleep 5
-                fi
-                ;;
-            esac
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Deploy refresh succeeded"
+              exit 0
+            fi
+            if [ $attempt -lt 2 ]; then
+              echo "⚠️ deploy-refresh failed once, retrying in 10s..."
+              sleep 10
+            fi
           done
-
-          echo "❌ Refresh UI failed after 3 attempts"
+          echo "❌ Deploy refresh failed"
           exit 1

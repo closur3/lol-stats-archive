@@ -77,79 +77,71 @@ export class APIRouter {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    try {
-      const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
-      const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
-      const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
-      const homeEntries = rawHomes.filter(h => h && h.tourn);
-
-      // 排序锦标赛
-      const sortedTourns = dateUtils.sortTournamentsByDate(homeEntries.map(h => h.tourn));
-      const runtimeConfig = { TOURNAMENTS: sortedTourns };
-
-      const globalStats = {};
-      const timeGrid = {};
-      const scheduleMap = {};
-      const tournMeta = {};
-      homeEntries.forEach(home => {
-        if (home && home.tourn && home.stats) {
-          const slug = home.tourn.slug;
-          if (home.stats) globalStats[slug] = home.stats;
-          if (home.timeGrid) timeGrid[slug] = home.timeGrid;
-          if (home.tournMeta && home.tournMeta[slug]) {
-            tournMeta[slug] = home.tournMeta[slug];
-          }
-        }
-        const sch = home.scheduleMap || {};
-        Object.keys(sch).forEach(date => {
-          if (!scheduleMap[date]) scheduleMap[date] = [];
-          scheduleMap[date].push(...sch[date]);
-        });
-      });
-      Object.keys(scheduleMap).forEach(date => {
-        scheduleMap[date].sort((matchA, matchB) => {
-          if (matchA.tournIndex !== matchB.tournIndex) return matchA.tournIndex - matchB.tournIndex;
-          return matchA.time.localeCompare(matchB.time);
-        });
-      });
-
-      if (Object.keys(globalStats).length === 0) {
-        return new Response("No cache data available. Run Refresh API first.", { status: 400 });
-      }
-
-      // 生成HTML
-      const homeFragment = HTMLRenderer.renderContentOnly(
-        globalStats, timeGrid, scheduleMap,
-        runtimeConfig || { TOURNAMENTS: [] },
-        false, tournMeta
-      );
-      const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
-      const existingHomeHTML = await env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
-      const writePromises = [];
-      let homeChanged = false;
-      if (existingHomeHTML !== fullPage) {
-        writePromises.push(env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage));
-        homeChanged = true;
-      }
-
-      // 生成归档HTML
-      const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-      const existingArchiveHTML = await env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
-      let archiveChanged = false;
-      if (existingArchiveHTML !== archiveHTML) {
-        writePromises.push(env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML));
-        archiveChanged = true;
-      }
-
-      await Promise.all(writePromises);
-
-      return new Response(
-        `OK homes=${homeEntries.length} writes=${writePromises.length} home=${homeChanged?"updated":"same"} archive=${archiveChanged?"updated":"same"}`,
-        { status: 200 }
-      );
-    } catch (err) {
-      return new Response(`Render Error: ${err.message}`, { status: 500 });
+    const result = await APIRouter.rebuildStaticPagesFromCache(env);
+    if (!result.ok) {
+      const status = result.reason === "NO_CACHE" ? 400 : 500;
+      return new Response(result.message, { status });
     }
+
+    return new Response(
+      `OK homes=${result.homes} writes=${result.writes} home=${result.homeChanged ? "updated" : "same"} archive=${result.archiveChanged ? "updated" : "same"}`,
+      { status: 200 }
+    );
+  }
+
+  /**
+   * 处理部署后的自动刷新（内置重试和初始化）
+   */
+  static async handleDeployRefresh(request, env) {
+    if (request.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405 });
+    }
+    if (APIRouter.isUnauthorized(request, env)) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    let payload = {};
+    try {
+      payload = await request.json();
+    } catch (e) {}
+
+    const maxWaitMs = Math.min(10 * 60 * 1000, Math.max(15 * 1000, Number(payload.maxWaitMs) || 3 * 60 * 1000));
+    const pollMs = Math.min(30 * 1000, Math.max(2 * 1000, Number(payload.pollMs) || 5 * 1000));
+    const startedAt = Date.now();
+    let attempt = 0;
+    let lastResult = { ok: false, reason: "UNKNOWN", message: "Not started" };
+
+    while (Date.now() - startedAt < maxWaitMs) {
+      attempt++;
+      lastResult = await APIRouter.rebuildStaticPagesFromCache(env);
+      if (lastResult.ok) {
+        return new Response(JSON.stringify({
+          ok: true,
+          attempts: attempt,
+          elapsedMs: Date.now() - startedAt,
+          homes: lastResult.homes,
+          writes: lastResult.writes,
+          homeChanged: lastResult.homeChanged,
+          archiveChanged: lastResult.archiveChanged
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+
+      await APIRouter.sleep(pollMs);
+    }
+
+    return new Response(JSON.stringify({
+      ok: false,
+      attempts: attempt,
+      elapsedMs: Date.now() - startedAt,
+      reason: lastResult.reason,
+      message: lastResult.message
+    }), {
+      status: 500,
+      headers: { "content-type": "application/json" }
+    });
   }
 
   /**
@@ -358,6 +350,89 @@ export class APIRouter {
     const expectedSecret = env.ADMIN_SECRET;
     const authHeader = request.headers.get("Authorization");
     return Boolean(expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`));
+  }
+
+  /**
+   * 从已有缓存重建静态页面
+   */
+  static async rebuildStaticPagesFromCache(env) {
+    try {
+      const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
+      const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
+      const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
+      const homeEntries = rawHomes.filter(h => h && h.tourn);
+
+      const sortedTourns = dateUtils.sortTournamentsByDate(homeEntries.map(h => h.tourn));
+      const runtimeConfig = { TOURNAMENTS: sortedTourns };
+      const globalStats = {};
+      const timeGrid = {};
+      const scheduleMap = {};
+      const tournMeta = {};
+
+      homeEntries.forEach(home => {
+        if (home && home.tourn && home.stats) {
+          const slug = home.tourn.slug;
+          if (home.stats) globalStats[slug] = home.stats;
+          if (home.timeGrid) timeGrid[slug] = home.timeGrid;
+          if (home.tournMeta && home.tournMeta[slug]) {
+            tournMeta[slug] = home.tournMeta[slug];
+          }
+        }
+        const sch = home.scheduleMap || {};
+        Object.keys(sch).forEach(date => {
+          if (!scheduleMap[date]) scheduleMap[date] = [];
+          scheduleMap[date].push(...sch[date]);
+        });
+      });
+
+      Object.keys(scheduleMap).forEach(date => {
+        scheduleMap[date].sort((matchA, matchB) => {
+          if (matchA.tournIndex !== matchB.tournIndex) return matchA.tournIndex - matchB.tournIndex;
+          return matchA.time.localeCompare(matchB.time);
+        });
+      });
+
+      if (Object.keys(globalStats).length === 0) {
+        return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };
+      }
+
+      const homeFragment = HTMLRenderer.renderContentOnly(
+        globalStats, timeGrid, scheduleMap,
+        runtimeConfig || { TOURNAMENTS: [] },
+        false, tournMeta
+      );
+      const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
+      const existingHomeHTML = await env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
+      const writePromises = [];
+      let homeChanged = false;
+      if (existingHomeHTML !== fullPage) {
+        writePromises.push(env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage));
+        homeChanged = true;
+      }
+
+      const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
+      const existingArchiveHTML = await env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
+      let archiveChanged = false;
+      if (existingArchiveHTML !== archiveHTML) {
+        writePromises.push(env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML));
+        archiveChanged = true;
+      }
+
+      await Promise.all(writePromises);
+      return {
+        ok: true,
+        homes: homeEntries.length,
+        writes: writePromises.length,
+        homeChanged,
+        archiveChanged
+      };
+    } catch (err) {
+      return { ok: false, reason: "ERROR", message: `Render Error: ${err.message}` };
+    }
+  }
+
+  static async sleep(ms) {
+    await new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
