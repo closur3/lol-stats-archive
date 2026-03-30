@@ -91,11 +91,18 @@ export class Updater {
       const prevPages = prev?.pages || {};
       const nextPages = {};
       let slugChanged = false;
+      let okCount = 0;
+      let errCount = 0;
 
       for (const page of dataPages) {
         try {
           const latest = await FandomClient.fetchLatestRevision(page);
+          if (latest?.missing) {
+            console.log(`[REV] ${slug}: query=${page} resolved=${latest.title} missing=true`);
+            continue;
+          }
           const title = latest.title || page;
+          okCount++;
           nextPages[title] = {
             revid: latest.revid,
             timestamp: latest.timestamp,
@@ -110,12 +117,19 @@ export class Updater {
             console.log(`[REV] ${slug}: ${title} unchanged=${latest.revid}`);
           }
         } catch (e) {
-          hasErrors = true;
+          errCount++;
           console.log(`[REV] ${slug}: ${page} check failed: ${e.message}`);
         }
       }
 
-      if (Object.keys(nextPages).length > 0) {
+      if (errCount > 0 && okCount === 0) {
+        hasErrors = true;
+      }
+
+      const prevStr = JSON.stringify(prevPages || {});
+      const nextStr = JSON.stringify(nextPages || {});
+      const shouldWriteRev = Object.keys(nextPages).length > 0 && (!prev || slugChanged || prevStr !== nextStr);
+      if (shouldWriteRev) {
         console.log(`[REV] ${slug}: save REV_${slug} pages=${Object.keys(nextPages).length}`);
         await this.env.LOL_KV.put(revKey, JSON.stringify({
           slug,
@@ -125,7 +139,7 @@ export class Updater {
       }
 
       if (slugChanged) changedSlugs.add(slug);
-      console.log(`[REV] ${slug}: changed=${slugChanged}`);
+      console.log(`[REV] ${slug}: changed=${slugChanged} ok=${okCount} err=${errCount} writeRev=${shouldWriteRev}`);
     }
 
     console.log(`[REV] detect finish changed=${changedSlugs.size} hasErrors=${hasErrors} elapsedMs=${Date.now() - startedAt}`);

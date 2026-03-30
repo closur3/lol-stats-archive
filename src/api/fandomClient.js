@@ -90,16 +90,23 @@ export class FandomClient {
         const data = await resp.json();
         const pagesObj = data?.query?.pages || {};
         const firstPage = Object.values(pagesObj)[0];
-        const rev = firstPage?.revisions?.[0];
-        if (!firstPage || !rev || typeof rev.revid !== "number") {
-          throw new Error("Invalid revision payload");
+        if (!firstPage) throw new Error("Invalid revision payload");
+        if (firstPage.missing !== undefined) {
+          return {
+            pageid: firstPage.pageid || null,
+            title: firstPage.title || pageTitle,
+            missing: true
+          };
         }
+        const rev = firstPage?.revisions?.[0];
+        if (!rev || typeof rev.revid !== "number") throw new Error("Invalid revision payload");
         return {
           pageid: firstPage.pageid,
           title: firstPage.title || pageTitle,
           revid: rev.revid,
           parentid: rev.parentid || null,
-          timestamp: rev.timestamp || null
+          timestamp: rev.timestamp || null,
+          missing: false
         };
       } catch (e) {
         if (attempt >= maxRetries) throw e;
