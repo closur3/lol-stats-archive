@@ -74,15 +74,20 @@ export class Updater {
       if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
     }
 
+    const isScopedForce = force && forceSlugs && forceSlugs.size > 0;
+    const scopedRuntimeConfig = isScopedForce
+      ? { TOURNAMENTS: (runtimeConfig.TOURNAMENTS || []).filter(t => forceSlugs.has(t.slug)) }
+      : runtimeConfig;
+
     // 分析数据
-    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, runtimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap);
+    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, scopedRuntimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap);
 
     // 生成日志
-    this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta);
-    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta);
+    this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournMeta);
+    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournMeta);
 
     // 保存数据
-    await this.saveData(runtimeConfig, cache, analysis, syncItems, force, forceSlugs, leagueLogEntries);
+    await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, force, forceSlugs, leagueLogEntries, isScopedForce);
 
     return this.logger;
   }
@@ -478,21 +483,23 @@ export class Updater {
   /**
    * 保存数据
    */
-  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}) {
+  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}, scopedOnly = false) {
     // 保存首页静态HTML
-    try {
-      const homeFragment = HTMLRenderer.renderContentOnly(
-        analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-        runtimeConfig, false, analysis.tournMeta
-      );
-      const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
-      const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
-      if (existingHomeHTML !== fullPage) {
-        console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
-        await this.env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage);
+    if (!scopedOnly) {
+      try {
+        const homeFragment = HTMLRenderer.renderContentOnly(
+          analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
+          runtimeConfig, false, analysis.tournMeta
+        );
+        const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
+        const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
+        if (existingHomeHTML !== fullPage) {
+          console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
+          await this.env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage);
+        }
+      } catch (e) {
+        console.error("Error generating home HTML:", e);
       }
-    } catch (e) {
-      console.error("Error generating home HTML:", e);
     }
 
     // 按slug组织赛程数据
@@ -579,8 +586,8 @@ export class Updater {
     });
     if (logWrites.length > 0) await Promise.all(logWrites);
 
-    // 只有当有数据变化时才重新生成归档HTML
-    if (syncItems.length > 0) {
+    // 只有全量更新且有数据变化时才重新生成归档HTML
+    if (!scopedOnly && syncItems.length > 0) {
       try {
         const archiveHTML = await this.generateArchiveStaticHTML();
         const existingArchiveHTML = await this.env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
