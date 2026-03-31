@@ -299,6 +299,13 @@ export class HTMLRenderer {
         const nextDir = (!currentDir) ? (defaultAscCols.includes(columnIndex) ? 'asc' : 'desc') : (currentDir === 'desc' ? 'asc' : 'desc');
 
         rows.sort((rowA, rowB) => {
+            const compareTeamName = () => {
+                const teamA = (rowA.cells[COL_TEAM].innerText || "").toLowerCase();
+                const teamB = (rowB.cells[COL_TEAM].innerText || "").toLowerCase();
+                if (teamA === teamB) return 0;
+                return teamA > teamB ? 1 : -1;
+            };
+
             if (columnIndex === COL_SERIES) {
                 const parseSeriesRecord = (text) => {
                     if (text === "-" || !text.includes("-")) return { w: -1, l: 9999, wr: -1 };
@@ -319,7 +326,7 @@ export class HTMLRenderer {
                 const gameA = parseValue(rowA.cells[COL_GAME_WR].innerText);
                 const gameB = parseValue(rowB.cells[COL_GAME_WR].innerText);
                 if (gameA !== gameB) return nextDir === 'asc' ? (gameA - gameB) : (gameB - gameA);
-                return 0;
+                return compareTeamName();
             }
 
             let valueA = rowA.cells[columnIndex].innerText;
@@ -367,7 +374,7 @@ export class HTMLRenderer {
                 const netB = getGameNet(rowB.cells[COL_GAME]);
                 if (netA !== netB) return netB - netA;
             }
-            return 0;
+            return compareTeamName();
         });
 
         table.setAttribute(sortDirKey, nextDir);
