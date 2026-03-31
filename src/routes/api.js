@@ -218,14 +218,6 @@ export class APIRouter {
         };
 
         await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
-        await env.LOL_KV.put(`${KV_KEYS.ARCHIVE_META_PREFIX}${payload.slug}`, JSON.stringify({
-          slug: tournament.slug,
-          name: tournament.name,
-          overview_page: tournament.overview_page,
-          league: tournament.league,
-          start_date: tournament.start_date || null,
-          end_date: tournament.end_date || null
-        }));
         logger.success(`🟢 [SYNC] | 🔄 ${payload.name} *${matches.length} | ⚙️ Rebuild Archive`);
 
         const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
@@ -272,7 +264,6 @@ export class APIRouter {
       const logger = APIRouter.createInlineLogger();
       
       await env.LOL_KV.delete(`ARCHIVE_${payload.slug}`);
-      await env.LOL_KV.delete(`${KV_KEYS.ARCHIVE_META_PREFIX}${payload.slug}`);
 
       // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
@@ -353,14 +344,6 @@ export class APIRouter {
       };
 
       await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
-      await env.LOL_KV.put(`${KV_KEYS.ARCHIVE_META_PREFIX}${payload.slug}`, JSON.stringify({
-        slug: payload.slug,
-        name: payload.name,
-        overview_page: overviewPages,
-        league: payload.league,
-        start_date: payload.start_date || null,
-        end_date: payload.end_date || null
-      }));
 
       // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);

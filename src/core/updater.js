@@ -826,16 +826,6 @@ export class Updater {
         if (archiveHasChanges) {
           console.log(`[KV] PUT ${archiveKey}`);
           writePromises.push(this.env.LOL_KV.put(archiveKey, JSON.stringify(snapshot)));
-          const archiveMetaKey = `${KV_KEYS.ARCHIVE_META_PREFIX}${slug}`;
-          const archiveMeta = {
-            slug: tournamentStored.slug,
-            name: tournamentStored.name,
-            overview_page: tournamentStored.overview_page,
-            league: tournamentStored.league,
-            start_date: tournamentStored.start_date || null,
-            end_date: tournamentStored.end_date || null
-          };
-          writePromises.push(this.env.LOL_KV.put(archiveMetaKey, JSON.stringify(archiveMeta)));
         }
       }
     }
