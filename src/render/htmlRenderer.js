@@ -963,12 +963,21 @@ export class HTMLRenderer {
       const sections = msg.split(/\s*\|\s*/);
       const kept = [];
       for (const sec of sections) {
-        const items = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:[+*]\d+)?\s*\([^)]*\)/g);
+        const items = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:\+\d+)?\s*\([^)]*\)/g);
         if (!items) { kept.push(sec); continue; }
         const matched = items.filter(i => i.includes(league));
-        if (matched.length > 0) kept.push(sec.replace(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:[+*]\d+)?\s*\([^)]*\)(?:,\s*)?/g, "").trim() + " " + matched.join(", "));
+        if (matched.length > 0) kept.push(sec.replace(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:\+\d+)?\s*\([^)]*\)(?:,\s*)?/g, "").trim() + " " + matched.join(", "));
       }
       return kept.join(" | ").replace(/\s+/g, " ").trim();
+    }
+
+    function extractTotalCount(entries) {
+      for (const entry of (entries || [])) {
+        const msg = entry?.m || "";
+        const match = msg.match(/\+(\d+)\s*\(/);
+        if (match) return Number(match[1]);
+      }
+      return null;
     }
 
     const leagueItems = Array.isArray(leagueLogs)
@@ -988,6 +997,7 @@ export class HTMLRenderer {
 
       const syncCount = entries.filter(e => e.m.includes("🔄")).length;
       const errCount = entries.filter(e => e.m.includes("❌") || e.m.includes("🚧")).length;
+      const totalCount = extractTotalCount(entries);
       const lastTime = lastEntry.t || "";
       const lastUtcIso = lastTime.length >= 16 ? `20${lastTime.slice(0,8)}T${lastTime.slice(9)}:00Z` : "";
 
@@ -1000,13 +1010,13 @@ export class HTMLRenderer {
       const rows = entries.slice(-10).map(e => {
         const t = e.t || "";
         const utcIso = t.length >= 16 ? `20${t.slice(0,8)}T${t.slice(9)}:00Z` : "";
-        const msg = e.m.replace(/(\+\d+|\*\d+)/g, '<span class="hl">$1</span>');
+        const msg = e.m.replace(/(\+\d+)/g, '<span class="hl">$1</span>');
         return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${t}</span><span class="log-mini-msg">${msg}</span></div>`;
       }).join("");
 
       return `<div class="league-card">
-        <div class="league-card-header"><span class="league-card-name">${name}</span><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?`🐌${slowThresholdMinutes}m`:`⚡${cronIntervalMinutes}m`}</span><div class="status-dot ${dotCls}"></div></div></div>
-        <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span><span>LAST <span class="stat-val utc-local" data-utc="${lastUtcIso}" data-format="datetime">${lastTime}</span></span></div>
+        <div class="league-card-header"><div class="league-card-title"><span class="league-card-name">${name}</span>${totalCount == null ? '' : `<span class="league-total-pill">${totalCount}</span>`}</div><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?`🐌${slowThresholdMinutes}m`:`⚡${cronIntervalMinutes}m`}</span><div class="status-dot ${dotCls}"></div></div></div>
+        <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span>${totalCount == null ? '' : `<span>TOTAL <span class="stat-val">${totalCount}</span></span>`}<span>LAST <span class="stat-val utc-local" data-utc="${lastUtcIso}" data-format="datetime">${lastTime}</span></span></div>
         <div class="timeline">${bars}</div>
         <div class="league-card-logs">${rows}</div>
       </div>`;

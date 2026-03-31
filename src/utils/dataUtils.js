@@ -134,52 +134,7 @@ export const dataUtils = {
   },
 
   /**
-   * 生成唯一匹配键
-   */
-  getUniqueMatchKey: (match) => {
-    const id = match.MatchId ?? match["MatchId"];
-    return String(id ?? "");
-  },
-
-  /**
    * 规范化字段值
    */
-  normalizeValue: (v) => (v == null ? "" : String(v)),
-
-  /**
-   * 检查两个比赛是否相同
-   */
-  isSameMatch: (a, b, fieldAliases) => {
-    const fields = ["MatchId", "Team1", "Team2", "Team1Score", "Team2Score", "DateTime_UTC", "OverviewPage", "BestOf", "N_MatchInPage", "Tab", "Round"];
-    
-    const getField = (match, name) => {
-      const keys = fieldAliases[name] || [name];
-      for (const k of keys) {
-        if (match != null && Object.prototype.hasOwnProperty.call(match, k)) return match[k];
-      }
-      return undefined;
-    };
-
-    for (const f of fields) {
-      if (dataUtils.normalizeValue(getField(a, f)) !== dataUtils.normalizeValue(getField(b, f))) return false;
-    }
-    return true;
-  },
-
-  /**
-   * 字段别名映射
-   */
-  FIELD_ALIASES: {
-    MatchId: ["MatchId"],
-    Team1: ["Team1", "Team 1"],
-    Team2: ["Team2", "Team 2"],
-    Team1Score: ["Team1Score", "Team 1 Score"],
-    Team2Score: ["Team2Score", "Team 2 Score"],
-    DateTime_UTC: ["DateTime_UTC", "DateTime UTC"],
-    OverviewPage: ["OverviewPage", "Overview Page"],
-    BestOf: ["BestOf", "Best Of"],
-    N_MatchInPage: ["N_MatchInPage", "N MatchInPage"],
-    Tab: ["Tab"],
-    Round: ["Round"]
-  }
+  normalizeValue: (v) => (v == null ? "" : String(v))
 };

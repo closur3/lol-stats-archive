@@ -67,7 +67,6 @@ export class Updater {
     console.log(`[REV-GATE] Changed slugs: ${Array.from(changedSlugs).join(", ")}`);
     return this.runFandomUpdate(false, changedSlugs, {
       bypassThreshold: true,
-      fullFetch: false,
       forceWrite: false
     });
   }
@@ -227,7 +226,6 @@ export class Updater {
    */
   async runFandomUpdate(force = false, forceSlugs = null, options = {}) {
     const bypassThreshold = !!options.bypassThreshold;
-    const fullFetch = !!options.fullFetch;
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const isScopedRun = !!(forceSlugs && forceSlugs.size > 0);
     console.log(`[FANDOM] start force=${!!force} scoped=${isScopedRun} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
@@ -248,7 +246,7 @@ export class Updater {
     const fandomClient = new FandomClient(authContext);
 
     // 执行数据抓取
-    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force || fullFetch, updateRounds);
+    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force, updateRounds);
 
     // 处理结果
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, runtimeConfig);
@@ -463,28 +461,14 @@ export class Updater {
    * 抓取比赛数据
    */
   async fetchMatchData(fandomClient, candidates, cache, NOW, force, updateRounds = 1) {
-    const pastDateObj = new Date(NOW - 48 * 60 * 60 * 1000);
-    const futureDateObj = new Date(NOW + 48 * 60 * 60 * 1000);
-    const deltaStartUTC = pastDateObj.toISOString().slice(0, 10);
-    const deltaEndUTC = futureDateObj.toISOString().slice(0, 10);
-
     const rounds = Math.max(1, Number(updateRounds) || 1);
     const batch = candidates.slice(0, Math.ceil(candidates.length / rounds));
     const results = [];
 
     for (const c of batch) {
       try {
-        const oldData = cache.rawMatches[c.slug] || [];
-        let beforeFirstMatch = false;
-        if (c.start_date) {
-          const startDt = dateUtils.parseDate(`${c.start_date} 00:00:00`);
-          if (startDt && NOW < startDt.getTime()) beforeFirstMatch = true;
-        }
-        const isFullFetch = force || oldData.length === 0 || c.mode === "slow" || beforeFirstMatch;
-        const dateQuery = isFullFetch ? null : { start: deltaStartUTC, end: deltaEndUTC };
-
-        const data = await fandomClient.fetchAllMatches(c.slug, c.overview_page, dateQuery);
-        results.push({ status: 'fulfilled', slug: c.slug, data: data, isDelta: !isFullFetch });
+        const data = await fandomClient.fetchAllMatches(c.slug, c.overview_page, null);
+        results.push({ status: 'fulfilled', slug: c.slug, data: data });
       } catch (err) {
         results.push({ status: 'rejected', slug: c.slug, err: err });
       }
@@ -509,89 +493,21 @@ export class Updater {
       return tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
     };
 
-    const fieldAliases = {
-      MatchId: ["MatchId"],
-      Team1: ["Team1", "Team 1"],
-      Team2: ["Team2", "Team 2"],
-      Team1Score: ["Team1Score", "Team 1 Score"],
-      Team2Score: ["Team2Score", "Team 2 Score"],
-      DateTime_UTC: ["DateTime_UTC", "DateTime UTC"],
-      OverviewPage: ["OverviewPage", "Overview Page"],
-      BestOf: ["BestOf", "Best Of"],
-      N_MatchInPage: ["N_MatchInPage", "N MatchInPage"],
-      Tab: ["Tab"],
-      Round: ["Round"]
-    };
-
-    const getField = (match, name) => {
-      const keys = fieldAliases[name] || [name];
-      for (const k of keys) {
-        if (match != null && Object.prototype.hasOwnProperty.call(match, k)) return match[k];
-      }
-      return undefined;
-    };
-
-    const normalize = (v) => (v == null ? "" : String(v));
-    const isSameMatch = (a, b) => {
-      const fields = ["MatchId", "Team1", "Team2", "Team1Score", "Team2Score", "DateTime_UTC", "OverviewPage", "BestOf", "N_MatchInPage", "Tab", "Round"];
-      for (const f of fields) {
-        if (normalize(getField(a, f)) !== normalize(getField(b, f))) return false;
-      }
-      return true;
-    };
-
-    const getUniqueKey = (match) => {
-      const id = match.MatchId ?? match["MatchId"];
-      return String(id ?? "");
-    };
-
     results.forEach(res => {
       if (res.status === 'fulfilled') {
         const slug = res.slug;
         const newData = res.data || [];
         const oldData = cache.rawMatches[slug] || [];
 
-        if (res.isDelta) {
-          if (newData.length > 0) {
-            const matchMap = new Map();
-            oldData.forEach(match => matchMap.set(getUniqueKey(match), match));
-
-            let changesCount = 0;
-            newData.forEach(match => {
-              const key = getUniqueKey(match);
-              const oldMatch = matchMap.get(key);
-              if (!oldMatch || !isSameMatch(oldMatch, match)) {
-                matchMap.set(key, match);
-                changesCount++;
-              }
-            });
-
-            if (changesCount > 0) {
-              const mergedList = Array.from(matchMap.values());
-              mergedList.sort((a, b) => {
-                const tA = a.DateTime_UTC || "9999-99-99";
-                const tB = b.DateTime_UTC || "9999-99-99";
-                return tA.localeCompare(tB);
-              });
-              cache.rawMatches[slug] = mergedList;
-              syncItems.push({ slug, dName: getDisplayName(slug), type: "delta", count: changesCount });
-            } else {
-              idleItems.push({ slug, dName: getDisplayName(slug), type: "delta", count: 0 });
-            }
-          } else {
-            idleItems.push({ slug, dName: getDisplayName(slug), type: "delta", count: 0 });
-          }
+        if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
+          breakers.push(`${slug}(Drop ${oldData.length}->${newData.length})`);
+          failedSlugs.add(slug);
         } else {
-          if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
-            breakers.push(`${slug}(Drop ${oldData.length}->${newData.length})`);
-            failedSlugs.add(slug);
+          cache.rawMatches[slug] = newData;
+          if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
+            syncItems.push({ slug, dName: getDisplayName(slug), count: newData.length });
           } else {
-            cache.rawMatches[slug] = newData;
-            if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-              syncItems.push({ slug, dName: getDisplayName(slug), type: "full", count: newData.length });
-            } else {
-              idleItems.push({ slug, dName: getDisplayName(slug), type: "full", count: newData.length });
-            }
+            idleItems.push({ slug, dName: getDisplayName(slug), count: newData.length });
           }
         }
         cache.updateTimestamps[slug] = NOW;
@@ -625,8 +541,7 @@ export class Updater {
     // 格式化项目信息
     const formatItem = (item) => {
       const info = formatCountdown(item.slug);
-      const prefix = item.type === "delta" ? "+" : "*";
-      return `${item.dName} ${prefix}${item.count} (${info.modeIcon}${info.countdownMins}m)`;
+      return `${item.dName} +${item.count} (${info.modeIcon}${info.countdownMins}m)`;
     };
 
     const syncDetails = syncItems.map(formatItem);
@@ -715,8 +630,7 @@ export class Updater {
 
     syncItems.forEach(item => {
       const cd = getCountdown(item.slug);
-      const prefix = item.type === "delta" ? "+" : "*";
-      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${prefix}${item.count} (${cd.modeIcon}${cd.countdownMins}m)`;
+      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} +${item.count} (${cd.modeIcon}${cd.countdownMins}m)`;
       if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${getDisplayName(item.slug)}(${modeSwitchBySlug[item.slug]})`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
@@ -724,8 +638,7 @@ export class Updater {
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
       const cd = getCountdown(item.slug);
-      const prefix = item.type === "delta" ? "+" : "*";
-      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ${prefix}${item.count} (${cd.modeIcon}${cd.countdownMins}m) | 🟰 Identical`;
+      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} +${item.count} (${cd.modeIcon}${cd.countdownMins}m) | 🟰 Identical`;
       if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${getDisplayName(item.slug)}(${modeSwitchBySlug[item.slug]})`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
