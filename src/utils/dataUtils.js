@@ -61,7 +61,7 @@ export const dataUtils = {
 
       const aRealTotal = (a.bo3_t || 0) + (a.bo5_t || 0);
       const bRealTotal = (b.bo3_t || 0) + (b.bo5_t || 0);
-      if (aRealTotal !== bRealTotal) return bRealTotal - aRealTotal;
+      if (aRealTotal !== bRealTotal) return aRealTotal - bRealTotal;
 
       const aWR = dataUtils.rate(a.s_w, a.s_t) || 0;
       const bWR = dataUtils.rate(b.s_w, b.s_t) || 0;

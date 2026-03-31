@@ -392,11 +392,11 @@ export class HTMLRenderer {
     }
 
     function parseValue(value) {
-        if(value === "-") return -1; 
+        if(value === "-") return Number.POSITIVE_INFINITY; 
         if(value.includes('%')) return parseFloat(value);
         if(value.includes('/')) {
           const parts = value.split('/');
-          return parts[1] === '-' ? -1 : parseFloat(parts[0]) / parseFloat(parts[1]);
+          return parts[1] === '-' ? Number.POSITIVE_INFINITY : parseFloat(parts[0]) / parseFloat(parts[1]);
         }
         if(value.includes('-') && value.split('-').length === 2) {
           return parseFloat(value.split('-')[0]);
