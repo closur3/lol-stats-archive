@@ -87,6 +87,13 @@ export default {
           return [slug, logs];
         }));
         const logsBySlug = new Map(logPairs.filter(([, logs]) => Array.isArray(logs) && logs.length > 0));
+        const logSlugs = Array.from(logsBySlug.keys());
+        const homePairs = await Promise.all(logSlugs.map(async slug => {
+          const home = await env.LOL_KV.get(KV_KEYS.HOME_PREFIX + slug, { type: "json" });
+          const total = Array.isArray(home?.rawMatches) ? home.rawMatches.length : null;
+          return [slug, total];
+        }));
+        const totalBySlug = new Map(homePairs);
 
         let sortedTourns = [];
         try {
@@ -104,7 +111,8 @@ export default {
           leagueLogs.push({
             name: t.league || t.name || slug,
             logs,
-            mode: detectMode(logs)
+            mode: detectMode(logs),
+            totalMatches: totalBySlug.get(slug) ?? null
           });
           consumed.add(slug);
         }
@@ -112,7 +120,7 @@ export default {
         const orphanSlugs = Array.from(logsBySlug.keys()).filter(s => !consumed.has(s)).sort();
         for (const slug of orphanSlugs) {
           const logs = logsBySlug.get(slug) || [];
-          leagueLogs.push({ name: slug, logs, mode: detectMode(logs) });
+          leagueLogs.push({ name: slug, logs, mode: detectMode(logs), totalMatches: totalBySlug.get(slug) ?? null });
         }
 
         const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha, {

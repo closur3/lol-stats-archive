@@ -971,15 +971,6 @@ export class HTMLRenderer {
       return kept.join(" | ").replace(/\s+/g, " ").trim();
     }
 
-    function extractTotalCount(entries) {
-      for (const entry of (entries || [])) {
-        const msg = entry?.m || "";
-        const match = msg.match(/\+(\d+)\s*\(/);
-        if (match) return Number(match[1]);
-      }
-      return null;
-    }
-
     const leagueItems = Array.isArray(leagueLogs)
       ? leagueLogs
       : Object.keys(leagueLogs).map(name => ({ name, ...(leagueLogs[name] || {}) }));
@@ -997,7 +988,7 @@ export class HTMLRenderer {
 
       const syncCount = entries.filter(e => e.m.includes("🔄")).length;
       const errCount = entries.filter(e => e.m.includes("❌") || e.m.includes("🚧")).length;
-      const totalCount = extractTotalCount(entries);
+      const totalCount = Number.isFinite(item.totalMatches) ? item.totalMatches : null;
       const lastTime = lastEntry.t || "";
       const lastUtcIso = lastTime.length >= 16 ? `20${lastTime.slice(0,8)}T${lastTime.slice(9)}:00Z` : "";
 

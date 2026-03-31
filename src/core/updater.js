@@ -493,6 +493,45 @@ export class Updater {
       return tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
     };
 
+    const getMatchKey = (match) => {
+      const id = match?.MatchId ?? match?.["MatchId"];
+      if (id != null && String(id).trim() !== "") return `id:${String(id)}`;
+      const overview = match?.OverviewPage ?? match?.["Overview Page"] ?? "";
+      const nInPage = match?.N_MatchInPage ?? match?.["N MatchInPage"] ?? "";
+      const dt = match?.DateTime_UTC ?? match?.["DateTime UTC"] ?? "";
+      const t1 = match?.Team1 ?? match?.["Team 1"] ?? "";
+      const t2 = match?.Team2 ?? match?.["Team 2"] ?? "";
+      return `fallback:${overview}|${nInPage}|${dt}|${t1}|${t2}`;
+    };
+
+    const canonicalMatch = (match) => JSON.stringify({
+      MatchId: match?.MatchId ?? match?.["MatchId"] ?? "",
+      Team1: match?.Team1 ?? match?.["Team 1"] ?? "",
+      Team2: match?.Team2 ?? match?.["Team 2"] ?? "",
+      Team1Score: match?.Team1Score ?? match?.["Team 1 Score"] ?? "",
+      Team2Score: match?.Team2Score ?? match?.["Team 2 Score"] ?? "",
+      DateTime_UTC: match?.DateTime_UTC ?? match?.["DateTime UTC"] ?? "",
+      OverviewPage: match?.OverviewPage ?? match?.["Overview Page"] ?? "",
+      BestOf: match?.BestOf ?? match?.["Best Of"] ?? "",
+      N_MatchInPage: match?.N_MatchInPage ?? match?.["N MatchInPage"] ?? "",
+      Tab: match?.Tab ?? "",
+      Round: match?.Round ?? ""
+    });
+
+    const calcChangedCount = (oldData, newData) => {
+      const oldMap = new Map();
+      const newMap = new Map();
+      for (const m of (oldData || [])) oldMap.set(getMatchKey(m), canonicalMatch(m));
+      for (const m of (newData || [])) newMap.set(getMatchKey(m), canonicalMatch(m));
+
+      let changed = 0;
+      for (const [key, nextVal] of newMap.entries()) {
+        const prevVal = oldMap.get(key);
+        if (prevVal == null || prevVal !== nextVal) changed++;
+      }
+      return changed;
+    };
+
     results.forEach(res => {
       if (res.status === 'fulfilled') {
         const slug = res.slug;
@@ -503,11 +542,12 @@ export class Updater {
           breakers.push(`${slug}(Drop ${oldData.length}->${newData.length})`);
           failedSlugs.add(slug);
         } else {
+          const changedCount = calcChangedCount(oldData, newData);
           cache.rawMatches[slug] = newData;
-          if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
-            syncItems.push({ slug, dName: getDisplayName(slug), count: newData.length });
+          if (changedCount > 0) {
+            syncItems.push({ slug, dName: getDisplayName(slug), count: changedCount, total: newData.length });
           } else {
-            idleItems.push({ slug, dName: getDisplayName(slug), count: newData.length });
+            idleItems.push({ slug, dName: getDisplayName(slug), count: 0, total: newData.length });
           }
         }
         cache.updateTimestamps[slug] = NOW;
