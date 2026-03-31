@@ -67,7 +67,11 @@ export const dataUtils = {
       const bWR = dataUtils.rate(b.s_w, b.s_t) || 0;
       if (aWR !== bWR) return bWR - aWR;
 
-      return (dataUtils.rate(b.g_w, b.g_t) || 0) - (dataUtils.rate(a.g_w, a.g_t) || 0);
+      const gameDiff = (dataUtils.rate(b.g_w, b.g_t) || 0) - (dataUtils.rate(a.g_w, a.g_t) || 0);
+      if (gameDiff !== 0) return gameDiff;
+
+      // 完全同档位时固定按队名升序，避免依赖对象插入顺序
+      return String(a.name || "").localeCompare(String(b.name || ""));
     });
   },
 
