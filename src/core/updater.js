@@ -60,11 +60,11 @@ export class Updater {
 
     if (changedSlugs.size === 0) {
       console.log("[REV-GATE] No revision change, skip cron update");
-      return this.logger;
+      return this.runLocalUpdate();
     }
 
     console.log(`[REV-GATE] Changed slugs: ${Array.from(changedSlugs).join(", ")}`);
-    return this.runUpdate(false, changedSlugs, {
+    return this.runFandomUpdate(false, changedSlugs, {
       bypassThreshold: true,
       fullFetch: true,
       forceWrite: false
@@ -193,19 +193,8 @@ export class Updater {
     return { changedSlugs, hasErrors, checkedSlugs, thresholdSkippedSlugs };
   }
 
-  /**
-   * 运行更新任务
-   */
-  async runUpdate(force = false, forceSlugs = null, options = {}) {
-    const bypassThreshold = !!options.bypassThreshold;
-    const fullFetch = !!options.fullFetch;
-    const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
-    const isScopedRun = !!(forceSlugs && forceSlugs.size > 0);
-    console.log(`[UPDATE] start force=${!!force} scoped=${isScopedRun} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
+  async prepareRuntimeContext() {
     const NOW = Date.now();
-    const updateRounds = this.getUpdateRounds();
-
-    // 加载配置
     let runtimeConfig = null;
     let teamsRaw = null;
     try {
@@ -215,15 +204,28 @@ export class Updater {
 
     if (!runtimeConfig) {
       this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
-      return this.logger;
+      return null;
     }
 
-    // 清理过期的HOME键
     await this.cleanupStaleHomeKeys(runtimeConfig);
-
-    // 加载缓存数据
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS);
     runtimeConfig.TOURNAMENTS = dateUtils.sortTournamentsByDate(runtimeConfig.TOURNAMENTS);
+    return { NOW, runtimeConfig, teamsRaw, cache };
+  }
+
+  /**
+   * 联网更新：查Fandom并写回
+   */
+  async runFandomUpdate(force = false, forceSlugs = null, options = {}) {
+    const bypassThreshold = !!options.bypassThreshold;
+    const fullFetch = !!options.fullFetch;
+    const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
+    const isScopedRun = !!(forceSlugs && forceSlugs.size > 0);
+    console.log(`[FANDOM] start force=${!!force} scoped=${isScopedRun} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
+    const updateRounds = this.getUpdateRounds();
+    const context = await this.prepareRuntimeContext();
+    if (!context) return this.logger;
+    const { NOW, runtimeConfig, teamsRaw, cache } = context;
 
     // 确定需要更新的锦标赛
     const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force, forceSlugs, bypassThreshold);
@@ -241,7 +243,7 @@ export class Updater {
 
     // 处理结果
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, runtimeConfig);
-    console.log(`[UPDATE] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
+    console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
 
     // 为每个锦标赛附加team_map（在数据抓取之后）
     for (const tourn of (runtimeConfig.TOURNAMENTS || [])) {
@@ -270,6 +272,47 @@ export class Updater {
     // 保存数据
     await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, isScopedRun);
 
+    return this.logger;
+  }
+
+  /**
+   * 本地更新：不联网，仅基于缓存重算并写入（用于revid未变化场景）
+   */
+  async runLocalUpdate(forceSlugs = null) {
+    const isScopedRun = !!(forceSlugs && forceSlugs.size > 0);
+    console.log(`[LOCAL] start scoped=${isScopedRun} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
+
+    const context = await this.prepareRuntimeContext();
+    if (!context) return this.logger;
+    const { runtimeConfig, teamsRaw, cache } = context;
+
+    for (const tourn of (runtimeConfig.TOURNAMENTS || [])) {
+      const rawMatches = cache.rawMatches[tourn.slug] || [];
+      tourn.team_map = dataUtils.pickTeamMap(teamsRaw, tourn, rawMatches);
+    }
+
+    const oldTournMeta = cache.meta?.tournaments || {};
+    const modeOverrides = {};
+    for (const [slug, meta] of Object.entries(oldTournMeta)) {
+      if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
+    }
+
+    const scopedRuntimeConfig = isScopedRun
+      ? { TOURNAMENTS: (runtimeConfig.TOURNAMENTS || []).filter(t => forceSlugs.has(t.slug)) }
+      : runtimeConfig;
+
+    const analysis = Analyzer.runFullAnalysis(
+      cache.rawMatches,
+      oldTournMeta,
+      scopedRuntimeConfig,
+      new Set(),
+      modeOverrides,
+      cache.prevScheduleMap,
+      this.getMaxScheduleDays()
+    );
+
+    await this.saveData(scopedRuntimeConfig, cache, analysis, [], false, forceSlugs, {}, isScopedRun);
+    console.log("[LOCAL] done");
     return this.logger;
   }
 

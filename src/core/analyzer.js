@@ -129,7 +129,6 @@ export class Analyzer {
             bo: bestOf,
             is_finished: isFinished, 
             is_live: isLive,
-            was_live: isLive,
             league: tournament.league, 
             slug: tournament.slug,
             tournIndex: tournamentIndex, 

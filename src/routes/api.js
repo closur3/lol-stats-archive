@@ -68,7 +68,7 @@ export class APIRouter {
       }
 
       const updater = new Updater(env);
-      await updater.runUpdate(true, forceSlugs);
+      await updater.runFandomUpdate(true, forceSlugs);
       
       return new Response("OK", { status: 200 });
     } catch (err) {
