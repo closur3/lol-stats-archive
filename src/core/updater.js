@@ -310,7 +310,11 @@ export class Updater {
       const slug = tournament.slug;
       const rawMatches = cache.rawMatches[slug] || [];
       const prevMeta = oldTournMeta[slug] || {};
-      const nextMeta = this.computeLightTournamentMeta(rawMatches, prevMeta, modeOverrides[slug], nowTs);
+      const nextMeta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTs, {
+        modeOverride: modeOverrides[slug],
+        previousMode: prevMeta.mode || "fast",
+        hasFailure: false
+      });
 
       if (JSON.stringify(prevMeta) === JSON.stringify(nextMeta)) continue;
 
@@ -328,64 +332,6 @@ export class Updater {
     }
 
     return this.logger;
-  }
-
-  computeLightTournamentMeta(rawMatches, previousMeta = {}, modeOverride = undefined, nowTimestamp = Date.now()) {
-    let nextMatchStartTimestamp = Infinity;
-    let lastMatchStartTimestamp = 0;
-    let hasLiveMatch = false;
-
-    for (const match of (rawMatches || [])) {
-      const team1Score = parseInt(match.Team1Score) || 0;
-      const team2Score = parseInt(match.Team2Score) || 0;
-      const bestOf = parseInt(match.BestOf) || 3;
-      const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
-      const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
-      if (isLive) hasLiveMatch = true;
-
-      const tsRaw = match.DateTime_UTC || match["DateTime UTC"];
-      const timestamp = tsRaw ? new Date(tsRaw).getTime() : 0;
-      if (!timestamp || Number.isNaN(timestamp)) continue;
-
-      if (!isFinished && timestamp < nextMatchStartTimestamp) nextMatchStartTimestamp = timestamp;
-      if (isFinished && timestamp > lastMatchStartTimestamp) lastMatchStartTimestamp = timestamp;
-    }
-
-    const startTimestamp = nextMatchStartTimestamp !== Infinity ? nextMatchStartTimestamp : 0;
-    const matchIntervalHours = (lastMatchStartTimestamp > 0 && nextMatchStartTimestamp !== Infinity)
-      ? (nextMatchStartTimestamp - lastMatchStartTimestamp) / (1000 * 60 * 60)
-      : Infinity;
-    const isMatchStarted = nextMatchStartTimestamp !== Infinity && nowTimestamp >= nextMatchStartTimestamp;
-    const isNearInterval = matchIntervalHours < 8;
-
-    const override = modeOverride === "fast" || modeOverride === "slow"
-      ? modeOverride
-      : (previousMeta.modeOverride === "fast" || previousMeta.modeOverride === "slow" ? previousMeta.modeOverride : undefined);
-
-    let nextMode;
-    if (override) nextMode = override;
-    else if (hasLiveMatch) nextMode = "fast";
-    else if (isMatchStarted) nextMode = "fast";
-    else if (isNearInterval) nextMode = "fast";
-    else nextMode = "slow";
-
-    let emoji = "";
-    if (nextMode === "fast") {
-      emoji = "🎮";
-    } else {
-      const timeToNextMatch = nextMatchStartTimestamp !== Infinity ? (nextMatchStartTimestamp - nowTimestamp) / (1000 * 60 * 60) : Infinity;
-      emoji = timeToNextMatch <= 24 ? "⏳" : "💤";
-    }
-
-    const meta = {
-      mode: nextMode,
-      startTs: startTimestamp,
-      emoji,
-      matchIntervalHours,
-      isStarted: isMatchStarted
-    };
-    if (override) meta.modeOverride = override;
-    return meta;
   }
 
   /**

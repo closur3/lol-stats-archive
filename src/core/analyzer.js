@@ -6,6 +6,66 @@ import { MATCH_EXPIRY_HOURS, TABLE_COLUMNS, ICONS } from '../utils/constants.js'
  * 统计分析核心模块 (纯UTC)
  */
 export class Analyzer {
+  static computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp = Date.now(), options = {}) {
+    const modeOverride = options.modeOverride;
+    const previousMode = options.previousMode || "fast";
+    const hasFailure = !!options.hasFailure;
+
+    let nextMatchStartTimestamp = Infinity;
+    let lastMatchStartTimestamp = 0;
+    let hasLiveMatch = false;
+
+    for (const match of (rawMatches || [])) {
+      const team1Score = parseInt(match.Team1Score) || 0;
+      const team2Score = parseInt(match.Team2Score) || 0;
+      const bestOf = parseInt(match.BestOf) || 3;
+      const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
+      const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
+      if (isLive) hasLiveMatch = true;
+
+      const tsRaw = match.DateTime_UTC || match["DateTime UTC"];
+      const timestamp = tsRaw ? new Date(tsRaw).getTime() : 0;
+      if (!timestamp || Number.isNaN(timestamp)) continue;
+
+      if (!isFinished && timestamp < nextMatchStartTimestamp) nextMatchStartTimestamp = timestamp;
+      if (isFinished && timestamp > lastMatchStartTimestamp) lastMatchStartTimestamp = timestamp;
+    }
+
+    const startTimestamp = nextMatchStartTimestamp !== Infinity ? nextMatchStartTimestamp : 0;
+    const matchIntervalHours = (lastMatchStartTimestamp > 0 && nextMatchStartTimestamp !== Infinity)
+      ? (nextMatchStartTimestamp - lastMatchStartTimestamp) / (1000 * 60 * 60)
+      : Infinity;
+    const isMatchStarted = nextMatchStartTimestamp !== Infinity && nowTimestamp >= nextMatchStartTimestamp;
+    const isNearInterval = matchIntervalHours < 8;
+    const isModeOverride = modeOverride === "fast" || modeOverride === "slow";
+
+    let nextMode;
+    if (isModeOverride) nextMode = modeOverride;
+    else if (hasFailure) nextMode = previousMode || "fast";
+    else if (hasLiveMatch) nextMode = "fast";
+    else if (isMatchStarted) nextMode = "fast";
+    else if (isNearInterval) nextMode = "fast";
+    else nextMode = "slow";
+
+    let emoji = "";
+    if (nextMode === "fast") {
+      emoji = "🎮";
+    } else {
+      const timeToNextMatch = nextMatchStartTimestamp !== Infinity ? (nextMatchStartTimestamp - nowTimestamp) / (1000 * 60 * 60) : Infinity;
+      emoji = timeToNextMatch <= 24 ? "⏳" : "💤";
+    }
+
+    const meta = {
+      mode: nextMode,
+      startTs: startTimestamp,
+      emoji,
+      matchIntervalHours,
+      isStarted: isMatchStarted
+    };
+    if (isModeOverride) meta.modeOverride = modeOverride;
+    return meta;
+  }
+
   /**
    * 运行完整分析
    */
@@ -62,10 +122,7 @@ export class Analyzer {
       const rawMatches = allRawMatches[tournament.slug] || [];
       const resolveName = buildResolveName(tournament.team_map);
       const stats = {};
-      let nextMatchStartTimestamp = Infinity;
-      let lastMatchStartTimestamp = 0;
       const nowTimestamp = Date.now();
-      let hasLiveMatch = false;
 
       const ensureTeam = (teamName) => { 
         if(!stats[teamName]) { 
@@ -91,7 +148,6 @@ export class Analyzer {
         const bestOf = parseInt(match.BestOf) || 3;
         const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
         const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
-        if (isLive) hasLiveMatch = true;
         const isFull = (bestOf === 3 && Math.min(team1Score, team2Score) === 1) || (bestOf === 5 && Math.min(team1Score, team2Score) === 2);
 
         const dateTime = dateUtils.parseDate(match.DateTime_UTC || match["DateTime UTC"]);
@@ -106,14 +162,6 @@ export class Analyzer {
           isoString = dateTime.toISOString();
           
           timestamp = (match.DateTime_UTC || match["DateTime UTC"]) ? new Date(match.DateTime_UTC || match["DateTime UTC"]).getTime() : 0;
-        }
-
-        if (!isFinished && timestamp > 0 && timestamp < nextMatchStartTimestamp) {
-          nextMatchStartTimestamp = timestamp;
-        }
-        
-        if (isFinished && timestamp > 0 && timestamp > lastMatchStartTimestamp) {
-          lastMatchStartTimestamp = timestamp;
         }
 
         if (matchDateStr >= todayStr || !isFinished) {
@@ -251,53 +299,13 @@ export class Analyzer {
       Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
       globalStats[tournament.slug] = stats;
 
-      const startTimestamp = nextMatchStartTimestamp !== Infinity ? nextMatchStartTimestamp : 0;
-
-      const matchIntervalHours = (lastMatchStartTimestamp > 0 && nextMatchStartTimestamp !== Infinity)
-        ? (nextMatchStartTimestamp - lastMatchStartTimestamp) / (1000 * 60 * 60)
-        : Infinity;
-
-      const isMatchStarted = nextMatchStartTimestamp !== Infinity && nowTimestamp >= nextMatchStartTimestamp;
-      const isNearInterval = matchIntervalHours < 8;
-
-      let nextMode;
       const modeOverride = modeOverrides[tournament.slug];
-      const isModeOverride = modeOverride === "fast" || modeOverride === "slow";
-
-      if (isModeOverride) {
-        nextMode = modeOverride;
-      } else if (failedSlugs.has(tournament.slug)) {
-        nextMode = previousTournamentMeta.mode || "fast";
-      } else if (hasLiveMatch) {
-        nextMode = "fast";
-      } else if (isMatchStarted) {
-        nextMode = "fast";
-      } else if (isNearInterval) {
-        nextMode = "fast";
-      } else {
-        nextMode = "slow";
-      }
-
-      let emoji = "";
-      if (nextMode === "fast") {
-        emoji = "🎮";
-      } else {
-        const timeToNextMatch = nextMatchStartTimestamp !== Infinity ? (nextMatchStartTimestamp - nowTimestamp) / (1000 * 60 * 60) : Infinity;
-        if (timeToNextMatch <= 24) {
-          emoji = "⏳";
-        } else {
-          emoji = "💤";
-        }
-      }
-
-      const meta = { 
-        mode: nextMode, 
-        startTs: startTimestamp, 
-        emoji, 
-        matchIntervalHours, 
-        isStarted: isMatchStarted
-      };
-      if (isModeOverride) meta.modeOverride = modeOverride;
+      const prevMeta = previousTournamentMeta[tournament.slug] || {};
+      const meta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp, {
+        modeOverride,
+        previousMode: prevMeta.mode || "fast",
+        hasFailure: failedSlugs.has(tournament.slug)
+      });
       tournamentMeta[tournament.slug] = meta;
     });
 
