@@ -179,9 +179,14 @@ export class Updater {
 
       if (errCount > 0 && okCount === 0) hasErrors = true;
 
-      const checkedAt = okCount > 0 ? NOW : lastCheckedAt;
-      const prevNormalized = { slug, pages: prevPages || {}, checkedAt: lastCheckedAt };
-      const nextRecord = { slug, pages: nextPages || {}, checkedAt };
+      const shouldTrackCheckedAt = mode === "slow";
+      const checkedAt = (shouldTrackCheckedAt && okCount > 0) ? NOW : lastCheckedAt;
+      const prevNormalized = shouldTrackCheckedAt
+        ? { slug, pages: prevPages || {}, checkedAt: lastCheckedAt }
+        : { slug, pages: prevPages || {} };
+      const nextRecord = shouldTrackCheckedAt
+        ? { slug, pages: nextPages || {}, checkedAt }
+        : { slug, pages: nextPages || {} };
       const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
       if (shouldWriteRev) {
         await this.env.LOL_KV.put(revKey, JSON.stringify(nextRecord));
