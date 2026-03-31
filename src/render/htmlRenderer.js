@@ -1007,7 +1007,7 @@ export class HTMLRenderer {
 
       return `<div class="league-card">
         <div class="league-card-header"><div class="league-card-title"><span class="league-card-name">${name}</span>${totalCount == null ? '' : `<span class="league-total-pill">${totalCount}</span>`}</div><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?`🐌${slowThresholdMinutes}m`:`⚡${cronIntervalMinutes}m`}</span><div class="status-dot ${dotCls}"></div></div></div>
-        <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span>${totalCount == null ? '' : `<span>TOTAL <span class="stat-val">${totalCount}</span></span>`}<span>LAST <span class="stat-val utc-local" data-utc="${lastUtcIso}" data-format="datetime">${lastTime}</span></span></div>
+        <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span><span>LAST <span class="stat-val utc-local" data-utc="${lastUtcIso}" data-format="datetime">${lastTime}</span></span></div>
         <div class="timeline">${bars}</div>
         <div class="league-card-logs">${rows}</div>
       </div>`;
