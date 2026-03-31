@@ -67,7 +67,7 @@ export class Updater {
     console.log(`[REV-GATE] Changed slugs: ${Array.from(changedSlugs).join(", ")}`);
     return this.runFandomUpdate(false, changedSlugs, {
       bypassThreshold: true,
-      fullFetch: true,
+      fullFetch: false,
       forceWrite: false
     });
   }
