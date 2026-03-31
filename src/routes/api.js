@@ -107,61 +107,6 @@ export class APIRouter {
   }
 
   /**
-   * 处理部署后的自动刷新（内置重试和初始化）
-   */
-  static async handleDeployRefresh(request, env) {
-    if (request.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
-    }
-    if (APIRouter.isUnauthorized(request, env)) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
-    let payload = {};
-    try {
-      payload = await request.json();
-    } catch (e) {}
-
-    const maxWaitMs = Math.min(10 * 60 * 1000, Math.max(15 * 1000, Number(payload.maxWaitMs) || 3 * 60 * 1000));
-    const pollMs = Math.min(30 * 1000, Math.max(2 * 1000, Number(payload.pollMs) || 5 * 1000));
-    const startedAt = Date.now();
-    let attempt = 0;
-    let lastResult = { ok: false, reason: "UNKNOWN", message: "Not started" };
-
-    while (Date.now() - startedAt < maxWaitMs) {
-      attempt++;
-      lastResult = await APIRouter.rebuildStaticPagesFromCache(env);
-      if (lastResult.ok) {
-        return new Response(JSON.stringify({
-          ok: true,
-          attempts: attempt,
-          elapsedMs: Date.now() - startedAt,
-          homes: lastResult.homes,
-          writes: lastResult.writes,
-          homeChanged: lastResult.homeChanged,
-          archiveChanged: lastResult.archiveChanged
-        }), {
-          status: 200,
-          headers: { "content-type": "application/json" }
-        });
-      }
-
-      await APIRouter.sleep(pollMs);
-    }
-
-    return new Response(JSON.stringify({
-      ok: false,
-      attempts: attempt,
-      elapsedMs: Date.now() - startedAt,
-      reason: lastResult.reason,
-      message: lastResult.message
-    }), {
-      status: 500,
-      headers: { "content-type": "application/json" }
-    });
-  }
-
-  /**
    * 处理重建归档请求
    */
   static async handleRebuildArchive(request, env) {
@@ -379,10 +324,6 @@ export class APIRouter {
     } catch (err) {
       return { ok: false, reason: "ERROR", message: `Render Error: ${err.message}` };
     }
-  }
-
-  static async sleep(ms) {
-    await new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
