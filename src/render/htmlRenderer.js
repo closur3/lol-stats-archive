@@ -963,10 +963,10 @@ export class HTMLRenderer {
       const sections = msg.split(/\s*\|\s*/);
       const kept = [];
       for (const sec of sections) {
-        const items = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:\+\d+)?\s*\([^)]*\)/g);
+        const items = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*\([^)]*\)/g);
         if (!items) { kept.push(sec); continue; }
         const matched = items.filter(i => i.includes(league));
-        if (matched.length > 0) kept.push(sec.replace(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:\+\d+)?\s*\([^)]*\)(?:,\s*)?/g, "").trim() + " " + matched.join(", "));
+        if (matched.length > 0) kept.push(sec.replace(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*\([^)]*\)(?:,\s*)?/g, "").trim() + " " + matched.join(", "));
       }
       return kept.join(" | ").replace(/\s+/g, " ").trim();
     }
@@ -1001,7 +1001,7 @@ export class HTMLRenderer {
       const rows = entries.slice(-10).map(e => {
         const t = e.t || "";
         const utcIso = t.length >= 16 ? `20${t.slice(0,8)}T${t.slice(9)}:00Z` : "";
-        const msg = e.m.replace(/(\+\d+)/g, '<span class="hl">$1</span>');
+        const msg = e.m.replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
         return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${t}</span><span class="log-mini-msg">${msg}</span></div>`;
       }).join("");
 

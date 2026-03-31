@@ -524,12 +524,14 @@ export class Updater {
       for (const m of (oldData || [])) oldMap.set(getMatchKey(m), canonicalMatch(m));
       for (const m of (newData || [])) newMap.set(getMatchKey(m), canonicalMatch(m));
 
-      let changed = 0;
+      let added = 0;
+      let updated = 0;
       for (const [key, nextVal] of newMap.entries()) {
         const prevVal = oldMap.get(key);
-        if (prevVal == null || prevVal !== nextVal) changed++;
+        if (prevVal == null) added++;
+        else if (prevVal !== nextVal) updated++;
       }
-      return changed;
+      return { added, updated, changed: added + updated };
     };
 
     results.forEach(res => {
@@ -544,10 +546,17 @@ export class Updater {
         } else {
           const changedCount = calcChangedCount(oldData, newData);
           cache.rawMatches[slug] = newData;
-          if (changedCount > 0) {
-            syncItems.push({ slug, dName: getDisplayName(slug), count: changedCount, total: newData.length });
+          if (changedCount.changed > 0) {
+            syncItems.push({
+              slug,
+              dName: getDisplayName(slug),
+              count: changedCount.changed,
+              added: changedCount.added,
+              updated: changedCount.updated,
+              total: newData.length
+            });
           } else {
-            idleItems.push({ slug, dName: getDisplayName(slug), count: 0, total: newData.length });
+            idleItems.push({ slug, dName: getDisplayName(slug), count: 0, added: 0, updated: 0, total: newData.length });
           }
         }
         cache.updateTimestamps[slug] = NOW;
@@ -578,10 +587,19 @@ export class Updater {
       return { modeIcon, countdownMins, mode };
     };
 
+    const formatDeltaTag = (item) => {
+      const added = Number.isFinite(item.added) ? item.added : 0;
+      const updated = Number.isFinite(item.updated) ? item.updated : 0;
+      if (added > 0 && updated > 0) return `+${added}~${updated}`;
+      if (added > 0) return `+${added}`;
+      if (updated > 0) return `~${updated}`;
+      return "±0";
+    };
+
     // 格式化项目信息
     const formatItem = (item) => {
       const info = formatCountdown(item.slug);
-      return `${item.dName} +${item.count} (${info.modeIcon}${info.countdownMins}m)`;
+      return `${item.dName} ${formatDeltaTag(item)} (${info.modeIcon}${info.countdownMins}m)`;
     };
 
     const syncDetails = syncItems.map(formatItem);
@@ -670,7 +688,7 @@ export class Updater {
 
     syncItems.forEach(item => {
       const cd = getCountdown(item.slug);
-      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} +${item.count} (${cd.modeIcon}${cd.countdownMins}m)`;
+      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${formatDeltaTag(item)} (${cd.modeIcon}${cd.countdownMins}m)`;
       if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${getDisplayName(item.slug)}(${modeSwitchBySlug[item.slug]})`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
@@ -678,7 +696,7 @@ export class Updater {
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
       const cd = getCountdown(item.slug);
-      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} +${item.count} (${cd.modeIcon}${cd.countdownMins}m) | 🟰 Identical`;
+      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ±0 (${cd.modeIcon}${cd.countdownMins}m) | 🟰 Identical`;
       if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${getDisplayName(item.slug)}(${modeSwitchBySlug[item.slug]})`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
