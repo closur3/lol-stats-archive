@@ -26,15 +26,6 @@ export class Analyzer {
     const todayStr = dateUtils.getNow().date;
     const allFutureMatches = {};
 
-    const wasLiveSet = new Set();
-    Object.values(prevScheduleMap).forEach(dateMap => {
-      Object.values(dateMap).forEach(matchList => {
-        (matchList || []).forEach(m => {
-          if (m.is_live) wasLiveSet.add(`${m.t1}|${m.t2}|${m.ts}`);
-        });
-      });
-    });
-
     const buildResolveName = (teamMap = {}) => {
       const teamMapEntries = Object.entries(teamMap || {}).map(([key, value]) => ({ 
         key: key.toUpperCase(), 
@@ -125,11 +116,7 @@ export class Analyzer {
           lastMatchStartTimestamp = timestamp;
         }
 
-        const matchKey = `${team1Name}|${team2Name}|${timestamp}`;
-        const wasLive = isLive || wasLiveSet.has(matchKey);
-        const isCrossDayKeep = dateUtils.isCrossDayKeep(matchDateStr, todayStr, isFinished, isLive, wasLive);
-
-        if (matchDateStr >= todayStr || isCrossDayKeep) {
+        if (matchDateStr >= todayStr || !isFinished) {
           const bucketDate = matchDateStr;
           if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
           const tabName = match.Tab || "";
@@ -142,7 +129,7 @@ export class Analyzer {
             bo: bestOf,
             is_finished: isFinished, 
             is_live: isLive,
-            was_live: wasLive,
+            was_live: isLive,
             league: tournament.league, 
             slug: tournament.slug,
             tournIndex: tournamentIndex, 
@@ -317,12 +304,14 @@ export class Analyzer {
 
     let scheduleMap = {};
     const sortedFutureDates = Object.keys(allFutureMatches).sort();
-    sortedFutureDates.slice(0, maxScheduleDays).forEach(date => {
+    sortedFutureDates.forEach(date => {
       scheduleMap[date] = allFutureMatches[date].sort((matchA, matchB) => {
         if (matchA.tournIndex !== matchB.tournIndex) return matchA.tournIndex - matchB.tournIndex;
         return matchA.time.localeCompare(matchB.time);
       });
     });
+
+    scheduleMap = dateUtils.pruneScheduleMapByDayStatus(scheduleMap, maxScheduleDays, todayStr);
 
     return { globalStats, timeGrid, scheduleMap, tournMeta: tournamentMeta };
   }

@@ -403,10 +403,11 @@ export class APIRouter {
         });
       });
 
-      const limitedScheduleMap = {};
-      Object.keys(scheduleMap).sort().slice(0, maxScheduleDays).forEach(date => {
-        limitedScheduleMap[date] = scheduleMap[date];
-      });
+      const limitedScheduleMap = dateUtils.pruneScheduleMapByDayStatus(
+        scheduleMap,
+        maxScheduleDays,
+        dateUtils.getNow().date
+      );
 
       if (Object.keys(globalStats).length === 0) {
         return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };

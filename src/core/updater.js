@@ -51,6 +51,8 @@ export class Updater {
       return this.logger;
     }
 
+    await this.refreshScheduleBoardOnDayRollover();
+
     const NOW = Date.now();
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
     const { changedSlugs, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
@@ -67,6 +69,20 @@ export class Updater {
       fullFetch: true,
       forceWrite: false
     });
+  }
+
+  /**
+   * 每天UTC切日后刷新一次赛程板，确保过期天按新规则清理
+   */
+  async refreshScheduleBoardOnDayRollover() {
+    const key = "SCHEDULE_DAY_MARK";
+    const today = dateUtils.getNow().date;
+    const lastDay = await this.env.LOL_KV.get(key);
+    if (lastDay === today) return;
+
+    await this.refreshHomeStaticFromCache();
+    await this.env.LOL_KV.put(key, today);
+    console.log(`[SCHEDULE] rollover refresh ${lastDay || "none"} -> ${today}`);
   }
 
   /**
@@ -826,10 +842,11 @@ export class Updater {
       });
     });
 
-    const limitedScheduleMap = {};
-    Object.keys(scheduleMap).sort().slice(0, maxScheduleDays).forEach(date => {
-      limitedScheduleMap[date] = scheduleMap[date];
-    });
+    const limitedScheduleMap = dateUtils.pruneScheduleMapByDayStatus(
+      scheduleMap,
+      maxScheduleDays,
+      dateUtils.getNow().date
+    );
 
     const homeFragment = HTMLRenderer.renderContentOnly(
       globalStats, timeGrid, limitedScheduleMap, runtimeConfig, false, tournMeta

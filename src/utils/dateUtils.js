@@ -95,18 +95,30 @@ export const dateUtils = {
   },
 
   /**
-   * 检查是否为跨天比赛
+   * 赛程按“天”清理：
+   * - 当天及未来天保留
+   * - 过期天仅在仍有未结束比赛时保留
+   * - 最后按日期升序截断到 maxDays
    */
-  isCrossDayKeep: (matchDateStr, todayStr, isFinished, isLive, wasLive) => {
-    if (matchDateStr >= todayStr) return false;
-    if (!isFinished && isLive) return true;
-    if (wasLive && isFinished) {
-      const nextDay = new Date(matchDateStr + "T00:00:00Z");
-      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-      const nextDayStr = nextDay.toISOString().slice(0, 10);
-      return todayStr <= nextDayStr;
-    }
-    return false;
+  pruneScheduleMapByDayStatus: (scheduleMap, maxDays = 8, todayStr = null) => {
+    const today = todayStr || dateUtils.getNow().date;
+    const kept = {};
+
+    Object.keys(scheduleMap || {}).sort().forEach(date => {
+      const matches = Array.isArray(scheduleMap[date]) ? scheduleMap[date] : [];
+      if (date >= today) {
+        kept[date] = matches;
+        return;
+      }
+      const hasUnfinished = matches.some(m => !m || m.is_finished !== true);
+      if (hasUnfinished) kept[date] = matches;
+    });
+
+    const limited = {};
+    Object.keys(kept).sort().slice(0, Math.max(1, Number(maxDays) || 8)).forEach(date => {
+      limited[date] = kept[date];
+    });
+    return limited;
   },
 
   /**
