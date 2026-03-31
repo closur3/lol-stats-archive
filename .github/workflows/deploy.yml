@@ -76,6 +76,7 @@ jobs:
           echo ""
           echo "=== Step 2: Deploy Refresh ==="
           PAYLOAD='{"maxWaitMs":300000,"pollMs":5000}'
+          REFRESH_OK=0
           for attempt in 1 2; do
             echo "--- deploy-refresh attempt $attempt/2 ---"
             HTTP_RAW=$(call_post_json "deploy-refresh" "$PAYLOAD")
@@ -83,13 +84,38 @@ jobs:
             BODY=$(echo "$HTTP_RAW" | sed '$d')
             echo "HTTP $HTTP_CODE | $BODY"
             if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Deploy refresh succeeded"
-              exit 0
+              REFRESH_OK=1
+              break
             fi
             if [ $attempt -lt 2 ]; then
               echo "⚠️ deploy-refresh failed once, retrying in 10s..."
               sleep 10
             fi
           done
-          echo "❌ Deploy refresh failed"
-          exit 1
+          if [ $REFRESH_OK -ne 1 ]; then
+            echo "❌ Deploy refresh failed"
+            exit 1
+          fi
+
+          # Step 3: Verify homepage content is updated to deployed SHA
+          echo ""
+          echo "=== Step 3: Verify homepage content (@$DEPLOY_SHORT_SHA) ==="
+          VERIFY_START=$(date +%s)
+          while true; do
+            ELAPSED=$(( $(date +%s) - VERIFY_START ))
+            if [ $ELAPSED -ge 180 ]; then
+              echo "❌ Homepage verification timed out after 180s"
+              exit 1
+            fi
+
+            HOME_HTML=$(curl -sf --max-time 10 "$WORKER_URL/?cb=$(date +%s)" \
+              -H "Cache-Control: no-cache") || true
+
+            if echo "$HOME_HTML" | grep -q "@$DEPLOY_SHORT_SHA"; then
+              echo "✅ Homepage updated after ${ELAPSED}s (@$DEPLOY_SHORT_SHA)"
+              exit 0
+            fi
+
+            echo "  waiting... (${ELAPSED}s, homepage sha not updated)"
+            sleep 5
+          done
