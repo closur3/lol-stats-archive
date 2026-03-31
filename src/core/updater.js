@@ -873,12 +873,25 @@ export class Updater {
    * 基于 HOME_ 缓存重建首页静态HTML（轻量，不重新抓取/分析全联赛）
    */
   async refreshHomeStaticFromCache() {
+    const result = await this.rebuildStaticPagesFromCache({ includeArchive: false, requireData: false });
+    return result;
+  }
+
+  /**
+   * 从 HOME_ 缓存重建静态页面
+   */
+  async rebuildStaticPagesFromCache(options = {}) {
+    const includeArchive = options.includeArchive !== false;
+    const requireData = options.requireData !== false;
     const maxScheduleDays = this.getMaxScheduleDays();
     const allHomeKeys = await this.env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
     const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
     const rawHomes = await Promise.all(dataKeys.map(k => this.env.LOL_KV.get(k, { type: "json" })));
     const homeEntries = rawHomes.filter(h => h && h.tourn);
-    if (homeEntries.length === 0) return;
+    if (homeEntries.length === 0) {
+      if (requireData) return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };
+      return { ok: true, homes: 0, writes: 0, homeChanged: false, archiveChanged: false };
+    }
 
     const sortedTourns = dateUtils.sortTournamentsByDate(homeEntries.map(h => h.tourn));
     const runtimeConfig = { TOURNAMENTS: sortedTourns };
@@ -914,15 +927,41 @@ export class Updater {
       dateUtils.getNow().date
     );
 
+    if (requireData && Object.keys(globalStats).length === 0) {
+      return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };
+    }
+
     const homeFragment = HTMLRenderer.renderContentOnly(
       globalStats, timeGrid, limitedScheduleMap, runtimeConfig, false, tournMeta
     );
     const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
     const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
+    const writePromises = [];
+    let homeChanged = false;
     if (existingHomeHTML !== fullPage) {
       console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
-      await this.env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage);
+      writePromises.push(this.env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage));
+      homeChanged = true;
     }
+
+    let archiveChanged = false;
+    if (includeArchive) {
+      const archiveHTML = await this.generateArchiveStaticHTML();
+      const existingArchiveHTML = await this.env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
+      if (existingArchiveHTML !== archiveHTML) {
+        writePromises.push(this.env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML));
+        archiveChanged = true;
+      }
+    }
+
+    await Promise.all(writePromises);
+    return {
+      ok: true,
+      homes: homeEntries.length,
+      writes: writePromises.length,
+      homeChanged,
+      archiveChanged
+    };
   }
 
   /**

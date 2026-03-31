@@ -1,5 +1,4 @@
 import { HTMLRenderer } from '../render/htmlRenderer.js';
-import { Analyzer } from '../core/analyzer.js';
 import { Updater } from '../core/updater.js';
 import { GitHubClient } from '../api/githubClient.js';
 import { FandomClient } from '../api/fandomClient.js';
@@ -11,6 +10,14 @@ import { KV_KEYS } from '../utils/constants.js';
  * API路由处理
  */
 export class APIRouter {
+  static createInlineLogger() {
+    return {
+      logs: [],
+      error(message) { this.logs.push({ t: new Date().toISOString().slice(2, 19), l: 'ERROR', m: message }); },
+      success(message) { this.logs.push({ t: new Date().toISOString().slice(2, 19), l: 'SUCCESS', m: message }); }
+    };
+  }
+
   /**
    * 处理备份请求
    */
@@ -177,7 +184,7 @@ export class APIRouter {
     }
 
     try {
-      const logger = { logs: [], error(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'ERROR', m: message}); }, success(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'SUCCESS', m: message}); } };
+      const logger = APIRouter.createInlineLogger();
       
       const authContext = await FandomClient.login(env.FANDOM_USER, env.FANDOM_PASS);
       const fandomClient = new FandomClient(authContext);
@@ -262,7 +269,7 @@ export class APIRouter {
     }
 
     try {
-      const logger = { logs: [], error(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'ERROR', m: message}); }, success(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'SUCCESS', m: message}); } };
+      const logger = APIRouter.createInlineLogger();
       
       await env.LOL_KV.delete(`ARCHIVE_${payload.slug}`);
       await env.LOL_KV.delete(`${KV_KEYS.ARCHIVE_META_PREFIX}${payload.slug}`);
@@ -305,7 +312,7 @@ export class APIRouter {
     }
 
     try {
-      const logger = { logs: [], error(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'ERROR', m: message}); }, success(message) { this.logs.push({t: new Date().toISOString().slice(2, 19), l: 'SUCCESS', m: message}); } };
+      const logger = APIRouter.createInlineLogger();
       
       let teamsRaw = null;
       try {
@@ -384,82 +391,8 @@ export class APIRouter {
    */
   static async rebuildStaticPagesFromCache(env) {
     try {
-      const maxScheduleDays = Math.max(1, Math.floor(Number(env.MAX_SCHEDULE_DAYS) || 8));
-      const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
-      const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
-      const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
-      const homeEntries = rawHomes.filter(h => h && h.tourn);
-
-      const sortedTourns = dateUtils.sortTournamentsByDate(homeEntries.map(h => h.tourn));
-      const runtimeConfig = { TOURNAMENTS: sortedTourns };
-      const globalStats = {};
-      const timeGrid = {};
-      const scheduleMap = {};
-      const tournMeta = {};
-
-      homeEntries.forEach(home => {
-        if (home && home.tourn && home.stats) {
-          const slug = home.tourn.slug;
-          if (home.stats) globalStats[slug] = home.stats;
-          if (home.timeGrid) timeGrid[slug] = home.timeGrid;
-          if (home.tournMeta && home.tournMeta[slug]) {
-            tournMeta[slug] = home.tournMeta[slug];
-          }
-        }
-        const sch = home.scheduleMap || {};
-        Object.keys(sch).forEach(date => {
-          if (!scheduleMap[date]) scheduleMap[date] = [];
-          scheduleMap[date].push(...sch[date]);
-        });
-      });
-
-      Object.keys(scheduleMap).forEach(date => {
-        scheduleMap[date].sort((matchA, matchB) => {
-          if (matchA.tournIndex !== matchB.tournIndex) return matchA.tournIndex - matchB.tournIndex;
-          return matchA.time.localeCompare(matchB.time);
-        });
-      });
-
-      const limitedScheduleMap = dateUtils.pruneScheduleMapByDayStatus(
-        scheduleMap,
-        maxScheduleDays,
-        dateUtils.getNow().date
-      );
-
-      if (Object.keys(globalStats).length === 0) {
-        return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };
-      }
-
-      const homeFragment = HTMLRenderer.renderContentOnly(
-        globalStats, timeGrid, limitedScheduleMap,
-        runtimeConfig || { TOURNAMENTS: [] },
-        false, tournMeta
-      );
-      const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
-      const existingHomeHTML = await env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
-      const writePromises = [];
-      let homeChanged = false;
-      if (existingHomeHTML !== fullPage) {
-        writePromises.push(env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage));
-        homeChanged = true;
-      }
-
-      const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-      const existingArchiveHTML = await env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
-      let archiveChanged = false;
-      if (existingArchiveHTML !== archiveHTML) {
-        writePromises.push(env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML));
-        archiveChanged = true;
-      }
-
-      await Promise.all(writePromises);
-      return {
-        ok: true,
-        homes: homeEntries.length,
-        writes: writePromises.length,
-        homeChanged,
-        archiveChanged
-      };
+      const updater = new Updater(env);
+      return await updater.rebuildStaticPagesFromCache({ includeArchive: true, requireData: true });
     } catch (err) {
       return { ok: false, reason: "ERROR", message: `Render Error: ${err.message}` };
     }
@@ -558,35 +491,7 @@ export class APIRouter {
    * 生成归档静态HTML
    */
   static async generateArchiveStaticHTML(env) {
-    try {
-      const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
-      const dataKeys = allKeys.keys.filter(k => k.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
-
-      if (!dataKeys.length) {
-        return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "archive");
-      }
-
-      const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-      let validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
-
-      validSnapshots = dateUtils.sortTournamentsByDate(validSnapshots);
-
-      const combined = validSnapshots.map(snap => {
-        const tournamentWithMap = { ...snap.tourn, team_map: snap.team_map || {} };
-        const miniConfig = { TOURNAMENTS: [tournamentWithMap] };
-        const analysis = Analyzer.runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches || [] }, {}, miniConfig);
-        const statsObj = analysis.globalStats[snap.tourn.slug] || {};
-        const timeObj = analysis.timeGrid[snap.tourn.slug] || {};
-        return HTMLRenderer.renderContentOnly(
-          { [snap.tourn.slug]: statsObj },
-          { [snap.tourn.slug]: timeObj },
-          {}, miniConfig, true
-        );
-      }).join("");
-
-      return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "archive");
-    } catch (e) {
-      return HTMLRenderer.renderPageShell("LoL Archive Error", `<div class="arch-error-msg">Error generating archive: ${e.message}</div>`, "archive");
-    }
+    const updater = new Updater(env);
+    return updater.generateArchiveStaticHTML();
   }
 }
