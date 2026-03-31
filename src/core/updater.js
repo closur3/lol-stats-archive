@@ -51,7 +51,7 @@ export class Updater {
       return this.logger;
     }
 
-    await this.refreshScheduleBoardOnDayRollover();
+    await this.refreshScheduleBoardOnDayRollover(runtimeConfig);
 
     const NOW = Date.now();
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
@@ -74,12 +74,13 @@ export class Updater {
   /**
    * 每天UTC切日后刷新一次赛程板，确保过期天按新规则清理
    */
-  async refreshScheduleBoardOnDayRollover() {
+  async refreshScheduleBoardOnDayRollover(runtimeConfig) {
     const key = "SCHEDULE_DAY_MARK";
     const today = dateUtils.getNow().date;
     const lastDay = await this.env.LOL_KV.get(key);
     if (lastDay === today) return;
 
+    await this.cleanupStaleHomeKeys(runtimeConfig);
     await this.refreshHomeStaticFromCache();
     await this.env.LOL_KV.put(key, today);
     console.log(`[SCHEDULE] rollover refresh ${lastDay || "none"} -> ${today}`);
@@ -207,7 +208,6 @@ export class Updater {
       return null;
     }
 
-    await this.cleanupStaleHomeKeys(runtimeConfig);
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS);
     runtimeConfig.TOURNAMENTS = dateUtils.sortTournamentsByDate(runtimeConfig.TOURNAMENTS);
     return { NOW, runtimeConfig, teamsRaw, cache };
@@ -270,7 +270,9 @@ export class Updater {
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournMeta);
 
     // 保存数据
-    await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, isScopedRun);
+    await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, isScopedRun, {
+      includeArchiveWrites: true
+    });
 
     return this.logger;
   }
@@ -311,7 +313,9 @@ export class Updater {
       this.getMaxScheduleDays()
     );
 
-    await this.saveData(scopedRuntimeConfig, cache, analysis, [], false, forceSlugs, {}, isScopedRun);
+    await this.saveData(scopedRuntimeConfig, cache, analysis, [], false, forceSlugs, {}, isScopedRun, {
+      includeArchiveWrites: false
+    });
     console.log("[LOCAL] done");
     return this.logger;
   }
@@ -722,7 +726,8 @@ export class Updater {
   /**
    * 保存数据
    */
-  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}, scopedOnly = false) {
+  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}, scopedOnly = false, options = {}) {
+    const includeArchiveWrites = options.includeArchiveWrites !== false;
     // 保存首页静态HTML
     if (!scopedOnly) {
       try {
@@ -782,15 +787,9 @@ export class Updater {
         team_map: teamMap
       };
 
-      const mode = tournamentMeta[slug]?.mode || "fast";
       let homeHasChanges = isForceTarget || !existingHome ||
           JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw) ||
           JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tournamentMeta);
-
-      if (!force && mode === "slow") {
-        homeHasChanges = homeHasChanges ||
-          JSON.stringify(existingHome.updateTimestamps || {}) !== JSON.stringify({ [slug]: ts });
-      }
 
       if (homeHasChanges) {
         console.log(`[KV] PUT ${homeKey}`);
@@ -798,7 +797,7 @@ export class Updater {
       }
 
       // 保存归档数据
-      if (stats && Object.keys(stats).length > 0) {
+      if (includeArchiveWrites && stats && Object.keys(stats).length > 0) {
         const snapshot = { tourn: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
         const archiveKey = `ARCHIVE_${slug}`;
         const existingArchive = await this.env.LOL_KV.get(archiveKey, { type: "json" });
