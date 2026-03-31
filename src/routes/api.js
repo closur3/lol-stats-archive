@@ -183,8 +183,8 @@ export class APIRouter {
       return new Response("Missing required fields. Please provide slug, name, overview_page, and league.", { status: 400 });
     }
 
+    const logger = APIRouter.createInlineLogger();
     try {
-      const logger = APIRouter.createInlineLogger();
       
       const authContext = await FandomClient.login(env.FANDOM_USER, env.FANDOM_PASS);
       const fandomClient = new FandomClient(authContext);

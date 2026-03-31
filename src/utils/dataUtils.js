@@ -131,10 +131,6 @@ export const dataUtils = {
     else if (teamsRaw[tournament.league] && typeof teamsRaw[tournament.league] === "object") base = teamsRaw[tournament.league];
     else if (dataUtils.isFlatTeamMap(teamsRaw)) base = teamsRaw;
     return dataUtils.filterTeamMapForMatches(base, rawMatches);
-  },
+  }
 
-  /**
-   * 规范化字段值
-   */
-  normalizeValue: (v) => (v == null ? "" : String(v))
 };

@@ -40,6 +40,15 @@ export class Updater {
     return Math.floor(days);
   }
 
+  formatDeltaTag(item) {
+    const added = Number.isFinite(item?.added) ? item.added : 0;
+    const updated = Number.isFinite(item?.updated) ? item.updated : 0;
+    if (added > 0 && updated > 0) return `+${added}~${updated}`;
+    if (added > 0) return `+${added}`;
+    if (updated > 0) return `~${updated}`;
+    return "±0";
+  }
+
   /**
    * Cron入口：先做revid轻量检测，再决定是否触发更新
    */
@@ -246,7 +255,7 @@ export class Updater {
     const fandomClient = new FandomClient(authContext);
 
     // 执行数据抓取
-    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, force, updateRounds);
+    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, updateRounds);
 
     // 处理结果
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, runtimeConfig);
@@ -460,7 +469,7 @@ export class Updater {
   /**
    * 抓取比赛数据
    */
-  async fetchMatchData(fandomClient, candidates, cache, NOW, force, updateRounds = 1) {
+  async fetchMatchData(fandomClient, candidates, cache, NOW, updateRounds = 1) {
     const rounds = Math.max(1, Number(updateRounds) || 1);
     const batch = candidates.slice(0, Math.ceil(candidates.length / rounds));
     const results = [];
@@ -550,13 +559,11 @@ export class Updater {
             syncItems.push({
               slug,
               dName: getDisplayName(slug),
-              count: changedCount.changed,
               added: changedCount.added,
-              updated: changedCount.updated,
-              total: newData.length
+              updated: changedCount.updated
             });
           } else {
-            idleItems.push({ slug, dName: getDisplayName(slug), count: 0, added: 0, updated: 0, total: newData.length });
+            idleItems.push({ slug, dName: getDisplayName(slug), added: 0, updated: 0 });
           }
         }
         cache.updateTimestamps[slug] = NOW;
@@ -587,19 +594,10 @@ export class Updater {
       return { modeIcon, countdownMins, mode };
     };
 
-    const formatDeltaTag = (item) => {
-      const added = Number.isFinite(item.added) ? item.added : 0;
-      const updated = Number.isFinite(item.updated) ? item.updated : 0;
-      if (added > 0 && updated > 0) return `+${added}~${updated}`;
-      if (added > 0) return `+${added}`;
-      if (updated > 0) return `~${updated}`;
-      return "±0";
-    };
-
     // 格式化项目信息
     const formatItem = (item) => {
       const info = formatCountdown(item.slug);
-      return `${item.dName} ${formatDeltaTag(item)} (${info.modeIcon}${info.countdownMins}m)`;
+      return `${item.dName} ${this.formatDeltaTag(item)} (${info.modeIcon}${info.countdownMins}m)`;
     };
 
     const syncDetails = syncItems.map(formatItem);
@@ -688,7 +686,7 @@ export class Updater {
 
     syncItems.forEach(item => {
       const cd = getCountdown(item.slug);
-      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${formatDeltaTag(item)} (${cd.modeIcon}${cd.countdownMins}m)`;
+      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)} (${cd.modeIcon}${cd.countdownMins}m)`;
       if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${getDisplayName(item.slug)}(${modeSwitchBySlug[item.slug]})`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
