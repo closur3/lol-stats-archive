@@ -4,6 +4,7 @@ import { ToolsRouter } from './routes/tools.js';
 import { APIRouter } from './routes/api.js';
 import { Updater } from './core/updater.js';
 import { HTMLRenderer } from './render/htmlRenderer.js';
+import { GitHubClient } from './api/githubClient.js';
 import { KV_KEYS } from './utils/constants.js';
 import { dateUtils } from './utils/dateUtils.js';
 
@@ -69,25 +70,51 @@ export default {
         return APIRouter.handleGetModeOverrides(request, env);
       
       case "/logs":
-        const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
-        const homes = [];
-        await Promise.all(allHomeKeys.keys.filter(k => k.name !== KV_KEYS.HOME_STATIC_HTML).map(async k => {
-          const home = await env.LOL_KV.get(k.name, { type: "json" });
-          if (home && home.tourn && home.tourn.slug) homes.push(home);
-        }));
-        const sortedHomes = dateUtils.sortTournamentsByDate(homes.map(h => h.tourn || {}));
-        const leagueLogs = [];
-        for (const t of sortedHomes) {
-          const home = homes.find(h => h.tourn?.slug === t.slug);
-          if (!home) continue;
-          const name = t.league || t.name || t.slug;
-          const slug = t.slug;
-          const meta = home.tournMeta?.[slug] || {};
-          const logs = await env.LOL_KV.get(`LOG_${slug}`, { type: "json" }) || [];
-          if (logs.length > 0) {
-            leagueLogs.push({ name, logs, mode: meta.mode || "fast" });
+        const detectMode = (logs) => {
+          for (const e of (logs || [])) {
+            const msg = String(e?.m || "");
+            if (msg.includes("🐌")) return "slow";
+            if (msg.includes("⚡")) return "fast";
           }
+          return "fast";
+        };
+
+        const allLogKeys = await env.LOL_KV.list({ prefix: "LOG_" });
+        const logKeys = allLogKeys.keys.map(k => k.name);
+        const logPairs = await Promise.all(logKeys.map(async key => {
+          const slug = key.slice("LOG_".length);
+          const logs = await env.LOL_KV.get(key, { type: "json" }) || [];
+          return [slug, logs];
+        }));
+        const logsBySlug = new Map(logPairs.filter(([, logs]) => Array.isArray(logs) && logs.length > 0));
+
+        let sortedTourns = [];
+        try {
+          const gh = new GitHubClient(env);
+          const tourns = await gh.fetchJson("config/tour.json");
+          sortedTourns = dateUtils.sortTournamentsByDate(Array.isArray(tourns) ? tourns : []);
+        } catch (e) {}
+
+        const leagueLogs = [];
+        const consumed = new Set();
+        for (const t of sortedTourns) {
+          const slug = t?.slug;
+          if (!slug || !logsBySlug.has(slug)) continue;
+          const logs = logsBySlug.get(slug) || [];
+          leagueLogs.push({
+            name: t.league || t.name || slug,
+            logs,
+            mode: detectMode(logs)
+          });
+          consumed.add(slug);
         }
+
+        const orphanSlugs = Array.from(logsBySlug.keys()).filter(s => !consumed.has(s)).sort();
+        for (const slug of orphanSlugs) {
+          const logs = logsBySlug.get(slug) || [];
+          leagueLogs.push({ name: slug, logs, mode: detectMode(logs) });
+        }
+
         const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha, {
           slowThresholdMinutes: Number(env.SLOW_THRESHOLD_MINUTES) || 60,
           cronIntervalMinutes: Number(env.CRON_INTERVAL_MINUTES) || 3

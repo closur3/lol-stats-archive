@@ -14,10 +14,10 @@ export class ToolsRouter {
       // 读取现有归档
       let existingArchives = [];
       try {
-        const allKeys = await env.LOL_KV.list({ prefix: "ARCHIVE_" });
-        const dataKeys = allKeys.keys.filter(k => k.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
-        const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-        existingArchives = rawSnapshots.filter(s => s && s.tourn).map(s => s.tourn);
+        const allKeys = await env.LOL_KV.list({ prefix: KV_KEYS.ARCHIVE_META_PREFIX });
+        const dataKeys = allKeys.keys.map(k => k.name);
+        const metas = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
+        existingArchives = metas.filter(Boolean);
         existingArchives = dateUtils.sortTournamentsByDate(existingArchives);
       } catch(e) {
         console.error("Error fetching archives for tools page", e);
