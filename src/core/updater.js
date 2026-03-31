@@ -761,14 +761,19 @@ export class Updater {
     }
 
     // 按slug组织赛程数据
+    const tournIndexMap = new Map((runtimeConfig.TOURNAMENTS || []).map((t, idx) => [t.slug, idx]));
     const scheduleBySlug = {};
     Object.keys(analysis.scheduleMap || {}).forEach(date => {
       const list = analysis.scheduleMap[date] || [];
       list.forEach(match => {
         const slug = match.slug;
+        const normalizedMatch = {
+          ...match,
+          tournIndex: tournIndexMap.has(slug) ? tournIndexMap.get(slug) : (match.tournIndex ?? 9999)
+        };
         if (!scheduleBySlug[slug]) scheduleBySlug[slug] = {};
         if (!scheduleBySlug[slug][date]) scheduleBySlug[slug][date] = [];
-        scheduleBySlug[slug][date].push(match);
+        scheduleBySlug[slug][date].push(normalizedMatch);
       });
     });
 
@@ -895,6 +900,7 @@ export class Updater {
 
     const sortedTourns = dateUtils.sortTournamentsByDate(homeEntries.map(h => h.tourn));
     const runtimeConfig = { TOURNAMENTS: sortedTourns };
+    const tournIndexMap = new Map((sortedTourns || []).map((t, idx) => [t.slug, idx]));
     const globalStats = {};
     const timeGrid = {};
     const scheduleMap = {};
@@ -910,7 +916,13 @@ export class Updater {
       const sch = home.scheduleMap || {};
       Object.keys(sch).forEach(date => {
         if (!scheduleMap[date]) scheduleMap[date] = [];
-        scheduleMap[date].push(...sch[date]);
+        (sch[date] || []).forEach(m => {
+          const slug = m?.slug;
+          scheduleMap[date].push({
+            ...m,
+            tournIndex: tournIndexMap.has(slug) ? tournIndexMap.get(slug) : (m?.tournIndex ?? 9999)
+          });
+        });
       });
     });
 
