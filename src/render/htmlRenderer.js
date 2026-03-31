@@ -359,7 +359,11 @@ export class HTMLRenderer {
 
               const seriesA = parseValue(rowA.cells[COL_SERIES_WR].innerText);
               const seriesB = parseValue(rowB.cells[COL_SERIES_WR].innerText);
-              if (seriesA !== seriesB) return nextDir === 'asc' ? (seriesA - seriesB) : (seriesB - seriesA);
+              if (seriesA !== seriesB) return seriesB - seriesA;
+
+              const gameA = parseValue(rowA.cells[COL_GAME_WR].innerText);
+              const gameB = parseValue(rowB.cells[COL_GAME_WR].innerText);
+              if (gameA !== gameB) return gameB - gameA;
             }
             
             if (columnIndex === COL_SERIES_WR) {
