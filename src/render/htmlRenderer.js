@@ -347,9 +347,19 @@ export class HTMLRenderer {
             if (valueA !== valueB) return nextDir === 'asc' ? (valueA > valueB ? 1 : -1) : (valueA < valueB ? 1 : -1);
             
             if (columnIndex === COL_BO3_PCT || columnIndex === COL_BO5_PCT) { 
-              const seriesA = parseValue(rowA.cells[COL_SERIES_WR].innerText); 
-              const seriesB = parseValue(rowB.cells[COL_SERIES_WR].innerText); 
-              if (seriesA !== seriesB) return seriesB - seriesA; 
+              const parseSampleSize = (text) => {
+                if (!text || text === "-" || !text.includes("/")) return 0;
+                const parts = text.split("/");
+                return parseFloat(parts[1]) || 0;
+              };
+              const sampleCol = columnIndex === COL_BO3_PCT ? COL_BO3 : COL_BO5;
+              const sampleA = parseSampleSize(rowA.cells[sampleCol].innerText);
+              const sampleB = parseSampleSize(rowB.cells[sampleCol].innerText);
+              if (sampleA !== sampleB) return nextDir === 'asc' ? (sampleA - sampleB) : (sampleB - sampleA);
+
+              const seriesA = parseValue(rowA.cells[COL_SERIES_WR].innerText);
+              const seriesB = parseValue(rowB.cells[COL_SERIES_WR].innerText);
+              if (seriesA !== seriesB) return nextDir === 'asc' ? (seriesA - seriesB) : (seriesB - seriesA);
             }
             
             if (columnIndex === COL_SERIES_WR) {
