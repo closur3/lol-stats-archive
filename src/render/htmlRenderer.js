@@ -299,6 +299,13 @@ export class HTMLRenderer {
         const nextDir = (!currentDir) ? (defaultAscCols.includes(columnIndex) ? 'asc' : 'desc') : (currentDir === 'desc' ? 'asc' : 'desc');
 
         rows.sort((rowA, rowB) => {
+            const rawA = (rowA.cells[columnIndex].innerText || "").replace(/\\s+/g, "");
+            const rawB = (rowB.cells[columnIndex].innerText || "").replace(/\\s+/g, "");
+            const isMissingA = rawA === "-";
+            const isMissingB = rawB === "-";
+            // Missing values should always stay at the bottom, regardless of sort direction.
+            if (isMissingA !== isMissingB) return isMissingA ? 1 : -1;
+
             const compareTeamName = () => {
                 const teamA = (rowA.cells[COL_TEAM].innerText || "").toLowerCase();
                 const teamB = (rowB.cells[COL_TEAM].innerText || "").toLowerCase();
