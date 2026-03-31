@@ -299,6 +299,29 @@ export class HTMLRenderer {
         const nextDir = (!currentDir) ? (defaultAscCols.includes(columnIndex) ? 'asc' : 'desc') : (currentDir === 'desc' ? 'asc' : 'desc');
 
         rows.sort((rowA, rowB) => {
+            if (columnIndex === COL_SERIES) {
+                const parseSeriesRecord = (text) => {
+                    if (text === "-" || !text.includes("-")) return { w: -1, l: 9999, wr: -1 };
+                    const parts = text.split("-");
+                    const w = parseFloat(parts[0]) || 0;
+                    const l = parseFloat(parts[1]) || 0;
+                    const total = w + l;
+                    return { w, l, wr: total > 0 ? (w / total) : -1 };
+                };
+
+                const recA = parseSeriesRecord(rowA.cells[COL_SERIES].innerText);
+                const recB = parseSeriesRecord(rowB.cells[COL_SERIES].innerText);
+
+                if (recA.w !== recB.w) return nextDir === 'asc' ? (recA.w - recB.w) : (recB.w - recA.w);
+                if (recA.l !== recB.l) return nextDir === 'asc' ? (recB.l - recA.l) : (recA.l - recB.l);
+                if (recA.wr !== recB.wr) return nextDir === 'asc' ? (recA.wr - recB.wr) : (recB.wr - recA.wr);
+
+                const gameA = parseValue(rowA.cells[COL_GAME_WR].innerText);
+                const gameB = parseValue(rowB.cells[COL_GAME_WR].innerText);
+                if (gameA !== gameB) return nextDir === 'asc' ? (gameA - gameB) : (gameB - gameA);
+                return 0;
+            }
+
             let valueA = rowA.cells[columnIndex].innerText;
             let valueB = rowB.cells[columnIndex].innerText;
             
@@ -322,23 +345,7 @@ export class HTMLRenderer {
               if (seriesA !== seriesB) return seriesB - seriesA; 
             }
             
-            if (columnIndex === COL_SERIES) {
-                // 胜负记录次级排序：按小场净胜场降序
-                const getGameNet = (cell) => {
-                    const text = cell.innerText;
-                    if (text === "-" || !text.includes("-")) return 0;
-                    const parts = text.split("-");
-                    if (parts.length === 2) {
-                        const wins = parseFloat(parts[0]) || 0;
-                        const losses = parseFloat(parts[1]) || 0;
-                        return wins - losses;
-                    }
-                    return 0;
-                };
-                const netA = getGameNet(rowA.cells[COL_GAME]);
-                const netB = getGameNet(rowB.cells[COL_GAME]);
-                if (netA !== netB) return netB - netA;
-            } else if (columnIndex === COL_SERIES_WR) {
+            if (columnIndex === COL_SERIES_WR) {
                 // 系列赛胜率次级排序：按游戏胜率降序
                 const gameA = parseValue(rowA.cells[COL_GAME_WR].innerText);
                 const gameB = parseValue(rowB.cells[COL_GAME_WR].innerText);
