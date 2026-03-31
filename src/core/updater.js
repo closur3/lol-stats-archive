@@ -121,7 +121,11 @@ export class Updater {
       const dataPages = Array.from(new Set(pages.map(p => p.startsWith("Data:") ? p : `Data:${p}`)));
       const tMetaFromKV = cache?.meta?.tournaments?.[slug];
       const lastTs = cache?.updateTimestamps?.[slug] || 0;
-      const elapsed = NOW - lastTs;
+      const revKey = `REV_${slug}`;
+      const prev = await this.env.LOL_KV.get(revKey, { type: "json" });
+      const lastCheckedAt = Number(prev?.checkedAt) || 0;
+      const gateBaseTs = Math.max(lastTs, lastCheckedAt);
+      const elapsed = NOW - gateBaseTs;
       let threshold = 0;
       let mode = "fast";
 
@@ -141,8 +145,6 @@ export class Updater {
       console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> check`);
       checkedSlugs++;
 
-      const revKey = `REV_${slug}`;
-      const prev = await this.env.LOL_KV.get(revKey, { type: "json" });
       const prevPages = prev?.pages || {};
       const nextPages = {};
       let slugChanged = false;
@@ -177,8 +179,9 @@ export class Updater {
 
       if (errCount > 0 && okCount === 0) hasErrors = true;
 
-      const prevNormalized = { slug, pages: prevPages || {} };
-      const nextRecord = { slug, pages: nextPages || {} };
+      const checkedAt = okCount > 0 ? NOW : lastCheckedAt;
+      const prevNormalized = { slug, pages: prevPages || {}, checkedAt: lastCheckedAt };
+      const nextRecord = { slug, pages: nextPages || {}, checkedAt };
       const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
       if (shouldWriteRev) {
         await this.env.LOL_KV.put(revKey, JSON.stringify(nextRecord));
