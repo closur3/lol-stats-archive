@@ -121,7 +121,10 @@ export default {
           cronIntervalMinutes: Number(env.CRON_INTERVAL_MINUTES) || 3
         });
         return new Response(html, { 
-          headers: { "content-type": "text/html;charset=utf-8" } 
+          headers: {
+            "content-type": "text/html;charset=utf-8",
+            "cache-control": "no-store, no-cache, must-revalidate"
+          }
         });
       
       case "/favicon.ico":
