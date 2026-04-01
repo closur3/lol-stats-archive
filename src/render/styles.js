@@ -264,6 +264,8 @@ export const LOG_PAGE_STYLE = `
     @media (max-width: 650px) {
         .logs-cards-container { grid-template-columns: 1fr; padding: 0 10px 30px 10px; }
         .league-card-header { padding: 10px 12px; }
-        .log-mini-row { padding: 5px 12px; }
+        .log-mini-row { padding: 6px 12px; flex-direction: column; align-items: flex-start; gap: 2px; }
+        .log-mini-time { min-width: auto; font-size: 11px; line-height: 1.2; }
+        .log-mini-msg { width: 100%; word-break: break-word; line-height: 1.35; }
     }
 `;
