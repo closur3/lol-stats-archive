@@ -46,7 +46,7 @@ export class Updater {
     if (added > 0 && updated > 0) return `+${added}~${updated}`;
     if (added > 0) return `+${added}`;
     if (updated > 0) return `~${updated}`;
-    return "±0";
+    return "~0";
   }
 
   /**
@@ -642,7 +642,7 @@ export class Updater {
 
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
-      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ±0 | 🟰 Identical`;
+      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ~0 | 🟰 Identical`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
 
