@@ -55,8 +55,12 @@ export default {
         const detectMode = (logs) => {
           for (const e of (logs || [])) {
             const msg = String(e?.m || "");
-            if (msg.includes("🐌")) return "slow";
+            const switchMatch = msg.match(/⚙️\s*(⚡->🐌|🐌->⚡)/);
+            if (switchMatch) {
+              return switchMatch[1].endsWith("🐌") ? "slow" : "fast";
+            }
             if (msg.includes("⚡")) return "fast";
+            if (msg.includes("🐌")) return "slow";
           }
           return "fast";
         };
@@ -73,9 +77,11 @@ export default {
         const homePairs = await Promise.all(logSlugs.map(async slug => {
           const home = await env.LOL_KV.get(KV_KEYS.HOME_PREFIX + slug, { type: "json" });
           const total = Array.isArray(home?.rawMatches) ? home.rawMatches.length : null;
-          return [slug, total];
+          const metaMode = home?.tournMeta?.[slug]?.mode;
+          const mode = metaMode === "slow" || metaMode === "fast" ? metaMode : null;
+          return [slug, { total, mode }];
         }));
-        const totalBySlug = new Map(homePairs);
+        const homeBySlug = new Map(homePairs);
 
         let sortedTourns = [];
         try {
@@ -93,8 +99,8 @@ export default {
           leagueLogs.push({
             name: t.league || t.name || slug,
             logs,
-            mode: detectMode(logs),
-            totalMatches: totalBySlug.get(slug) ?? null
+            mode: homeBySlug.get(slug)?.mode || detectMode(logs),
+            totalMatches: homeBySlug.get(slug)?.total ?? null
           });
           consumed.add(slug);
         }
@@ -102,7 +108,12 @@ export default {
         const orphanSlugs = Array.from(logsBySlug.keys()).filter(s => !consumed.has(s)).sort();
         for (const slug of orphanSlugs) {
           const logs = logsBySlug.get(slug) || [];
-          leagueLogs.push({ name: slug, logs, mode: detectMode(logs), totalMatches: totalBySlug.get(slug) ?? null });
+          leagueLogs.push({
+            name: slug,
+            logs,
+            mode: homeBySlug.get(slug)?.mode || detectMode(logs),
+            totalMatches: homeBySlug.get(slug)?.total ?? null
+          });
         }
 
         const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha, {

@@ -583,22 +583,8 @@ export class Updater {
     const isAnon = (!authContext || authContext.isAnonymous);
     const authPrefix = isAnon ? "👻 " : "";
     
-    // 格式化倒计时信息
-    const formatCountdown = (slug) => {
-      const metaNow = analysis.tournMeta[slug] || oldTournMeta[slug] || { mode: "fast" };
-      const mode = metaNow.mode;
-      const modeIcon = mode === "slow" ? "🐌" : "⚡";
-      const countdownMins = mode === "slow"
-        ? Math.ceil(this.getSlowThresholdMs() / 60000)
-        : this.getCronIntervalMinutes();
-      return { modeIcon, countdownMins, mode };
-    };
-
     // 格式化项目信息
-    const formatItem = (item) => {
-      const info = formatCountdown(item.slug);
-      return `${item.dName} ${this.formatDeltaTag(item)} (${info.modeIcon}${info.countdownMins}m)`;
-    };
+    const formatItem = (item) => `${item.dName} ${this.formatDeltaTag(item)}`;
 
     const syncDetails = syncItems.map(formatItem);
     const idleDetails = idleItems.map(formatItem);
@@ -610,10 +596,8 @@ export class Updater {
       const newMode = analysis.tournMeta[slug].mode;
 
       if (oldMode !== newMode) {
-        const tournament = runtimeConfig.TOURNAMENTS.find(it => it.slug === slug);
-        const displayName = tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
         const arrow = oldMode === "fast" ? "⚡->🐌" : "🐌->⚡";
-        modeSwitches.push(`${displayName}(${arrow})`);
+        modeSwitches.push(arrow);
       }
     });
 
@@ -660,16 +644,6 @@ export class Updater {
       return t ? (t.league || t.name || slug.toUpperCase()) : slug;
     };
 
-    const getCountdown = (slug) => {
-      const metaNow = analysis.tournMeta[slug] || oldTournMeta[slug] || { mode: "fast" };
-      const mode = metaNow.mode;
-      const modeIcon = mode === "slow" ? "🐌" : "⚡";
-      const countdownMins = mode === "slow"
-        ? Math.ceil(this.getSlowThresholdMs() / 60000)
-        : this.getCronIntervalMinutes();
-      return { modeIcon, countdownMins };
-    };
-
     const modeSwitchBySlug = {};
     Object.keys(analysis.tournMeta || {}).forEach(slug => {
       const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
@@ -685,17 +659,15 @@ export class Updater {
     };
 
     syncItems.forEach(item => {
-      const cd = getCountdown(item.slug);
-      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)} (${cd.modeIcon}${cd.countdownMins}m)`;
-      if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${getDisplayName(item.slug)}(${modeSwitchBySlug[item.slug]})`;
+      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}`;
+      if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${modeSwitchBySlug[item.slug]}`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
 
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
-      const cd = getCountdown(item.slug);
-      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ±0 (${cd.modeIcon}${cd.countdownMins}m) | 🟰 Identical`;
-      if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${getDisplayName(item.slug)}(${modeSwitchBySlug[item.slug]})`;
+      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ±0 | 🟰 Identical`;
+      if (modeSwitchBySlug[item.slug]) msg += ` | ⚙️ ${modeSwitchBySlug[item.slug]}`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
 
