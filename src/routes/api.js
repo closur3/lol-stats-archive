@@ -163,7 +163,7 @@ export class APIRouter {
         };
 
         await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
-        logger.success(`🟢 [SYNC] | 🔄 ${payload.name} *${matches.length} | ⚙️ Rebuild Archive`);
+          logger.success(`🟢 [SYNC] | 🔄 ${payload.name} *${matches.length} | 🛠 Rebuild Archive`);
 
         const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
         const existingArchiveHTML = await env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);

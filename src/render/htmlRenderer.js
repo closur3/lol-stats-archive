@@ -998,6 +998,7 @@ export class HTMLRenderer {
       const sections = msg.split(/\s*\|\s*/);
       const kept = [];
       for (const sec of sections) {
+        if (sec.includes("⚙️")) continue;
         const items = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*\([^)]*\)/g);
         if (!items) { kept.push(sec); continue; }
         const matched = items.filter(i => i.includes(league));

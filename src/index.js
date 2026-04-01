@@ -55,10 +55,6 @@ export default {
         const detectMode = (logs) => {
           for (const e of (logs || [])) {
             const msg = String(e?.m || "");
-            const switchMatch = msg.match(/⚙️\s*(⚡->🐌|🐌->⚡)/);
-            if (switchMatch) {
-              return switchMatch[1].endsWith("🐌") ? "slow" : "fast";
-            }
             if (msg.includes("⚡")) return "fast";
             if (msg.includes("🐌")) return "slow";
           }
