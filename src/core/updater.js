@@ -605,7 +605,7 @@ export class Updater {
       
       let parts = [];
       if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
-      parts.push(`🟰 Identical`);
+      parts.push(`🟰 Ident`);
       if (modeSwitches.length > 0) parts.push(modeSwitches.join(", "));
       
       content = parts.join(" | ");
@@ -663,7 +663,7 @@ export class Updater {
 
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
-      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ±0 | 🟰 Identical`;
+      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ±0 | 🟰 Ident`;
       if (modeSwitchBySlug[item.slug]) msg += ` | ${modeSwitchBySlug[item.slug]}`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
