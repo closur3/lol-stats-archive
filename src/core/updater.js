@@ -588,6 +588,15 @@ export class Updater {
 
     const syncDetails = syncItems.map(formatItem);
     const idleDetails = idleItems.map(formatItem);
+
+    const modeSwitches = [];
+    Object.keys(analysis.tournMeta).forEach(slug => {
+      const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
+      const newMode = analysis.tournMeta[slug].mode;
+      if (oldMode !== newMode) {
+        modeSwitches.push(oldMode === "fast" ? "⚡->🐌" : "🐌->⚡");
+      }
+    });
     
     let trafficLight, action, content;
     
@@ -597,6 +606,7 @@ export class Updater {
       let parts = [];
       if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
       parts.push(`🟰 Identical`);
+      if (modeSwitches.length > 0) parts.push(modeSwitches.join(", "));
       
       content = parts.join(" | ");
     } else {
@@ -606,6 +616,7 @@ export class Updater {
 
       let parts = [];
       if (syncDetails.length > 0) parts.push(`🔄 ${syncDetails.join(", ")}`);
+      if (modeSwitches.length > 0) parts.push(modeSwitches.join(", "));
       if (breakers.length > 0) parts.push(`🚧 ${breakers.join(", ")}`);
       if (apiErrors.length > 0) parts.push(`❌ ${apiErrors.join(", ")}`);
 
@@ -630,6 +641,15 @@ export class Updater {
       return t ? (t.league || t.name || slug.toUpperCase()) : slug;
     };
 
+    const modeSwitchBySlug = {};
+    Object.keys(analysis.tournMeta || {}).forEach(slug => {
+      const oldMode = (oldTournMeta[slug] && oldTournMeta[slug].mode) || "fast";
+      const newMode = analysis.tournMeta[slug].mode;
+      if (oldMode !== newMode) {
+        modeSwitchBySlug[slug] = oldMode === "fast" ? "⚡->🐌" : "🐌->⚡";
+      }
+    });
+
     const pushEntry = (slug, level, message) => {
       if (!slug) return;
       bySlug[slug] = { t: nowShort, l: level, m: message };
@@ -637,12 +657,14 @@ export class Updater {
 
     syncItems.forEach(item => {
       let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}`;
+      if (modeSwitchBySlug[item.slug]) msg += ` | ${modeSwitchBySlug[item.slug]}`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
 
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
       let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ±0 | 🟰 Identical`;
+      if (modeSwitchBySlug[item.slug]) msg += ` | ${modeSwitchBySlug[item.slug]}`;
       pushEntry(item.slug, "SUCCESS", msg);
     });
 
