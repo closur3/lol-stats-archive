@@ -267,6 +267,6 @@ export const LOG_PAGE_STYLE = `
         .league-card-header { padding: 10px 16px; }
         .log-mini-row { flex-direction: column; align-items: flex-start; gap: 2px; }
         .log-mini-time { min-width: auto; font-size: 11px; line-height: 1.2; }
-        .log-mini-msg { width: 100%; word-break: break-word; line-height: 1.35; text-align: center; }
+        .log-mini-msg { width: 100%; word-break: break-word; line-height: 1.35; text-align: left; }
     }
 `;
