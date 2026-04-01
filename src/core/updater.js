@@ -905,7 +905,9 @@ export class Updater {
       const rawSnapshots = await Promise.all(dataKeys.map(k => this.env.LOL_KV.get(k.name, { type: "json" })));
       let validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
 
-      validSnapshots = dateUtils.sortTournamentsByDate(validSnapshots);
+      validSnapshots = dateUtils
+        .sortTournamentsByDate(validSnapshots.map(s => ({ ...s.tourn, __snapshot: s })))
+        .map(t => t.__snapshot);
 
       const combined = validSnapshots.map(snap => {
         const tournamentWithMap = { ...snap.tourn, team_map: snap.team_map || {} };
