@@ -232,7 +232,7 @@ export const LOG_PAGE_STYLE = `
     .main-header { margin-bottom: 20px; }
     .logs-cards-container { max-width: 1100px; width: 100%; padding: 0 15px 40px 15px; box-sizing: border-box; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .league-card { --card-x-pad: 16px; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); overflow: hidden; height: 300px; display: flex; flex-direction: column; }
-    .league-card-header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; }
+    .league-card-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; }
     .league-card-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .league-card-name { font-weight: 600; font-size: 16px; color: #0f172a; }
     .league-total-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 22px; padding: 0 8px; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 12px; font-weight: 700; line-height: 1; }
@@ -264,7 +264,7 @@ export const LOG_PAGE_STYLE = `
     @media (max-width: 650px) {
         .logs-cards-container { grid-template-columns: 1fr; padding: 0 10px 30px 10px; }
         .league-card { --card-x-pad: 16px; }
-        .league-card-header { padding: 16px; }
+        .league-card-header { padding: 10px 16px; }
         .log-mini-row { flex-direction: column; align-items: flex-start; gap: 2px; }
         .log-mini-time { min-width: auto; font-size: 11px; line-height: 1.2; }
         .log-mini-msg { width: 100%; word-break: break-word; line-height: 1.35; }
