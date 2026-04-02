@@ -36,7 +36,7 @@ export const PYTHON_STYLE = `
     .table-title { font-weight: 600; display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: 12px 12px 0 0; border: 1px solid #e2e8f0; border-bottom: none; box-sizing: border-box; min-height: 72px; padding: 12px 16px; }
     .table-title + .wrapper { border-top: none; border-radius: 0 0 12px 12px; }
     details.home-sec { margin-bottom: 25px; }
-    details.home-sec > summary.table-title { cursor: pointer; user-select: none; list-style: none; transition: background 0.2s; background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); }
+    details.home-sec > summary.table-title { cursor: pointer; user-select: none; list-style: none; transition: background 0.2s; background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.04), inset -1px 0 2px rgba(0, 0, 0, 0.04); }
     details.home-sec > summary.table-title::-webkit-details-marker { display: none; }
     details.home-sec > .wrapper { margin-bottom: 0; }
     details.home-sec[open] > summary.table-title { border-radius: 12px 12px 0 0; border-bottom: none; }
