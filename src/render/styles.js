@@ -37,7 +37,6 @@ export const PYTHON_STYLE = `
     .table-title + .wrapper { border-top: none; border-radius: 0 0 12px 12px; }
     details.home-sec { margin-bottom: 25px; }
     details.home-sec > summary.table-title { cursor: pointer; user-select: none; list-style: none; transition: background 0.2s; background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); }
-    details.home-sec > summary.table-title:hover { background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); }
     details.home-sec > summary.table-title::-webkit-details-marker { display: none; }
     details.home-sec > .wrapper { margin-bottom: 0; }
     details.home-sec[open] > summary.table-title { border-radius: 12px 12px 0 0; border-bottom: none; }
@@ -49,7 +48,6 @@ export const PYTHON_STYLE = `
     details.arch-sec:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     details.arch-sec[open] { box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12); border-color: #2563eb; }
     summary.arch-sum { cursor: pointer; user-select: none; list-style: none; min-height: 72px; display: flex; padding: 12px 16px; background: linear-gradient(135deg, #f8fafc 0%, #fff 100%); border-bottom: none; align-items: center; transition: background 0.2s; }
-    summary.arch-sum:hover { background: linear-gradient(135deg, #f8fafc 0%, #fff 100%); }
     summary.arch-sum::-webkit-details-marker { display: none; }
     details.arch-sec[open] summary.arch-sum { background: linear-gradient(135deg, #f8fafc 0%, #fff 100%); }
     .arch-title-wrapper { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
