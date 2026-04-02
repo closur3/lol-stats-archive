@@ -36,8 +36,8 @@ export const PYTHON_STYLE = `
     .table-title { font-weight: 600; display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: 12px 12px 0 0; border: 1px solid #e2e8f0; border-bottom: none; box-sizing: border-box; min-height: 72px; padding: 12px 16px; }
     .table-title + .wrapper { border-top: none; border-radius: 0 0 12px 12px; }
     .league-title-text { color: #0f172a; font-weight: 600; line-height: 1.3; }
-    .table-title .league-jump-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #334155; font-size: 13px; font-weight: 700; text-decoration: none; flex-shrink: 0; }
-    .table-title .league-jump-btn:hover { background: #f8fafc; border-color: #94a3b8; color: #0f172a; }
+    .table-title .league-jump-btn { display: inline-flex; align-items: center; justify-content: center; color: #334155; font-size: 14px; font-weight: 700; text-decoration: none; flex-shrink: 0; line-height: 1; }
+    .table-title .league-jump-btn:hover { color: #0f172a; }
     details.home-sec { margin-bottom: 25px; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; }
     details.home-sec > summary.table-title { cursor: pointer; user-select: none; list-style: none; transition: background 0.2s; background: linear-gradient(135deg, #f8fafc 0%, #fff 100%); box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.04), inset -1px 0 2px rgba(0, 0, 0, 0.04); }
     details.home-sec > summary.table-title::-webkit-details-marker { display: none; }
