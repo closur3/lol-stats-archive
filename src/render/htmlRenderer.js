@@ -23,7 +23,6 @@ export class HTMLRenderer {
     const STYLE_SPINE_BOLD = 'style="font-weight:700"';
     const STYLE_SPINE_SEP = 'style="opacity:0.4;"';
     const STYLE_EMOJI = 'style="font-size: 16px; line-height: 1; display: block; transform: translateY(-1px);"';
-    const STYLE_ARCHIVE_INNER = 'style="margin-bottom:0; box-shadow:none; border:none; border-top:1px solid #f1f5f9; border-radius:0;"';
     const STYLE_TITLE_ROW = 'style="display:flex; align-items:center; gap: 6px;"';
     const STYLE_SCH_HEADER = 'style="background:#f8fafc;color:#334155"';
     const STYLE_SCH_COUNT = 'style="font-size:11px;opacity:0.6"';
@@ -188,8 +187,7 @@ export class HTMLRenderer {
 
         if (isArchive) {
             const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
-            const headerContent = `<div class="arch-title-wrapper"><span class="arch-indicator">❯</span> ${titleLink}</div> ${headerRight}`;
-            tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" ${STYLE_ARCHIVE_INNER}>${tableBody}${timeTableHtml}</div></details>`;
+            tablesHtml += `<details class="home-sec archive-sec"><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${titleLink}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         } else {
             const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
             const isSleepCollapsed = tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji === "💤";
