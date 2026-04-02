@@ -185,16 +185,16 @@ export class HTMLRenderer {
             : "";
         const pageUrl = `https://lol.fandom.com/wiki/${mainPage}`;
         const titleText = `<span class="league-title-text">${tournament.name}</span>`;
-        const jumpBtn = `<a class="league-jump-btn" href="${pageUrl}" target="_blank" rel="noopener noreferrer">↗ Jump</a>`;
+        const jumpBtn = `<a class="league-jump-btn" href="${pageUrl}" target="_blank" rel="noopener noreferrer" aria-label="Open link">⧉</a>`;
 
         if (isArchive) {
-            const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}${jumpBtn}</div>`;
-            tablesHtml += `<details class="home-sec archive-sec"><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${titleText}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
+            const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
+            tablesHtml += `<details class="home-sec archive-sec"><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         } else {
-            const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}${jumpBtn}</div>`;
+            const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
             const isSleepCollapsed = tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji === "💤";
             const openAttr = isSleepCollapsed ? "" : " open";
-            tablesHtml += `<details class="home-sec"${openAttr}><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${emojiStr}${titleText}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
+            tablesHtml += `<details class="home-sec"${openAttr}><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${emojiStr}${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         }
     });
 
