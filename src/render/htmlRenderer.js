@@ -192,7 +192,9 @@ export class HTMLRenderer {
             tablesHtml += `<details class="arch-sec"><summary class="arch-sum">${headerContent}</summary><div class="wrapper" ${STYLE_ARCHIVE_INNER}>${tableBody}${timeTableHtml}</div></details>`;
         } else {
             const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
-            tablesHtml += `<div class="table-title"><div ${STYLE_TITLE_ROW}>${emojiStr}${titleLink}</div> ${headerRight}</div><div class="wrapper">${tableBody}${timeTableHtml}</div>`;
+            const isSleepCollapsed = tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji === "💤";
+            const openAttr = isSleepCollapsed ? "" : " open";
+            tablesHtml += `<details class="home-sec"${openAttr}><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${emojiStr}${titleLink}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         }
     });
 

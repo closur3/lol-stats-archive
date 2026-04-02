@@ -33,8 +33,17 @@ export const PYTHON_STYLE = `
     .team-col { position: sticky; left: 0; background: white !important; z-index: 10; text-align: left; font-weight: 600; padding-left: 15px; width: 80px; transition: 0.2s; box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.04), inset -1px -1px 2px rgba(0, 0, 0, 0.04) !important; border: none !important; outline: none !important; }
     .team-clickable { cursor: pointer; }
     .team-clickable:hover { color: #2563eb; background-color: #eff6ff !important; }
-    .table-title { padding: 15px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: 12px 12px 0 0; border: 1px solid #e2e8f0; border-bottom: none; box-sizing: border-box; }
+    .table-title { font-weight: 600; display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: 12px 12px 0 0; border: 1px solid #e2e8f0; border-bottom: none; box-sizing: border-box; min-height: 72px; padding: 12px 16px; }
     .table-title + .wrapper { border-top: none; border-radius: 0 0 12px 12px; }
+    details.home-sec { margin-bottom: 25px; }
+    details.home-sec > summary.table-title { cursor: pointer; user-select: none; list-style: none; transition: background 0.2s; }
+    details.home-sec > summary.table-title:hover { background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); }
+    details.home-sec > summary.table-title::-webkit-details-marker { display: none; }
+    details.home-sec > .wrapper { margin-bottom: 0; }
+    details.home-sec[open] > summary.table-title { border-radius: 12px 12px 0 0; border-bottom: none; }
+    details.home-sec:not([open]) > summary.table-title { border-radius: 12px; border-bottom: 1px solid #e2e8f0; }
+    .home-indicator { font-size: 18px; color: #2563eb; font-weight: 600; transition: transform 0.3s ease; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; margin-right: 8px; }
+    details.home-sec[open] .home-indicator { transform: rotate(90deg); }
     .table-title a { color: #2563eb; text-decoration: none; }
     details.arch-sec { background: #fff; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.3s ease; display: block; }
     details.arch-sec:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -101,6 +110,7 @@ export const PYTHON_STYLE = `
         .arch-title-wrapper a { white-space: normal; line-height: 1.3; }
         .title-right-area { width: 100%; justify-content: flex-end !important; padding: 10px 15px 12px 15px; border-top: 1px dashed #e2e8f0; margin-top: 8px; display: flex; }
         .league-summary { font-size: 11px; padding: 3px 8px; }
+        details.home-sec > summary.table-title { min-height: 72px; }
     }
     @media (max-width: 650px) { .sch-container { grid-template-columns: 1fr; } }
 
