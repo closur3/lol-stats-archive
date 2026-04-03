@@ -944,7 +944,7 @@ export class HTMLRenderer {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('.qr-chk-archived:checked');
                 if (checked.length === 0) { showToast("No archives selected", "error"); return; }
-                var selected = Array.from(checked).map(function(checkboxElement) { return { slug: (checkboxElement.value || '').trim(), name: (checkboxElement.dataset.name || '').trim(), overview_page: (checkboxElement.dataset.overview || '').trim(), league: (checkboxElement.dataset.league || '').trim(), start_date: (checkboxElement.dataset.start || '').trim(), end_date: (checkboxElement.dataset.end || '').trim() }; });
+                var selected = Array.from(checked).map(function(checkboxElement) { var rawOverview = (checkboxElement.dataset.overview || '').trim(); var parsedOverview; try { parsedOverview = JSON.parse(rawOverview); } catch (e) { parsedOverview = rawOverview; } return { slug: (checkboxElement.value || '').trim(), name: (checkboxElement.dataset.name || '').trim(), overview_page: parsedOverview, league: (checkboxElement.dataset.league || '').trim(), start_date: (checkboxElement.dataset.start || '').trim(), end_date: (checkboxElement.dataset.end || '').trim() }; });
                 var hasMissingField = selected.some(function(item) {
                     return !item.slug || !item.name || !item.overview_page || !item.league || !item.start_date || !item.end_date;
                 });
