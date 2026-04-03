@@ -37,7 +37,7 @@ export const PYTHON_STYLE = `
     .table-title + .wrapper { border-top: none; border-radius: 0 0 12px 12px; }
     .league-title-text { color: #0f172a; font-weight: 600; line-height: 1.3; }
     .table-title .league-jump-btn { display: inline-flex; align-items: center; justify-content: center; color: #0f172a; text-decoration: none; flex-shrink: 0; line-height: 1; }
-    .table-title .league-jump-btn svg { width: 13px; height: 13px; stroke-width: 2.8; }
+    .table-title .league-jump-btn svg { width: 13px; height: 13px; stroke-width: 2.6; }
     .table-title .league-jump-btn:hover { color: #2563eb; }
     details.home-sec { margin-bottom: 25px; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; }
     details.home-sec > summary.table-title { cursor: pointer; user-select: none; list-style: none; transition: background 0.2s; background: linear-gradient(135deg, #f8fafc 0%, #fff 100%); box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.04), inset -1px 0 2px rgba(0, 0, 0, 0.04); }
