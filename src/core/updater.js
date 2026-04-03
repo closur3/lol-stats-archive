@@ -197,7 +197,8 @@ export class Updater {
         ? { slug, pages: nextPages || {}, checkedAt }
         : { slug, pages: nextPages || {} };
       const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
-      if (shouldWriteRev) {
+      // 仅在至少成功获取到一个页面的 revid 时才写入，防止 API 故障清空旧数据
+      if (shouldWriteRev && okCount > 0) {
         await this.env["lol-stats-kv"].put(revKey, JSON.stringify(nextRecord));
       }
 
