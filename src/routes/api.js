@@ -126,8 +126,17 @@ export class APIRouter {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
-    if (!payload.slug || !payload.name || !payload.overview_page || !payload.league) {
-      return new Response("Missing required fields. Please provide slug, name, overview_page, and league.", { status: 400 });
+    const slug = typeof payload.slug === "string" ? payload.slug.trim() : "";
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    const league = typeof payload.league === "string" ? payload.league.trim() : "";
+    const startDate = typeof payload.start_date === "string" ? payload.start_date.trim() : "";
+    const endDate = typeof payload.end_date === "string" ? payload.end_date.trim() : "";
+    const hasOverviewPage = Array.isArray(payload.overview_page)
+      ? payload.overview_page.some(page => typeof page === "string" && page.trim().length > 0)
+      : (typeof payload.overview_page === "string" && payload.overview_page.trim().length > 0);
+
+    if (!slug || !name || !league || !startDate || !endDate || !hasOverviewPage) {
+      return new Response("Missing required fields. Please provide slug, name, overview_page, league, start_date, and end_date.", { status: 400 });
     }
 
     const logger = APIRouter.createInlineLogger();
@@ -143,29 +152,31 @@ export class APIRouter {
       } catch (error) {}
 
       // 支持 overview_page 为数组或字符串
-      const overviewPages = Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page];
-      const matches = await fandomClient.fetchAllMatches(payload.slug, overviewPages, null);
+      const overviewPages = (Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page])
+        .map(page => typeof page === "string" ? page.trim() : "")
+        .filter(Boolean);
+      const matches = await fandomClient.fetchAllMatches(slug, overviewPages, null);
 
       if (matches && matches.length > 0) {
         const tournament = {
-          slug: payload.slug,
-          name: payload.name,
+          slug: slug,
+          name: name,
           overview_page: overviewPages,
-          league: payload.league,
-          start_date: payload.start_date || null,
-          end_date: payload.end_date || null
+          league: league,
+          start_date: startDate,
+          end_date: endDate
         };
         const teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, matches);
 
         const snapshot = {
           tournament,
           rawMatches: matches,
-          updateTimestamps: { [payload.slug]: Date.now() },
+          updateTimestamps: { [slug]: Date.now() },
           teamMap: teamMap
         };
 
-        await env["lol-stats-kv"].put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
-          logger.success(`🟢 [SYNC] | 🔄 ${payload.name} *${matches.length} | 🛠 Rebuild Archive`);
+        await env["lol-stats-kv"].put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
+          logger.success(`🟢 [SYNC] | 🔄 ${name} *${matches.length} | 🛠 Rebuild Archive`);
 
         const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
         const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
@@ -173,13 +184,13 @@ export class APIRouter {
           await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
         }
       } else {
-        logger.error(`🔴 [ERR!] | 🚧 ${payload.name}(Drop) | ❌ No matches found for rebuild`);
+        logger.error(`🔴 [ERR!] | 🚧 ${name}(Drop) | ❌ No matches found for rebuild`);
         throw new Error("No matches found from Fandom API");
       }
 
       return new Response("OK", { status: 200 });
     } catch (err) {
-      logger.error(`🔴 [ERR!] | ❌ ${payload.name}(Fail) | ${err.message}`);
+      logger.error(`🔴 [ERR!] | ❌ ${name}(Fail) | ${err.message}`);
       
       return new Response(`Error: ${err.message}`, { status: 500 });
     }
@@ -245,8 +256,17 @@ export class APIRouter {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
-    if (!payload.slug || !payload.name || !payload.overview_page || !payload.league) {
-      return new Response("Missing required fields. Please provide slug, name, overview_page, and league.", { status: 400 });
+    const slug = typeof payload.slug === "string" ? payload.slug.trim() : "";
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    const league = typeof payload.league === "string" ? payload.league.trim() : "";
+    const startDate = typeof payload.start_date === "string" ? payload.start_date.trim() : "";
+    const endDate = typeof payload.end_date === "string" ? payload.end_date.trim() : "";
+    const hasOverviewPage = Array.isArray(payload.overview_page)
+      ? payload.overview_page.some(page => typeof page === "string" && page.trim().length > 0)
+      : (typeof payload.overview_page === "string" && payload.overview_page.trim().length > 0);
+
+    if (!slug || !name || !league || !startDate || !endDate || !hasOverviewPage) {
+      return new Response("Missing required fields. Please provide slug, name, overview_page, league, start_date, and end_date.", { status: 400 });
     }
 
     try {
@@ -274,23 +294,26 @@ export class APIRouter {
       } else if (!Array.isArray(overviewPages)) {
         overviewPages = [overviewPages];
       }
+      overviewPages = overviewPages
+        .map(page => typeof page === "string" ? page.trim() : "")
+        .filter(Boolean);
 
       // 创建空的存档（仅元数据，无比赛数据）
       const snapshot = {
         tournament: {
-          slug: payload.slug,
-          name: payload.name,
+          slug: slug,
+          name: name,
           overview_page: overviewPages,
-          league: payload.league,
-          start_date: payload.start_date || null,
-          end_date: payload.end_date || null
+          league: league,
+          start_date: startDate,
+          end_date: endDate
         },
         rawMatches: [], // 空数据
-        updateTimestamps: { [payload.slug]: Date.now() },
-        teamMap: dataUtils.pickTeamMap(teamsRaw, { slug: payload.slug, league: payload.league }, [])
+        updateTimestamps: { [slug]: Date.now() },
+        teamMap: dataUtils.pickTeamMap(teamsRaw, { slug: slug, league: league }, [])
       };
 
-      await env["lol-stats-kv"].put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
+      await env["lol-stats-kv"].put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
 
       // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
@@ -299,7 +322,7 @@ export class APIRouter {
         await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
       }
 
-      logger.success(`📦 [MANUAL] | 📝 ${payload.name}`);
+      logger.success(`📦 [MANUAL] | 📝 ${name}`);
 
       return new Response("OK", { status: 200 });
     } catch (err) {

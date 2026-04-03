@@ -793,27 +793,27 @@ export class HTMLRenderer {
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="tool-label">Slug</label>
-                            <input type="text" id="ma-slug" placeholder="lpl-2026-split-1" class="form-input">
+                            <input type="text" id="ma-slug" placeholder="lpl-2026-split-1" class="form-input" required>
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Name</label>
-                            <input type="text" id="ma-name" placeholder="LPL 2026 Split 1" class="form-input">
+                            <input type="text" id="ma-name" placeholder="LPL 2026 Split 1" class="form-input" required>
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Overview Page</label>
-                            <input type="text" id="ma-overview" placeholder="LPL/2026 Season/Split 1" class="form-input">
+                            <input type="text" id="ma-overview" placeholder="LPL/2026 Season/Split 1" class="form-input" required>
                         </div>
                         <div class="form-group">
                             <label class="tool-label">League</label>
-                            <input type="text" id="ma-league" placeholder="LPL" class="form-input">
+                            <input type="text" id="ma-league" placeholder="LPL" class="form-input" required>
                         </div>
                         <div class="form-group">
                             <label class="tool-label">Start Date</label>
-                            <input type="text" id="ma-start" placeholder="YYYY-MM-DD" class="form-input">
+                            <input type="text" id="ma-start" placeholder="YYYY-MM-DD" class="form-input" required>
                         </div>
                         <div class="form-group">
                             <label class="tool-label">End Date</label>
-                            <input type="text" id="ma-end" placeholder="YYYY-MM-DD" class="form-input">
+                            <input type="text" id="ma-end" placeholder="YYYY-MM-DD" class="form-input" required>
                         </div>
                     </div>
                     <div class="actions-row-end">
@@ -944,7 +944,11 @@ export class HTMLRenderer {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('.qr-chk-archived:checked');
                 if (checked.length === 0) { showToast("No archives selected", "error"); return; }
-                var selected = Array.from(checked).map(function(checkboxElement) { return { slug: checkboxElement.value, name: checkboxElement.dataset.name, overview_page: checkboxElement.dataset.overview, league: checkboxElement.dataset.league, start_date: checkboxElement.dataset.start, end_date: checkboxElement.dataset.end }; });
+                var selected = Array.from(checked).map(function(checkboxElement) { return { slug: (checkboxElement.value || '').trim(), name: (checkboxElement.dataset.name || '').trim(), overview_page: (checkboxElement.dataset.overview || '').trim(), league: (checkboxElement.dataset.league || '').trim(), start_date: (checkboxElement.dataset.start || '').trim(), end_date: (checkboxElement.dataset.end || '').trim() }; });
+                var hasMissingField = selected.some(function(item) {
+                    return !item.slug || !item.name || !item.overview_page || !item.league || !item.start_date || !item.end_date;
+                });
+                if (hasMissingField) { showToast("缺少必要字段", "error"); return; }
                 var btn = event.target;
                 var restore = setButtonBusy(btn, 'Rebuilding...');
                 var success = 0, fail = 0;
@@ -985,7 +989,7 @@ export class HTMLRenderer {
                     start_date: document.getElementById('ma-start').value.trim(),
                     end_date: document.getElementById('ma-end').value.trim()
                 };
-                if (!payload.slug || !payload.name || !payload.overview_page || !payload.league) { showToast("⚠️ Slug, Name, Overview, League required", "error"); return; }
+                if (!payload.slug || !payload.name || !payload.overview_page || !payload.league || !payload.start_date || !payload.end_date) { showToast("缺少必要字段", "error"); return; }
                 sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload)).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     showResult(res.ok, res.ok ? '📦 Saved' : '❌ Failed');
