@@ -688,7 +688,9 @@ export class Updater {
       let triggerText = "";
       if (item.revidChanges && item.revidChanges.length > 0) {
         const revInfo = item.revidChanges[0];
-        triggerText = ` | <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
+        triggerText = ` | ➕ <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
+      } else if (item.isForce) {
+        triggerText = " | Force";
       }
       let messageText = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}${triggerText}`;
       pushEntry(item.slug, "SUCCESS", messageText);
@@ -702,16 +704,28 @@ export class Updater {
 
       if (item.revidChanges && item.revidChanges.length > 0) {
         const revInfo = item.revidChanges[0];
-        triggerText = ` <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
+        triggerText = ` | 🟰 <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
+      } else if (item.isForce) {
+        triggerText = " | Force";
       }
 
-      if (changeCount === 0) {
-        let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~0 | 🟰${triggerText}`;
-        pushEntry(item.slug, "SUCCESS", messageText);
-      } else {
-        let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount} | ➕${triggerText}`;
-        pushEntry(item.slug, "SUCCESS", messageText);
+      let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount}${triggerText}`;
+      pushEntry(item.slug, "SUCCESS", messageText);
+    });
+
+    idleItems.forEach(item => {
+      if (bySlug[item.slug]) return;
+      const displayName = getDisplayName(item.slug);
+      const changeCount = item.added + item.updated;
+      let triggerText = "";
+
+      if (item.revidChanges && item.revidChanges.length > 0) {
+        const revInfo = item.revidChanges[0];
+        triggerText = ` | <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
       }
+
+      let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount}${triggerText}`;
+      pushEntry(item.slug, "SUCCESS", messageText);
     });
 
     breakers.forEach(breaker => {
