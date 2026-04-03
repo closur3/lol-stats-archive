@@ -953,7 +953,7 @@ export class HTMLRenderer {
                 var restore = setButtonBusy(btn, 'Rebuilding...');
                 var success = 0, fail = 0;
                 var promises = selected.map(function(selectedArchive) {
-                    return sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(selectedArchive)).then(function(res) { if (res.ok) success++; else { fail++; if (checkAuthError(res.status)) return; } }).catch(function() { fail++; });
+                    return sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(selectedArchive)).then(function(res) { if (res.ok) success++; else { fail++; res.text().then(function(msg) { if (msg) showToast(selectedArchive.name + ': ' + msg, "error"); }); if (checkAuthError(res.status)) return; } }).catch(function() { fail++; });
                 });
                 Promise.all(promises).then(function() { restore(); showResult(fail === 0, success + '/' + (success + fail) + ' rebuilt'); });
             }
@@ -974,8 +974,8 @@ export class HTMLRenderer {
                 if (!confirm('Delete ' + name + '?')) return;
                 sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug: slug, name: name })).then(function(res) {
                     if (checkAuthError(res.status)) return;
-                    showResult(res.ok, res.ok ? '🗑️ Deleted' : '❌ Failed');
-                    if (res.ok) location.reload();
+                    if (res.ok) { showResult(true, '🗑️ Deleted'); location.reload(); }
+                    else { res.text().then(function(msg) { showResult(false, msg || '❌ Failed'); }); }
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 
@@ -992,8 +992,8 @@ export class HTMLRenderer {
                 if (!payload.slug || !payload.name || !payload.overview_page || !payload.league || !payload.start_date || !payload.end_date) { showToast("Missing required fields", "error"); return; }
                 sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload)).then(function(res) {
                     if (checkAuthError(res.status)) return;
-                    showResult(res.ok, res.ok ? '📦 Saved' : '❌ Failed');
-                    if (res.ok) setTimeout(function() { location.reload(); }, REDIRECT_DELAY_MS);
+                    if (res.ok) { showResult(true, '📦 Saved'); setTimeout(function() { location.reload(); }, REDIRECT_DELAY_MS); }
+                    else { res.text().then(function(msg) { showResult(false, msg || '❌ Failed'); }); }
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 

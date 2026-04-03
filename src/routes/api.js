@@ -11,14 +11,6 @@ import { readMetaState, writeMetaState } from '../utils/Meta.js';
  * API路由处理
  */
 export class APIRouter {
-  static createInlineLogger() {
-    return {
-      logs: [],
-      error(message) { this.logs.push({ timestamp: new Date().toISOString().slice(2, 19), level: 'ERROR', message }); },
-      success(message) { this.logs.push({ timestamp: new Date().toISOString().slice(2, 19), level: 'SUCCESS', message }); }
-    };
-  }
-
   /**
    * 处理备份请求
    */
@@ -139,9 +131,7 @@ export class APIRouter {
       return new Response("Missing required fields. Please provide slug, name, overview_page, league, start_date, and end_date.", { status: 400 });
     }
 
-    const logger = APIRouter.createInlineLogger();
     try {
-      
       const authContext = await FandomClient.login(env.FANDOM_USER, env.FANDOM_PASS);
       const fandomClient = new FandomClient(authContext);
 
@@ -176,7 +166,6 @@ export class APIRouter {
         };
 
         await env["lol-stats-kv"].put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
-          logger.success(`🟢 [SYNC] | 🔄 ${name} *${matches.length} | 🛠 Rebuild Archive`);
 
         const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
         const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
@@ -184,14 +173,11 @@ export class APIRouter {
           await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
         }
       } else {
-        logger.error(`🔴 [ERR!] | 🚧 ${name}(Drop) | ❌ No matches found for rebuild`);
         throw new Error("No matches found from Fandom API");
       }
 
       return new Response("OK", { status: 200 });
     } catch (err) {
-      logger.error(`🔴 [ERR!] | ❌ ${name}(Fail) | ${err.message}`);
-      
       return new Response(`Error: ${err.message}`, { status: 500 });
     }
   }
@@ -219,8 +205,6 @@ export class APIRouter {
     }
 
     try {
-      const logger = APIRouter.createInlineLogger();
-      
       await env["lol-stats-kv"].delete(`ARCHIVE_${payload.slug}`);
 
       // 重新生成 archive HTML
@@ -229,8 +213,6 @@ export class APIRouter {
       if (existingArchiveHTML !== archiveHTML) {
         await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
       }
-
-      logger.success(`🗑️ [DELETE] | 📦 ${payload.name}`);
 
       return new Response("OK", { status: 200 });
     } catch (err) {
@@ -270,8 +252,6 @@ export class APIRouter {
     }
 
     try {
-      const logger = APIRouter.createInlineLogger();
-      
       let teamsRaw = null;
       try {
         const githubClient = new GitHubClient(env);
@@ -321,8 +301,6 @@ export class APIRouter {
       if (existingArchiveHTML !== archiveHTML) {
         await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
       }
-
-      logger.success(`📦 [MANUAL] | 📝 ${name}`);
 
       return new Response("OK", { status: 200 });
     } catch (err) {
