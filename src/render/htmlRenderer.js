@@ -948,7 +948,7 @@ export class HTMLRenderer {
                 var hasMissingField = selected.some(function(item) {
                     return !item.slug || !item.name || !item.overview_page || !item.league || !item.start_date || !item.end_date;
                 });
-                if (hasMissingField) { showToast("缺少必要字段", "error"); return; }
+                if (hasMissingField) { showToast("Missing required fields.", "error"); return; }
                 var btn = event.target;
                 var restore = setButtonBusy(btn, 'Rebuilding...');
                 var success = 0, fail = 0;
@@ -989,7 +989,7 @@ export class HTMLRenderer {
                     start_date: document.getElementById('ma-start').value.trim(),
                     end_date: document.getElementById('ma-end').value.trim()
                 };
-                if (!payload.slug || !payload.name || !payload.overview_page || !payload.league || !payload.start_date || !payload.end_date) { showToast("缺少必要字段", "error"); return; }
+                if (!payload.slug || !payload.name || !payload.overview_page || !payload.league || !payload.start_date || !payload.end_date) { showToast("Missing required fields.", "error"); return; }
                 sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload)).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     showResult(res.ok, res.ok ? '📦 Saved' : '❌ Failed');
