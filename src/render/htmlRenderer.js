@@ -133,9 +133,9 @@ export class HTMLRenderer {
 
         let midContent = `<span ${STYLE_VS_TEXT}>vs</span>`;
         if (match.isFinished) {
-            const s1Style = match.team1Score > match.team2Score ? "color:#0f172a" : "color:#94a3b8";
-            const s2Style = match.team2Score > match.team1Score ? "color:#0f172a" : "color:#94a3b8";
-            midContent = `<span class="sch-fin-score"><span style="${s1Style}">${match.team1Score}</span><span ${STYLE_SCORE_SEP}>-</span><span style="${s2Style}">${match.team2Score}</span></span>`;
+            const team1ScoreStyle = match.team1Score > match.team2Score ? "color:#0f172a" : "color:#94a3b8";
+            const team2ScoreStyle = match.team2Score > match.team1Score ? "color:#0f172a" : "color:#94a3b8";
+            midContent = `<span class="sch-fin-score"><span style="${team1ScoreStyle}">${match.team1Score}</span><span ${STYLE_SCORE_SEP}>-</span><span style="${team2ScoreStyle}">${match.team2Score}</span></span>`;
         } else if (match.isLive) {
             midContent = `<span class="sch-live-score">${match.team1Score}<span ${STYLE_SCORE_SEP}>-</span>${match.team2Score}</span>`;
         }
@@ -420,8 +420,8 @@ export class HTMLRenderer {
         if(value.includes('-') && value.split('-').length === 2) {
           return parseFloat(value.split('-')[0]);
         }
-        const num = parseFloat(value); 
-        return isNaN(num) ? value.toLowerCase() : num;
+        const parsedNum = parseFloat(value); 
+        return isNaN(parsedNum) ? value.toLowerCase() : parsedNum;
     }
 
     function renderMatchItem(mode, dateDisplay, resultTagHtml, team1Name, team2Name, isFullLength, scoreDisplay, matchResultCode, isoTimestamp) {
@@ -618,8 +618,8 @@ export class HTMLRenderer {
     function parseUtcString(utc) {
         if (!utc) return null;
         // 时间戳
-        var num = Number(utc);
-        if (!isNaN(num) && num > 0) return new Date(num);
+        var timestamp = Number(utc);
+        if (!isNaN(timestamp) && timestamp > 0) return new Date(timestamp);
         // 完整ISO格式 "2026-03-26T11:33:29.000Z" (四位数年份)
         if (/^\\d{4}-\\d{2}-\\d{2}T/.test(utc)) {
             var parsedDate = new Date(utc.includes('Z') ? utc : utc + 'Z');
@@ -841,22 +841,22 @@ export class HTMLRenderer {
                 document.querySelectorAll('.qr-chk-archived').forEach(function(checkboxElement) { checkboxElement.checked = this.checked; }.bind(this));
             });
 
-            function setAuthOverlayVisible(v) { authOverlay.style.display = v ? "flex" : "none"; }
+            function setAuthOverlayVisible(visible) { authOverlay.style.display = visible ? "flex" : "none"; }
             function clearAuth() { sessionStorage.removeItem("admin_pwd"); adminToken = ""; authPwdInput.value = ""; setAuthOverlayVisible(true); }
-            function showToast(msg, type) {
+            function showToast(message, type) {
                 type = type || 'success';
                 var toast = document.createElement('div');
-                toast.className = 'toast ' + type; toast.innerText = msg;
+                toast.className = 'toast ' + type; toast.innerText = message;
                 toastContainer.appendChild(toast); void toast.offsetWidth; toast.classList.add('show');
                 setTimeout(function() { toast.classList.remove('show'); setTimeout(function() { toast.remove(); }, 300); }, TOAST_DURATION_MS);
             }
-            function unlockTools() { var pwd = authPwdInput.value.trim(); if (pwd) { adminToken = pwd; sessionStorage.setItem('admin_pwd', pwd); setAuthOverlayVisible(false); } }
+            function unlockTools() { var password = authPwdInput.value.trim(); if (password) { adminToken = password; sessionStorage.setItem('admin_pwd', password); setAuthOverlayVisible(false); } }
             function checkAuthError(status) { if (status === 401) { showToast(AUTH_ERROR_MSG, "error"); clearAuth(); return true; } return false; }
             function requireAuth() { if (adminToken) return true; setAuthOverlayVisible(true); return false; }
             function getAuthHeaders(extra) { return Object.assign({ 'Authorization': 'Bearer ' + adminToken }, extra || {}); }
-            function setButtonBusy(btn, busyText) {
-                var originalText = btn.innerHTML; btn.innerHTML = busyText; btn.style.pointerEvents = 'none'; btn.style.opacity = '0.7';
-                return function() { btn.innerHTML = originalText; btn.style.pointerEvents = 'auto'; btn.style.opacity = '1'; };
+            function setButtonBusy(button, busyText) {
+                var originalText = button.innerHTML; button.innerHTML = busyText; button.style.pointerEvents = 'none'; button.style.opacity = '0.7';
+                return function() { button.innerHTML = originalText; button.style.pointerEvents = 'auto'; button.style.opacity = '1'; };
             }
             function sendAuthorizedPost(url, extraHeaders, body) {
                 return fetch(url, { method: 'POST', headers: getAuthHeaders(extraHeaders), body: body });
@@ -922,8 +922,8 @@ export class HTMLRenderer {
                 var checked = document.querySelectorAll('#active-list .item-chk:checked');
                 if (checked.length === 0) { showToast("No active selected", "error"); return; }
                 var slugs = Array.from(checked).map(function(checkboxElement) { return checkboxElement.value; });
-                var btn = event.target;
-                var restore = setButtonBusy(btn, 'Running...');
+                var button = event.target;
+                var restore = setButtonBusy(button, 'Running...');
                 sendAuthorizedPost('/force', { 'Content-Type': 'application/json' }, JSON.stringify({ slugs: slugs })).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
@@ -943,29 +943,29 @@ export class HTMLRenderer {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('.qr-chk-archived:checked');
                 if (checked.length === 0) { showToast("No archives selected", "error"); return; }
-                var selected = Array.from(checked).map(function(checkboxElement) { var rawOverview = (checkboxElement.dataset.overview || '').trim(); var parsedOverview; try { parsedOverview = JSON.parse(rawOverview); } catch (e) { parsedOverview = rawOverview; } return { slug: (checkboxElement.value || '').trim(), name: (checkboxElement.dataset.name || '').trim(), overview_page: parsedOverview, league: (checkboxElement.dataset.league || '').trim(), start_date: (checkboxElement.dataset.start || '').trim(), end_date: (checkboxElement.dataset.end || '').trim() }; });
+                var selected = Array.from(checked).map(function(checkboxElement) { var rawOverview = (checkboxElement.dataset.overview || '').trim(); var parsedOverview; try { parsedOverview = JSON.parse(rawOverview); } catch (error) { parsedOverview = rawOverview; } return { slug: (checkboxElement.value || '').trim(), name: (checkboxElement.dataset.name || '').trim(), overview_page: parsedOverview, league: (checkboxElement.dataset.league || '').trim(), start_date: (checkboxElement.dataset.start || '').trim(), end_date: (checkboxElement.dataset.end || '').trim() }; });
                 var hasMissingField = selected.some(function(item) {
                     return !item.slug || !item.name || !item.overview_page || !item.league || !item.start_date || !item.end_date;
                 });
                 if (hasMissingField) { showToast("Missing required fields", "error"); return; }
-                var btn = event.target;
-                var restore = setButtonBusy(btn, 'Rebuilding...');
+                var button = event.target;
+                var restore = setButtonBusy(button, 'Rebuilding...');
                 var success = 0, fail = 0;
                 var promises = selected.map(function(selectedArchive) {
-                    return sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(selectedArchive)).then(function(res) { if (res.ok) success++; else { fail++; res.text().then(function(msg) { if (msg) showToast(selectedArchive.name + ': ' + msg, "error"); }); if (checkAuthError(res.status)) return; } }).catch(function() { fail++; });
+                    return sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(selectedArchive)).then(function(res) { if (res.ok) success++; else { fail++; res.text().then(function(errorMessage) { if (errorMessage) showToast(selectedArchive.name + ': ' + errorMessage, "error"); }); if (checkAuthError(res.status)) return; } }).catch(function() { fail++; });
                 });
                 Promise.all(promises).then(function() { restore(); showResult(fail === 0, success + '/' + (success + fail) + ' rebuilt'); });
             }
 
             function fillArchive(slug) {
-                var chk = document.querySelector('.qr-chk-archived[value="' + slug + '"]');
-                if (!chk) return;
-                document.getElementById('ma-slug').value = chk.value;
-                document.getElementById('ma-name').value = chk.dataset.name || '';
-                document.getElementById('ma-overview').value = chk.dataset.overview || '';
-                document.getElementById('ma-league').value = chk.dataset.league || '';
-                document.getElementById('ma-start').value = chk.dataset.start || '';
-                document.getElementById('ma-end').value = chk.dataset.end || '';
+                var checkbox = document.querySelector('.qr-chk-archived[value="' + slug + '"]');
+                if (!checkbox) return;
+                document.getElementById('ma-slug').value = checkbox.value;
+                document.getElementById('ma-name').value = checkbox.dataset.name || '';
+                document.getElementById('ma-overview').value = checkbox.dataset.overview || '';
+                document.getElementById('ma-league').value = checkbox.dataset.league || '';
+                document.getElementById('ma-start').value = checkbox.dataset.start || '';
+                document.getElementById('ma-end').value = checkbox.dataset.end || '';
             }
 
             function deleteArchive(slug, name) {
@@ -974,7 +974,7 @@ export class HTMLRenderer {
                 sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug: slug, name: name })).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     if (res.ok) { showResult(true, '🗑️ Deleted'); location.reload(); }
-                    else { res.text().then(function(msg) { showResult(false, msg || '❌ Failed'); }); }
+                    else { res.text().then(function(errorMessage) { showResult(false, errorMessage || '❌ Failed'); }); }
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 
@@ -992,7 +992,7 @@ export class HTMLRenderer {
                 sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload)).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     if (res.ok) { showResult(true, '📦 Saved'); setTimeout(function() { location.reload(); }, REDIRECT_DELAY_MS); }
-                    else { res.text().then(function(msg) { showResult(false, msg || '❌ Failed'); }); }
+                    else { res.text().then(function(errorMessage) { showResult(false, errorMessage || '❌ Failed'); }); }
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 
@@ -1049,8 +1049,8 @@ export class HTMLRenderer {
       const rows = entries.slice(-10).map(entry => {
         const rowTime = entry.timestamp || "";
         const utcIso = rowTime.length >= 16 ? `20${rowTime.slice(0,8)}T${rowTime.slice(9)}:00Z` : "";
-        const msg = entry.message.replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
-        return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${rowTime}</span><span class="log-mini-msg">${msg}</span></div>`;
+        const formattedMessage = entry.message.replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
+        return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${rowTime}</span><span class="log-mini-msg">${formattedMessage}</span></div>`;
       }).join("");
 
       return `<div class="league-card">
@@ -1125,10 +1125,10 @@ export class HTMLRenderer {
 
     let fullRateStr = HTMLRenderer.generateFullRateString(bo3FullMatches, bo3TotalMatches, bo5FullMatches, bo5TotalMatches);
 
-    let md = `# ${tournament.name}\n\n${fullRateStr}| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    let markdown = `# ${tournament.name}\n\n${fullRateStr}| TEAM | BO3 FULL | BO3% | BO5 FULL | BO5% | SERIES | SERIES WR | GAMES | GAME WR | STREAK | LAST DATE |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     if (sorted.length === 0) {
-      md += "| - | - | - | - | - | - | - | - | - | - | - |\n";
+      markdown += "| - | - | - | - | - | - | - | - | - | - | - |\n";
     } else {
       sorted.forEach(teamStats => {
         const bestOf3SummaryText = teamStats.bestOf3TotalMatchCount ? `${teamStats.bestOf3FullMatchCount}/${teamStats.bestOf3TotalMatchCount}` : "-";
@@ -1141,11 +1141,11 @@ export class HTMLRenderer {
         const gameWinRateText = dataUtils.pct(dataUtils.rate(teamStats.gameWinCount, teamStats.gameTotalCount));
         const streakText = teamStats.winStreakCount > 0 ? `${teamStats.winStreakCount}W` : (teamStats.lossStreakCount > 0 ? `${teamStats.lossStreakCount}L` : "-");
         const lastMatchText = teamStats.last ? dateUtils.fmtDate(teamStats.last) : "-";
-        md += `| ${teamStats.name} | ${bestOf3SummaryText} | ${bestOf3PercentText} | ${bestOf5SummaryText} | ${bestOf5PercentText} | ${seriesSummaryText} | ${seriesWinRateText} | ${gameSummaryText} | ${gameWinRateText} | ${streakText} | ${lastMatchText} |\n`;
+        markdown += `| ${teamStats.name} | ${bestOf3SummaryText} | ${bestOf3PercentText} | ${bestOf5SummaryText} | ${bestOf5PercentText} | ${seriesSummaryText} | ${seriesWinRateText} | ${gameSummaryText} | ${gameWinRateText} | ${streakText} | ${lastMatchText} |\n`;
       });
     }
 
-    md += `\n## \n📅 **Time Slot Distribution**\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    markdown += `\n## \n📅 **Time Slot Distribution**\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     const regionGrid = timeGrid[tournament.slug] || {};
     const hours = Object.keys(regionGrid).filter(hourKey => hourKey !== "Total" && !isNaN(hourKey)).map(Number).sort((leftHour, rightHour) => leftHour - rightHour);
@@ -1162,9 +1162,9 @@ export class HTMLRenderer {
           line += ` ${cell.fullLengthMatchCount}/${cell.totalMatchCount} (${rate}%) |`;
         }
       }
-      md += line + "\n";
+      markdown += line + "\n";
     });
 
-    return md;
+    return markdown;
   }
 }

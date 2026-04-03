@@ -83,11 +83,11 @@ export class FandomClient {
     let attempt = 1;
     while (attempt <= maxRetries) {
       try {
-        const resp = await fetch(`${API}?${params.toString()}`, {
+        const response = await fetch(`${API}?${params.toString()}`, {
           headers: { "User-Agent": BOT_UA, "Accept": "application/json" }
         });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
         const pagesObj = data?.query?.pages || {};
         const firstPage = Object.values(pagesObj)[0];
         if (!firstPage) throw new Error("Invalid revision payload");

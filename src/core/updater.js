@@ -392,9 +392,9 @@ export class Updater {
   async loadCachedData(tournaments) {
     const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
     
-    const homeEntries = await Promise.all((tournaments || []).map(async t => {
-      const data = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + t.slug, { type: "json" });
-      return [t.slug, data];
+    const homeEntries = await Promise.all((tournaments || []).map(async tournament => {
+      const data = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + tournament.slug, { type: "json" });
+      return [tournament.slug, data];
     }));
 
     const metaState = await readMetaState(this.env);
@@ -512,14 +512,14 @@ export class Updater {
     };
 
     const getMatchKey = (match) => {
-      const id = match?.MatchId ?? match?.["MatchId"];
-      if (id != null && String(id).trim() !== "") return `id:${String(id)}`;
+      const matchId = match?.MatchId ?? match?.["MatchId"];
+      if (matchId != null && String(matchId).trim() !== "") return `id:${String(matchId)}`;
       const overview = match?.OverviewPage ?? match?.["Overview Page"] ?? "";
       const nInPage = match?.N_MatchInPage ?? match?.["N MatchInPage"] ?? "";
-      const dt = match?.DateTime_UTC ?? match?.["DateTime UTC"] ?? "";
+      const dateTimeUtc = match?.DateTime_UTC ?? match?.["DateTime UTC"] ?? "";
       const team1Name = match?.Team1 ?? match?.["Team 1"] ?? "";
       const team2Name = match?.Team2 ?? match?.["Team 2"] ?? "";
-      return `fallback:${overview}|${nInPage}|${dt}|${team1Name}|${team2Name}`;
+      return `fallback:${overview}|${nInPage}|${dateTimeUtc}|${team1Name}|${team2Name}`;
     };
 
     const canonicalMatch = (match) => JSON.stringify({
@@ -635,7 +635,7 @@ export class Updater {
     const bySlug = {};
 
     const getDisplayName = (slug) => {
-      const tournament = (runtimeConfig.TOURNAMENTS || []).find(it => it.slug === slug);
+      const tournament = (runtimeConfig.TOURNAMENTS || []).find(item => item.slug === slug);
       return tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
     };
 
@@ -849,10 +849,10 @@ export class Updater {
       if (home.stats) globalStats[slug] = home.stats;
       if (home.timeGrid) timeGrid[slug] = home.timeGrid;
 
-      const sch = home.scheduleMap || {};
-      Object.keys(sch).forEach(date => {
+      const schedule = home.scheduleMap || {};
+      Object.keys(schedule).forEach(date => {
         if (!scheduleMap[date]) scheduleMap[date] = [];
-        (sch[date] || []).forEach(match => {
+        (schedule[date] || []).forEach(match => {
           const slug = match?.slug;
           scheduleMap[date].push({
             ...match,
