@@ -72,8 +72,8 @@ export class APIRouter {
       await updater.runFandomUpdate(true, forceSlugs);
       
       return new Response("OK", { status: 200 });
-    } catch (err) {
-      return new Response(`Worker Error: ${err.message}`, { status: 500 });
+    } catch (error) {
+      return new Response(`Worker Error: ${error.message}`, { status: 500 });
     }
   }
 
@@ -177,8 +177,8 @@ export class APIRouter {
       }
 
       return new Response("OK", { status: 200 });
-    } catch (err) {
-      return new Response(`Error: ${err.message}`, { status: 500 });
+    } catch (error) {
+      return new Response(`Error: ${error.message}`, { status: 500 });
     }
   }
 
@@ -215,8 +215,8 @@ export class APIRouter {
       }
 
       return new Response("OK", { status: 200 });
-    } catch (err) {
-      return new Response(`Delete Error: ${err.message}`, { status: 500 });
+    } catch (error) {
+      return new Response(`Delete Error: ${error.message}`, { status: 500 });
     }
   }
 
@@ -303,8 +303,8 @@ export class APIRouter {
       }
 
       return new Response("OK", { status: 200 });
-    } catch (err) {
-      return new Response(`Save Error: ${err.message}`, { status: 500 });
+    } catch (error) {
+      return new Response(`Save Error: ${error.message}`, { status: 500 });
     }
   }
 
@@ -324,8 +324,8 @@ export class APIRouter {
     try {
       const updater = new Updater(env);
       return await updater.rebuildStaticPagesFromCache({ includeArchive: true, requireData: true });
-    } catch (err) {
-      return { ok: false, reason: "ERROR", message: `Render Error: ${err.message}` };
+    } catch (error) {
+      return { ok: false, reason: "ERROR", message: `Render Error: ${error.message}` };
     }
   }
 
@@ -363,8 +363,8 @@ export class APIRouter {
       return new Response(JSON.stringify({ overrides, tournaments: sorted }), {
         headers: { "content-type": "application/json" }
       });
-    } catch (err) {
-      return new Response(`Error: ${err.message}`, { status: 500 });
+    } catch (error) {
+      return new Response(`Error: ${error.message}`, { status: 500 });
     }
   }
 
@@ -407,8 +407,8 @@ export class APIRouter {
       return new Response(JSON.stringify({ success: true, overrides: cleanOverrides }), {
         headers: { "content-type": "application/json" }
       });
-    } catch (err) {
-      return new Response(`Error: ${err.message}`, { status: 500 });
+    } catch (error) {
+      return new Response(`Error: ${error.message}`, { status: 500 });
     }
   }
 

@@ -364,7 +364,7 @@ export class Updater {
           const slug = keyName.slice(KV_KEYS.HOME_PREFIX.length);
           return !activeSlugs.has(slug);
         });
-      for (const key of staleKeys) await this.env["lol-stats-kv"].delete(key);
+      for (const staleKey of staleKeys) await this.env["lol-stats-kv"].delete(staleKey);
 
       const allLogKeys = await this.env["lol-stats-kv"].list({ prefix: "LOG_" });
       const staleLogKeys = allLogKeys.keys
@@ -373,7 +373,7 @@ export class Updater {
           const slug = keyName.slice("LOG_".length);
           return !activeSlugs.has(slug);
         });
-      for (const key of staleLogKeys) await this.env["lol-stats-kv"].delete(key);
+      for (const staleLogKey of staleLogKeys) await this.env["lol-stats-kv"].delete(staleLogKey);
 
       const allRevKeys = await this.env["lol-stats-kv"].list({ prefix: "REV_" });
       const staleRevKeys = allRevKeys.keys
@@ -382,7 +382,7 @@ export class Updater {
           const slug = keyName.slice("REV_".length);
           return !activeSlugs.has(slug);
         });
-      for (const key of staleRevKeys) await this.env["lol-stats-kv"].delete(key);
+      for (const staleRevKey of staleRevKeys) await this.env["lol-stats-kv"].delete(staleRevKey);
     } catch (error) {}
   }
 
@@ -393,8 +393,8 @@ export class Updater {
     const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
     
     const homeEntries = await Promise.all((tournaments || []).map(async tournament => {
-      const data = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + tournament.slug, { type: "json" });
-      return [tournament.slug, data];
+      const homeEntry = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + tournament.slug, { type: "json" });
+      return [tournament.slug, homeEntry];
     }));
 
     const metaState = await readMetaState(this.env);
@@ -485,10 +485,10 @@ export class Updater {
 
     for (const candidate of batch) {
       try {
-        const data = await fandomClient.fetchAllMatches(candidate.slug, candidate.overview_page, null);
-        results.push({ status: 'fulfilled', slug: candidate.slug, data: data });
-      } catch (err) {
-        results.push({ status: 'rejected', slug: candidate.slug, err: err });
+        const fetchedMatches = await fandomClient.fetchAllMatches(candidate.slug, candidate.overview_page, null);
+        results.push({ status: 'fulfilled', slug: candidate.slug, data: fetchedMatches });
+      } catch (error) {
+        results.push({ status: 'rejected', slug: candidate.slug, err: error });
       }
       if (candidate !== batch[batch.length - 1]) await new Promise(resolveDelay => setTimeout(resolveDelay, 2000));
     }

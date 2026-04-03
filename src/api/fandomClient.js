@@ -37,12 +37,12 @@ export class FandomClient {
 
         const step1Cookie = dataUtils.extractCookies(tokenResp.headers);
 
-        const params = new URLSearchParams();
-        params.append("action", "login"); params.append("format", "json");
-        params.append("lgname", user); params.append("lgpassword", pass); params.append("lgtoken", loginToken);
+        const loginParams = new URLSearchParams();
+        loginParams.append("action", "login"); loginParams.append("format", "json");
+        loginParams.append("lgname", user); loginParams.append("lgpassword", pass); loginParams.append("lgtoken", loginToken);
 
         const loginResp = await fetch(API, {
-          method: "POST", body: params,
+          method: "POST", body: loginParams,
           headers: { "User-Agent": BOT_UA, "Cookie": step1Cookie }
         });
         const loginData = await loginResp.json();
@@ -71,7 +71,7 @@ export class FandomClient {
    */
   static async fetchLatestRevision(pageTitle, maxRetries = 3) {
     const API = "https://lol.fandom.com/api.php";
-    const params = new URLSearchParams({
+    const revisionParams = new URLSearchParams({
       action: "query",
       prop: "revisions",
       titles: pageTitle,
@@ -83,12 +83,12 @@ export class FandomClient {
     let attempt = 1;
     while (attempt <= maxRetries) {
       try {
-        const response = await fetch(`${API}?${params.toString()}`, {
+        const response = await fetch(`${API}?${revisionParams.toString()}`, {
           headers: { "User-Agent": BOT_UA, "Accept": "application/json" }
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        const pagesObj = data?.query?.pages || {};
+        const revisionPayload = await response.json();
+        const pagesObj = revisionPayload?.query?.pages || {};
         const firstPage = Object.values(pagesObj)[0];
         if (!firstPage) throw new Error("Invalid revision payload");
         if (firstPage.missing !== undefined) {
@@ -140,22 +140,22 @@ export class FandomClient {
         const rawBody = await response.text();
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        let data;
+        let apiResponse;
         try { 
-          data = JSON.parse(rawBody); 
+          apiResponse = JSON.parse(rawBody); 
         } catch (error) { 
           throw new Error(`JSON Parse Fail`); 
         }
 
-        if (data.error) {
-          if (data.error.code === "maxlag") {
+        if (apiResponse.error) {
+          if (apiResponse.error.code === "maxlag") {
             const retryAfter = response.headers.get("Retry-After") || 5;
             throw new Error(`Wait ${retryAfter}s`);
           }
-          throw new Error(`API Error [${data.error.code}]`);
+          throw new Error(`API Error [${apiResponse.error.code}]`);
         }
-        if (!data.cargoquery) throw new Error(`Structure Error`);
-        return data.cargoquery;
+        if (!apiResponse.cargoquery) throw new Error(`Structure Error`);
+        return apiResponse.cargoquery;
       } catch (error) {
         let waitTimeMs = 15000 * Math.pow(2, attempt - 1);
         const match = error.message.match(/Wait (\d+)s/);
@@ -190,14 +190,14 @@ export class FandomClient {
         whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
       }
 
-      const params = new URLSearchParams({
+      const cargoParams = new URLSearchParams({
         action: "cargoquery", format: "json", tables: "MatchSchedule",
         fields: "MatchId,Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
         where: whereClause,
         limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
       });
 
-      const batchRaw = await this.fetchWithRetry(`https://lol.fandom.com/api.php?${params}`);
+      const batchRaw = await this.fetchWithRetry(`https://lol.fandom.com/api.php?${cargoParams}`);
       const batch = batchRaw.map(record => record.title);
 
       if (!batch.length) break;

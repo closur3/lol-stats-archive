@@ -99,7 +99,7 @@ export const dataUtils = {
     });
     if (rawNames.size === 0) return baseMap || {};
 
-    const entries = Object.entries(baseMap).map(([key, value]) => ({ key, value, normalizedKey: String(key).toUpperCase() }));
+    const entries = Object.entries(baseMap).map(([entryKey, value]) => ({ entryKey, value, normalizedKey: String(entryKey).toUpperCase() }));
     const needed = {};
 
     const pickKeyForRaw = (rawUpper) => {
@@ -112,12 +112,12 @@ export const dataUtils = {
           return inputTokens.every(token => keyTokens.includes(token));
         });
       }
-      return match ? match.key : null;
+      return match ? match.entryKey : null;
     };
 
     rawNames.forEach(rawName => {
-      const key = pickKeyForRaw(String(rawName).toUpperCase());
-      if (key && baseMap[key] != null) needed[key] = baseMap[key];
+      const resolvedKey = pickKeyForRaw(String(rawName).toUpperCase());
+      if (resolvedKey && baseMap[resolvedKey] != null) needed[resolvedKey] = baseMap[resolvedKey];
     });
 
     return needed;

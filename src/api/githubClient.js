@@ -22,8 +22,8 @@ export class GitHubClient {
         }
       });
       if (!response.ok) return null;
-      const data = await response.json();
-      const content = atob(data.content);
+      const fileResponse = await response.json();
+      const content = atob(fileResponse.content);
       return JSON.parse(decodeURIComponent(escape(content)));
     } catch (error) {
       return null;
