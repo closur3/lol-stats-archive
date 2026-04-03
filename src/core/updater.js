@@ -271,8 +271,8 @@ export class Updater {
           const prevRev = prevPages?.[title]?.revid;
           if (prevRev && Number(prevRev) === Number(latest.revid)) continue;
 
-          const wikiPage = title.replace(/^Data:/, "");
-          const diffUrl = `https://lol.fandom.com/wiki/${wikiPage}?diff=prev&oldid=${latest.revid}`;
+          const safeTitle = title.replace(/ /g, '_');
+          const diffUrl = `https://lol.fandom.com/wiki/${safeTitle}?diff=prev&oldid=${latest.revid}`;
           if (!revidChanges[candidate.slug]) revidChanges[candidate.slug] = [];
           revidChanges[candidate.slug].push({ revid: latest.revid, diffUrl, title });
         } catch (error) {}
@@ -290,7 +290,12 @@ export class Updater {
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, forceSlugs, runtimeConfig);
     console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
 
-    // 将 revid 变化信息注入 idleItems
+    // 将 revid 变化信息注入 syncItems 和 idleItems
+    syncItems.forEach(item => {
+      if (revidChanges[item.slug]) {
+        item.revidChanges = revidChanges[item.slug];
+      }
+    });
     idleItems.forEach(item => {
       if (revidChanges[item.slug]) {
         item.revidChanges = revidChanges[item.slug];
@@ -679,7 +684,12 @@ export class Updater {
     };
 
     syncItems.forEach(item => {
-      let messageText = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}`;
+      let triggerText = "";
+      if (item.revidChanges && item.revidChanges.length > 0) {
+        const revInfo = item.revidChanges[0];
+        triggerText = ` | <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
+      }
+      let messageText = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}${triggerText}`;
       pushEntry(item.slug, "SUCCESS", messageText);
     });
 
@@ -687,7 +697,6 @@ export class Updater {
       if (bySlug[item.slug]) return;
       const displayName = getDisplayName(item.slug);
       const changeCount = item.added + item.updated;
-      const isForce = item.isForce === true;
       let triggerText = "";
 
       if (item.revidChanges && item.revidChanges.length > 0) {
@@ -695,10 +704,7 @@ export class Updater {
         triggerText = ` <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
       }
 
-      if (isForce) {
-        let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount} | 🔧 Force`;
-        pushEntry(item.slug, "SUCCESS", messageText);
-      } else if (changeCount === 0) {
+      if (changeCount === 0) {
         let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~0 | 🟰${triggerText}`;
         pushEntry(item.slug, "SUCCESS", messageText);
       } else {
