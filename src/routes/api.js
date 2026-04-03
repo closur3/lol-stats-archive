@@ -310,7 +310,7 @@ export class APIRouter {
         },
         rawMatches: [], // 空数据
         updateTimestamps: { [slug]: Date.now() },
-        teamMap: dataUtils.pickTeamMap(teamsRaw, { slug: slug, league: league }, [])
+        teamMap: {} // rawMatches 为空时不需要 teamMap
       };
 
       await env["lol-stats-kv"].put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
