@@ -10,12 +10,12 @@ export function normalizeMetaState(raw) {
 }
 
 export async function readMetaState(env) {
-  const raw = await env.LOL_KV.get(KV_KEYS.META, { type: 'json' });
+  const raw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
   return normalizeMetaState(raw);
 }
 
 export async function writeMetaState(env, state) {
   const normalized = normalizeMetaState(state);
-  await env.LOL_KV.put(KV_KEYS.META, JSON.stringify(normalized));
+  await env["lol-stats-kv"].put(KV_KEYS.META, JSON.stringify(normalized));
   return normalized;
 }

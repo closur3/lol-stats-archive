@@ -66,18 +66,18 @@ export default {
           return "fast";
         };
 
-        const allLogKeys = await env.LOL_KV.list({ prefix: "LOG_" });
+        const allLogKeys = await env["lol-stats-kv"].list({ prefix: "LOG_" });
         const logKeys = allLogKeys.keys.map(logKey => logKey.name);
         const logPairs = await Promise.all(logKeys.map(async key => {
           const slug = key.slice("LOG_".length);
-          const logs = await env.LOL_KV.get(key, { type: "json" }) || [];
+          const logs = await env["lol-stats-kv"].get(key, { type: "json" }) || [];
           return [slug, logs];
         }));
         const logsBySlug = new Map(logPairs.filter(([, logs]) => Array.isArray(logs) && logs.length > 0));
         const logSlugs = Array.from(logsBySlug.keys());
         const metaState = await readMetaState(env);
         const homePairs = await Promise.all(logSlugs.map(async slug => {
-          const home = await env.LOL_KV.get(KV_KEYS.HOME_PREFIX + slug, { type: "json" });
+          const home = await env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + slug, { type: "json" });
           const totalMatchCount = Array.isArray(home?.rawMatches) ? home.rawMatches.length : null;
           const metaMode = metaState?.tournaments?.[slug]?.mode;
           const mode = metaMode === "slow" || metaMode === "fast" ? metaMode : null;

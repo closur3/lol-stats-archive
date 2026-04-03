@@ -24,9 +24,9 @@ export class APIRouter {
    */
   static async handleBackup(request, env) {
     const payload = {};
-    const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
+    const allHomeKeys = await env["lol-stats-kv"].list({ prefix: "HOME_" });
     const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
-    const rawHomes = await Promise.all(dataKeys.map(key => env.LOL_KV.get(key, { type: "json" })));
+    const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
       rawHomes.forEach(home => {
         const homeTournament = home?.tournament;
         if (home && homeTournament && home.stats) {
@@ -164,13 +164,13 @@ export class APIRouter {
           teamMap: teamMap
         };
 
-        await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
+        await env["lol-stats-kv"].put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
           logger.success(`🟢 [SYNC] | 🔄 ${payload.name} *${matches.length} | 🛠 Rebuild Archive`);
 
         const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-        const existingArchiveHTML = await env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
+        const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
         if (existingArchiveHTML !== archiveHTML) {
-          await env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+          await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
         }
       } else {
         logger.error(`🔴 [ERR!] | 🚧 ${payload.name}(Drop) | ❌ No matches found for rebuild`);
@@ -210,13 +210,13 @@ export class APIRouter {
     try {
       const logger = APIRouter.createInlineLogger();
       
-      await env.LOL_KV.delete(`ARCHIVE_${payload.slug}`);
+      await env["lol-stats-kv"].delete(`ARCHIVE_${payload.slug}`);
 
       // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-      const existingArchiveHTML = await env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
+      const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
       if (existingArchiveHTML !== archiveHTML) {
-        await env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+        await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
       }
 
       logger.success(`🗑️ [DELETE] | 📦 ${payload.name}`);
@@ -290,13 +290,13 @@ export class APIRouter {
         teamMap: dataUtils.pickTeamMap(teamsRaw, { slug: payload.slug, league: payload.league }, [])
       };
 
-      await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
+      await env["lol-stats-kv"].put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
 
       // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-      const existingArchiveHTML = await env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
+      const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
       if (existingArchiveHTML !== archiveHTML) {
-        await env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+        await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
       }
 
       logger.success(`📦 [MANUAL] | 📝 ${payload.name}`);
@@ -333,9 +333,9 @@ export class APIRouter {
    */
   static async handleGetModeOverrides(request, env) {
     try {
-      const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
+      const allHomeKeys = await env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
       const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
-      const rawHomes = await Promise.all(dataKeys.map(key => env.LOL_KV.get(key, { type: "json" })));
+      const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
       const metaState = await readMetaState(env);
 
       const overrides = {};

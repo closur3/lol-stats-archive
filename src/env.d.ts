@@ -1,6 +1,6 @@
 declare namespace Cloudflare {
   interface Env {
-    LOL_KV: KVNamespace;
+    "lol-stats-kv": KVNamespace;
     GITHUB_USER: string;
     GITHUB_REPO: string;
     GITHUB_TOKEN?: string;

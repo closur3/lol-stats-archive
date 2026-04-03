@@ -131,7 +131,7 @@ export class Updater {
       const tournamentMetaFromKv = cache?.meta?.tournaments?.[slug];
       const lastUpdateTimestamp = cache?.updateTimestamps?.[slug] || 0;
       const revKey = `REV_${slug}`;
-      const previousRevisionState = await this.env.LOL_KV.get(revKey, { type: "json" });
+      const previousRevisionState = await this.env["lol-stats-kv"].get(revKey, { type: "json" });
       const lastCheckedAt = Number(previousRevisionState?.checkedAt) || 0;
       const gateBaseTimestamp = Math.max(lastUpdateTimestamp, lastCheckedAt);
       const elapsed = NOW - gateBaseTimestamp;
@@ -198,7 +198,7 @@ export class Updater {
         : { slug, pages: nextPages || {} };
       const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
       if (shouldWriteRev) {
-        await this.env.LOL_KV.put(revKey, JSON.stringify(nextRecord));
+        await this.env["lol-stats-kv"].put(revKey, JSON.stringify(nextRecord));
       }
 
       if (slugChanged) {
@@ -355,7 +355,7 @@ export class Updater {
    */
   async cleanupStaleHomeKeys(runtimeConfig) {
     try {
-      const allHomeKeys = await this.env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
+      const allHomeKeys = await this.env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
       const activeSlugs = new Set((runtimeConfig.TOURNAMENTS || []).map(tournament => tournament.slug));
       const staleKeys = allHomeKeys.keys
         .map(key => key.name)
@@ -364,25 +364,25 @@ export class Updater {
           const slug = keyName.slice(KV_KEYS.HOME_PREFIX.length);
           return !activeSlugs.has(slug);
         });
-      for (const key of staleKeys) await this.env.LOL_KV.delete(key);
+      for (const key of staleKeys) await this.env["lol-stats-kv"].delete(key);
 
-      const allLogKeys = await this.env.LOL_KV.list({ prefix: "LOG_" });
+      const allLogKeys = await this.env["lol-stats-kv"].list({ prefix: "LOG_" });
       const staleLogKeys = allLogKeys.keys
         .map(key => key.name)
         .filter(keyName => {
           const slug = keyName.slice("LOG_".length);
           return !activeSlugs.has(slug);
         });
-      for (const key of staleLogKeys) await this.env.LOL_KV.delete(key);
+      for (const key of staleLogKeys) await this.env["lol-stats-kv"].delete(key);
 
-      const allRevKeys = await this.env.LOL_KV.list({ prefix: "REV_" });
+      const allRevKeys = await this.env["lol-stats-kv"].list({ prefix: "REV_" });
       const staleRevKeys = allRevKeys.keys
         .map(key => key.name)
         .filter(keyName => {
           const slug = keyName.slice("REV_".length);
           return !activeSlugs.has(slug);
         });
-      for (const key of staleRevKeys) await this.env.LOL_KV.delete(key);
+      for (const key of staleRevKeys) await this.env["lol-stats-kv"].delete(key);
     } catch (error) {}
   }
 
@@ -393,7 +393,7 @@ export class Updater {
     const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
     
     const homeEntries = await Promise.all((tournaments || []).map(async t => {
-      const data = await this.env.LOL_KV.get(KV_KEYS.HOME_PREFIX + t.slug, { type: "json" });
+      const data = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + t.slug, { type: "json" });
       return [t.slug, data];
     }));
 
@@ -696,10 +696,10 @@ export class Updater {
           runtimeConfig, false, (analysis.tournamentMeta || {})
         );
         const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home");
-        const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
+        const existingHomeHTML = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_STATIC_HTML);
         if (existingHomeHTML !== fullPage) {
           console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
-          await this.env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage);
+          await this.env["lol-stats-kv"].put(KV_KEYS.HOME_STATIC_HTML, fullPage);
         }
       } catch (error) {
         console.error("Error generating home HTML:", error);
@@ -740,7 +740,7 @@ export class Updater {
 
       // 数据变化检测
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
-      const existingHome = await this.env.LOL_KV.get(homeKey, { type: "json" });
+      const existingHome = await this.env["lol-stats-kv"].get(homeKey, { type: "json" });
 
       const homeSnapshot = {
         tournament: tournamentStored,
@@ -757,20 +757,20 @@ export class Updater {
 
       if (homeHasChanges) {
         console.log(`[KV] PUT ${homeKey}`);
-        writePromises.push(this.env.LOL_KV.put(homeKey, JSON.stringify(homeSnapshot)));
+        writePromises.push(this.env["lol-stats-kv"].put(homeKey, JSON.stringify(homeSnapshot)));
       }
 
       // 保存归档数据
       if (includeArchiveWrites && stats && Object.keys(stats).length > 0) {
         const snapshot = { tournament: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: updateTimestamp }, teamMap: teamMap };
         const archiveKey = `ARCHIVE_${slug}`;
-        const existingArchive = await this.env.LOL_KV.get(archiveKey, { type: "json" });
+        const existingArchive = await this.env["lol-stats-kv"].get(archiveKey, { type: "json" });
         const archiveHasChanges = isForceTarget || !existingArchive ||
             JSON.stringify(existingArchive.rawMatches || []) !== JSON.stringify(raw);
 
         if (archiveHasChanges) {
           console.log(`[KV] PUT ${archiveKey}`);
-          writePromises.push(this.env.LOL_KV.put(archiveKey, JSON.stringify(snapshot)));
+          writePromises.push(this.env["lol-stats-kv"].put(archiveKey, JSON.stringify(snapshot)));
         }
       }
     }
@@ -782,9 +782,9 @@ export class Updater {
     const logWrites = Object.entries(logEntries).map(async ([slug, entry]) => {
       if (!slug || !entry) return;
       const logKey = `LOG_${slug}`;
-      const oldLogs = await this.env.LOL_KV.get(logKey, { type: "json" }) || [];
+      const oldLogs = await this.env["lol-stats-kv"].get(logKey, { type: "json" }) || [];
       const nextLogs = [entry, ...oldLogs].slice(0, 10);
-      await this.env.LOL_KV.put(logKey, JSON.stringify(nextLogs));
+      await this.env["lol-stats-kv"].put(logKey, JSON.stringify(nextLogs));
     });
     if (logWrites.length > 0) await Promise.all(logWrites);
 
@@ -792,10 +792,10 @@ export class Updater {
     if (syncItems.length > 0) {
       try {
         const archiveHTML = await this.generateArchiveStaticHTML();
-        const existingArchiveHTML = await this.env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
+        const existingArchiveHTML = await this.env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
         if (existingArchiveHTML !== archiveHTML) {
           console.log(`[KV] PUT ${KV_KEYS.ARCHIVE_STATIC_HTML}`);
-          await this.env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+          await this.env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
         }
       } catch (error) {
         console.error("Error generating archive HTML:", error);
@@ -824,9 +824,9 @@ export class Updater {
     const includeArchive = options.includeArchive !== false;
     const requireData = options.requireData !== false;
     const maxScheduleDays = this.getMaxScheduleDays();
-    const allHomeKeys = await this.env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
+    const allHomeKeys = await this.env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
     const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
-    const rawHomes = await Promise.all(dataKeys.map(key => this.env.LOL_KV.get(key, { type: "json" })));
+    const rawHomes = await Promise.all(dataKeys.map(key => this.env["lol-stats-kv"].get(key, { type: "json" })));
     const homeEntries = rawHomes.filter(home => home && home.tournament);
     if (homeEntries.length === 0) {
       if (requireData) return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };
@@ -887,21 +887,21 @@ export class Updater {
       globalStats, timeGrid, limitedScheduleMap, runtimeConfig, false, tournamentMeta
     );
     const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home");
-    const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
+    const existingHomeHTML = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_STATIC_HTML);
     const writePromises = [];
     let homeChanged = false;
     if (existingHomeHTML !== fullPage) {
       console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
-      writePromises.push(this.env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage));
+      writePromises.push(this.env["lol-stats-kv"].put(KV_KEYS.HOME_STATIC_HTML, fullPage));
       homeChanged = true;
     }
 
     let archiveChanged = false;
     if (includeArchive) {
       const archiveHTML = await this.generateArchiveStaticHTML();
-      const existingArchiveHTML = await this.env.LOL_KV.get(KV_KEYS.ARCHIVE_STATIC_HTML);
+      const existingArchiveHTML = await this.env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
       if (existingArchiveHTML !== archiveHTML) {
-        writePromises.push(this.env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML));
+        writePromises.push(this.env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML));
         archiveChanged = true;
       }
     }
@@ -921,14 +921,14 @@ export class Updater {
    */
   async generateArchiveStaticHTML() {
     try {
-      const allKeys = await this.env.LOL_KV.list({ prefix: "ARCHIVE_" });
+      const allKeys = await this.env["lol-stats-kv"].list({ prefix: "ARCHIVE_" });
       const dataKeys = allKeys.keys.filter(key => key.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
 
       if (!dataKeys.length) {
         return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "archive");
       }
 
-      const rawSnapshots = await Promise.all(dataKeys.map(key => this.env.LOL_KV.get(key.name, { type: "json" })));
+      const rawSnapshots = await Promise.all(dataKeys.map(key => this.env["lol-stats-kv"].get(key.name, { type: "json" })));
       let validSnapshots = rawSnapshots.filter(snapshot => {
         const snapshotTournament = snapshot?.tournament;
         return Boolean(snapshot && snapshotTournament && snapshotTournament.slug);

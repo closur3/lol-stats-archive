@@ -13,7 +13,7 @@ UPDATE_ROUNDS = "1"
 MAX_SCHEDULE_DAYS = "8"
 
 [[kv_namespaces]]
-binding = "lol-stats"
+binding = "lol-stats-kv"
 id = "caebca8919434b009d1b80fa89ff818f"
 
 [observability]

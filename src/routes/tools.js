@@ -14,9 +14,9 @@ export class ToolsRouter {
       // 读取现有归档
       let existingArchives = [];
       try {
-        const allKeys = await env.LOL_KV.list({ prefix: KV_KEYS.ARCHIVE_PREFIX });
+        const allKeys = await env["lol-stats-kv"].list({ prefix: KV_KEYS.ARCHIVE_PREFIX });
         const dataKeys = allKeys.keys.filter(key => key.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
-        const rawSnapshots = await Promise.all(dataKeys.map(key => env.LOL_KV.get(key.name, { type: "json" })));
+        const rawSnapshots = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key.name, { type: "json" })));
         existingArchives = rawSnapshots
           .map(snapshot => snapshot?.tournament)
           .filter(Boolean);
