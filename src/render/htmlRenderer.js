@@ -944,7 +944,7 @@ export class HTMLRenderer {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('.qr-chk-archived:checked');
                 if (checked.length === 0) { showToast("No archives selected", "error"); return; }
-                var selected = Array.from(checked).map(function(checkboxElement) { return { slug: checkboxElement.value, name: checkboxElement.dataset.name, overview: checkboxElement.dataset.overview, league: checkboxElement.dataset.league, start_date: checkboxElement.dataset.start, end_date: checkboxElement.dataset.end }; });
+                var selected = Array.from(checked).map(function(checkboxElement) { return { slug: checkboxElement.value, name: checkboxElement.dataset.name, overview_page: checkboxElement.dataset.overview, league: checkboxElement.dataset.league, start_date: checkboxElement.dataset.start, end_date: checkboxElement.dataset.end }; });
                 var btn = event.target;
                 var restore = setButtonBusy(btn, 'Rebuilding...');
                 var success = 0, fail = 0;
@@ -980,12 +980,12 @@ export class HTMLRenderer {
                 var payload = {
                     slug: document.getElementById('ma-slug').value.trim(),
                     name: document.getElementById('ma-name').value.trim(),
-                    overview: document.getElementById('ma-overview').value.trim(),
+                    overview_page: document.getElementById('ma-overview').value.trim(),
                     league: document.getElementById('ma-league').value.trim(),
                     start_date: document.getElementById('ma-start').value.trim(),
                     end_date: document.getElementById('ma-end').value.trim()
                 };
-                if (!payload.slug || !payload.name || !payload.overview || !payload.league) { showToast("⚠️ Slug, Name, Overview, League required", "error"); return; }
+                if (!payload.slug || !payload.name || !payload.overview_page || !payload.league) { showToast("⚠️ Slug, Name, Overview, League required", "error"); return; }
                 sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload)).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     showResult(res.ok, res.ok ? '📦 Saved' : '❌ Failed');
