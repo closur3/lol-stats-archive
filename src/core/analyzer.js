@@ -52,7 +52,7 @@ export class Analyzer {
       emoji = "🎮";
     } else {
       const timeToNextMatch = nextMatchStartTimestamp !== Infinity ? (nextMatchStartTimestamp - nowTimestamp) / (1000 * 60 * 60) : Infinity;
-      emoji = timeToNextMatch <= 24 ? "⏳" : "🌙";
+      emoji = timeToNextMatch <= 24 ? "⏳" : "🛌";
     }
 
     const meta = {

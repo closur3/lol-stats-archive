@@ -192,7 +192,7 @@ export class HTMLRenderer {
             tablesHtml += `<details class="home-sec archive-sec"><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         } else {
             const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
-            const isSleepCollapsed = tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji === "🌙";
+            const isSleepCollapsed = tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji === "🛌";
             const openAttr = isSleepCollapsed ? "" : " open";
             tablesHtml += `<details class="home-sec"${openAttr}><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${emojiStr}${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         }
@@ -202,7 +202,7 @@ export class HTMLRenderer {
     if (!isArchive) {
         const dates = Object.keys(scheduleMap).sort();
         if (dates.length === 0) {
-            scheduleHtml = `<div class="sch-empty">🌙 NO FUTURE MATCHES SCHEDULED</div>`;
+            scheduleHtml = `<div class="sch-empty">🛌 NO FUTURE MATCHES SCHEDULED</div>`;
         } else {
             scheduleHtml = `<div class="sch-container">`;
             dates.forEach(d => {
