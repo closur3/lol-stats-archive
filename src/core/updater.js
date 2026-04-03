@@ -5,6 +5,7 @@ import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
+import { readMetaState, writeMetaState } from '../utils/Meta.js';
 
 /**
  * 更新管理器
@@ -84,14 +85,14 @@ export class Updater {
    * 每天UTC切日后刷新一次赛程板，确保过期天按新规则清理
    */
   async refreshScheduleBoardOnDayRollover(runtimeConfig) {
-    const key = "SCHEDULE_DAY_MARK";
     const today = dateUtils.getNow().date;
-    const lastDay = await this.env.LOL_KV.get(key);
+    const meta = await readMetaState(this.env);
+    const lastDay = meta.scheduleDayMark;
     if (lastDay === today) return;
 
     await this.cleanupStaleHomeKeys(runtimeConfig);
     await this.refreshHomeStaticFromCache();
-    await this.env.LOL_KV.put(key, today);
+    await writeMetaState(this.env, { ...meta, scheduleDayMark: today });
     console.log(`[SCHEDULE] rollover refresh ${lastDay || "none"} -> ${today}`);
   }
 
@@ -320,6 +321,7 @@ export class Updater {
 
     const nowTs = Date.now();
     const changedSlugs = [];
+    const nextTournMeta = { ...oldTournMeta };
 
     for (const tournament of targetTournaments) {
       const slug = tournament.slug;
@@ -332,16 +334,15 @@ export class Updater {
       });
 
       if (JSON.stringify(prevMeta) === JSON.stringify(nextMeta)) continue;
-
-      const homeKey = KV_KEYS.HOME_PREFIX + slug;
-      const home = await this.env.LOL_KV.get(homeKey, { type: "json" });
-      if (!home || !home.tourn) continue;
-      home.tournMeta = { ...(home.tournMeta || {}), [slug]: nextMeta };
-      await this.env.LOL_KV.put(homeKey, JSON.stringify(home));
+      nextTournMeta[slug] = nextMeta;
       changedSlugs.push(slug);
     }
 
     if (changedSlugs.length > 0) {
+      await writeMetaState(this.env, {
+        ...(cache.meta || {}),
+        tournaments: nextTournMeta
+      });
       console.log(`[LOCAL] meta changed: ${changedSlugs.join(", ")}`);
       await this.refreshHomeStaticFromCache();
     }
@@ -389,19 +390,27 @@ export class Updater {
    * 加载缓存数据
    */
   async loadCachedData(tournaments) {
-    const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {} }, prevScheduleMap: {} };
+    const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
     
     const homeEntries = await Promise.all((tournaments || []).map(async t => {
       const data = await this.env.LOL_KV.get(KV_KEYS.HOME_PREFIX + t.slug, { type: "json" });
       return [t.slug, data];
     }));
+
+    const metaState = await readMetaState(this.env);
+    const mergedTournamentsMeta = { ...(metaState.tournaments || {}) };
     
     homeEntries.forEach(([slug, home]) => {
       if (home && home.rawMatches) cache.rawMatches[slug] = home.rawMatches;
       if (home && home.updateTimestamps && home.updateTimestamps[slug]) cache.updateTimestamps[slug] = home.updateTimestamps[slug];
-      if (home && home.tournMeta && home.tournMeta[slug]) cache.meta.tournaments[slug] = home.tournMeta[slug];
       if (home && home.scheduleMap) cache.prevScheduleMap[slug] = home.scheduleMap;
+
     });
+
+    cache.meta = {
+      tournaments: mergedTournamentsMeta,
+      scheduleDayMark: metaState.scheduleDayMark || null
+    };
     
     return cache;
   }
@@ -666,6 +675,19 @@ export class Updater {
    */
   async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}, scopedOnly = false, options = {}) {
     const includeArchiveWrites = options.includeArchiveWrites !== false;
+
+    const mergedMetaState = {
+      ...(cache.meta || {}),
+      tournaments: {
+        ...(cache.meta?.tournaments || {}),
+        ...(analysis.tournMeta || {})
+      }
+    };
+    if (JSON.stringify(mergedMetaState.tournaments || {}) !== JSON.stringify(cache.meta?.tournaments || {})) {
+      await writeMetaState(this.env, mergedMetaState);
+      cache.meta = mergedMetaState;
+    }
+
     // 保存首页静态HTML
     if (!scopedOnly) {
       try {
@@ -710,7 +732,6 @@ export class Updater {
       const ts = cache.updateTimestamps[slug] || 0;
       const stats = analysis.globalStats[slug] || {};
       const grid = analysis.timeGrid[slug] || {};
-      const tournamentMeta = analysis.tournMeta[slug] ? { [slug]: analysis.tournMeta[slug] } : {};
 
       const teamMap = tournament.team_map || {};
       const { team_map: _, ...tournamentStored } = tournament;
@@ -726,13 +747,11 @@ export class Updater {
         stats: stats,
         timeGrid: grid,
         scheduleMap: scheduleBySlug[slug] || {},
-        tournMeta: tournamentMeta,
         team_map: teamMap
       };
 
       let homeHasChanges = isForceTarget || !existingHome ||
-          JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw) ||
-          JSON.stringify(existingHome.tournMeta || {}) !== JSON.stringify(tournamentMeta);
+          JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw);
 
       if (homeHasChanges) {
         console.log(`[KV] PUT ${homeKey}`);
@@ -818,14 +837,14 @@ export class Updater {
     const globalStats = {};
     const timeGrid = {};
     const scheduleMap = {};
-    const tournMeta = {};
+    const metaState = await readMetaState(this.env);
+    const tournMeta = { ...(metaState.tournaments || {}) };
 
     homeEntries.forEach(home => {
       const slug = home.tourn?.slug;
       if (!slug) return;
       if (home.stats) globalStats[slug] = home.stats;
       if (home.timeGrid) timeGrid[slug] = home.timeGrid;
-      if (home.tournMeta && home.tournMeta[slug]) tournMeta[slug] = home.tournMeta[slug];
 
       const sch = home.scheduleMap || {};
       Object.keys(sch).forEach(date => {

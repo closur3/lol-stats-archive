@@ -5,6 +5,7 @@ import { FandomClient } from '../api/fandomClient.js';
 import { dataUtils } from '../utils/dataUtils.js';
 import { dateUtils } from '../utils/dateUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
+import { readMetaState, writeMetaState } from '../utils/Meta.js';
 
 /**
  * API路由处理
@@ -334,13 +335,14 @@ export class APIRouter {
       const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
       const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
       const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
+      const metaState = await readMetaState(env);
 
       const overrides = {};
       const tournaments = rawHomes
         .filter(h => h && h.tourn)
         .map(h => {
           const slug = h.tourn.slug;
-          const meta = h.tournMeta?.[slug] || {};
+          const meta = metaState.tournaments?.[slug] || {};
           const currentMode = meta.mode || "fast";
           const modeOverride = meta.modeOverride || "auto";
           overrides[slug] = modeOverride;
@@ -385,23 +387,19 @@ export class APIRouter {
         }
       }
 
-      // 写入每个 HOME_${slug}.tournMeta.modeOverride
-      const writePromises = [];
+      // 写入统一 Meta.tournaments[slug].modeOverride
+      const metaState = await readMetaState(env);
+      const nextMetaState = {
+        ...metaState,
+        tournaments: { ...(metaState.tournaments || {}) }
+      };
+
       for (const [slug, mode] of Object.entries(cleanOverrides)) {
-        const homeKey = KV_KEYS.HOME_PREFIX + slug;
-        const home = await env.LOL_KV.get(homeKey, { type: "json" });
-        if (home) {
-          if (!home.tournMeta) home.tournMeta = {};
-          if (!home.tournMeta[slug]) home.tournMeta[slug] = {};
-          if (mode === "auto") {
-            delete home.tournMeta[slug].modeOverride;
-          } else {
-            home.tournMeta[slug].modeOverride = mode;
-          }
-          writePromises.push(env.LOL_KV.put(homeKey, JSON.stringify(home)));
-        }
+        if (!nextMetaState.tournaments[slug]) nextMetaState.tournaments[slug] = {};
+        if (mode === "auto") delete nextMetaState.tournaments[slug].modeOverride;
+        else nextMetaState.tournaments[slug].modeOverride = mode;
       }
-      await Promise.all(writePromises);
+      await writeMetaState(env, nextMetaState);
 
       return new Response(JSON.stringify({ success: true, overrides: cleanOverrides }), {
         headers: { "content-type": "application/json" }

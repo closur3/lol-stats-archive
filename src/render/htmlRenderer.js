@@ -7,6 +7,68 @@ import { PYTHON_STYLE, TOOLS_PAGE_STYLE, LOG_PAGE_STYLE, BUILD_FOOTER_STYLE } fr
  * HTML渲染器
  */
 export class HTMLRenderer {
+  static FLUENT_EMOJI_MAP = {
+    "🎮": "video-game",
+    "⏳": "hourglass-not-done",
+    "💤": "zzz",
+    "📅": "calendar",
+    "📦": "package",
+    "🥇": "1st-place-medal",
+    "🏠": "house",
+    "🧰": "toolbox",
+    "📜": "scroll",
+    "🔐": "locked",
+    "⚙️": "gear",
+    "📋": "clipboard",
+    "🗑️": "wastebasket",
+    "✅": "check-mark-button",
+    "❌": "cross-mark",
+    "⚠️": "warning",
+    "🔄": "counterclockwise-arrows-button",
+    "⚡": "high-voltage",
+    "🐌": "snail",
+    "✔": "check-mark",
+    "🔵": "blue-circle",
+    "🕒": "three-oclock",
+    "🚧": "construction",
+    "👻": "ghost",
+    "🔍": "magnifying-glass-tilted-left",
+    "🟰": "heavy-equals-sign",
+    "🟢": "green-circle",
+    "🔴": "red-circle",
+    "⚪": "white-circle"
+  };
+
+  static fluentEmojiUrl(emoji) {
+    const key = HTMLRenderer.FLUENT_EMOJI_MAP[emoji];
+    return key ? `https://api.iconify.design/fluent-emoji-3d/${key}.svg` : "";
+  }
+
+  static renderEmoji(emoji, alt = "", className = "fluent-emoji") {
+    const src = HTMLRenderer.fluentEmojiUrl(emoji);
+    if (!src) return emoji;
+    const safeAlt = (alt || emoji || "").replace(/"/g, "&quot;");
+    return `<img class="${className}" src="${src}" alt="${safeAlt}" loading="lazy" decoding="async">`;
+  }
+
+  static replaceEmojisWithFluent(text, className = "fluent-emoji") {
+    const input = String(text || "");
+    const keys = Object.keys(HTMLRenderer.FLUENT_EMOJI_MAP)
+      .sort((a, b) => b.length - a.length)
+      .map(k => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    if (keys.length === 0) return input;
+    const pattern = new RegExp(keys.join("|"), "g");
+    return input.replace(pattern, (m) => HTMLRenderer.renderEmoji(m, m, className));
+  }
+
+  static renderEmojiCss() {
+    return `<style>
+      .fluent-emoji{width:1em;height:1em;vertical-align:-0.12em;display:inline-block;object-fit:contain}
+      .fluent-emoji-lg{width:1.2em;height:1.2em;vertical-align:-0.16em;display:inline-block;object-fit:contain}
+      .fluent-emoji-btn{width:1.05em;height:1.05em;vertical-align:-0.14em;display:inline-block;object-fit:contain}
+    </style>`;
+  }
+
   /**
    * 渲染主要内容
    */
@@ -22,7 +84,6 @@ export class HTMLRenderer {
     const STYLE_RATE_HINT = 'style="font-weight:400;color:#94a3b8;font-size:11px;margin:0 2px"';
     const STYLE_SPINE_BOLD = 'style="font-weight:700"';
     const STYLE_SPINE_SEP = 'style="opacity:0.4;"';
-    const STYLE_EMOJI = 'style="font-size: 16px; line-height: 1; display: block; transform: translateY(-1px);"';
     const STYLE_TITLE_ROW = 'style="display:flex; align-items:center; gap: 6px;"';
     const STYLE_SCH_HEADER = 'style="background:#f8fafc;color:#334155"';
     const STYLE_SCH_COUNT = 'style="font-size:11px;opacity:0.6"';
@@ -181,7 +242,7 @@ export class HTMLRenderer {
         const timeTableHtml = buildTimeTable(regionGrid);
 
         const emojiStr = (!isArchive && tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji)
-            ? `<span ${STYLE_EMOJI}>${tournMeta[tournament.slug].emoji}</span>`
+            ? HTMLRenderer.renderEmoji(tournMeta[tournament.slug].emoji, tournMeta[tournament.slug].emoji, "fluent-emoji-lg")
             : "";
         const pageUrl = `https://lol.fandom.com/wiki/${mainPage}`;
         const titleText = `<span class="league-title-text">${tournament.name}</span>`;
@@ -192,7 +253,7 @@ export class HTMLRenderer {
             tablesHtml += `<details class="home-sec archive-sec"><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         } else {
             const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
-            const isSleepCollapsed = tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji === "🌙";
+            const isSleepCollapsed = tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji === "💤";
             const openAttr = isSleepCollapsed ? "" : " open";
             tablesHtml += `<details class="home-sec"${openAttr}><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${emojiStr}${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         }
@@ -202,14 +263,14 @@ export class HTMLRenderer {
     if (!isArchive) {
         const dates = Object.keys(scheduleMap).sort();
         if (dates.length === 0) {
-            scheduleHtml = `<div class="sch-empty">🌙 NO FUTURE MATCHES SCHEDULED</div>`;
+            scheduleHtml = `<div class="sch-empty">${HTMLRenderer.renderEmoji("💤", "sleep", "fluent-emoji-lg")} NO FUTURE MATCHES SCHEDULED</div>`;
         } else {
             scheduleHtml = `<div class="sch-container">`;
             dates.forEach(d => {
                 const matches = scheduleMap[d];
                 const dateObj = new Date(d + "T00:00:00Z");
                 const dayName = WEEKDAY_NAMES[dateObj.getUTCDay()];
-                let cardHtml = `<div class="sch-card"><div class="sch-header" ${STYLE_SCH_HEADER}><span>📅 <span class="utc-local date-display" data-utc="${d}T00:00:00Z" data-format="date">${d.slice(5)}</span> ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
+                let cardHtml = `<div class="sch-card"><div class="sch-header" ${STYLE_SCH_HEADER}><span>${HTMLRenderer.renderEmoji("📅", "date", "fluent-emoji")} <span class="utc-local date-display" data-utc="${d}T00:00:00Z" data-format="date">${d.slice(5)}</span> ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
                 let lastGroupKey = "";
 
                 matches.forEach(match => {
@@ -236,7 +297,7 @@ export class HTMLRenderer {
    * 渲染动作按钮
    */
   static renderActionBtn(href, icon, text) {
-    return `<a href="${href}" class="action-btn"><span class="btn-icon">${icon}</span> <span class="btn-text">${text}</span></a>`;
+    return `<a href="${href}" class="action-btn"><span class="btn-icon">${HTMLRenderer.renderEmoji(icon, text, "fluent-emoji-btn")}</span> <span class="btn-text">${text}</span></a>`;
   }
 
   static renderFontLinks() {
@@ -256,7 +317,7 @@ export class HTMLRenderer {
         ? HTMLRenderer.renderActionBtn("/tools", "🧰", "Tools")
         : "";
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>${HTMLRenderer.renderFontLinks()}<style>${PYTHON_STYLE}</style><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>${logoIcon}</text></svg>"></head><body><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}${HTMLRenderer.renderActionBtn("/logs", "📜", "Logs")}</div></header><div class="container">${bodyContent}</div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${HTMLRenderer.renderPythonJS()}</body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>${HTMLRenderer.renderFontLinks()}<style>${PYTHON_STYLE}</style>${HTMLRenderer.renderEmojiCss()}<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231e293b'/><text x='50' y='66' font-size='56' text-anchor='middle' fill='white'>L</text></svg>"></head><body><header class="main-header"><div class="header-left"><span class="header-logo">${HTMLRenderer.renderEmoji(logoIcon, "logo", "fluent-emoji-lg")}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}${HTMLRenderer.renderActionBtn("/logs", "📜", "Logs")}</div></header><div class="container">${bodyContent}</div><div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${HTMLRenderer.renderPythonJS()}</body></html>`;
   }
 
   /**
@@ -273,6 +334,14 @@ export class HTMLRenderer {
   static renderPythonJS() {
     return `
     <script>
+    const FLUENT_EMOJI_MAP = ${JSON.stringify(HTMLRenderer.FLUENT_EMOJI_MAP)};
+    function renderFluentEmoji(emoji, cls) {
+        const key = FLUENT_EMOJI_MAP[emoji];
+        if (!key) return emoji;
+        const className = cls || 'fluent-emoji';
+        const src = 'https://api.iconify.design/fluent-emoji-3d/' + key + '.svg';
+        return '<img class="' + className + '" src="' + src + '" alt="' + emoji + '" loading="lazy" decoding="async">';
+    }
     const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
     const RESULT_ICON_MAP = { 
       'W': '✔', 
@@ -523,7 +592,8 @@ export class HTMLRenderer {
         // 已结束比赛
         finished.forEach(match => {
             const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-            const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+            const iconCls = (match.res === 'W' || match.res === 'L') ? 'fluent-emoji' : 'fluent-emoji hist-icon';
+            const resultTag = renderFluentEmoji(icon, iconCls);
             listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
         });
         
@@ -533,7 +603,8 @@ export class HTMLRenderer {
             listHtml.push('<div style="border-top:2px solid #3b82f6;margin:8px 0;' + marginTop + '"></div>');
             upcoming.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-                const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+                const iconCls = (match.res === 'W' || match.res === 'L') ? 'fluent-emoji' : 'fluent-emoji hist-icon';
+                const resultTag = renderFluentEmoji(icon, iconCls);
                 listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
             });
         }
@@ -566,7 +637,8 @@ export class HTMLRenderer {
         // 已结束比赛
         finished.forEach(match => {
             const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-            const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+            const iconCls = (match.res === 'W' || match.res === 'L') ? 'fluent-emoji' : 'fluent-emoji hist-icon';
+            const resultTag = renderFluentEmoji(icon, iconCls);
             listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
         });
         
@@ -576,7 +648,8 @@ export class HTMLRenderer {
             listHtml.push('<div style="border-top:2px solid #3b82f6;margin:8px 0;' + marginTop + '"></div>');
             upcoming.forEach(match => {
                 const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-                const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
+                const iconCls = (match.res === 'W' || match.res === 'L') ? 'fluent-emoji' : 'fluent-emoji hist-icon';
+                const resultTag = renderFluentEmoji(icon, iconCls);
                 listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
             });
         }
@@ -595,7 +668,8 @@ export class HTMLRenderer {
         document.getElementById('modalTitle').innerHTML = team1Name + " vs " + team2Name + summary;
         const listHtml = h2hHistory.map(match => {
             const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-            const resultTag = '<span class="' + ((match.res === 'W' || match.res === 'L') ? '' : 'hist-icon') + '">' + icon + '</span>';
+            const iconCls = (match.res === 'W' || match.res === 'L') ? 'fluent-emoji' : 'fluent-emoji hist-icon';
+            const resultTag = renderFluentEmoji(icon, iconCls);
             return renderMatchItem('history', match.d, resultTag, team1Name, match.vs, match.full, match.s, match.res, match.iso);
         });
         renderListHTML(listHtml);
@@ -705,8 +779,8 @@ export class HTMLRenderer {
                 <span class="item-name">${t.name}</span>
             </label>
             <div class="item-right">
-                <button class="icon-btn icon-btn-fill" onclick="fillArchive('${t.slug}')" title="Fill">📋</button>
-                <button class="icon-btn icon-btn-del" onclick="deleteArchive('${t.slug}', '${t.name}')" title="Delete">🗑️</button>
+                <button class="icon-btn icon-btn-fill" onclick="fillArchive('${t.slug}')" title="Fill">${HTMLRenderer.renderEmoji("📋", "fill", "fluent-emoji-btn")}</button>
+                <button class="icon-btn icon-btn-del" onclick="deleteArchive('${t.slug}', '${t.name}')" title="Delete">${HTMLRenderer.renderEmoji("🗑️", "delete", "fluent-emoji-btn")}</button>
             </div>
         </div>`;
     }).join("");
@@ -719,16 +793,17 @@ export class HTMLRenderer {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Tools</title>
         ${HTMLRenderer.renderFontLinks()}
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🧰</text></svg>">
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231e293b'/><text x='50' y='66' font-size='56' text-anchor='middle' fill='white'>T</text></svg>">
         <style>
             ${TOOLS_PAGE_STYLE}
         </style>
+        ${HTMLRenderer.renderEmojiCss()}
     </head>
     <body>
         <div id="toast-container"></div>
         <div id="auth-overlay">
             <div class="auth-card">
-                <div class="auth-icon">🔐</div>
+                <div class="auth-icon">${HTMLRenderer.renderEmoji("🔐", "lock", "fluent-emoji-lg")}</div>
                 <input type="password" id="auth-pwd" class="form-input auth-input" placeholder="Password" onkeypress="if(event.key==='Enter') unlockTools()">
                 <button class="primary-btn auth-btn" onclick="unlockTools()">Unlock</button>
             </div>
@@ -736,7 +811,7 @@ export class HTMLRenderer {
 
         <header class="main-header">
             <div class="header-left">
-                <span class="header-logo">🧰</span>
+                <span class="header-logo">${HTMLRenderer.renderEmoji("🧰", "tools", "fluent-emoji-lg")}</span>
                 <h1 class="header-title">Tools</h1>
             </div>
             <div class="header-right">
@@ -748,7 +823,7 @@ export class HTMLRenderer {
         <div class="container">
 
             <div class="wrapper">
-                <div class="table-title"><span>⚙️ Operations</span></div>
+                <div class="table-title"><span>${HTMLRenderer.renderEmoji("⚙️", "operations", "fluent-emoji")} Operations</span></div>
                 <div class="section-body ops-body">
 
                     <div class="group-header">
@@ -781,7 +856,7 @@ export class HTMLRenderer {
             </div>
 
             <div class="wrapper">
-                <div class="table-title">📦 Manual Archive</div>
+                <div class="table-title">${HTMLRenderer.renderEmoji("📦", "archive", "fluent-emoji")} Manual Archive</div>
                 <div class="section-body">
                     <div class="form-grid">
                         <div class="form-group">
@@ -818,13 +893,21 @@ export class HTMLRenderer {
         ${buildFooter}
 
         <script>
+            var FLUENT_EMOJI_MAP = ${JSON.stringify(HTMLRenderer.FLUENT_EMOJI_MAP)};
+            function renderFluentEmoji(emoji, cls) {
+                var key = FLUENT_EMOJI_MAP[emoji];
+                if (!key) return emoji;
+                var className = cls || 'fluent-emoji';
+                var src = 'https://api.iconify.design/fluent-emoji-3d/' + key + '.svg';
+                return '<img class="' + className + '" src="' + src + '" alt="' + emoji + '" loading="lazy" decoding="async">';
+            }
             var authOverlay = document.getElementById("auth-overlay");
             var authPwdInput = document.getElementById("auth-pwd");
             var toastContainer = document.getElementById("toast-container");
             var TOAST_DURATION_MS = 3000;
             var REDIRECT_DELAY_MS = 1500;
             var AUTH_ERROR_MSG = "Session expired or incorrect password.";
-            var NETWORK_ERROR_MSG = "❌ Network connection failed";
+            var NETWORK_ERROR_MSG = "Network connection failed";
             var adminToken = sessionStorage.getItem("admin_pwd") || "";
             if (adminToken) authOverlay.style.display = "none";
 
@@ -862,7 +945,7 @@ export class HTMLRenderer {
                 var restore = setButtonBusy(btnEl, busyText || '...');
                 fetch(url, { method: 'POST', headers: getAuthHeaders() }).then(function(res) {
                     if (checkAuthError(res.status)) return;
-                    showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
+                    showResult(res.ok, res.ok ? 'Done' : 'Failed: ' + res.status);
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
             }
 
@@ -873,7 +956,7 @@ export class HTMLRenderer {
                     var tournaments = data.tournaments || [];
                     if (tournaments.length === 0) { container.innerHTML = '<div style="text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;">No active tournaments</div>'; return; }
                     container.innerHTML = tournaments.map(function(t) {
-                        var modeIcon = t.currentMode === 'fast' ? '⚡' : '🐌';
+                        var modeIcon = renderFluentEmoji(t.currentMode === 'fast' ? '⚡' : '🐌', 'fluent-emoji');
                         var slug = t.slug, name = t.name.replace(/'/g, '&apos;');
                         return '<div class="item">' +
                             '<label class="item-left">' +
@@ -886,9 +969,9 @@ export class HTMLRenderer {
                             '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
                             '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
                             '</select>' +
-                            '<button class="icon-btn" onclick="forceOne(&apos;' + slug + '&apos;, this)" title="Force">🔄</button>' +
-                            '<button class="icon-btn icon-btn-fill" onclick="fillArchive(&apos;' + slug + '&apos;)" title="Fill">📋</button>' +
-                            '<button class="icon-btn icon-btn-del" onclick="deleteArchive(&apos;' + slug + '&apos;, &apos;' + name + '&apos;)" title="Delete">🗑️</button>' +
+                            '<button class="icon-btn" onclick="forceOne(&apos;' + slug + '&apos;, this)" title="Force">' + renderFluentEmoji('🔄', 'fluent-emoji-btn') + '</button>' +
+                            '<button class="icon-btn icon-btn-fill" onclick="fillArchive(&apos;' + slug + '&apos;)" title="Fill">' + renderFluentEmoji('📋', 'fluent-emoji-btn') + '</button>' +
+                            '<button class="icon-btn icon-btn-del" onclick="deleteArchive(&apos;' + slug + '&apos;, &apos;' + name + '&apos;)" title="Delete">' + renderFluentEmoji('🗑️', 'fluent-emoji-btn') + '</button>' +
                             '</div>' +
                             '</div>';
                     }).join('');
@@ -906,7 +989,7 @@ export class HTMLRenderer {
                 selects.forEach(function(s) { overrides[s.dataset.slug] = s.value; });
                 sendAuthorizedPost('/mode-overrides', { 'Content-Type': 'application/json' }, JSON.stringify(overrides)).then(function(res) {
                     if (checkAuthError(res.status)) return;
-                    showResult(res.ok, res.ok ? '✅ Saved' : '❌ Failed');
+                    showResult(res.ok, res.ok ? 'Saved' : 'Failed');
                     if (res.ok) loadModeOverrides();
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
@@ -920,16 +1003,16 @@ export class HTMLRenderer {
                 var restore = setButtonBusy(btn, 'Running...');
                 sendAuthorizedPost('/force', { 'Content-Type': 'application/json' }, JSON.stringify({ slugs: slugs })).then(function(res) {
                     if (checkAuthError(res.status)) return;
-                    showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
+                    showResult(res.ok, res.ok ? 'Done' : 'Failed: ' + res.status);
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
             }
 
             function forceOne(slug, btnEl) {
                 if (!requireAuth()) return;
-                var restore = setButtonBusy(btnEl, '🔄');
+                var restore = setButtonBusy(btnEl, renderFluentEmoji('🔄', 'fluent-emoji-btn'));
                 sendAuthorizedPost('/force', { 'Content-Type': 'application/json' }, JSON.stringify({ slugs: [slug] })).then(function(res) {
                     if (checkAuthError(res.status)) return;
-                    showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
+                    showResult(res.ok, res.ok ? 'Done' : 'Failed: ' + res.status);
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
             }
 
@@ -963,7 +1046,7 @@ export class HTMLRenderer {
                 if (!confirm('Delete ' + name + '?')) return;
                 sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug: slug, name: name })).then(function(res) {
                     if (checkAuthError(res.status)) return;
-                    showResult(res.ok, res.ok ? '🗑️ Deleted' : '❌ Failed');
+                    showResult(res.ok, res.ok ? 'Deleted' : 'Failed');
                     if (res.ok) location.reload();
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
@@ -978,10 +1061,10 @@ export class HTMLRenderer {
                     start_date: document.getElementById('ma-start').value.trim(),
                     end_date: document.getElementById('ma-end').value.trim()
                 };
-                if (!payload.slug || !payload.name || !payload.overview || !payload.league) { showToast("⚠️ Slug, Name, Overview, League required", "error"); return; }
+                if (!payload.slug || !payload.name || !payload.overview || !payload.league) { showToast("Slug, Name, Overview, League required", "error"); return; }
                 sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload)).then(function(res) {
                     if (checkAuthError(res.status)) return;
-                    showResult(res.ok, res.ok ? '📦 Saved' : '❌ Failed');
+                    showResult(res.ok, res.ok ? 'Saved' : 'Failed');
                     if (res.ok) setTimeout(function() { location.reload(); }, REDIRECT_DELAY_MS);
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
@@ -1039,12 +1122,13 @@ export class HTMLRenderer {
       const rows = entries.slice(-10).map(e => {
         const t = e.t || "";
         const utcIso = t.length >= 16 ? `20${t.slice(0,8)}T${t.slice(9)}:00Z` : "";
-        const msg = e.m.replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
+        const msgRaw = e.m.replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
+        const msg = HTMLRenderer.replaceEmojisWithFluent(msgRaw);
         return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${t}</span><span class="log-mini-msg">${msg}</span></div>`;
       }).join("");
 
       return `<div class="league-card">
-        <div class="league-card-header"><div class="league-card-title"><span class="league-card-name">${name}</span>${totalCount == null ? '' : `<span class="league-total-pill">${totalCount}</span>`}</div><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?`🐌${slowThresholdMinutes}m`:`⚡${cronIntervalMinutes}m`}</span><div class="status-dot ${dotCls}"></div></div></div>
+        <div class="league-card-header"><div class="league-card-title"><span class="league-card-name">${name}</span>${totalCount == null ? '' : `<span class="league-total-pill">${totalCount}</span>`}</div><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?`${HTMLRenderer.renderEmoji("🐌", "slow", "fluent-emoji")}${slowThresholdMinutes}m`:`${HTMLRenderer.renderEmoji("⚡", "fast", "fluent-emoji")}${cronIntervalMinutes}m`}</span><div class="status-dot ${dotCls}"></div></div></div>
         <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span><span>LAST <span class="stat-val utc-local" data-utc="${lastUtcIso}" data-format="datetime">${lastTime}</span></span></div>
         <div class="timeline">${bars}</div>
         <div class="league-card-logs">${rows}</div>
@@ -1060,14 +1144,15 @@ export class HTMLRenderer {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Logs</title>
     ${HTMLRenderer.renderFontLinks()}
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>📜</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231e293b'/><text x='50' y='66' font-size='56' text-anchor='middle' fill='white'>L</text></svg>">
     <style>
         ${LOG_PAGE_STYLE}
     </style>
+    ${HTMLRenderer.renderEmojiCss()}
 </head>
 <body>
     <header class="main-header">
-        <div class="header-left"><span class="header-logo">📜</span><h1 class="header-title">Logs</h1></div>
+        <div class="header-left"><span class="header-logo">${HTMLRenderer.renderEmoji("📜", "logs", "fluent-emoji-lg")}</span><h1 class="header-title">Logs</h1></div>
         <div class="header-right">
             ${HTMLRenderer.renderActionBtn("/", "🏠", "Home")}
             ${HTMLRenderer.renderActionBtn("/tools", "🧰", "Tools")}
@@ -1095,7 +1180,7 @@ export class HTMLRenderer {
     if (t_bo5_t > 0) {
       parts.push(`BO5: **${t_bo5_f}/${t_bo5_t}** (${dataUtils.pct(dataUtils.rate(t_bo5_f, t_bo5_t))})`);
     }
-    return `📊 **Fullrate**: ${parts.join(" | ")}\n\n`;
+    return `**Fullrate**: ${parts.join(" | ")}\n\n`;
   }
 
   /**
@@ -1135,7 +1220,7 @@ export class HTMLRenderer {
       });
     }
 
-    md += `\n## \n📅 **Time Slot Distribution**\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+    md += `\n## \n**Time Slot Distribution**\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     const regionGrid = timeGrid[tournament.slug] || {};
     const hours = Object.keys(regionGrid).filter(k => k !== "Total" && !isNaN(k)).map(Number).sort((a, b) => a - b);
