@@ -251,6 +251,34 @@ export class Updater {
       return this.logger;
     }
 
+    // 收集每个候选 slug 的 revid 变化信息
+    const revidChanges = {};
+    for (const candidate of candidates) {
+      const pages = (Array.isArray(candidate.overview_page) ? candidate.overview_page : [candidate.overview_page])
+        .filter(page => typeof page === "string")
+        .map(page => page.trim())
+        .filter(Boolean);
+      const dataPages = Array.from(new Set(pages.map(page => page.startsWith("Data:") ? page : `Data:${page}`)));
+      const revKey = `REV_${candidate.slug}`;
+      const previousRevisionState = await this.env["lol-stats-kv"].get(revKey, { type: "json" });
+      const prevPages = previousRevisionState?.pages || {};
+
+      for (const page of dataPages) {
+        try {
+          const latest = await FandomClient.fetchLatestRevision(page);
+          if (latest?.missing) continue;
+          const title = latest.title || page;
+          const prevRev = prevPages?.[title]?.revid;
+          if (prevRev && Number(prevRev) === Number(latest.revid)) continue;
+
+          const wikiPage = title.replace(/^Data:/, "");
+          const diffUrl = `https://lol.fandom.com/wiki/${wikiPage}?diff=prev&oldid=${latest.revid}`;
+          if (!revidChanges[candidate.slug]) revidChanges[candidate.slug] = [];
+          revidChanges[candidate.slug].push({ revid: latest.revid, diffUrl, title });
+        } catch (error) {}
+      }
+    }
+
     // 登录到Fandom
     const authContext = await FandomClient.login(this.env.FANDOM_USER, this.env.FANDOM_PASS);
     const fandomClient = new FandomClient(authContext);
@@ -259,8 +287,15 @@ export class Updater {
     const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, updateRounds);
 
     // 处理结果
-    const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, runtimeConfig);
+    const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, forceSlugs, runtimeConfig);
     console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
+
+    // 将 revid 变化信息注入 idleItems
+    idleItems.forEach(item => {
+      if (revidChanges[item.slug]) {
+        item.revidChanges = revidChanges[item.slug];
+      }
+    });
 
     // 为每个锦标赛附加team_map（在数据抓取之后）
     for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
@@ -499,7 +534,7 @@ export class Updater {
   /**
    * 处理抓取结果
    */
-  processResults(results, cache, NOW, force, runtimeConfig) {
+  processResults(results, cache, NOW, force, forceSlugs, runtimeConfig) {
     const failedSlugs = new Set();
     const syncItems = [];
     const idleItems = [];
@@ -572,7 +607,7 @@ export class Updater {
               updated: changedCount.updated
             });
           } else {
-            idleItems.push({ slug, displayName: getDisplayName(slug), added: 0, updated: 0 });
+            idleItems.push({ slug, displayName: getDisplayName(slug), added: 0, updated: 0, isForce: force || (forceSlugs && forceSlugs.has(slug)) });
           }
         }
         cache.updateTimestamps[slug] = NOW;
@@ -605,7 +640,6 @@ export class Updater {
       
       let parts = [];
       if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
-      parts.push(`🟰 Identical`);
       
       content = parts.join(" | ");
     } else {
@@ -651,8 +685,26 @@ export class Updater {
 
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
-      let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ~0 | 🟰 Identical`;
-      pushEntry(item.slug, "SUCCESS", messageText);
+      const displayName = getDisplayName(item.slug);
+      const changeCount = item.added + item.updated;
+      const isForce = item.isForce === true;
+      let triggerText = "";
+
+      if (item.revidChanges && item.revidChanges.length > 0) {
+        const revInfo = item.revidChanges[0];
+        triggerText = ` <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
+      }
+
+      if (isForce) {
+        let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount} | 🔧 Force`;
+        pushEntry(item.slug, "SUCCESS", messageText);
+      } else if (changeCount === 0) {
+        let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~0 | 🟰${triggerText}`;
+        pushEntry(item.slug, "SUCCESS", messageText);
+      } else {
+        let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount} | ➕${triggerText}`;
+        pushEntry(item.slug, "SUCCESS", messageText);
+      }
     });
 
     breakers.forEach(breaker => {
