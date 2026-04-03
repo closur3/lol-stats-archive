@@ -162,7 +162,7 @@ export class HTMLRenderer {
         });
         t_bo3_f /= 2; t_bo3_t /= 2; t_bo5_f /= 2; t_bo5_t /= 2;
 
-        if (t_bo3_t === 0 && t_bo5_t === 0) return;
+        const hasNoData = (t_bo3_t === 0 && t_bo5_t === 0);
 
         let leagueSummaryHtml = "";
         if (t_bo3_t > 0 || t_bo5_t > 0) {
@@ -193,7 +193,7 @@ export class HTMLRenderer {
         } else {
             const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
             const isSleepCollapsed = tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji === "🕊️";
-            const openAttr = isSleepCollapsed ? "" : " open";
+            const openAttr = (isSleepCollapsed || hasNoData) ? "" : " open";
             tablesHtml += `<details class="home-sec"${openAttr}><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${emojiStr}${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         }
     });
