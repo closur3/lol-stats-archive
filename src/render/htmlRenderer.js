@@ -10,7 +10,7 @@ export class HTMLRenderer {
   /**
    * 渲染主要内容
    */
-  static renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, isArchive = false, tournMeta = {}) {
+  static renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, isArchive = false, tournamentMeta = {}) {
     globalStats = globalStats || {};
     timeData = timeData || {};
     scheduleMap = scheduleMap || {};
@@ -47,24 +47,24 @@ export class HTMLRenderer {
         if (!teamStats || !teamStats[teamName]) return "";
         const teamData = teamStats[teamName];
         let winRate = null;
-        if (bestOf === 5) winRate = dataUtils.rate(teamData.bo5_f, teamData.bo5_t);
-        else if (bestOf === 3) winRate = dataUtils.rate(teamData.bo3_f, teamData.bo3_t);
+        if (bestOf === 5) winRate = dataUtils.rate(teamData.bestOf5FullMatchCount, teamData.bestOf5TotalMatchCount);
+        else if (bestOf === 3) winRate = dataUtils.rate(teamData.bestOf3FullMatchCount, teamData.bestOf3TotalMatchCount);
         if (winRate === null) return "";
         return `<span ${STYLE_RATE_HINT}>(${Math.round(winRate * 100)}%)</span>`;
     };
 
     const buildTeamRow = (teamStats, slug) => {
-        const bo3Rate = dataUtils.rate(teamStats.bo3_f, teamStats.bo3_t);
-        const bo5Rate = dataUtils.rate(teamStats.bo5_f, teamStats.bo5_t);
-        const winRate = dataUtils.rate(teamStats.s_w, teamStats.s_t);
-        const gameRate = dataUtils.rate(teamStats.g_w, teamStats.g_t);
-        const bo3Text = teamStats.bo3_t ? mkSpine(`${teamStats.bo3_f}/${teamStats.bo3_t}`, '/') : "-";
-        const bo5Text = teamStats.bo5_t ? mkSpine(`${teamStats.bo5_f}/${teamStats.bo5_t}`, '/') : "-";
-        const seriesText = teamStats.s_t ? mkSpine(`${teamStats.s_w}-${teamStats.s_t - teamStats.s_w}`, '-') : "-";
-        const gameText = teamStats.g_t ? mkSpine(`${teamStats.g_w}-${teamStats.g_t - teamStats.g_w}`, '-') : "-";
-        const streak = teamStats.strk_w > 0
-            ? `<span class='badge' style='background:#10b981'>${teamStats.strk_w}W</span>`
-            : (teamStats.strk_l > 0 ? `<span class='badge' style='background:#f43f5e'>${teamStats.strk_l}L</span>` : "-");
+        const bo3Rate = dataUtils.rate(teamStats.bestOf3FullMatchCount, teamStats.bestOf3TotalMatchCount);
+        const bo5Rate = dataUtils.rate(teamStats.bestOf5FullMatchCount, teamStats.bestOf5TotalMatchCount);
+        const winRate = dataUtils.rate(teamStats.seriesWinCount, teamStats.seriesTotalMatchCount);
+        const gameRate = dataUtils.rate(teamStats.gameWinCount, teamStats.gameTotalCount);
+        const bo3Text = teamStats.bestOf3TotalMatchCount ? mkSpine(`${teamStats.bestOf3FullMatchCount}/${teamStats.bestOf3TotalMatchCount}`, '/') : "-";
+        const bo5Text = teamStats.bestOf5TotalMatchCount ? mkSpine(`${teamStats.bestOf5FullMatchCount}/${teamStats.bestOf5TotalMatchCount}`, '/') : "-";
+        const seriesText = teamStats.seriesTotalMatchCount ? mkSpine(`${teamStats.seriesWinCount}-${teamStats.seriesTotalMatchCount - teamStats.seriesWinCount}`, '-') : "-";
+        const gameText = teamStats.gameTotalCount ? mkSpine(`${teamStats.gameWinCount}-${teamStats.gameTotalCount - teamStats.gameWinCount}`, '-') : "-";
+        const streak = teamStats.winStreakCount > 0
+            ? `<span class='badge' style='background:#10b981'>${teamStats.winStreakCount}W</span>`
+            : (teamStats.lossStreakCount > 0 ? `<span class='badge' style='background:#f43f5e'>${teamStats.lossStreakCount}L</span>` : "-");
         const lastMatch = teamStats.last ? dateUtils.fmtDate(teamStats.last) : "-";
         const lastMatchColor = dateUtils.colorDate(teamStats.last);
 
@@ -74,24 +74,24 @@ export class HTMLRenderer {
         const statStyle = (count) => `style="background:${count === 0 ? emptyBackground : 'transparent'};color:${count === 0 ? emptyColor : 'inherit'}"`;
         const percentStyle = (rate, strong = false) => `style="background:${dataUtils.color(rate, strong)};color:${rate !== null ? 'white' : emptyColor};font-weight:bold"`;
         const lastStyle = `style="background:${!teamStats.last ? emptyBackground : 'transparent'};color:${!teamStats.last ? emptyColor : lastMatchColor};font-weight:700"`;
-        const streakEmpty = teamStats.strk_w === 0 && teamStats.strk_l === 0;
+        const streakEmpty = teamStats.winStreakCount === 0 && teamStats.lossStreakCount === 0;
         const streakStyle = `style="background:${streakEmpty ? emptyBackground : 'transparent'};color:${streakEmpty ? emptyColor : 'inherit'}"`;
 
         return `<tr><td class="team-col team-clickable" onclick="openTeam('${slug}', '${teamStats.name}')">${teamStats.name}</td>` +
-               `<td class="${getClass('col-bo3', teamStats.bo3_t)}" ${getClickHandler(teamStats.name, 'bo3', teamStats.bo3_t)} ${statStyle(teamStats.bo3_t)}>${bo3Text}</td>` +
+               `<td class="${getClass('col-bo3', teamStats.bestOf3TotalMatchCount)}" ${getClickHandler(teamStats.name, 'bo3', teamStats.bestOf3TotalMatchCount)} ${statStyle(teamStats.bestOf3TotalMatchCount)}>${bo3Text}</td>` +
                `<td class="col-bo3-pct" ${percentStyle(bo3Rate, true)}>${dataUtils.pct(bo3Rate)}</td>` +
-               `<td class="${getClass('col-bo5', teamStats.bo5_t)}" ${getClickHandler(teamStats.name, 'bo5', teamStats.bo5_t)} ${statStyle(teamStats.bo5_t)}>${bo5Text}</td>` +
+               `<td class="${getClass('col-bo5', teamStats.bestOf5TotalMatchCount)}" ${getClickHandler(teamStats.name, 'bo5', teamStats.bestOf5TotalMatchCount)} ${statStyle(teamStats.bestOf5TotalMatchCount)}>${bo5Text}</td>` +
                `<td class="col-bo5-pct" ${percentStyle(bo5Rate, true)}>${dataUtils.pct(bo5Rate)}</td>` +
-               `<td class="${getClass('col-series', teamStats.s_t)}" ${getClickHandler(teamStats.name, 'series', teamStats.s_t)} ${statStyle(teamStats.s_t)}>${seriesText}</td>` +
+               `<td class="${getClass('col-series', teamStats.seriesTotalMatchCount)}" ${getClickHandler(teamStats.name, 'series', teamStats.seriesTotalMatchCount)} ${statStyle(teamStats.seriesTotalMatchCount)}>${seriesText}</td>` +
                `<td class="col-series-wr" ${percentStyle(winRate)}>${dataUtils.pct(winRate)}</td>` +
-               `<td class="col-game" ${statStyle(teamStats.g_t)}>${gameText}</td>` +
+               `<td class="col-game" ${statStyle(teamStats.gameTotalCount)}>${gameText}</td>` +
                `<td class="col-game-wr" ${percentStyle(gameRate)}>${dataUtils.pct(gameRate)}</td>` +
                `<td class="col-streak" ${streakStyle}>${streak}</td>` +
                `<td class="col-last" ${lastStyle}><span class="utc-local" data-utc="${teamStats.last || ''}" data-format="datetime">${lastMatch}</span></td></tr>`;
     };
 
     const buildTimeTable = (regionGrid) => {
-        const hours = Object.keys(regionGrid).filter(key => key !== "Total" && !isNaN(key)).map(Number).sort((a, b) => a - b);
+        const hours = Object.keys(regionGrid).filter(key => key !== "Total" && !isNaN(key)).map(Number).sort((leftHour, rightHour) => leftHour - rightHour);
         if (hours.length === 0 && !regionGrid["Total"]) return "";
 
         let html = `<div style="border-top: 1px solid #f1f5f9; width:100%;"></div><table style="font-variant-numeric:tabular-nums; border-top:none;"><thead><tr style="border-bottom:none;"><th class="team-col" style="cursor:default; pointer-events:none;">TIME</th>`;
@@ -106,13 +106,13 @@ export class HTMLRenderer {
             html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col ${hourAttr}" style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
 
             for (let dayIndex = 0; dayIndex < 8; dayIndex++) {
-                const cellData = regionGrid[hour][dayIndex] || { total: 0 };
-                if (cellData.total === 0) {
+                const cellData = regionGrid[hour][dayIndex] || { totalMatchCount: 0 };
+                if (cellData.totalMatchCount === 0) {
                     html += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
                 } else {
-                    const fullRate = cellData.full / cellData.total;
+                    const fullRate = cellData.fullLengthMatchCount / cellData.totalMatchCount;
                     const matches = JSON.stringify(cellData.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                    html += `<td style='background:${dataUtils.color(fullRate, true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${dayIndex}, ${matches})'><div class="t-cell"><span class="t-val">${cellData.full}<span ${STYLE_SCORE_SEP}>/</span>${cellData.total}</span><span class="t-pct">(${Math.round(fullRate * 100)}%)</span></div></td>`;
+                    html += `<td style='background:${dataUtils.color(fullRate, true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${dayIndex}, ${matches})'><div class="t-cell"><span class="t-val">${cellData.fullLengthMatchCount}<span ${STYLE_SCORE_SEP}>/</span>${cellData.totalMatchCount}</span><span class="t-pct">(${Math.round(fullRate * 100)}%)</span></div></td>`;
                 }
             }
 
@@ -124,26 +124,27 @@ export class HTMLRenderer {
     };
 
     const buildScheduleRow = (match) => {
-        const boLabel = match.bo ? `BO${match.bo}` : "";
-        const boClass = match.bo === 5 ? "sch-pill gold" : "sch-pill";
-        const isTbd1 = match.t1 === "TBD", isTbd2 = match.t2 === "TBD";
-        const t1Click = isTbd1 ? "" : `onclick="openTeam('${match.slug}', '${match.t1}')"`;
-        const t2Click = isTbd2 ? "" : `onclick="openTeam('${match.slug}', '${match.t2}')"`;
-        const r1 = getRateHtml(match.t1, match.slug, match.bo), r2 = getRateHtml(match.t2, match.slug, match.bo);
+        const bestOfLabel = match.bestOf ? `BO${match.bestOf}` : "";
+        const bestOfClass = match.bestOf === 5 ? "sch-pill gold" : "sch-pill";
+        const isTbd1 = match.team1Name === "TBD", isTbd2 = match.team2Name === "TBD";
+        const team1ClickHandler = isTbd1 ? "" : `onclick="openTeam('${match.slug}', '${match.team1Name}')"`;
+        const team2ClickHandler = isTbd2 ? "" : `onclick="openTeam('${match.slug}', '${match.team2Name}')"`;
+        const team1RateHint = getRateHtml(match.team1Name, match.slug, match.bestOf);
+        const team2RateHint = getRateHtml(match.team2Name, match.slug, match.bestOf);
 
         let midContent = `<span ${STYLE_VS_TEXT}>vs</span>`;
-        if (match.is_finished) {
-            const s1Style = match.s1 > match.s2 ? "color:#0f172a" : "color:#94a3b8";
-            const s2Style = match.s2 > match.s1 ? "color:#0f172a" : "color:#94a3b8";
-            midContent = `<span class="sch-fin-score"><span style="${s1Style}">${match.s1}</span><span ${STYLE_SCORE_SEP}>-</span><span style="${s2Style}">${match.s2}</span></span>`;
-        } else if (match.is_live) {
-            midContent = `<span class="sch-live-score">${match.s1}<span ${STYLE_SCORE_SEP}>-</span>${match.s2}</span>`;
+        if (match.isFinished) {
+            const s1Style = match.team1Score > match.team2Score ? "color:#0f172a" : "color:#94a3b8";
+            const s2Style = match.team2Score > match.team1Score ? "color:#0f172a" : "color:#94a3b8";
+            midContent = `<span class="sch-fin-score"><span style="${s1Style}">${match.team1Score}</span><span ${STYLE_SCORE_SEP}>-</span><span style="${s2Style}">${match.team2Score}</span></span>`;
+        } else if (match.isLive) {
+            midContent = `<span class="sch-live-score">${match.team1Score}<span ${STYLE_SCORE_SEP}>-</span>${match.team2Score}</span>`;
         }
 
         const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
-        const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${match.t1}', '${match.t2}')"` : "";
+        const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${match.team1Name}', '${match.team2Name}')"` : "";
 
-        return `<div class="sch-row"><span class="sch-time"><span class="utc-local" data-utc="${match.iso || ''}" data-format="time">${match.time}</span></span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${t1Click} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${r1}${match.t1}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${t2Click} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.t2}${r2}</span></div></div><div class="sch-tag-col"><span class="${boClass}">${boLabel}</span></div></div>`;
+        return `<div class="sch-row"><span class="sch-time"><span class="utc-local" data-utc="${match.isoTimestamp || ''}" data-format="time">${match.time}</span></span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${team1ClickHandler} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${team1RateHint}${match.team1Name}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${team2ClickHandler} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.team2Name}${team2RateHint}</span></div></div><div class="sch-tag-col"><span class="${bestOfClass}">${bestOfLabel}</span></div></div>`;
     };
 
     let tablesHtml = "";
@@ -155,33 +156,39 @@ export class HTMLRenderer {
         const tableId = `t_${tournament.slug.replace(/-/g, '_')}`;
 
         // 计算联赛总打满量
-        let t_bo3_f = 0, t_bo3_t = 0, t_bo5_f = 0, t_bo5_t = 0;
-        stats.forEach(s => {
-            t_bo3_f += s.bo3_f || 0; t_bo3_t += s.bo3_t || 0;
-            t_bo5_f += s.bo5_f || 0; t_bo5_t += s.bo5_t || 0;
+        let tournamentBestOf3FullMatchCount = 0, tournamentBestOf3TotalMatchCount = 0;
+        let tournamentBestOf5FullMatchCount = 0, tournamentBestOf5TotalMatchCount = 0;
+        stats.forEach(teamStats => {
+            tournamentBestOf3FullMatchCount += teamStats.bestOf3FullMatchCount || 0;
+            tournamentBestOf3TotalMatchCount += teamStats.bestOf3TotalMatchCount || 0;
+            tournamentBestOf5FullMatchCount += teamStats.bestOf5FullMatchCount || 0;
+            tournamentBestOf5TotalMatchCount += teamStats.bestOf5TotalMatchCount || 0;
         });
-        t_bo3_f /= 2; t_bo3_t /= 2; t_bo5_f /= 2; t_bo5_t /= 2;
+        tournamentBestOf3FullMatchCount /= 2;
+        tournamentBestOf3TotalMatchCount /= 2;
+        tournamentBestOf5FullMatchCount /= 2;
+        tournamentBestOf5TotalMatchCount /= 2;
 
-        const hasNoData = (t_bo3_t === 0 && t_bo5_t === 0);
+        const hasNoData = (tournamentBestOf3TotalMatchCount === 0 && tournamentBestOf5TotalMatchCount === 0);
 
         let leagueSummaryHtml = "";
-        if (t_bo3_t > 0 || t_bo5_t > 0) {
+        if (tournamentBestOf3TotalMatchCount > 0 || tournamentBestOf5TotalMatchCount > 0) {
             let parts = [];
-            if (t_bo3_t > 0) parts.push(`BO3: ${t_bo3_f}/${t_bo3_t} <span style="opacity:0.7;font-weight:400;">(${dataUtils.pct(dataUtils.rate(t_bo3_f, t_bo3_t))})</span>`);
-            if (t_bo5_t > 0) parts.push(`BO5: ${t_bo5_f}/${t_bo5_t} <span style="opacity:0.7;font-weight:400;">(${dataUtils.pct(dataUtils.rate(t_bo5_f, t_bo5_t))})</span>`);
+            if (tournamentBestOf3TotalMatchCount > 0) parts.push(`BO3: ${tournamentBestOf3FullMatchCount}/${tournamentBestOf3TotalMatchCount} <span style="opacity:0.7;font-weight:400;">(${dataUtils.pct(dataUtils.rate(tournamentBestOf3FullMatchCount, tournamentBestOf3TotalMatchCount))})</span>`);
+            if (tournamentBestOf5TotalMatchCount > 0) parts.push(`BO5: ${tournamentBestOf5FullMatchCount}/${tournamentBestOf5TotalMatchCount} <span style="opacity:0.7;font-weight:400;">(${dataUtils.pct(dataUtils.rate(tournamentBestOf5FullMatchCount, tournamentBestOf5TotalMatchCount))})</span>`);
 
             leagueSummaryHtml = `<div class="league-summary">${parts.join(" <span class='summary-sep'>|</span> ")}</div>`;
         }
 
         const mainPage = Array.isArray(tournament.overview_page) ? tournament.overview_page[0] : tournament.overview_page;
-        const rows = stats.map(s => buildTeamRow(s, tournament.slug)).join("");
+        const rows = stats.map(teamStats => buildTeamRow(teamStats, tournament.slug)).join("");
         const tableBody = `<table id="${tableId}" data-sort-col="2" data-sort-dir-2="asc"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(5, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(7, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
 
         const regionGrid = timeData[tournament.slug] || {};
         const timeTableHtml = buildTimeTable(regionGrid);
 
-        const emojiStr = (!isArchive && tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji)
-            ? `<span ${STYLE_EMOJI}>${tournMeta[tournament.slug].emoji}</span>`
+        const emojiStr = (!isArchive && tournamentMeta[tournament.slug] && tournamentMeta[tournament.slug].emoji)
+            ? `<span ${STYLE_EMOJI}>${tournamentMeta[tournament.slug].emoji}</span>`
             : "";
         const pageUrl = `https://lol.fandom.com/wiki/${mainPage}`;
         const titleText = `<span class="league-title-text">${tournament.name}</span>`;
@@ -192,7 +199,7 @@ export class HTMLRenderer {
             tablesHtml += `<details class="home-sec archive-sec"><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         } else {
             const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
-            const isSleepCollapsed = tournMeta[tournament.slug] && tournMeta[tournament.slug].emoji === "🕊️";
+            const isSleepCollapsed = tournamentMeta[tournament.slug] && tournamentMeta[tournament.slug].emoji === "🕊️";
             const openAttr = (isSleepCollapsed || hasNoData) ? "" : " open";
             tablesHtml += `<details class="home-sec"${openAttr}><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${emojiStr}${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
         }
@@ -205,11 +212,11 @@ export class HTMLRenderer {
             scheduleHtml = `<div class="sch-empty">🕊️ NO FUTURE MATCHES SCHEDULED</div>`;
         } else {
             scheduleHtml = `<div class="sch-container">`;
-            dates.forEach(d => {
-                const matches = scheduleMap[d];
-                const dateObj = new Date(d + "T00:00:00Z");
+            dates.forEach(scheduleDate => {
+                const matches = scheduleMap[scheduleDate];
+                const dateObj = new Date(scheduleDate + "T00:00:00Z");
                 const dayName = WEEKDAY_NAMES[dateObj.getUTCDay()];
-                let cardHtml = `<div class="sch-card"><div class="sch-header" ${STYLE_SCH_HEADER}><span>📅 <span class="utc-local date-display" data-utc="${d}T00:00:00Z" data-format="date">${d.slice(5)}</span> ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
+                let cardHtml = `<div class="sch-card"><div class="sch-header" ${STYLE_SCH_HEADER}><span>📅 <span class="utc-local date-display" data-utc="${scheduleDate}T00:00:00Z" data-format="date">${scheduleDate.slice(5)}</span> ${dayName}</span><span ${STYLE_SCH_COUNT}>${matches.length} Matches</span></div><div class="sch-body">`;
                 let lastGroupKey = "";
 
                 matches.forEach(match => {
@@ -275,10 +282,10 @@ export class HTMLRenderer {
     <script>
     const COL_TEAM=0, COL_BO3=1, COL_BO3_PCT=2, COL_BO5=3, COL_BO5_PCT=4, COL_SERIES=5, COL_SERIES_WR=6, COL_GAME=7, COL_GAME_WR=8, COL_STREAK=9, COL_LAST_DATE=10;
     const RESULT_ICON_MAP = { 
-      'W': '✔', 
-      'L': '❌', 
-      'LIV': '🔵', 
-      'N': '🕒' 
+      'WIN': '✔', 
+      'LOSS': '❌', 
+      'LIVE': '🔵', 
+      'NEXT': '🕒' 
     };
     const STYLE_DATE_TIME = 'style="font-weight:700;color:#475569"';
     const STYLE_SCORE_DASH = 'style="opacity:0.4;margin:0 1px"';
@@ -317,20 +324,20 @@ export class HTMLRenderer {
 
             if (columnIndex === COL_SERIES) {
                 const parseSeriesRecord = (text) => {
-                    if (text === "-" || !text.includes("-")) return { w: -1, l: 9999, wr: -1 };
+                    if (text === "-" || !text.includes("-")) return { wins: -1, losses: 9999, winRate: -1 };
                     const parts = text.split("-");
-                    const w = parseFloat(parts[0]) || 0;
-                    const l = parseFloat(parts[1]) || 0;
-                    const total = w + l;
-                    return { w, l, wr: total > 0 ? (w / total) : -1 };
+                    const wins = parseFloat(parts[0]) || 0;
+                    const losses = parseFloat(parts[1]) || 0;
+                    const total = wins + losses;
+                    return { wins, losses, winRate: total > 0 ? (wins / total) : -1 };
                 };
 
                 const recA = parseSeriesRecord(rowA.cells[COL_SERIES].innerText);
                 const recB = parseSeriesRecord(rowB.cells[COL_SERIES].innerText);
 
-                if (recA.w !== recB.w) return nextDir === 'asc' ? (recA.w - recB.w) : (recB.w - recA.w);
-                if (recA.l !== recB.l) return nextDir === 'asc' ? (recB.l - recA.l) : (recA.l - recB.l);
-                if (recA.wr !== recB.wr) return nextDir === 'asc' ? (recA.wr - recB.wr) : (recB.wr - recA.wr);
+                if (recA.wins !== recB.wins) return nextDir === 'asc' ? (recA.wins - recB.wins) : (recB.wins - recA.wins);
+                if (recA.losses !== recB.losses) return nextDir === 'asc' ? (recB.losses - recA.losses) : (recA.losses - recB.losses);
+                if (recA.winRate !== recB.winRate) return nextDir === 'asc' ? (recA.winRate - recB.winRate) : (recB.winRate - recA.winRate);
 
                 const gameA = parseValue(rowA.cells[COL_GAME_WR].innerText);
                 const gameB = parseValue(rowB.cells[COL_GAME_WR].innerText);
@@ -418,44 +425,44 @@ export class HTMLRenderer {
         return isNaN(num) ? value.toLowerCase() : num;
     }
 
-    function renderMatchItem(mode, date, resTag, team1, team2, isFull, score, resStatus, isoString) {
-        const dateParts = (date || '').split(' ');
+    function renderMatchItem(mode, dateDisplay, resultTagHtml, team1Name, team2Name, isFullLength, scoreDisplay, matchResultCode, isoTimestamp) {
+        const dateParts = (dateDisplay || '').split(' ');
         const dateHtml = dateParts.length === 2 
-          ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + ' class="utc-local" data-utc="' + (isoString || '') + '" data-format="time">' + dateParts[1] + '</span>' 
-          : (date || '');
+          ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + ' class="utc-local" data-utc="' + (isoTimestamp || '') + '" data-format="time">' + dateParts[1] + '</span>' 
+          : (dateDisplay || '');
 
         // 根据比赛结果添加边框样式类
         let matchItemClass = 'match-item';
         if (mode === 'history') {
-            if (resStatus === 'W') {
+            if (matchResultCode === 'WIN') {
                 matchItemClass += ' match-win';
-            } else if (resStatus === 'L') {
+            } else if (matchResultCode === 'LOSS') {
                 matchItemClass += ' match-loss';
             }
         }
 
         let scoreContent = '', scoreClass = 'score-text';
-        if (resStatus === 'LIV') scoreClass += ' live';
-        if (resStatus === 'N') { 
+        if (matchResultCode === 'LIVE') scoreClass += ' live';
+        if (matchResultCode === 'NEXT') { 
           scoreContent = '<span class="score-text vs">VS</span>'; 
         } else { 
-          const formattedScore = (score || '').toString().replace('-', '<span ' + STYLE_SCORE_DASH + '>-</span>'); 
+          const formattedScore = (scoreDisplay || '').toString().replace('-', '<span ' + STYLE_SCORE_DASH + '>-</span>'); 
           scoreContent = '<span class="' + scoreClass + '">' + formattedScore + '</span>'; 
         }
-        const boxClass = isFull ? 'score-box is-full' : 'score-box';
-        const team1Style = team1 === 'TBD' ? 'style="padding-right:5px;color:#9ca3af !important;"' : 'style="padding-right:5px;"';
-        const team2Style = team2 === 'TBD' ? 'style="padding-left:5px;color:#9ca3af !important;"' : 'style="padding-left:5px;"';
+        const boxClass = isFullLength ? 'score-box is-full' : 'score-box';
+        const team1Style = team1Name === 'TBD' ? 'style="padding-right:5px;color:#9ca3af !important;"' : 'style="padding-right:5px;"';
+        const team2Style = team2Name === 'TBD' ? 'style="padding-left:5px;color:#9ca3af !important;"' : 'style="padding-left:5px;"';
 
         return '<div class="' + matchItemClass + '">' +
                '<div class="col-date">' + dateHtml + '</div>' +
                '<div class="modal-divider"></div>' +
                '<div class="col-vs-area"><div class="spine-row">' +
-               '<span class="spine-l" ' + team1Style + '>' + team1 + '</span>' +
+               '<span class="spine-l" ' + team1Style + '>' + team1Name + '</span>' +
                '<div ' + STYLE_SCORE_WRAP + '><div class="' + boxClass + '">' + scoreContent + '</div></div>' +
-               '<span class="spine-r" ' + team2Style + '>' + team2 + '</span>' +
+               '<span class="spine-r" ' + team2Style + '>' + team2Name + '</span>' +
                '</div></div>' +
                '<div class="modal-divider"></div>' +
-               '<div class="col-res">' + resTag + '</div>' +
+               '<div class="col-res">' + resultTagHtml + '</div>' +
                '</div>';
     }
 
@@ -490,13 +497,13 @@ export class HTMLRenderer {
         }
         
         document.getElementById('modalTitle').innerText = localTime + " - " + dayNames[dayIndex];
-        const sortedMatches = [...matches].sort((matchA, matchB) => (matchB.ts || 0) - (matchA.ts || 0) || matchB.d.localeCompare(matchA.d));
+        const sortedMatches = [...matches].sort((matchA, matchB) => (matchB.timestamp || 0) - (matchA.timestamp || 0) || matchB.dateDisplay.localeCompare(matchA.dateDisplay));
         const listHtml = sortedMatches.map(match => {
             let boTag = '<span ' + STYLE_MUTED_DASH + '>-</span>';
-            if (match.bo === 5) boTag = '<span class="sch-pill gold">BO5</span>';
-            else if (match.bo === 3) boTag = '<span class="sch-pill">BO3</span>';
-            else if (match.bo === 1) boTag = '<span class="sch-pill">BO1</span>';
-            return renderMatchItem('distribution', match.d, boTag, match.t1, match.t2, match.f, match.s, null, match.iso);
+            if (match.bestOf === 5) boTag = '<span class="sch-pill gold">BO5</span>';
+            else if (match.bestOf === 3) boTag = '<span class="sch-pill">BO3</span>';
+            else if (match.bestOf === 1) boTag = '<span class="sch-pill">BO1</span>';
+            return renderMatchItem('distribution', match.dateDisplay, boTag, match.team1Name, match.team2Name, match.isFullLength, match.scoreDisplay, null, match.isoTimestamp);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display = "block";
@@ -509,22 +516,22 @@ export class HTMLRenderer {
         
         const history = data.history || [];
         
-        // 分离已结束（W/L）和未开始（N）的比赛
-        const finished = history.filter(m => m.res === 'W' || m.res === 'L');
-        const upcoming = history.filter(m => m.res === 'N' || m.res === 'LIV');
+        // 分离已结束（WIN/LOSS）和未开始（NEXT）的比赛
+        const finished = history.filter(match => match.matchResultCode === 'WIN' || match.matchResultCode === 'LOSS');
+        const upcoming = history.filter(match => match.matchResultCode === 'NEXT' || match.matchResultCode === 'LIVE');
         
         // 已结束：按timestamp降序（新到旧），如果ts相同则按日期字符串排序
-        finished.sort((a, b) => (b.ts || 0) - (a.ts || 0) || b.d.localeCompare(a.d));
+        finished.sort((leftMatch, rightMatch) => (rightMatch.timestamp || 0) - (leftMatch.timestamp || 0) || rightMatch.dateDisplay.localeCompare(leftMatch.dateDisplay));
         // 未开始：按timestamp升序（旧到新），如果ts相同则按日期字符串排序
-        upcoming.sort((a, b) => (a.ts || 0) - (b.ts || 0) || a.d.localeCompare(b.d));
+        upcoming.sort((leftMatch, rightMatch) => (leftMatch.timestamp || 0) - (rightMatch.timestamp || 0) || leftMatch.dateDisplay.localeCompare(rightMatch.dateDisplay));
         
         let listHtml = [];
         
         // 已结束比赛
         finished.forEach(match => {
-            const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-            const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-            listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
+            const icon = RESULT_ICON_MAP[match.matchResultCode] || RESULT_ICON_MAP['NEXT'];
+            const resultTag = \`<span class="\${(match.matchResultCode === 'WIN' || match.matchResultCode === 'LOSS') ? '' : 'hist-icon'}">\${icon}</span>\`;
+            listHtml.push(renderMatchItem('history', match.dateDisplay, resultTag, teamName, match.opponentName, match.isFullLength, match.scoreDisplay, match.matchResultCode, match.isoTimestamp));
         });
         
         // 未开始比赛区域（蓝色分隔线）
@@ -532,9 +539,9 @@ export class HTMLRenderer {
             const marginTop = finished.length > 0 ? 'margin-top:16px;' : '';
             listHtml.push('<div style="border-top:2px solid #3b82f6;margin:8px 0;' + marginTop + '"></div>');
             upcoming.forEach(match => {
-                const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-                const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
+                const icon = RESULT_ICON_MAP[match.matchResultCode] || RESULT_ICON_MAP['NEXT'];
+                const resultTag = \`<span class="\${(match.matchResultCode === 'WIN' || match.matchResultCode === 'LOSS') ? '' : 'hist-icon'}">\${icon}</span>\`;
+                listHtml.push(renderMatchItem('history', match.dateDisplay, resultTag, teamName, match.opponentName, match.isFullLength, match.scoreDisplay, match.matchResultCode, match.isoTimestamp));
             });
         }
         
@@ -547,27 +554,27 @@ export class HTMLRenderer {
         const data = window.g_stats[slug][teamName];
         let history = data.history || [];
         let titleSuffix = "";
-        if (type === 'bo3') { history = history.filter(match => match.bo === 3); titleSuffix = " - BO3"; }
-        else if (type === 'bo5') { history = history.filter(match => match.bo === 5); titleSuffix = " - BO5"; }
+        if (type === 'bo3') { history = history.filter(match => match.bestOf === 3); titleSuffix = " - BO3"; }
+        else if (type === 'bo5') { history = history.filter(match => match.bestOf === 5); titleSuffix = " - BO5"; }
         else { titleSuffix = " - Series"; }
         document.getElementById('modalTitle').innerText = teamName + titleSuffix;
         
-        // 分离已结束（W/L）和未开始（N）的比赛
-        const finished = history.filter(m => m.res === 'W' || m.res === 'L');
-        const upcoming = history.filter(m => m.res === 'N' || m.res === 'LIV');
+        // 分离已结束（WIN/LOSS）和未开始（NEXT）的比赛
+        const finished = history.filter(match => match.matchResultCode === 'WIN' || match.matchResultCode === 'LOSS');
+        const upcoming = history.filter(match => match.matchResultCode === 'NEXT' || match.matchResultCode === 'LIVE');
         
         // 已结束：按timestamp降序（新到旧），如果ts相同则按日期字符串排序
-        finished.sort((a, b) => (b.ts || 0) - (a.ts || 0) || b.d.localeCompare(a.d));
+        finished.sort((leftMatch, rightMatch) => (rightMatch.timestamp || 0) - (leftMatch.timestamp || 0) || rightMatch.dateDisplay.localeCompare(leftMatch.dateDisplay));
         // 未开始：按timestamp升序（旧到新），如果ts相同则按日期字符串排序
-        upcoming.sort((a, b) => (a.ts || 0) - (b.ts || 0) || a.d.localeCompare(b.d));
+        upcoming.sort((leftMatch, rightMatch) => (leftMatch.timestamp || 0) - (rightMatch.timestamp || 0) || leftMatch.dateDisplay.localeCompare(rightMatch.dateDisplay));
         
         let listHtml = [];
         
         // 已结束比赛
         finished.forEach(match => {
-            const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-            const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-            listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
+            const icon = RESULT_ICON_MAP[match.matchResultCode] || RESULT_ICON_MAP['NEXT'];
+            const resultTag = \`<span class="\${(match.matchResultCode === 'WIN' || match.matchResultCode === 'LOSS') ? '' : 'hist-icon'}">\${icon}</span>\`;
+            listHtml.push(renderMatchItem('history', match.dateDisplay, resultTag, teamName, match.opponentName, match.isFullLength, match.scoreDisplay, match.matchResultCode, match.isoTimestamp));
         });
         
         // 未开始比赛区域（蓝色分隔线）
@@ -575,9 +582,9 @@ export class HTMLRenderer {
             const marginTop = finished.length > 0 ? 'margin-top:16px;' : '';
             listHtml.push('<div style="border-top:2px solid #3b82f6;margin:8px 0;' + marginTop + '"></div>');
             upcoming.forEach(match => {
-                const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-                const resultTag = \`<span class="\${(match.res === 'W' || match.res === 'L') ? '' : 'hist-icon'}">\${icon}</span>\`;
-                listHtml.push(renderMatchItem('history', match.d, resultTag, teamName, match.vs, match.full, match.s, match.res, match.iso));
+                const icon = RESULT_ICON_MAP[match.matchResultCode] || RESULT_ICON_MAP['NEXT'];
+                const resultTag = \`<span class="\${(match.matchResultCode === 'WIN' || match.matchResultCode === 'LOSS') ? '' : 'hist-icon'}">\${icon}</span>\`;
+                listHtml.push(renderMatchItem('history', match.dateDisplay, resultTag, teamName, match.opponentName, match.isFullLength, match.scoreDisplay, match.matchResultCode, match.isoTimestamp));
             });
         }
         
@@ -588,22 +595,22 @@ export class HTMLRenderer {
     function openH2H(slug, team1Name, team2Name) {
         if (!window.g_stats || !window.g_stats[slug] || !window.g_stats[slug][team1Name]) return;
         const data = window.g_stats[slug][team1Name];
-        const h2hHistory = (data.history || []).filter(match => match.vs === team2Name);
+        const h2hHistory = (data.history || []).filter(match => match.opponentName === team2Name);
         let team1Wins = 0, team2Wins = 0;
-        h2hHistory.forEach(match => { if(match.res === 'W') team1Wins++; else if(match.res === 'L') team2Wins++; });
+        h2hHistory.forEach(match => { if(match.matchResultCode === 'WIN') team1Wins++; else if(match.matchResultCode === 'LOSS') team2Wins++; });
         const summary = h2hHistory.length > 0 ? ' <span ' + STYLE_H2H_SUMMARY + '>(' + team1Wins + '<span ' + STYLE_H2H_DASH + '>-</span>' + team2Wins + ')</span>' : "";
         document.getElementById('modalTitle').innerHTML = team1Name + " vs " + team2Name + summary;
         const listHtml = h2hHistory.map(match => {
-            const icon = RESULT_ICON_MAP[match.res] || RESULT_ICON_MAP['N'];
-            const resultTag = '<span class="' + ((match.res === 'W' || match.res === 'L') ? '' : 'hist-icon') + '">' + icon + '</span>';
-            return renderMatchItem('history', match.d, resultTag, team1Name, match.vs, match.full, match.s, match.res, match.iso);
+            const icon = RESULT_ICON_MAP[match.matchResultCode] || RESULT_ICON_MAP['NEXT'];
+            const resultTag = '<span class="' + ((match.matchResultCode === 'WIN' || match.matchResultCode === 'LOSS') ? '' : 'hist-icon') + '">' + icon + '</span>';
+            return renderMatchItem('history', match.dateDisplay, resultTag, team1Name, match.opponentName, match.isFullLength, match.scoreDisplay, match.matchResultCode, match.isoTimestamp);
         });
         renderListHTML(listHtml);
         document.getElementById('matchModal').style.display="block";
     }
 
     function closePopup(){document.getElementById('matchModal').style.display="none";}
-    window.onclick=function(e){if(e.target==document.getElementById('matchModal'))closePopup();}
+    window.onclick=function(event){if(event.target==document.getElementById('matchModal'))closePopup();}
 
     // ============ 统一时区转换系统 ============
     function pad(n) { return n < 10 ? '0' + n : n; }
@@ -616,8 +623,8 @@ export class HTMLRenderer {
         if (!isNaN(num) && num > 0) return new Date(num);
         // 完整ISO格式 "2026-03-26T11:33:29.000Z" (四位数年份)
         if (/^\\d{4}-\\d{2}-\\d{2}T/.test(utc)) {
-            var d = new Date(utc.includes('Z') ? utc : utc + 'Z');
-            if (!isNaN(d.getTime())) return d;
+            var parsedDate = new Date(utc.includes('Z') ? utc : utc + 'Z');
+            if (!isNaN(parsedDate.getTime())) return parsedDate;
         }
         // 短格式 "26-03-26T11:33:08" 或 "26-03-26 11:33:08" (UTC时间)
         var clean = utc.replace('T', ' ');
@@ -694,19 +701,19 @@ export class HTMLRenderer {
   static renderToolsPage(time, sha, existingArchives = []) {
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
 
-    let archiveListHtml = existingArchives.map(t => {
-        const overviewStr = Array.isArray(t.overview_page) ? JSON.stringify(t.overview_page) : JSON.stringify([t.overview_page]);
-        const startDate = t.start_date || '';
-        const endDate = t.end_date || '';
+    let archiveListHtml = existingArchives.map(archiveTournament => {
+        const overviewStr = Array.isArray(archiveTournament.overview_page) ? JSON.stringify(archiveTournament.overview_page) : JSON.stringify([archiveTournament.overview_page]);
+        const startDate = archiveTournament.start_date || '';
+        const endDate = archiveTournament.end_date || '';
         return `
         <div class="item">
             <label class="item-left">
-                <input type="checkbox" class="item-chk qr-chk-archived" value="${t.slug}" data-name="${t.name}" data-overview='${overviewStr}' data-league="${t.league}" data-start="${startDate}" data-end="${endDate}">
-                <span class="item-name">${t.name}</span>
+                <input type="checkbox" class="item-chk qr-chk-archived" value="${archiveTournament.slug}" data-name="${archiveTournament.name}" data-overview='${overviewStr}' data-league="${archiveTournament.league}" data-start="${startDate}" data-end="${endDate}">
+                <span class="item-name">${archiveTournament.name}</span>
             </label>
             <div class="item-right">
-                <button class="icon-btn icon-btn-fill" onclick="fillArchive('${t.slug}')" title="Fill">📋</button>
-                <button class="icon-btn icon-btn-del" onclick="deleteArchive('${t.slug}', '${t.name}')" title="Delete">🗑️</button>
+                <button class="icon-btn icon-btn-fill" onclick="fillArchive('${archiveTournament.slug}')" title="Fill">📋</button>
+                <button class="icon-btn icon-btn-del" onclick="deleteArchive('${archiveTournament.slug}', '${archiveTournament.name}')" title="Delete">🗑️</button>
             </div>
         </div>`;
     }).join("");
@@ -829,10 +836,10 @@ export class HTMLRenderer {
             if (adminToken) authOverlay.style.display = "none";
 
             document.getElementById('chk-active-all').addEventListener('change', function() {
-                document.querySelectorAll('#active-list .item-chk').forEach(function(c) { c.checked = this.checked; }.bind(this));
+                document.querySelectorAll('#active-list .item-chk').forEach(function(checkboxElement) { checkboxElement.checked = this.checked; }.bind(this));
             });
             document.getElementById('chk-archived-all').addEventListener('change', function() {
-                document.querySelectorAll('.qr-chk-archived').forEach(function(c) { c.checked = this.checked; }.bind(this));
+                document.querySelectorAll('.qr-chk-archived').forEach(function(checkboxElement) { checkboxElement.checked = this.checked; }.bind(this));
             });
 
             function setAuthOverlayVisible(v) { authOverlay.style.display = v ? "flex" : "none"; }
@@ -872,19 +879,19 @@ export class HTMLRenderer {
                     var container = document.getElementById('active-list');
                     var tournaments = data.tournaments || [];
                     if (tournaments.length === 0) { container.innerHTML = '<div style="text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;">No active tournaments</div>'; return; }
-                    container.innerHTML = tournaments.map(function(t) {
-                        var modeIcon = t.currentMode === 'fast' ? '⚡' : '🐌';
-                        var slug = t.slug, name = t.name.replace(/'/g, '&apos;');
+                    container.innerHTML = tournaments.map(function(tournamentItem) {
+                        var modeIcon = tournamentItem.currentMode === 'fast' ? '⚡' : '🐌';
+                        var slug = tournamentItem.slug, name = tournamentItem.name.replace(/'/g, '&apos;');
                         return '<div class="item">' +
                             '<label class="item-left">' +
                             '<input type="checkbox" class="item-chk" value="' + slug + '">' +
-                            '<span class="item-name">' + t.name + ' ' + modeIcon + '</span>' +
+                            '<span class="item-name">' + tournamentItem.name + ' ' + modeIcon + '</span>' +
                             '</label>' +
                             '<div class="item-right">' +
                             '<select class="mode-select" data-slug="' + slug + '">' +
-                            '<option value="auto"' + (t.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
-                            '<option value="fast"' + (t.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
-                            '<option value="slow"' + (t.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
+                            '<option value="auto"' + (tournamentItem.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
+                            '<option value="fast"' + (tournamentItem.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
+                            '<option value="slow"' + (tournamentItem.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
                             '</select>' +
                             '<button class="icon-btn" onclick="forceOne(&apos;' + slug + '&apos;, this)" title="Force">🔄</button>' +
                             '<button class="icon-btn icon-btn-fill" onclick="fillArchive(&apos;' + slug + '&apos;)" title="Fill">📋</button>' +
@@ -892,9 +899,9 @@ export class HTMLRenderer {
                             '</div>' +
                             '</div>';
                     }).join('');
-                    var activeSlugs = tournaments.map(function(t) { return t.slug; });
-                    document.querySelectorAll('.qr-chk-archived').forEach(function(c) {
-                        if (activeSlugs.indexOf(c.value) >= 0) c.closest('.item').style.display = 'none';
+                    var activeSlugs = tournaments.map(function(tournamentItem) { return tournamentItem.slug; });
+                    document.querySelectorAll('.qr-chk-archived').forEach(function(checkboxElement) {
+                        if (activeSlugs.indexOf(checkboxElement.value) >= 0) checkboxElement.closest('.item').style.display = 'none';
                     });
                 }).catch(function() {});
             }
@@ -903,7 +910,7 @@ export class HTMLRenderer {
                 if (!requireAuth()) return;
                 var selects = document.querySelectorAll('#active-list select[data-slug]');
                 var overrides = {};
-                selects.forEach(function(s) { overrides[s.dataset.slug] = s.value; });
+                selects.forEach(function(modeSelect) { overrides[modeSelect.dataset.slug] = modeSelect.value; });
                 sendAuthorizedPost('/mode-overrides', { 'Content-Type': 'application/json' }, JSON.stringify(overrides)).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     showResult(res.ok, res.ok ? '✅ Saved' : '❌ Failed');
@@ -915,7 +922,7 @@ export class HTMLRenderer {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('#active-list .item-chk:checked');
                 if (checked.length === 0) { showToast("No active selected", "error"); return; }
-                var slugs = Array.from(checked).map(function(c) { return c.value; });
+                var slugs = Array.from(checked).map(function(checkboxElement) { return checkboxElement.value; });
                 var btn = event.target;
                 var restore = setButtonBusy(btn, 'Running...');
                 sendAuthorizedPost('/force', { 'Content-Type': 'application/json' }, JSON.stringify({ slugs: slugs })).then(function(res) {
@@ -937,12 +944,12 @@ export class HTMLRenderer {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('.qr-chk-archived:checked');
                 if (checked.length === 0) { showToast("No archives selected", "error"); return; }
-                var selected = Array.from(checked).map(function(c) { return { slug: c.value, name: c.dataset.name, overview: c.dataset.overview, league: c.dataset.league, start_date: c.dataset.start, end_date: c.dataset.end }; });
+                var selected = Array.from(checked).map(function(checkboxElement) { return { slug: checkboxElement.value, name: checkboxElement.dataset.name, overview: checkboxElement.dataset.overview, league: checkboxElement.dataset.league, start_date: checkboxElement.dataset.start, end_date: checkboxElement.dataset.end }; });
                 var btn = event.target;
                 var restore = setButtonBusy(btn, 'Rebuilding...');
                 var success = 0, fail = 0;
-                var promises = selected.map(function(s) {
-                    return sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(s)).then(function(res) { if (res.ok) success++; else { fail++; if (checkAuthError(res.status)) return; } }).catch(function() { fail++; });
+                var promises = selected.map(function(selectedArchive) {
+                    return sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(selectedArchive)).then(function(res) { if (res.ok) success++; else { fail++; if (checkAuthError(res.status)) return; } }).catch(function() { fail++; });
                 });
                 Promise.all(promises).then(function() { restore(); showResult(fail === 0, success + '/' + (success + fail) + ' rebuilt'); });
             }
@@ -1003,7 +1010,7 @@ export class HTMLRenderer {
         if (sec.includes("⚙️")) continue;
         const items = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*\([^)]*\)/g);
         if (!items) { kept.push(sec); continue; }
-        const matched = items.filter(i => i.includes(league));
+        const matched = items.filter(itemText => itemText.includes(league));
         if (matched.length > 0) kept.push(sec.replace(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*\([^)]*\)(?:,\s*)?/g, "").trim() + " " + matched.join(", "));
       }
       return kept.join(" | ").replace(/\s+/g, " ").trim();
@@ -1015,32 +1022,32 @@ export class HTMLRenderer {
 
     const cardsHtml = leagueItems.map(item => {
       const name = item.name || "";
-      const entries = (item.logs || []).map(e => ({ ...e, m: extractLeaguePart(e.m || "", name) }));
+      const entries = (item.logs || []).map(entry => ({ ...entry, message: extractLeaguePart(entry.message || "", name) }));
       const lastEntry = entries[0];
-      const last = lastEntry.m || "";
+      const last = lastEntry.message || "";
       const isSlow = item.mode === "slow";
       const hasErr = last.includes("❌") || last.includes("🚧");
-      const hasSync = entries.some(e => e.m.includes("🔄"));
+      const hasSync = entries.some(entry => entry.message.includes("🔄"));
       const dotCls = hasErr ? "dot-red" : hasSync ? "dot-green" : "dot-gray";
       const modeCls = isSlow ? "mode-slow" : "mode-fast";
 
-      const syncCount = entries.filter(e => e.m.includes("🔄")).length;
-      const errCount = entries.filter(e => e.m.includes("❌") || e.m.includes("🚧")).length;
+      const syncCount = entries.filter(entry => entry.message.includes("🔄")).length;
+      const errCount = entries.filter(entry => entry.message.includes("❌") || entry.message.includes("🚧")).length;
       const totalCount = Number.isFinite(item.totalMatches) ? item.totalMatches : null;
-      const lastTime = lastEntry.t || "";
+      const lastTime = lastEntry.timestamp || "";
       const lastUtcIso = lastTime.length >= 16 ? `20${lastTime.slice(0,8)}T${lastTime.slice(9)}:00Z` : "";
 
-      const bars = entries.slice(-10).reverse().map(e => {
-        const cls = e.m.includes("🔄") ? "bar-sync" : e.m.includes("❌") ? "bar-err" : "bar-idle";
-        const h = e.m.includes("🔄") ? "100%" : e.m.includes("❌") ? "70%" : "30%";
-        return `<div class="bar ${cls}" style="height:${h}"></div>`;
+      const bars = entries.slice(-10).reverse().map(entry => {
+        const cls = entry.message.includes("🔄") ? "bar-sync" : entry.message.includes("❌") ? "bar-err" : "bar-idle";
+        const barHeight = entry.message.includes("🔄") ? "100%" : entry.message.includes("❌") ? "70%" : "30%";
+        return `<div class="bar ${cls}" style="height:${barHeight}"></div>`;
       }).join("");
 
-      const rows = entries.slice(-10).map(e => {
-        const t = e.t || "";
-        const utcIso = t.length >= 16 ? `20${t.slice(0,8)}T${t.slice(9)}:00Z` : "";
-        const msg = e.m.replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
-        return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${t}</span><span class="log-mini-msg">${msg}</span></div>`;
+      const rows = entries.slice(-10).map(entry => {
+        const rowTime = entry.timestamp || "";
+        const utcIso = rowTime.length >= 16 ? `20${rowTime.slice(0,8)}T${rowTime.slice(9)}:00Z` : "";
+        const msg = entry.message.replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
+        return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${utcIso}" data-format="datetime">${rowTime}</span><span class="log-mini-msg">${msg}</span></div>`;
       }).join("");
 
       return `<div class="league-card">
@@ -1085,15 +1092,15 @@ export class HTMLRenderer {
   /**
    * 生成完整率字符串
    */
-  static generateFullRateString(t_bo3_f, t_bo3_t, t_bo5_f, t_bo5_t) {
-    if (t_bo3_t === 0 && t_bo5_t === 0) return "";
+  static generateFullRateString(bestOf3FullMatchCount, bestOf3TotalMatchCount, bestOf5FullMatchCount, bestOf5TotalMatchCount) {
+    if (bestOf3TotalMatchCount === 0 && bestOf5TotalMatchCount === 0) return "";
     
     let parts = [];
-    if (t_bo3_t > 0) {
-      parts.push(`BO3: **${t_bo3_f}/${t_bo3_t}** (${dataUtils.pct(dataUtils.rate(t_bo3_f, t_bo3_t))})`);
+    if (bestOf3TotalMatchCount > 0) {
+      parts.push(`BO3: **${bestOf3FullMatchCount}/${bestOf3TotalMatchCount}** (${dataUtils.pct(dataUtils.rate(bestOf3FullMatchCount, bestOf3TotalMatchCount))})`);
     }
-    if (t_bo5_t > 0) {
-      parts.push(`BO5: **${t_bo5_f}/${t_bo5_t}** (${dataUtils.pct(dataUtils.rate(t_bo5_f, t_bo5_t))})`);
+    if (bestOf5TotalMatchCount > 0) {
+      parts.push(`BO5: **${bestOf5FullMatchCount}/${bestOf5TotalMatchCount}** (${dataUtils.pct(dataUtils.rate(bestOf5FullMatchCount, bestOf5TotalMatchCount))})`);
     }
     return `📊 **Fullrate**: ${parts.join(" | ")}\n\n`;
   }
@@ -1106,9 +1113,9 @@ export class HTMLRenderer {
 
     // 计算联赛总打满量
     let bo3FullMatches = 0, bo3TotalMatches = 0, bo5FullMatches = 0, bo5TotalMatches = 0;
-    sorted.forEach(s => {
-      bo3FullMatches += s.bo3_f || 0; bo3TotalMatches += s.bo3_t || 0;
-      bo5FullMatches += s.bo5_f || 0; bo5TotalMatches += s.bo5_t || 0;
+    sorted.forEach(teamStats => {
+      bo3FullMatches += teamStats.bestOf3FullMatchCount || 0; bo3TotalMatches += teamStats.bestOf3TotalMatchCount || 0;
+      bo5FullMatches += teamStats.bestOf5FullMatchCount || 0; bo5TotalMatches += teamStats.bestOf5TotalMatchCount || 0;
     });
     // 比赛双向记录，总数需除以 2
     bo3FullMatches /= 2; bo3TotalMatches /= 2; bo5FullMatches /= 2; bo5TotalMatches /= 2;
@@ -1120,36 +1127,36 @@ export class HTMLRenderer {
     if (sorted.length === 0) {
       md += "| - | - | - | - | - | - | - | - | - | - | - |\n";
     } else {
-      sorted.forEach(s => {
-        const bo3Txt = s.bo3_t ? `${s.bo3_f}/${s.bo3_t}` : "-";
-        const bo3Pct = dataUtils.pct(dataUtils.rate(s.bo3_f, s.bo3_t));
-        const bo5Txt = s.bo5_t ? `${s.bo5_f}/${s.bo5_t}` : "-";
-        const bo5Pct = dataUtils.pct(dataUtils.rate(s.bo5_f, s.bo5_t));
-        const serTxt = s.s_t ? `${s.s_w}-${s.s_t - s.s_w}` : "-";
-        const serWR = dataUtils.pct(dataUtils.rate(s.s_w, s.s_t));
-        const gamTxt = s.g_t ? `${s.g_w}-${s.g_t - s.g_w}` : "-";
-        const gamWR = dataUtils.pct(dataUtils.rate(s.g_w, s.g_t));
-        const strk = s.strk_w > 0 ? `${s.strk_w}W` : (s.strk_l > 0 ? `${s.strk_l}L` : "-");
-        const last = s.last ? dateUtils.fmtDate(s.last) : "-";
-        md += `| ${s.name} | ${bo3Txt} | ${bo3Pct} | ${bo5Txt} | ${bo5Pct} | ${serTxt} | ${serWR} | ${gamTxt} | ${gamWR} | ${strk} | ${last} |\n`;
+      sorted.forEach(teamStats => {
+        const bestOf3SummaryText = teamStats.bestOf3TotalMatchCount ? `${teamStats.bestOf3FullMatchCount}/${teamStats.bestOf3TotalMatchCount}` : "-";
+        const bestOf3PercentText = dataUtils.pct(dataUtils.rate(teamStats.bestOf3FullMatchCount, teamStats.bestOf3TotalMatchCount));
+        const bestOf5SummaryText = teamStats.bestOf5TotalMatchCount ? `${teamStats.bestOf5FullMatchCount}/${teamStats.bestOf5TotalMatchCount}` : "-";
+        const bestOf5PercentText = dataUtils.pct(dataUtils.rate(teamStats.bestOf5FullMatchCount, teamStats.bestOf5TotalMatchCount));
+        const seriesSummaryText = teamStats.seriesTotalMatchCount ? `${teamStats.seriesWinCount}-${teamStats.seriesTotalMatchCount - teamStats.seriesWinCount}` : "-";
+        const seriesWinRateText = dataUtils.pct(dataUtils.rate(teamStats.seriesWinCount, teamStats.seriesTotalMatchCount));
+        const gameSummaryText = teamStats.gameTotalCount ? `${teamStats.gameWinCount}-${teamStats.gameTotalCount - teamStats.gameWinCount}` : "-";
+        const gameWinRateText = dataUtils.pct(dataUtils.rate(teamStats.gameWinCount, teamStats.gameTotalCount));
+        const streakText = teamStats.winStreakCount > 0 ? `${teamStats.winStreakCount}W` : (teamStats.lossStreakCount > 0 ? `${teamStats.lossStreakCount}L` : "-");
+        const lastMatchText = teamStats.last ? dateUtils.fmtDate(teamStats.last) : "-";
+        md += `| ${teamStats.name} | ${bestOf3SummaryText} | ${bestOf3PercentText} | ${bestOf5SummaryText} | ${bestOf5PercentText} | ${seriesSummaryText} | ${seriesWinRateText} | ${gameSummaryText} | ${gameWinRateText} | ${streakText} | ${lastMatchText} |\n`;
       });
     }
 
     md += `\n## \n📅 **Time Slot Distribution**\n\n| Time Slot | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Total |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     const regionGrid = timeGrid[tournament.slug] || {};
-    const hours = Object.keys(regionGrid).filter(k => k !== "Total" && !isNaN(k)).map(Number).sort((a, b) => a - b);
+    const hours = Object.keys(regionGrid).filter(hourKey => hourKey !== "Total" && !isNaN(hourKey)).map(Number).sort((leftHour, rightHour) => leftHour - rightHour);
 
-    [...hours, "Total"].forEach(h => {
-      if (!regionGrid[h]) return;
-          const label = h === "Total" ? `**Total**` : `**${String(h).padStart(2,'0')}:00**`;
+    [...hours, "Total"].forEach(hourOrTotal => {
+      if (!regionGrid[hourOrTotal]) return;
+          const label = hourOrTotal === "Total" ? `**Total**` : `**${String(hourOrTotal).padStart(2,'0')}:00**`;
       let line = `| ${label} |`;
-      for (let w = 0; w < 8; w++) {
-        const cell = regionGrid[h][w];
-        if (!cell || cell.total === 0) line += " - |";
+      for (let weekdayIndex = 0; weekdayIndex < 8; weekdayIndex++) {
+        const cell = regionGrid[hourOrTotal][weekdayIndex];
+        if (!cell || cell.totalMatchCount === 0) line += " - |";
         else {
-          const rate = Math.round((cell.full / cell.total) * 100);
-          line += ` ${cell.full}/${cell.total} (${rate}%) |`;
+          const rate = Math.round((cell.fullLengthMatchCount / cell.totalMatchCount) * 100);
+          line += ` ${cell.fullLengthMatchCount}/${cell.totalMatchCount} (${rate}%) |`;
         }
       }
       md += line + "\n";

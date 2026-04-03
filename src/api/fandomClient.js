@@ -54,10 +54,10 @@ export class FandomClient {
         } else {
           throw new Error(`Login Failed: ${loginData.login?.result || "unknown"}`);
         }
-      } catch (e) {
-        console.error(`[Fandom Login] Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${e.message}`);
+      } catch (error) {
+        console.error(`[Fandom Login] Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${error.message}`);
         if (attempt < MAX_LOGIN_RETRIES) {
-          await new Promise(r => setTimeout(r, attempt * 2000));
+          await new Promise(resolveDelay => setTimeout(resolveDelay, attempt * 2000));
         }
       }
     }
@@ -108,9 +108,9 @@ export class FandomClient {
           timestamp: rev.timestamp || null,
           missing: false
         };
-      } catch (e) {
-        if (attempt >= maxRetries) throw e;
-        await new Promise(r => setTimeout(r, 1000 * attempt));
+      } catch (error) {
+        if (attempt >= maxRetries) throw error;
+        await new Promise(resolveDelay => setTimeout(resolveDelay, 1000 * attempt));
         attempt++;
       }
     }
@@ -143,7 +143,7 @@ export class FandomClient {
         let data;
         try { 
           data = JSON.parse(rawBody); 
-        } catch (e) { 
+        } catch (error) { 
           throw new Error(`JSON Parse Fail`); 
         }
 
@@ -156,15 +156,15 @@ export class FandomClient {
         }
         if (!data.cargoquery) throw new Error(`Structure Error`);
         return data.cargoquery;
-      } catch (e) {
+      } catch (error) {
         let waitTimeMs = 15000 * Math.pow(2, attempt - 1);
-        const match = e.message.match(/Wait (\d+)s/);
+        const match = error.message.match(/Wait (\d+)s/);
         if (match) waitTimeMs = parseInt(match[1]) * 1000;
 
         if (attempt >= maxRetries) {
-          throw e;
+          throw error;
         } else {
-          await new Promise(res => setTimeout(res, waitTimeMs));
+          await new Promise(resolveDelay => setTimeout(resolveDelay, waitTimeMs));
         }
         attempt++;
       }
@@ -176,7 +176,7 @@ export class FandomClient {
    */
   async fetchAllMatches(slug, sourceInput, dateFilter = null) {
     const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
-    const inClause = pages.map(p => `'${p}'`).join(", ");
+    const inClause = pages.map(page => `'${page}'`).join(", ");
     let all = [];
     let offset = 0;
     const limit = 100;
@@ -198,7 +198,7 @@ export class FandomClient {
       });
 
       const batchRaw = await this.fetchWithRetry(`https://lol.fandom.com/api.php?${params}`);
-      const batch = batchRaw.map(i => i.title);
+      const batch = batchRaw.map(record => record.title);
 
       if (!batch.length) break;
 
@@ -208,7 +208,7 @@ export class FandomClient {
       if (dateFilter) break;
       if (batch.length < limit) break;
 
-      await new Promise(res => setTimeout(res, FETCH_DELAY_MS));
+      await new Promise(resolveDelay => setTimeout(resolveDelay, FETCH_DELAY_MS));
     }
     return all;
   }

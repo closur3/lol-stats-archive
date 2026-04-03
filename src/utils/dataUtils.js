@@ -5,20 +5,20 @@ export const dataUtils = {
   /**
    * 计算比率
    */
-  rate: (n, d) => d > 0 ? n / d : null,
+  rate: (numerator, denominator) => denominator > 0 ? numerator / denominator : null,
 
   /**
    * 格式化百分比
    */
-  pct: (r) => r !== null ? `${Math.round(r * 100)}%` : "-",
+  pct: (rate) => rate !== null ? `${Math.round(rate * 100)}%` : "-",
 
   /**
    * 根据比率生成颜色
    */
-  color: (r, rev = false) => {
-    if (r === null) return "#f1f5f9";
-    const val = Math.max(0, Math.min(1, r));
-    const hue = rev ? (1 - val) * 140 : val * 140;
+  color: (rate, reverse = false) => {
+    if (rate === null) return "#f1f5f9";
+    const normalizedRate = Math.max(0, Math.min(1, rate));
+    const hue = reverse ? (1 - normalizedRate) * 140 : normalizedRate * 140;
     return `hsl(${parseInt(hue)}, 55%, 50%)`;
   },
 
@@ -28,16 +28,16 @@ export const dataUtils = {
   extractCookies: (headers) => {
     if (!headers) return "";
     if (typeof headers.getSetCookie === 'function') {
-      const cookies = headers.getSetCookie();
-      if (cookies && cookies.length > 0) {
-        return cookies.map(c => c.split(';')[0].trim()).join('; ');
+        const cookies = headers.getSetCookie();
+        if (cookies && cookies.length > 0) {
+          return cookies.map(cookie => cookie.split(';')[0].trim()).join('; ');
+        }
       }
-    }
     const headerVal = headers.get("set-cookie");
     if (!headerVal) return "";
     return headerVal.split(/,(?=\s*[A-Za-z0-9_]+=[^;]+)/)
-      .map(c => c.split(';')[0].trim())
-      .filter(c => c.includes('='))
+      .map(cookie => cookie.split(';')[0].trim())
+      .filter(cookie => cookie.includes('='))
       .join('; ');
   },
 
@@ -47,31 +47,31 @@ export const dataUtils = {
   sortTeams: (statsObj) => {
     if (!statsObj) return [];
     const BO5_WEIGHT = 1.33;
-    const statsArray = Object.values(statsObj).filter(s => s && s.name && s.name !== "TBD");
+    const statsArray = Object.values(statsObj).filter(teamStats => teamStats && teamStats.name && teamStats.name !== "TBD");
 
-    return statsArray.sort((a, b) => {
-      const aFulls_W = (a.bo3_f || 0) + ((a.bo5_f || 0) * BO5_WEIGHT);
-      const aTotal_W = (a.bo3_t || 0) + ((a.bo5_t || 0) * BO5_WEIGHT);
-      const bFulls_W = (b.bo3_f || 0) + ((b.bo5_f || 0) * BO5_WEIGHT);
-      const bTotal_W = (b.bo3_t || 0) + ((b.bo5_t || 0) * BO5_WEIGHT);
+    return statsArray.sort((leftTeamStats, rightTeamStats) => {
+      const leftWeightedFullMatchCount = (leftTeamStats.bestOf3FullMatchCount || 0) + ((leftTeamStats.bestOf5FullMatchCount || 0) * BO5_WEIGHT);
+      const leftWeightedTotalMatchCount = (leftTeamStats.bestOf3TotalMatchCount || 0) + ((leftTeamStats.bestOf5TotalMatchCount || 0) * BO5_WEIGHT);
+      const rightWeightedFullMatchCount = (rightTeamStats.bestOf3FullMatchCount || 0) + ((rightTeamStats.bestOf5FullMatchCount || 0) * BO5_WEIGHT);
+      const rightWeightedTotalMatchCount = (rightTeamStats.bestOf3TotalMatchCount || 0) + ((rightTeamStats.bestOf5TotalMatchCount || 0) * BO5_WEIGHT);
 
-      const aFullRate = aTotal_W > 0 ? aFulls_W / aTotal_W : 2.0;
-      const bFullRate = bTotal_W > 0 ? bFulls_W / bTotal_W : 2.0;
-      if (aFullRate !== bFullRate) return aFullRate - bFullRate;
+      const leftFullRate = leftWeightedTotalMatchCount > 0 ? leftWeightedFullMatchCount / leftWeightedTotalMatchCount : 2.0;
+      const rightFullRate = rightWeightedTotalMatchCount > 0 ? rightWeightedFullMatchCount / rightWeightedTotalMatchCount : 2.0;
+      if (leftFullRate !== rightFullRate) return leftFullRate - rightFullRate;
 
-      const aRealTotal = (a.bo3_t || 0) + (a.bo5_t || 0);
-      const bRealTotal = (b.bo3_t || 0) + (b.bo5_t || 0);
-      if (aRealTotal !== bRealTotal) return aRealTotal - bRealTotal;
+      const leftRealTotalMatchCount = (leftTeamStats.bestOf3TotalMatchCount || 0) + (leftTeamStats.bestOf5TotalMatchCount || 0);
+      const rightRealTotalMatchCount = (rightTeamStats.bestOf3TotalMatchCount || 0) + (rightTeamStats.bestOf5TotalMatchCount || 0);
+      if (leftRealTotalMatchCount !== rightRealTotalMatchCount) return leftRealTotalMatchCount - rightRealTotalMatchCount;
 
-      const aWR = dataUtils.rate(a.s_w, a.s_t) || 0;
-      const bWR = dataUtils.rate(b.s_w, b.s_t) || 0;
-      if (aWR !== bWR) return bWR - aWR;
+      const leftSeriesWinRate = dataUtils.rate(leftTeamStats.seriesWinCount, leftTeamStats.seriesTotalMatchCount) || 0;
+      const rightSeriesWinRate = dataUtils.rate(rightTeamStats.seriesWinCount, rightTeamStats.seriesTotalMatchCount) || 0;
+      if (leftSeriesWinRate !== rightSeriesWinRate) return rightSeriesWinRate - leftSeriesWinRate;
 
-      const gameDiff = (dataUtils.rate(b.g_w, b.g_t) || 0) - (dataUtils.rate(a.g_w, a.g_t) || 0);
+      const gameDiff = (dataUtils.rate(rightTeamStats.gameWinCount, rightTeamStats.gameTotalCount) || 0) - (dataUtils.rate(leftTeamStats.gameWinCount, leftTeamStats.gameTotalCount) || 0);
       if (gameDiff !== 0) return gameDiff;
 
       // 完全同档位时固定按队名升序，避免依赖对象插入顺序
-      return String(a.name || "").localeCompare(String(b.name || ""));
+      return String(leftTeamStats.name || "").localeCompare(String(rightTeamStats.name || ""));
     });
   },
 
@@ -99,24 +99,24 @@ export const dataUtils = {
     });
     if (rawNames.size === 0) return baseMap || {};
 
-    const entries = Object.entries(baseMap).map(([k, v]) => ({ k, v, ku: String(k).toUpperCase() }));
+    const entries = Object.entries(baseMap).map(([key, value]) => ({ key, value, normalizedKey: String(key).toUpperCase() }));
     const needed = {};
 
     const pickKeyForRaw = (rawUpper) => {
-      let match = entries.find(e => rawUpper === e.ku);
-      if (!match) match = entries.find(e => rawUpper.includes(e.ku));
+      let match = entries.find(entry => rawUpper === entry.normalizedKey);
+      if (!match) match = entries.find(entry => rawUpper.includes(entry.normalizedKey));
       if (!match) {
         const inputTokens = rawUpper.split(/\s+/);
-        match = entries.find(e => {
-          const keyTokens = e.ku.split(/\s+/);
-          return inputTokens.every(t => keyTokens.includes(t));
+        match = entries.find(entry => {
+          const keyTokens = entry.normalizedKey.split(/\s+/);
+          return inputTokens.every(token => keyTokens.includes(token));
         });
       }
-      return match ? match.k : null;
+      return match ? match.key : null;
     };
 
-    rawNames.forEach(raw => {
-      const key = pickKeyForRaw(String(raw).toUpperCase());
+    rawNames.forEach(rawName => {
+      const key = pickKeyForRaw(String(rawName).toUpperCase());
       if (key && baseMap[key] != null) needed[key] = baseMap[key];
     });
 

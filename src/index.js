@@ -54,20 +54,20 @@ export default {
       
       case "/logs":
         const detectMode = (logs) => {
-          for (const e of (logs || [])) {
-            const msg = String(e?.m || "");
-            const switchMatch = msg.match(/(⚡->🐌|🐌->⚡)/);
+          for (const logEntry of (logs || [])) {
+            const logMessage = String(logEntry?.message || "");
+            const switchMatch = logMessage.match(/(⚡->🐌|🐌->⚡)/);
             if (switchMatch) {
               return switchMatch[1].endsWith("🐌") ? "slow" : "fast";
             }
-            if (msg.includes("⚡")) return "fast";
-            if (msg.includes("🐌")) return "slow";
+            if (logMessage.includes("⚡")) return "fast";
+            if (logMessage.includes("🐌")) return "slow";
           }
           return "fast";
         };
 
         const allLogKeys = await env.LOL_KV.list({ prefix: "LOG_" });
-        const logKeys = allLogKeys.keys.map(k => k.name);
+        const logKeys = allLogKeys.keys.map(logKey => logKey.name);
         const logPairs = await Promise.all(logKeys.map(async key => {
           const slug = key.slice("LOG_".length);
           const logs = await env.LOL_KV.get(key, { type: "json" }) || [];
@@ -78,43 +78,43 @@ export default {
         const metaState = await readMetaState(env);
         const homePairs = await Promise.all(logSlugs.map(async slug => {
           const home = await env.LOL_KV.get(KV_KEYS.HOME_PREFIX + slug, { type: "json" });
-          const total = Array.isArray(home?.rawMatches) ? home.rawMatches.length : null;
+          const totalMatchCount = Array.isArray(home?.rawMatches) ? home.rawMatches.length : null;
           const metaMode = metaState?.tournaments?.[slug]?.mode;
           const mode = metaMode === "slow" || metaMode === "fast" ? metaMode : null;
-          return [slug, { total, mode }];
+          return [slug, { totalMatchCount, mode }];
         }));
         const homeBySlug = new Map(homePairs);
 
-        let sortedTourns = [];
+        let sortedTournaments = [];
         try {
-          const gh = new GitHubClient(env);
-          const tourns = await gh.fetchJson("config/tour.json");
-          sortedTourns = dateUtils.sortTournamentsByDate(Array.isArray(tourns) ? tourns : []);
-        } catch (e) {}
+          const githubClient = new GitHubClient(env);
+          const tournaments = await githubClient.fetchJson("config/tour.json");
+          sortedTournaments = dateUtils.sortTournamentsByDate(Array.isArray(tournaments) ? tournaments : []);
+        } catch (error) {}
 
         const leagueLogs = [];
         const consumed = new Set();
-        for (const t of sortedTourns) {
-          const slug = t?.slug;
+        for (const tournament of sortedTournaments) {
+          const slug = tournament?.slug;
           if (!slug || !logsBySlug.has(slug)) continue;
           const logs = logsBySlug.get(slug) || [];
           leagueLogs.push({
-            name: t.league || t.name || slug,
+            name: tournament.league || tournament.name || slug,
             logs,
             mode: homeBySlug.get(slug)?.mode || detectMode(logs),
-            totalMatches: homeBySlug.get(slug)?.total ?? null
+            totalMatches: homeBySlug.get(slug)?.totalMatchCount ?? null
           });
           consumed.add(slug);
         }
 
-        const orphanSlugs = Array.from(logsBySlug.keys()).filter(s => !consumed.has(s)).sort();
+        const orphanSlugs = Array.from(logsBySlug.keys()).filter(slug => !consumed.has(slug)).sort();
         for (const slug of orphanSlugs) {
           const logs = logsBySlug.get(slug) || [];
           leagueLogs.push({
             name: slug,
             logs,
             mode: homeBySlug.get(slug)?.mode || detectMode(logs),
-            totalMatches: homeBySlug.get(slug)?.total ?? null
+            totalMatches: homeBySlug.get(slug)?.totalMatchCount ?? null
           });
         }
 

@@ -57,10 +57,10 @@ export class Analyzer {
 
     const meta = {
       mode: nextMode,
-      startTs: startTimestamp,
+      startTimestamp: startTimestamp,
       emoji,
       matchIntervalHours,
-      isStarted: isMatchStarted
+      hasStarted: isMatchStarted
     };
     if (isModeOverride) meta.modeOverride = modeOverride;
     return meta;
@@ -76,14 +76,14 @@ export class Analyzer {
     const timeGrid = { "ALL": {} };
     const createSlot = () => { 
       const slot = {}; 
-      for(let i = 0; i < 8; i++) { 
-        slot[i] = { total: 0, full: 0, matches: [] }; 
+      for(let slotIndex = 0; slotIndex < 8; slotIndex++) { 
+        slot[slotIndex] = { totalMatchCount: 0, fullLengthMatchCount: 0, matches: [] }; 
       } 
       return slot; 
     };
     timeGrid.ALL = createSlot();
 
-    const todayStr = dateUtils.getNow().date;
+    const todayStr = dateUtils.getNow().dateString;
     const allFutureMatches = {};
 
     const buildResolveName = (teamMap = {}) => {
@@ -102,12 +102,12 @@ export class Analyzer {
         if (upperName.includes("TBD") || upperName.includes("TBA") || upperName.includes("TO BE DETERMINED")) {
           resolvedName = "TBD";
         } else {
-          let match = teamMapEntries.find(e => upperName === e.key);
-          if (!match) match = teamMapEntries.find(e => upperName.includes(e.key));
+          let match = teamMapEntries.find(teamEntry => upperName === teamEntry.key);
+          if (!match) match = teamMapEntries.find(teamEntry => upperName.includes(teamEntry.key));
           if (!match) {
             const inputTokens = upperName.split(/\s+/);
-            match = teamMapEntries.find(e => {
-              const keyTokens = e.key.split(/\s+/);
+            match = teamMapEntries.find(teamEntry => {
+              const keyTokens = teamEntry.key.split(/\s+/);
               return inputTokens.every(token => keyTokens.includes(token));
             });
           }
@@ -120,7 +120,7 @@ export class Analyzer {
 
     (runtimeConfig.TOURNAMENTS || []).forEach((tournament, tournamentIndex) => {
       const rawMatches = allRawMatches[tournament.slug] || [];
-      const resolveName = buildResolveName(tournament.team_map);
+      const resolveName = buildResolveName(tournament.teamMap);
       const stats = {};
       const nowTimestamp = Date.now();
 
@@ -128,9 +128,9 @@ export class Analyzer {
         if(!stats[teamName]) { 
           stats[teamName] = { 
             name: teamName, 
-            bo3_f: 0, bo3_t: 0, bo5_f: 0, bo5_t: 0, 
-            s_w: 0, s_t: 0, g_w: 0, g_t: 0, 
-            strk_w: 0, strk_l: 0, last: 0, history: [] 
+            bestOf3FullMatchCount: 0, bestOf3TotalMatchCount: 0, bestOf5FullMatchCount: 0, bestOf5TotalMatchCount: 0, 
+            seriesWinCount: 0, seriesTotalMatchCount: 0, gameWinCount: 0, gameTotalCount: 0, 
+            winStreakCount: 0, lossStreakCount: 0, last: 0, history: [] 
           }; 
         } 
       };
@@ -148,17 +148,17 @@ export class Analyzer {
         const bestOf = parseInt(match.BestOf) || 3;
         const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
         const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
-        const isFull = (bestOf === 3 && Math.min(team1Score, team2Score) === 1) || (bestOf === 5 && Math.min(team1Score, team2Score) === 2);
+        const isFullLength = (bestOf === 3 && Math.min(team1Score, team2Score) === 1) || (bestOf === 5 && Math.min(team1Score, team2Score) === 2);
 
         const dateTime = dateUtils.parseDate(match.DateTime_UTC || match["DateTime UTC"]);
-        const timeParts = dateTime ? dateUtils.timeParts(dateTime) : null;
+        const utcTimeParts = dateTime ? dateUtils.getUtcTimeParts(dateTime) : null;
         let dateDisplay = "-", fullDate = "-", matchDateStr = "-", matchTimeStr = "-", timestamp = 0;
         let isoString = "";
-        if (timeParts) {
-          matchTimeStr = `${timeParts.h}:${timeParts.m}`;
-          dateDisplay = `${timeParts.mo}-${timeParts.da} ${matchTimeStr}`;
-          fullDate = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
-          matchDateStr = `${timeParts.y}-${timeParts.mo}-${timeParts.da}`;
+        if (utcTimeParts) {
+          matchTimeStr = `${utcTimeParts.hour}:${utcTimeParts.minute}`;
+          dateDisplay = `${utcTimeParts.month}-${utcTimeParts.dayOfMonth} ${matchTimeStr}`;
+          fullDate = `${utcTimeParts.year}-${utcTimeParts.month}-${utcTimeParts.dayOfMonth}`;
+          matchDateStr = `${utcTimeParts.year}-${utcTimeParts.month}-${utcTimeParts.dayOfMonth}`;
           isoString = dateTime.toISOString();
           
           timestamp = (match.DateTime_UTC || match["DateTime UTC"]) ? new Date(match.DateTime_UTC || match["DateTime UTC"]).getTime() : 0;
@@ -170,19 +170,19 @@ export class Analyzer {
           const tabName = match.Tab || "";
           allFutureMatches[bucketDate].push({
             time: matchTimeStr,
-            t1: team1Name, 
-            t2: team2Name, 
-            s1: team1Score, 
-            s2: team2Score, 
-            bo: bestOf,
-            is_finished: isFinished, 
-            is_live: isLive,
+            team1Name: team1Name, 
+            team2Name: team2Name, 
+            team1Score: team1Score, 
+            team2Score: team2Score, 
+            bestOf: bestOf,
+            isFinished: isFinished, 
+            isLive: isLive,
             league: tournament.league, 
             slug: tournament.slug,
-            tournIndex: tournamentIndex, 
+            tournamentIndex,
             tabName: tabName || "",
-            iso: isoString,
-            ts: timestamp
+            isoTimestamp: isoString,
+            timestamp: timestamp
           });
         }
 
@@ -190,65 +190,65 @@ export class Analyzer {
           if(timestamp > stats[team1Name].last) stats[team1Name].last = timestamp;
           if(timestamp > stats[team2Name].last) stats[team2Name].last = timestamp;
 
-          const pyDay = timeParts.day === 0 ? 6 : timeParts.day - 1;
-          const targetHour = parseInt(timeParts.h, 10);
+          const pythonWeekdayIndex = utcTimeParts.dayOfWeek === 0 ? 6 : utcTimeParts.dayOfWeek - 1;
+          const targetUtcHour = parseInt(utcTimeParts.hour, 10);
 
           const matchObj = { 
-            d: dateDisplay,
-            fd: fullDate,
-            iso: isoString,
-            ts: timestamp,
-            t1: team1Name, 
-            t2: team2Name, 
-            s: `${team1Score}-${team2Score}`, 
-            f: isFull, 
-            bo: bestOf 
+            dateDisplay: dateDisplay,
+            fullDateDisplay: fullDate,
+            isoTimestamp: isoString,
+            timestamp: timestamp,
+            team1Name: team1Name, 
+            team2Name: team2Name, 
+            scoreDisplay: `${team1Score}-${team2Score}`, 
+            isFullLength: isFullLength, 
+            bestOf: bestOf 
           };
 
           if (!timeGrid[tournament.slug]) timeGrid[tournament.slug] = { "Total": createSlot() };
-          if (!timeGrid[tournament.slug][targetHour]) timeGrid[tournament.slug][targetHour] = createSlot();
+          if (!timeGrid[tournament.slug][targetUtcHour]) timeGrid[tournament.slug][targetUtcHour] = createSlot();
 
-          const addMatchToSlot = (grid, hour, day) => { 
-            grid[hour][day].total++; 
-            if(isFull) grid[hour][day].full++; 
-            grid[hour][day].matches.push(matchObj); 
+          const addMatchToSlot = (grid, hour, dayIndex) => { 
+            grid[hour][dayIndex].totalMatchCount++; 
+            if(isFullLength) grid[hour][dayIndex].fullLengthMatchCount++; 
+            grid[hour][dayIndex].matches.push(matchObj); 
           };
-          addMatchToSlot(timeGrid[tournament.slug], targetHour, pyDay);
-          addMatchToSlot(timeGrid[tournament.slug], "Total", pyDay);
-          addMatchToSlot(timeGrid[tournament.slug], targetHour, 7);
+          addMatchToSlot(timeGrid[tournament.slug], targetUtcHour, pythonWeekdayIndex);
+          addMatchToSlot(timeGrid[tournament.slug], "Total", pythonWeekdayIndex);
+          addMatchToSlot(timeGrid[tournament.slug], targetUtcHour, 7);
           addMatchToSlot(timeGrid[tournament.slug], "Total", 7);
         }
 
-        let result1 = 'N', result2 = 'N';
+        let team1MatchResultCode = 'NEXT', team2MatchResultCode = 'NEXT';
         if (isLive) { 
-          result1 = 'LIV'; 
-          result2 = 'LIV'; 
+          team1MatchResultCode = 'LIVE'; 
+          team2MatchResultCode = 'LIVE'; 
         } else if (isFinished) {
-          result1 = team1Score > team2Score ? 'W' : 'L';
-          result2 = team2Score > team1Score ? 'W' : 'L';
+          team1MatchResultCode = team1Score > team2Score ? 'WIN' : 'LOSS';
+          team2MatchResultCode = team2Score > team1Score ? 'WIN' : 'LOSS';
         }
 
         stats[team1Name].history.push({ 
-          d: dateDisplay,
-          fd: fullDate,
-          iso: isoString,
-          vs: team2Name, 
-          s: `${team1Score}-${team2Score}`, 
-          res: result1, 
-          bo: bestOf, 
-          full: isFull, 
-          ts: timestamp 
+          dateDisplay: dateDisplay,
+          fullDateDisplay: fullDate,
+          isoTimestamp: isoString,
+          opponentName: team2Name, 
+          scoreDisplay: `${team1Score}-${team2Score}`, 
+          matchResultCode: team1MatchResultCode, 
+          bestOf: bestOf, 
+          isFullLength: isFullLength, 
+          timestamp: timestamp 
         });
         stats[team2Name].history.push({ 
-          d: dateDisplay,
-          fd: fullDate,
-          iso: isoString,
-          vs: team1Name, 
-          s: `${team2Score}-${team1Score}`, 
-          res: result2, 
-          bo: bestOf, 
-          full: isFull, 
-          ts: timestamp 
+          dateDisplay: dateDisplay,
+          fullDateDisplay: fullDate,
+          isoTimestamp: isoString,
+          opponentName: team1Name, 
+          scoreDisplay: `${team2Score}-${team1Score}`, 
+          matchResultCode: team2MatchResultCode, 
+          bestOf: bestOf, 
+          isFullLength: isFullLength, 
+          timestamp: timestamp 
         });
 
         if(!isFinished) { return; }
@@ -257,46 +257,46 @@ export class Analyzer {
         const loser = team1Score > team2Score ? team2Name : team1Name;
         
         [team1Name, team2Name].forEach(teamName => { 
-          stats[teamName].s_t++; 
-          stats[teamName].g_t += (team1Score + team2Score); 
+          stats[teamName].seriesTotalMatchCount++; 
+          stats[teamName].gameTotalCount += (team1Score + team2Score); 
         });
         
-        stats[winner].s_w++; 
-        stats[team1Name].g_w += team1Score; 
-        stats[team2Name].g_w += team2Score;
+        stats[winner].seriesWinCount++; 
+        stats[team1Name].gameWinCount += team1Score; 
+        stats[team2Name].gameWinCount += team2Score;
         
         if(bestOf === 3) { 
-          stats[team1Name].bo3_t++; 
-          stats[team2Name].bo3_t++; 
-          if(isFull) {
-            stats[team1Name].bo3_f++; 
-            stats[team2Name].bo3_f++;
+          stats[team1Name].bestOf3TotalMatchCount++; 
+          stats[team2Name].bestOf3TotalMatchCount++; 
+          if(isFullLength) {
+            stats[team1Name].bestOf3FullMatchCount++; 
+            stats[team2Name].bestOf3FullMatchCount++;
           } 
         } else if(bestOf === 5) { 
-          stats[team1Name].bo5_t++; 
-          stats[team2Name].bo5_t++; 
-          if(isFull) {
-            stats[team1Name].bo5_f++; 
-            stats[team2Name].bo5_f++;
+          stats[team1Name].bestOf5TotalMatchCount++; 
+          stats[team2Name].bestOf5TotalMatchCount++; 
+          if(isFullLength) {
+            stats[team1Name].bestOf5FullMatchCount++; 
+            stats[team2Name].bestOf5FullMatchCount++;
           } 
         }
 
-        if(stats[winner].strk_l > 0) { 
-          stats[winner].strk_l = 0; 
-          stats[winner].strk_w = 1; 
+        if(stats[winner].lossStreakCount > 0) { 
+          stats[winner].lossStreakCount = 0; 
+          stats[winner].winStreakCount = 1; 
         } else { 
-          stats[winner].strk_w++; 
+          stats[winner].winStreakCount++; 
         }
         
-        if(stats[loser].strk_w > 0) { 
-          stats[loser].strk_w = 0; 
-          stats[loser].strk_l = 1; 
+        if(stats[loser].winStreakCount > 0) { 
+          stats[loser].winStreakCount = 0; 
+          stats[loser].lossStreakCount = 1; 
         } else { 
-          stats[loser].strk_l++; 
+          stats[loser].lossStreakCount++; 
         }
       });
 
-      Object.values(stats).forEach(team => team.history.sort((a, b) => b.ts - a.ts));
+      Object.values(stats).forEach(team => team.history.sort((leftHistory, rightHistory) => rightHistory.timestamp - leftHistory.timestamp));
       globalStats[tournament.slug] = stats;
 
       const modeOverride = modeOverrides[tournament.slug];
@@ -313,14 +313,21 @@ export class Analyzer {
     const sortedFutureDates = Object.keys(allFutureMatches).sort();
     sortedFutureDates.forEach(date => {
       scheduleMap[date] = allFutureMatches[date].sort((matchA, matchB) => {
-        if (matchA.tournIndex !== matchB.tournIndex) return matchA.tournIndex - matchB.tournIndex;
+        const matchATournamentIndex = matchA.tournamentIndex ?? 9999;
+        const matchBTournamentIndex = matchB.tournamentIndex ?? 9999;
+        if (matchATournamentIndex !== matchBTournamentIndex) return matchATournamentIndex - matchBTournamentIndex;
         return matchA.time.localeCompare(matchB.time);
       });
     });
 
     scheduleMap = dateUtils.pruneScheduleMapByDayStatus(scheduleMap, maxScheduleDays, todayStr);
 
-    return { globalStats, timeGrid, scheduleMap, tournMeta: tournamentMeta };
+    return {
+      globalStats,
+      timeGrid,
+      scheduleMap,
+      tournamentMeta
+    };
   }
 
   /**
@@ -329,10 +336,10 @@ export class Analyzer {
   static calculateFullRateStats(sortedStats) {
     let bo3FullMatches = 0, bo3TotalMatches = 0, bo5FullMatches = 0, bo5TotalMatches = 0;
     sortedStats.forEach(stat => {
-      bo3FullMatches += stat.bo3_f || 0; 
-      bo3TotalMatches += stat.bo3_t || 0;
-      bo5FullMatches += stat.bo5_f || 0; 
-      bo5TotalMatches += stat.bo5_t || 0;
+      bo3FullMatches += stat.bestOf3FullMatchCount || 0; 
+      bo3TotalMatches += stat.bestOf3TotalMatchCount || 0;
+      bo5FullMatches += stat.bestOf5FullMatchCount || 0; 
+      bo5TotalMatches += stat.bestOf5TotalMatchCount || 0;
     });
     bo3FullMatches /= 2; 
     bo3TotalMatches /= 2; 

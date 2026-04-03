@@ -15,12 +15,14 @@ export class ToolsRouter {
       let existingArchives = [];
       try {
         const allKeys = await env.LOL_KV.list({ prefix: KV_KEYS.ARCHIVE_PREFIX });
-        const dataKeys = allKeys.keys.filter(k => k.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
-        const rawSnapshots = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k.name, { type: "json" })));
-        existingArchives = rawSnapshots.filter(s => s && s.tourn).map(s => s.tourn);
+        const dataKeys = allKeys.keys.filter(key => key.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
+        const rawSnapshots = await Promise.all(dataKeys.map(key => env.LOL_KV.get(key.name, { type: "json" })));
+        existingArchives = rawSnapshots
+          .map(snapshot => snapshot?.tournament)
+          .filter(Boolean);
         existingArchives = dateUtils.sortTournamentsByDate(existingArchives);
-      } catch(e) {
-        console.error("Error fetching archives for tools page", e);
+      } catch(error) {
+        console.error("Error fetching archives for tools page", error);
       }
 
       const time = env.GITHUB_TIME;
@@ -30,8 +32,8 @@ export class ToolsRouter {
       return new Response(html, { 
         headers: { "content-type": "text/html;charset=utf-8" } 
       });
-    } catch (e) {
-      return new Response(`Error: ${e.message}`, { status: 500 });
+    } catch (error) {
+      return new Response(`Error: ${error.message}`, { status: 500 });
     }
   }
 }

@@ -14,8 +14,8 @@ export class APIRouter {
   static createInlineLogger() {
     return {
       logs: [],
-      error(message) { this.logs.push({ t: new Date().toISOString().slice(2, 19), l: 'ERROR', m: message }); },
-      success(message) { this.logs.push({ t: new Date().toISOString().slice(2, 19), l: 'SUCCESS', m: message }); }
+      error(message) { this.logs.push({ timestamp: new Date().toISOString().slice(2, 19), level: 'ERROR', message }); },
+      success(message) { this.logs.push({ timestamp: new Date().toISOString().slice(2, 19), level: 'SUCCESS', message }); }
     };
   }
 
@@ -25,13 +25,14 @@ export class APIRouter {
   static async handleBackup(request, env) {
     const payload = {};
     const allHomeKeys = await env.LOL_KV.list({ prefix: "HOME_" });
-    const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
-    const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
+    const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
+    const rawHomes = await Promise.all(dataKeys.map(key => env.LOL_KV.get(key, { type: "json" })));
       rawHomes.forEach(home => {
-        if (home && home.tourn && home.stats) {
-          const slug = home.tourn.slug;
+        const homeTournament = home?.tournament;
+        if (home && homeTournament && home.stats) {
+          const slug = homeTournament.slug;
           payload[`markdown/${slug}.md`] = HTMLRenderer.generateMarkdown(
-            home.tourn,
+            homeTournament,
             home.stats,
             { [slug]: home.timeGrid || {} }
           );
@@ -64,14 +65,14 @@ export class APIRouter {
           return new Response("Missing required field: slugs[]", { status: 400 });
         }
         const cleanSlugs = body.slugs
-          .filter(s => typeof s === "string")
-          .map(s => s.trim())
+          .filter(slug => typeof slug === "string")
+          .map(slug => slug.trim())
           .filter(Boolean);
         if (cleanSlugs.length === 0) {
           return new Response("Missing required field: slugs[]", { status: 400 });
         }
         forceSlugs = new Set(cleanSlugs);
-      } catch (e) {
+      } catch (error) {
         return new Response("Invalid JSON payload", { status: 400 });
       }
 
@@ -121,7 +122,7 @@ export class APIRouter {
     let payload;
     try {
       payload = await request.json();
-    } catch (e) {
+    } catch (error) {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
@@ -139,7 +140,7 @@ export class APIRouter {
       try {
         const githubClient = new GitHubClient(env);
         teamsRaw = await githubClient.fetchJson("config/teams.json");
-      } catch (e) {}
+      } catch (error) {}
 
       // 支持 overview_page 为数组或字符串
       const overviewPages = Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page];
@@ -157,10 +158,10 @@ export class APIRouter {
         const teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, matches);
 
         const snapshot = {
-          tourn: tournament,
+          tournament,
           rawMatches: matches,
           updateTimestamps: { [payload.slug]: Date.now() },
-          team_map: teamMap
+          teamMap: teamMap
         };
 
         await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
@@ -198,7 +199,7 @@ export class APIRouter {
     let payload;
     try {
       payload = await request.json();
-    } catch (e) {
+    } catch (error) {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
@@ -240,7 +241,7 @@ export class APIRouter {
     let payload;
     try {
       payload = await request.json();
-    } catch (e) {
+    } catch (error) {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
@@ -255,7 +256,7 @@ export class APIRouter {
       try {
         const githubClient = new GitHubClient(env);
         teamsRaw = await githubClient.fetchJson("config/teams.json");
-      } catch (e) {}
+      } catch (error) {}
 
       // 处理 overview_page：支持逗号分隔或 JSON 数组格式
       let overviewPages = payload.overview_page;
@@ -264,11 +265,11 @@ export class APIRouter {
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           try {
             overviewPages = JSON.parse(trimmed);
-          } catch (e) {
-            overviewPages = trimmed.split(',').map(s => s.trim()).filter(s => s.length > 0);
+          } catch (error) {
+            overviewPages = trimmed.split(',').map(page => page.trim()).filter(page => page.length > 0);
           }
         } else {
-          overviewPages = trimmed.split(',').map(s => s.trim()).filter(s => s.length > 0);
+          overviewPages = trimmed.split(',').map(page => page.trim()).filter(page => page.length > 0);
         }
       } else if (!Array.isArray(overviewPages)) {
         overviewPages = [overviewPages];
@@ -276,7 +277,7 @@ export class APIRouter {
 
       // 创建空的存档（仅元数据，无比赛数据）
       const snapshot = {
-        tourn: {
+        tournament: {
           slug: payload.slug,
           name: payload.name,
           overview_page: overviewPages,
@@ -286,7 +287,7 @@ export class APIRouter {
         },
         rawMatches: [], // 空数据
         updateTimestamps: { [payload.slug]: Date.now() },
-        team_map: dataUtils.pickTeamMap(teamsRaw, { slug: payload.slug, league: payload.league }, [])
+        teamMap: dataUtils.pickTeamMap(teamsRaw, { slug: payload.slug, league: payload.league }, [])
       };
 
       await env.LOL_KV.put(`ARCHIVE_${payload.slug}`, JSON.stringify(snapshot));
@@ -333,26 +334,27 @@ export class APIRouter {
   static async handleGetModeOverrides(request, env) {
     try {
       const allHomeKeys = await env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
-      const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
-      const rawHomes = await Promise.all(dataKeys.map(k => env.LOL_KV.get(k, { type: "json" })));
+      const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
+      const rawHomes = await Promise.all(dataKeys.map(key => env.LOL_KV.get(key, { type: "json" })));
       const metaState = await readMetaState(env);
 
       const overrides = {};
       const tournaments = rawHomes
-        .filter(h => h && h.tourn)
-        .map(h => {
-          const slug = h.tourn.slug;
+        .filter(home => home && home.tournament)
+        .map(home => {
+          const homeTournament = home.tournament;
+          const slug = homeTournament.slug;
           const meta = metaState.tournaments?.[slug] || {};
           const currentMode = meta.mode || "fast";
           const modeOverride = meta.modeOverride || "auto";
           overrides[slug] = modeOverride;
           return {
             slug,
-            name: h.tourn.name,
-            league: h.tourn.league,
+            name: homeTournament.name,
+            league: homeTournament.league,
             currentMode,
             override: modeOverride,
-            start_date: h.tourn.start_date || ''
+            start_date: homeTournament.start_date || ''
           };
         });
 

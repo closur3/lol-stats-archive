@@ -85,7 +85,7 @@ export class Updater {
    * 每天UTC切日后刷新一次赛程板，确保过期天按新规则清理
    */
   async refreshScheduleBoardOnDayRollover(runtimeConfig) {
-    const today = dateUtils.getNow().date;
+    const today = dateUtils.getNow().dateString;
     const meta = await readMetaState(this.env);
     const lastDay = meta.scheduleDayMark;
     if (lastDay === today) return;
@@ -101,9 +101,9 @@ export class Updater {
    */
   async loadRuntimeConfig() {
     try {
-      const tourns = await this.githubClient.fetchJson("config/tour.json");
-      if (tourns) return { TOURNAMENTS: tourns };
-    } catch (e) {}
+      const tournaments = await this.githubClient.fetchJson("config/tour.json");
+      if (tournaments) return { TOURNAMENTS: tournaments };
+    } catch (error) {}
     return null;
   }
 
@@ -121,28 +121,28 @@ export class Updater {
       if (!slug) continue;
 
       const pages = (Array.isArray(tournament.overview_page) ? tournament.overview_page : [tournament.overview_page])
-        .filter(p => typeof p === "string")
-        .map(p => p.trim())
+        .filter(page => typeof page === "string")
+        .map(page => page.trim())
         .filter(Boolean);
 
       if (pages.length === 0) continue;
       // revid gate 只看 Data: 页面，避免被 Overview 页面的无关编辑触发
-      const dataPages = Array.from(new Set(pages.map(p => p.startsWith("Data:") ? p : `Data:${p}`)));
-      const tMetaFromKV = cache?.meta?.tournaments?.[slug];
-      const lastTs = cache?.updateTimestamps?.[slug] || 0;
+      const dataPages = Array.from(new Set(pages.map(page => page.startsWith("Data:") ? page : `Data:${page}`)));
+      const tournamentMetaFromKv = cache?.meta?.tournaments?.[slug];
+      const lastUpdateTimestamp = cache?.updateTimestamps?.[slug] || 0;
       const revKey = `REV_${slug}`;
-      const prev = await this.env.LOL_KV.get(revKey, { type: "json" });
-      const lastCheckedAt = Number(prev?.checkedAt) || 0;
-      const gateBaseTs = Math.max(lastTs, lastCheckedAt);
-      const elapsed = NOW - gateBaseTs;
+      const previousRevisionState = await this.env.LOL_KV.get(revKey, { type: "json" });
+      const lastCheckedAt = Number(previousRevisionState?.checkedAt) || 0;
+      const gateBaseTimestamp = Math.max(lastUpdateTimestamp, lastCheckedAt);
+      const elapsed = NOW - gateBaseTimestamp;
       let threshold = 0;
       let mode = "fast";
 
-      if (tMetaFromKV) {
-        mode = tMetaFromKV.mode || "fast";
-        const startTs = tMetaFromKV.startTs || 0;
-        const isModeOverride = !!tMetaFromKV.modeOverride;
-        const isMatchStarted = startTs > 0 && NOW >= startTs;
+      if (tournamentMetaFromKv) {
+        mode = tournamentMetaFromKv.mode || "fast";
+        const startTimestamp = tournamentMetaFromKv.startTimestamp || 0;
+        const isModeOverride = !!tournamentMetaFromKv.modeOverride;
+        const isMatchStarted = startTimestamp > 0 && NOW >= startTimestamp;
         threshold = (mode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
       }
 
@@ -154,7 +154,7 @@ export class Updater {
       console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> check`);
       checkedSlugs++;
 
-      const prevPages = prev?.pages || {};
+      const prevPages = previousRevisionState?.pages || {};
       const nextPages = {};
       let slugChanged = false;
       let okCount = 0;
@@ -180,9 +180,9 @@ export class Updater {
             slugChanged = true;
             changedPages.push(`${title}:${prevRev || "none"}->${latest.revid}`);
           }
-        } catch (e) {
+        } catch (error) {
           errCount++;
-          console.log(`[REV] ${slug}: ${page} check failed: ${e.message}`);
+          console.log(`[REV] ${slug}: ${page} check failed: ${error.message}`);
         }
       }
 
@@ -219,7 +219,7 @@ export class Updater {
     try {
       teamsRaw = await this.githubClient.fetchJson("config/teams.json");
       runtimeConfig = await this.loadRuntimeConfig();
-    } catch (e) {}
+    } catch (error) {}
 
     if (!runtimeConfig) {
       this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
@@ -263,28 +263,28 @@ export class Updater {
     console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
 
     // 为每个锦标赛附加team_map（在数据抓取之后）
-    for (const tourn of (runtimeConfig.TOURNAMENTS || [])) {
-      const rawMatches = cache.rawMatches[tourn.slug] || [];
-      tourn.team_map = dataUtils.pickTeamMap(teamsRaw, tourn, rawMatches);
+    for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
+      const rawMatches = cache.rawMatches[tournament.slug] || [];
+      tournament.teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, rawMatches);
     }
 
-    // 从 tournMeta 中提取 modeOverrides
-    const oldTournMeta = cache.meta?.tournaments || {};
+    // 从 tournamentMeta 中提取 modeOverrides
+    const oldTournamentMeta = cache.meta?.tournaments || {};
     const modeOverrides = {};
-    for (const [slug, meta] of Object.entries(oldTournMeta)) {
+    for (const [slug, meta] of Object.entries(oldTournamentMeta)) {
       if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
     }
 
     const scopedRuntimeConfig = isScopedRun
-      ? { TOURNAMENTS: (runtimeConfig.TOURNAMENTS || []).filter(t => forceSlugs.has(t.slug)) }
+      ? { TOURNAMENTS: (runtimeConfig.TOURNAMENTS || []).filter(tournament => forceSlugs.has(tournament.slug)) }
       : runtimeConfig;
 
     // 分析数据
-    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournMeta, scopedRuntimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap, this.getMaxScheduleDays());
+    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, scopedRuntimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap, this.getMaxScheduleDays());
 
     // 生成日志
-    this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournMeta);
-    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournMeta);
+    this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournamentMeta);
+    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournamentMeta);
 
     // 保存数据
     await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, isScopedRun, {
@@ -304,44 +304,44 @@ export class Updater {
     if (!context) return this.logger;
     const { runtimeConfig, teamsRaw, cache } = context;
 
-    for (const tourn of (runtimeConfig.TOURNAMENTS || [])) {
-      const rawMatches = cache.rawMatches[tourn.slug] || [];
-      tourn.team_map = dataUtils.pickTeamMap(teamsRaw, tourn, rawMatches);
+    for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
+      const rawMatches = cache.rawMatches[tournament.slug] || [];
+      tournament.teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, rawMatches);
     }
 
-    const oldTournMeta = cache.meta?.tournaments || {};
+    const oldTournamentMeta = cache.meta?.tournaments || {};
     const modeOverrides = {};
-    for (const [slug, meta] of Object.entries(oldTournMeta)) {
+    for (const [slug, meta] of Object.entries(oldTournamentMeta)) {
       if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
     }
 
     const targetTournaments = isScopedRun
-      ? (runtimeConfig.TOURNAMENTS || []).filter(t => forceSlugs.has(t.slug))
+      ? (runtimeConfig.TOURNAMENTS || []).filter(tournament => forceSlugs.has(tournament.slug))
       : (runtimeConfig.TOURNAMENTS || []);
 
-    const nowTs = Date.now();
+    const nowTimestamp = Date.now();
     const changedSlugs = [];
-    const nextTournMeta = { ...oldTournMeta };
+    const nextTournamentMeta = { ...oldTournamentMeta };
 
     for (const tournament of targetTournaments) {
       const slug = tournament.slug;
       const rawMatches = cache.rawMatches[slug] || [];
-      const prevMeta = oldTournMeta[slug] || {};
-      const nextMeta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTs, {
+      const previousMetaForTournament = oldTournamentMeta[slug] || {};
+      const nextMeta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp, {
         modeOverride: modeOverrides[slug],
-        previousMode: prevMeta.mode || "fast",
+        previousMode: previousMetaForTournament.mode || "fast",
         hasFailure: false
       });
 
-      if (JSON.stringify(prevMeta) === JSON.stringify(nextMeta)) continue;
-      nextTournMeta[slug] = nextMeta;
+      if (JSON.stringify(previousMetaForTournament) === JSON.stringify(nextMeta)) continue;
+      nextTournamentMeta[slug] = nextMeta;
       changedSlugs.push(slug);
     }
 
     if (changedSlugs.length > 0) {
       await writeMetaState(this.env, {
         ...(cache.meta || {}),
-        tournaments: nextTournMeta
+        tournaments: nextTournamentMeta
       });
       console.log(`[LOCAL] meta changed: ${changedSlugs.join(", ")}`);
       await this.refreshHomeStaticFromCache();
@@ -356,34 +356,34 @@ export class Updater {
   async cleanupStaleHomeKeys(runtimeConfig) {
     try {
       const allHomeKeys = await this.env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
-      const activeSlugs = new Set((runtimeConfig.TOURNAMENTS || []).map(t => t.slug));
+      const activeSlugs = new Set((runtimeConfig.TOURNAMENTS || []).map(tournament => tournament.slug));
       const staleKeys = allHomeKeys.keys
-        .map(k => k.name)
-        .filter(n => n !== KV_KEYS.HOME_STATIC_HTML)
-        .filter(n => {
-          const slug = n.slice(KV_KEYS.HOME_PREFIX.length);
+        .map(key => key.name)
+        .filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML)
+        .filter(keyName => {
+          const slug = keyName.slice(KV_KEYS.HOME_PREFIX.length);
           return !activeSlugs.has(slug);
         });
       for (const key of staleKeys) await this.env.LOL_KV.delete(key);
 
       const allLogKeys = await this.env.LOL_KV.list({ prefix: "LOG_" });
       const staleLogKeys = allLogKeys.keys
-        .map(k => k.name)
-        .filter(n => {
-          const slug = n.slice("LOG_".length);
+        .map(key => key.name)
+        .filter(keyName => {
+          const slug = keyName.slice("LOG_".length);
           return !activeSlugs.has(slug);
         });
       for (const key of staleLogKeys) await this.env.LOL_KV.delete(key);
 
       const allRevKeys = await this.env.LOL_KV.list({ prefix: "REV_" });
       const staleRevKeys = allRevKeys.keys
-        .map(k => k.name)
-        .filter(n => {
-          const slug = n.slice("REV_".length);
+        .map(key => key.name)
+        .filter(keyName => {
+          const slug = keyName.slice("REV_".length);
           return !activeSlugs.has(slug);
         });
       for (const key of staleRevKeys) await this.env.LOL_KV.delete(key);
-    } catch (e) {}
+    } catch (error) {}
   }
 
   /**
@@ -428,12 +428,12 @@ export class Updater {
       }
 
       const isForceTarget = force && (!forceSlugs || forceSlugs.has(tournament.slug));
-      const lastTs = cache.updateTimestamps[tournament.slug] || 0;
-      const elapsed = NOW - lastTs;
+      const lastUpdateTimestamp = cache.updateTimestamps[tournament.slug] || 0;
+      const elapsed = NOW - lastUpdateTimestamp;
 
-      const tMetaFromKV = (cache.meta?.tournaments && cache.meta.tournaments[tournament.slug]);
+      const tournamentMetaFromKv = (cache.meta?.tournaments && cache.meta.tournaments[tournament.slug]);
 
-      if (!tMetaFromKV) {
+      if (!tournamentMetaFromKv) {
         if (!bypassThreshold) {
           console.log(`[THRESHOLD] ${tournament.slug} no-kv -> pass`);
         }
@@ -447,11 +447,11 @@ export class Updater {
         return;
       }
 
-      const currentMode = tMetaFromKV.mode;
-      const startTs = tMetaFromKV.startTs || 0;
-      const isModeOverride = !!tMetaFromKV.modeOverride;
+      const currentMode = tournamentMetaFromKv.mode;
+      const startTimestamp = tournamentMetaFromKv.startTimestamp || 0;
+      const isModeOverride = !!tournamentMetaFromKv.modeOverride;
 
-      const isMatchStarted = startTs > 0 && NOW >= startTs;
+      const isMatchStarted = startTimestamp > 0 && NOW >= startTimestamp;
       const threshold = (currentMode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
 
       if (isForceTarget || bypassThreshold || elapsed >= threshold) {
@@ -483,14 +483,14 @@ export class Updater {
     const batch = candidates.slice(0, Math.ceil(candidates.length / rounds));
     const results = [];
 
-    for (const c of batch) {
+    for (const candidate of batch) {
       try {
-        const data = await fandomClient.fetchAllMatches(c.slug, c.overview_page, null);
-        results.push({ status: 'fulfilled', slug: c.slug, data: data });
+        const data = await fandomClient.fetchAllMatches(candidate.slug, candidate.overview_page, null);
+        results.push({ status: 'fulfilled', slug: candidate.slug, data: data });
       } catch (err) {
-        results.push({ status: 'rejected', slug: c.slug, err: err });
+        results.push({ status: 'rejected', slug: candidate.slug, err: err });
       }
-      if (c !== batch[batch.length - 1]) await new Promise(res => setTimeout(res, 2000));
+      if (candidate !== batch[batch.length - 1]) await new Promise(resolveDelay => setTimeout(resolveDelay, 2000));
     }
 
     return results;
@@ -507,7 +507,7 @@ export class Updater {
     const apiErrors = [];
 
     const getDisplayName = (slug) => {
-      const tournament = runtimeConfig.TOURNAMENTS.find(t => t.slug === slug);
+      const tournament = runtimeConfig.TOURNAMENTS.find(tournamentItem => tournamentItem.slug === slug);
       return tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
     };
 
@@ -517,9 +517,9 @@ export class Updater {
       const overview = match?.OverviewPage ?? match?.["Overview Page"] ?? "";
       const nInPage = match?.N_MatchInPage ?? match?.["N MatchInPage"] ?? "";
       const dt = match?.DateTime_UTC ?? match?.["DateTime UTC"] ?? "";
-      const t1 = match?.Team1 ?? match?.["Team 1"] ?? "";
-      const t2 = match?.Team2 ?? match?.["Team 2"] ?? "";
-      return `fallback:${overview}|${nInPage}|${dt}|${t1}|${t2}`;
+      const team1Name = match?.Team1 ?? match?.["Team 1"] ?? "";
+      const team2Name = match?.Team2 ?? match?.["Team 2"] ?? "";
+      return `fallback:${overview}|${nInPage}|${dt}|${team1Name}|${team2Name}`;
     };
 
     const canonicalMatch = (match) => JSON.stringify({
@@ -539,8 +539,8 @@ export class Updater {
     const calcChangedCount = (oldData, newData) => {
       const oldMap = new Map();
       const newMap = new Map();
-      for (const m of (oldData || [])) oldMap.set(getMatchKey(m), canonicalMatch(m));
-      for (const m of (newData || [])) newMap.set(getMatchKey(m), canonicalMatch(m));
+      for (const matchRecord of (oldData || [])) oldMap.set(getMatchKey(matchRecord), canonicalMatch(matchRecord));
+      for (const matchRecord of (newData || [])) newMap.set(getMatchKey(matchRecord), canonicalMatch(matchRecord));
 
       let added = 0;
       let updated = 0;
@@ -552,10 +552,10 @@ export class Updater {
       return { added, updated, changed: added + updated };
     };
 
-    results.forEach(res => {
-      if (res.status === 'fulfilled') {
-        const slug = res.slug;
-        const newData = res.data || [];
+    results.forEach(resultItem => {
+      if (resultItem.status === 'fulfilled') {
+        const slug = resultItem.slug;
+        const newData = resultItem.data || [];
         const oldData = cache.rawMatches[slug] || [];
 
         if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
@@ -567,18 +567,18 @@ export class Updater {
           if (changedCount.changed > 0) {
             syncItems.push({
               slug,
-              dName: getDisplayName(slug),
+              displayName: getDisplayName(slug),
               added: changedCount.added,
               updated: changedCount.updated
             });
           } else {
-            idleItems.push({ slug, dName: getDisplayName(slug), added: 0, updated: 0 });
+            idleItems.push({ slug, displayName: getDisplayName(slug), added: 0, updated: 0 });
           }
         }
         cache.updateTimestamps[slug] = NOW;
       } else {
-        apiErrors.push(`${res.slug}(Fail)`);
-        failedSlugs.add(res.slug);
+        apiErrors.push(`${resultItem.slug}(Fail)`);
+        failedSlugs.add(resultItem.slug);
       }
     });
 
@@ -588,12 +588,12 @@ export class Updater {
   /**
    * 生成日志
    */
-  generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta) {
+  generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta) {
     const isAnon = (!authContext || authContext.isAnonymous);
     const authPrefix = isAnon ? "👻 " : "";
     
     // 格式化项目信息
-    const formatItem = (item) => `${item.dName} ${this.formatDeltaTag(item)}`;
+    const formatItem = (item) => `${item.displayName} ${this.formatDeltaTag(item)}`;
 
     const syncDetails = syncItems.map(formatItem);
     const idleDetails = idleItems.map(formatItem);
@@ -628,41 +628,41 @@ export class Updater {
   /**
    * 构建联赛级独立日志
    */
-  buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournMeta) {
-    const nowShort = dateUtils.getNow().short;
+  buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta) {
+    const nowShort = dateUtils.getNow().shortDateTimeString;
     const isAnon = (!authContext || authContext.isAnonymous);
     const authPrefix = isAnon ? "👻 " : "";
     const bySlug = {};
 
     const getDisplayName = (slug) => {
-      const t = (runtimeConfig.TOURNAMENTS || []).find(it => it.slug === slug);
-      return t ? (t.league || t.name || slug.toUpperCase()) : slug;
+      const tournament = (runtimeConfig.TOURNAMENTS || []).find(it => it.slug === slug);
+      return tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
     };
 
     const pushEntry = (slug, level, message) => {
       if (!slug) return;
-      bySlug[slug] = { t: nowShort, l: level, m: message };
+      bySlug[slug] = { timestamp: nowShort, level, message };
     };
 
     syncItems.forEach(item => {
-      let msg = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}`;
-      pushEntry(item.slug, "SUCCESS", msg);
+      let messageText = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}`;
+      pushEntry(item.slug, "SUCCESS", messageText);
     });
 
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
-      let msg = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ~0 | 🟰 Identical`;
-      pushEntry(item.slug, "SUCCESS", msg);
+      let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ~0 | 🟰 Identical`;
+      pushEntry(item.slug, "SUCCESS", messageText);
     });
 
-    breakers.forEach(b => {
-      const slug = String(b || "").split("(")[0];
+    breakers.forEach(breaker => {
+      const slug = String(breaker || "").split("(")[0];
       const name = getDisplayName(slug);
       pushEntry(slug, "ERROR", `🔴 [ERR!] | ${authPrefix}🚧 ${name}(Drop)`);
     });
 
-    apiErrors.forEach(e => {
-      const slug = String(e || "").split("(")[0];
+    apiErrors.forEach(apiError => {
+      const slug = String(apiError || "").split("(")[0];
       const name = getDisplayName(slug);
       pushEntry(slug, "ERROR", `🔴 [ERR!] | ${authPrefix}❌ ${name}(Fail)`);
     });
@@ -680,7 +680,7 @@ export class Updater {
       ...(cache.meta || {}),
       tournaments: {
         ...(cache.meta?.tournaments || {}),
-        ...(analysis.tournMeta || {})
+        ...(analysis.tournamentMeta || {})
       }
     };
     if (JSON.stringify(mergedMetaState.tournaments || {}) !== JSON.stringify(cache.meta?.tournaments || {})) {
@@ -693,7 +693,7 @@ export class Updater {
       try {
         const homeFragment = HTMLRenderer.renderContentOnly(
           analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-          runtimeConfig, false, analysis.tournMeta
+          runtimeConfig, false, (analysis.tournamentMeta || {})
         );
         const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
         const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
@@ -701,13 +701,13 @@ export class Updater {
           console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
           await this.env.LOL_KV.put(KV_KEYS.HOME_STATIC_HTML, fullPage);
         }
-      } catch (e) {
-        console.error("Error generating home HTML:", e);
+      } catch (error) {
+        console.error("Error generating home HTML:", error);
       }
     }
 
     // 按slug组织赛程数据
-    const tournIndexMap = new Map((runtimeConfig.TOURNAMENTS || []).map((t, idx) => [t.slug, idx]));
+    const tournamentIndexMap = new Map((runtimeConfig.TOURNAMENTS || []).map((tournament, index) => [tournament.slug, index]));
     const scheduleBySlug = {};
     Object.keys(analysis.scheduleMap || {}).forEach(date => {
       const list = analysis.scheduleMap[date] || [];
@@ -715,8 +715,10 @@ export class Updater {
         const slug = match.slug;
         const normalizedMatch = {
           ...match,
-          tournIndex: tournIndexMap.has(slug) ? tournIndexMap.get(slug) : (match.tournIndex ?? 9999)
-        };
+          tournamentIndex: tournamentIndexMap.has(slug)
+            ? tournamentIndexMap.get(slug)
+            : (match.tournamentIndex ?? 9999)
+          };
         if (!scheduleBySlug[slug]) scheduleBySlug[slug] = {};
         if (!scheduleBySlug[slug][date]) scheduleBySlug[slug][date] = [];
         scheduleBySlug[slug][date].push(normalizedMatch);
@@ -729,25 +731,25 @@ export class Updater {
       const slug = tournament.slug;
       const isForceTarget = force && (!forceSlugs || forceSlugs.has(slug));
       const raw = cache.rawMatches[slug] || [];
-      const ts = cache.updateTimestamps[slug] || 0;
+      const updateTimestamp = cache.updateTimestamps[slug] || 0;
       const stats = analysis.globalStats[slug] || {};
       const grid = analysis.timeGrid[slug] || {};
 
-      const teamMap = tournament.team_map || {};
-      const { team_map: _, ...tournamentStored } = tournament;
+      const teamMap = tournament.teamMap || {};
+      const { teamMap: _, ...tournamentStored } = tournament;
 
       // 数据变化检测
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
       const existingHome = await this.env.LOL_KV.get(homeKey, { type: "json" });
 
       const homeSnapshot = {
-        tourn: tournamentStored,
+        tournament: tournamentStored,
         rawMatches: raw,
-        updateTimestamps: { [slug]: ts },
+        updateTimestamps: { [slug]: updateTimestamp },
         stats: stats,
         timeGrid: grid,
         scheduleMap: scheduleBySlug[slug] || {},
-        team_map: teamMap
+        teamMap: teamMap
       };
 
       let homeHasChanges = isForceTarget || !existingHome ||
@@ -760,7 +762,7 @@ export class Updater {
 
       // 保存归档数据
       if (includeArchiveWrites && stats && Object.keys(stats).length > 0) {
-        const snapshot = { tourn: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: ts }, team_map: teamMap };
+        const snapshot = { tournament: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: updateTimestamp }, teamMap: teamMap };
         const archiveKey = `ARCHIVE_${slug}`;
         const existingArchive = await this.env.LOL_KV.get(archiveKey, { type: "json" });
         const archiveHasChanges = isForceTarget || !existingArchive ||
@@ -795,8 +797,8 @@ export class Updater {
           console.log(`[KV] PUT ${KV_KEYS.ARCHIVE_STATIC_HTML}`);
           await this.env.LOL_KV.put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
         }
-      } catch (e) {
-        console.error("Error generating archive HTML:", e);
+      } catch (error) {
+        console.error("Error generating archive HTML:", error);
       }
     }
 
@@ -823,25 +825,26 @@ export class Updater {
     const requireData = options.requireData !== false;
     const maxScheduleDays = this.getMaxScheduleDays();
     const allHomeKeys = await this.env.LOL_KV.list({ prefix: KV_KEYS.HOME_PREFIX });
-    const dataKeys = allHomeKeys.keys.map(k => k.name).filter(n => n !== KV_KEYS.HOME_STATIC_HTML);
-    const rawHomes = await Promise.all(dataKeys.map(k => this.env.LOL_KV.get(k, { type: "json" })));
-    const homeEntries = rawHomes.filter(h => h && h.tourn);
+    const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
+    const rawHomes = await Promise.all(dataKeys.map(key => this.env.LOL_KV.get(key, { type: "json" })));
+    const homeEntries = rawHomes.filter(home => home && home.tournament);
     if (homeEntries.length === 0) {
       if (requireData) return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };
       return { ok: true, homes: 0, writes: 0, homeChanged: false, archiveChanged: false };
     }
 
-    const sortedTourns = dateUtils.sortTournamentsByDate(homeEntries.map(h => h.tourn));
-    const runtimeConfig = { TOURNAMENTS: sortedTourns };
-    const tournIndexMap = new Map((sortedTourns || []).map((t, idx) => [t.slug, idx]));
+    const sortedTournaments = dateUtils.sortTournamentsByDate(homeEntries.map(home => home.tournament));
+    const runtimeConfig = { TOURNAMENTS: sortedTournaments };
+    const tournamentIndexMap = new Map((sortedTournaments || []).map((tournament, index) => [tournament.slug, index]));
     const globalStats = {};
     const timeGrid = {};
     const scheduleMap = {};
     const metaState = await readMetaState(this.env);
-    const tournMeta = { ...(metaState.tournaments || {}) };
+    const tournamentMeta = { ...(metaState.tournaments || {}) };
 
     homeEntries.forEach(home => {
-      const slug = home.tourn?.slug;
+      const homeTournament = home.tournament;
+      const slug = homeTournament?.slug;
       if (!slug) return;
       if (home.stats) globalStats[slug] = home.stats;
       if (home.timeGrid) timeGrid[slug] = home.timeGrid;
@@ -849,27 +852,31 @@ export class Updater {
       const sch = home.scheduleMap || {};
       Object.keys(sch).forEach(date => {
         if (!scheduleMap[date]) scheduleMap[date] = [];
-        (sch[date] || []).forEach(m => {
-          const slug = m?.slug;
+        (sch[date] || []).forEach(match => {
+          const slug = match?.slug;
           scheduleMap[date].push({
-            ...m,
-            tournIndex: tournIndexMap.has(slug) ? tournIndexMap.get(slug) : (m?.tournIndex ?? 9999)
+            ...match,
+            tournamentIndex: tournamentIndexMap.has(slug)
+              ? tournamentIndexMap.get(slug)
+              : (match?.tournamentIndex ?? 9999)
           });
         });
       });
     });
 
     Object.keys(scheduleMap).forEach(date => {
-      scheduleMap[date].sort((a, b) => {
-        if (a.tournIndex !== b.tournIndex) return a.tournIndex - b.tournIndex;
-        return (a.time || "").localeCompare(b.time || "");
+      scheduleMap[date].sort((leftMatch, rightMatch) => {
+        const leftTournamentIndex = leftMatch.tournamentIndex ?? 9999;
+        const rightTournamentIndex = rightMatch.tournamentIndex ?? 9999;
+        if (leftTournamentIndex !== rightTournamentIndex) return leftTournamentIndex - rightTournamentIndex;
+        return (leftMatch.time || "").localeCompare(rightMatch.time || "");
       });
     });
 
     const limitedScheduleMap = dateUtils.pruneScheduleMapByDayStatus(
       scheduleMap,
       maxScheduleDays,
-      dateUtils.getNow().date
+      dateUtils.getNow().dateString
     );
 
     if (requireData && Object.keys(globalStats).length === 0) {
@@ -877,7 +884,7 @@ export class Updater {
     }
 
     const homeFragment = HTMLRenderer.renderContentOnly(
-      globalStats, timeGrid, limitedScheduleMap, runtimeConfig, false, tournMeta
+      globalStats, timeGrid, limitedScheduleMap, runtimeConfig, false, tournamentMeta
     );
     const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
     const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
@@ -915,36 +922,43 @@ export class Updater {
   async generateArchiveStaticHTML() {
     try {
       const allKeys = await this.env.LOL_KV.list({ prefix: "ARCHIVE_" });
-      const dataKeys = allKeys.keys.filter(k => k.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
+      const dataKeys = allKeys.keys.filter(key => key.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
 
       if (!dataKeys.length) {
         return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "archive");
       }
 
-      const rawSnapshots = await Promise.all(dataKeys.map(k => this.env.LOL_KV.get(k.name, { type: "json" })));
-      let validSnapshots = rawSnapshots.filter(s => s && s.tourn && s.tourn.slug);
+      const rawSnapshots = await Promise.all(dataKeys.map(key => this.env.LOL_KV.get(key.name, { type: "json" })));
+      let validSnapshots = rawSnapshots.filter(snapshot => {
+        const snapshotTournament = snapshot?.tournament;
+        return Boolean(snapshot && snapshotTournament && snapshotTournament.slug);
+      });
 
       validSnapshots = dateUtils
-        .sortTournamentsByDate(validSnapshots.map(s => ({ ...s.tourn, __snapshot: s })))
-        .map(t => t.__snapshot);
+        .sortTournamentsByDate(validSnapshots.map(snapshot => {
+          const snapshotTournament = snapshot.tournament;
+          return { ...snapshotTournament, __snapshot: snapshot };
+        }))
+        .map(tournament => tournament.__snapshot);
 
       const combined = validSnapshots.map(snap => {
-        const tournamentWithMap = { ...snap.tourn, team_map: snap.team_map || {} };
+        const snapshotTournament = snap.tournament;
+        const tournamentWithMap = { ...snapshotTournament, teamMap: snap.teamMap || {} };
         const miniConfig = { TOURNAMENTS: [tournamentWithMap] };
-        const analysis = Analyzer.runFullAnalysis({ [snap.tourn.slug]: snap.rawMatches || [] }, {}, miniConfig);
-        const statsObj = analysis.globalStats[snap.tourn.slug] || {};
-        const timeObj = analysis.timeGrid[snap.tourn.slug] || {};
+        const analysis = Analyzer.runFullAnalysis({ [snapshotTournament.slug]: snap.rawMatches || [] }, {}, miniConfig);
+        const statsObj = analysis.globalStats[snapshotTournament.slug] || {};
+        const timeObj = analysis.timeGrid[snapshotTournament.slug] || {};
         const content = HTMLRenderer.renderContentOnly(
-          { [snap.tourn.slug]: statsObj },
-          { [snap.tourn.slug]: timeObj },
+          { [snapshotTournament.slug]: statsObj },
+          { [snapshotTournament.slug]: timeObj },
           {}, miniConfig, true
         );
         return content;
       }).join("");
 
       return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "archive");
-    } catch (e) {
-      return HTMLRenderer.renderPageShell("LoL Archive Error", `<div class="arch-error-msg">Error generating archive: ${e.message}</div>`, "archive");
+    } catch (error) {
+      return HTMLRenderer.renderPageShell("LoL Archive Error", `<div class="arch-error-msg">Error generating archive: ${error.message}</div>`, "archive");
     }
   }
 }
@@ -954,26 +968,26 @@ export class Updater {
  */
 class Logger {
   constructor() { 
-    this.l = []; 
+    this.logs = []; 
   }
   
-  error(m) { 
-    this.l.push({
-      t: dateUtils.getNow().short, 
-      l: 'ERROR', 
-      m: m
+  error(message) { 
+    this.logs.push({
+      timestamp: dateUtils.getNow().shortDateTimeString,
+      level: 'ERROR',
+      message
     }); 
   }
   
-  success(m) { 
-    this.l.push({
-      t: dateUtils.getNow().short, 
-      l: 'SUCCESS', 
-      m: m
+  success(message) { 
+    this.logs.push({
+      timestamp: dateUtils.getNow().shortDateTimeString,
+      level: 'SUCCESS',
+      message
     }); 
   }
   
   export() { 
-    return this.l; 
+    return this.logs; 
   }
 }
