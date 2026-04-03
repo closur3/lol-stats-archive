@@ -768,7 +768,7 @@ export class Updater {
           analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
           runtimeConfig, false, (analysis.tournamentMeta || {})
         );
-        const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home");
+        const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", this.env.GITHUB_TIME, this.env.GITHUB_SHA);
         const existingHomeHTML = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_STATIC_HTML);
         if (existingHomeHTML !== fullPage) {
           console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
@@ -959,7 +959,7 @@ export class Updater {
     const homeFragment = HTMLRenderer.renderContentOnly(
       globalStats, timeGrid, limitedScheduleMap, runtimeConfig, false, tournamentMeta
     );
-    const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home");
+    const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", this.env.GITHUB_TIME, this.env.GITHUB_SHA);
     const existingHomeHTML = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_STATIC_HTML);
     const writePromises = [];
     let homeChanged = false;
@@ -998,7 +998,7 @@ export class Updater {
       const dataKeys = allKeys.keys.filter(key => key.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
 
       if (!dataKeys.length) {
-        return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "archive");
+        return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content arch-empty-msg">No archive data available.</div>`, "archive", this.env.GITHUB_TIME, this.env.GITHUB_SHA);
       }
 
       const rawSnapshots = await Promise.all(dataKeys.map(key => this.env["lol-stats-kv"].get(key.name, { type: "json" })));
@@ -1029,9 +1029,9 @@ export class Updater {
         return content;
       }).join("");
 
-      return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "archive");
+      return HTMLRenderer.renderPageShell("LoL Archive", `<div class="arch-content">${combined}</div>`, "archive", this.env.GITHUB_TIME, this.env.GITHUB_SHA);
     } catch (error) {
-      return HTMLRenderer.renderPageShell("LoL Archive Error", `<div class="arch-error-msg">Error generating archive: ${error.message}</div>`, "archive");
+      return HTMLRenderer.renderPageShell("LoL Archive Error", `<div class="arch-error-msg">Error generating archive: ${error.message}</div>`, "archive", this.env.GITHUB_TIME, this.env.GITHUB_SHA);
     }
   }
 }
