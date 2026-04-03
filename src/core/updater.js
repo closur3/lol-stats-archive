@@ -695,7 +695,7 @@ export class Updater {
           analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
           runtimeConfig, false, (analysis.tournamentMeta || {})
         );
-        const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
+        const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home");
         const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
         if (existingHomeHTML !== fullPage) {
           console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
@@ -886,7 +886,7 @@ export class Updater {
     const homeFragment = HTMLRenderer.renderContentOnly(
       globalStats, timeGrid, limitedScheduleMap, runtimeConfig, false, tournamentMeta
     );
-    const fullPage = HTMLRenderer.renderPageShell("LoL Insights", homeFragment, "home");
+    const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home");
     const existingHomeHTML = await this.env.LOL_KV.get(KV_KEYS.HOME_STATIC_HTML);
     const writePromises = [];
     let homeChanged = false;
