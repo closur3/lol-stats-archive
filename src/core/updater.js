@@ -726,7 +726,7 @@ export class Updater {
   /**
    * 保存数据
    */
-  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}, scopedOnly = false, options = {}) {
+  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}, options = {}) {
     const includeArchiveWrites = options.includeArchiveWrites !== false;
 
     const mergedMetaState = {
@@ -851,11 +851,6 @@ export class Updater {
       } catch (error) {
         console.error("Error generating archive HTML:", error);
       }
-    }
-
-    // 单联赛 force：仅在有数据变化时刷新首页静态HTML（基于已有 HOME_ 缓存重组，不触发全量分析）
-    if (scopedOnly && syncItems.length > 0) {
-      await this.refreshHomeStaticFromCache();
     }
 
   }
