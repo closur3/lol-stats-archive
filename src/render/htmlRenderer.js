@@ -35,6 +35,8 @@ export class HTMLRenderer {
     const STYLE_SCH_MID_CELL = 'style="display:flex;justify-content:center;align-items:center;width:34px;transition:background 0.2s;"';
     const STYLE_TBD_TEAM = 'style="color:#9ca3af"';
 
+    const escapeHtml = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
     const mkSpine = (val, sep) => {
         if (!val || val === "-") return `<span ${STYLE_MUTED_DASH}>-</span>`;
         const parts = val.split(sep);
@@ -70,14 +72,14 @@ export class HTMLRenderer {
 
         const emptyBackground = '#f1f5f9', emptyColor = '#cbd5e1';
         const getClass = (baseClass, count) => count > 0 ? `${baseClass} team-clickable` : baseClass;
-        const getClickHandler = (name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${name}', '${type}')"` : "";
+        const getClickHandler = (name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${escapeHtml(name)}', '${type}')"` : "";
         const statStyle = (count) => `style="background:${count === 0 ? emptyBackground : 'transparent'};color:${count === 0 ? emptyColor : 'inherit'}"`;
         const percentStyle = (rate, strong = false) => `style="background:${dataUtils.color(rate, strong)};color:${rate !== null ? 'white' : emptyColor};font-weight:bold"`;
         const lastStyle = `style="background:${!teamStats.last ? emptyBackground : 'transparent'};color:${!teamStats.last ? emptyColor : lastMatchColor};font-weight:700"`;
         const streakEmpty = teamStats.winStreakCount === 0 && teamStats.lossStreakCount === 0;
         const streakStyle = `style="background:${streakEmpty ? emptyBackground : 'transparent'};color:${streakEmpty ? emptyColor : 'inherit'}"`;
 
-        return `<tr><td class="team-col team-clickable" onclick="openTeam('${slug}', '${teamStats.name}')">${teamStats.name}</td>` +
+        return `<tr><td class="team-col team-clickable" onclick="openTeam('${slug}', '${escapeHtml(teamStats.name)}')">${escapeHtml(teamStats.name)}</td>` +
                `<td class="${getClass('col-bo3', teamStats.bestOf3TotalMatchCount)}" ${getClickHandler(teamStats.name, 'bo3', teamStats.bestOf3TotalMatchCount)} ${statStyle(teamStats.bestOf3TotalMatchCount)}>${bo3Text}</td>` +
                `<td class="col-bo3-pct" ${percentStyle(bo3Rate, true)}>${dataUtils.pct(bo3Rate)}</td>` +
                `<td class="${getClass('col-bo5', teamStats.bestOf5TotalMatchCount)}" ${getClickHandler(teamStats.name, 'bo5', teamStats.bestOf5TotalMatchCount)} ${statStyle(teamStats.bestOf5TotalMatchCount)}>${bo5Text}</td>` +
@@ -110,7 +112,7 @@ export class HTMLRenderer {
                     html += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
                 } else {
                     const fullRate = cellData.fullLengthMatchCount / cellData.totalMatchCount;
-                    const matches = JSON.stringify(cellData.matches).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                    const matches = JSON.stringify(cellData.matches).replace(/'/g, "&#39;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
                     html += `<td style='background:${dataUtils.color(fullRate, true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${dayIndex}, ${matches})'><div class="t-cell"><span class="t-val">${cellData.fullLengthMatchCount}<span ${STYLE_SCORE_SEP}>/</span>${cellData.totalMatchCount}</span><span class="t-pct">(${Math.round(fullRate * 100)}%)</span></div></td>`;
                 }
             }
@@ -126,8 +128,8 @@ export class HTMLRenderer {
         const bestOfLabel = match.bestOf ? `BO${match.bestOf}` : "";
         const bestOfClass = match.bestOf === 5 ? "sch-pill gold" : "sch-pill";
         const isTbd1 = match.team1Name === "TBD", isTbd2 = match.team2Name === "TBD";
-        const team1ClickHandler = isTbd1 ? "" : `onclick="openTeam('${match.slug}', '${match.team1Name}')"`;
-        const team2ClickHandler = isTbd2 ? "" : `onclick="openTeam('${match.slug}', '${match.team2Name}')"`;
+        const team1ClickHandler = isTbd1 ? "" : `onclick="openTeam('${match.slug}', '${escapeHtml(match.team1Name)}')"`;
+        const team2ClickHandler = isTbd2 ? "" : `onclick="openTeam('${match.slug}', '${escapeHtml(match.team2Name)}')"`;
         const team1RateHint = getRateHtml(match.team1Name, match.slug, match.bestOf);
         const team2RateHint = getRateHtml(match.team2Name, match.slug, match.bestOf);
 
@@ -141,9 +143,9 @@ export class HTMLRenderer {
         }
 
         const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
-        const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${match.team1Name}', '${match.team2Name}')"` : "";
+        const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${escapeHtml(match.team1Name)}', '${escapeHtml(match.team2Name)}')"` : "";
 
-        return `<div class="sch-row"><span class="sch-time"><span class="utc-local" data-utc="${match.isoTimestamp || ''}" data-format="time">${match.time}</span></span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${team1ClickHandler} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${team1RateHint}${match.team1Name}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${team2ClickHandler} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.team2Name}${team2RateHint}</span></div></div><div class="sch-tag-col"><span class="${bestOfClass}">${bestOfLabel}</span></div></div>`;
+        return `<div class="sch-row"><span class="sch-time"><span class="utc-local" data-utc="${match.isoTimestamp || ''}" data-format="time">${match.time}</span></span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${team1ClickHandler} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${team1RateHint}${escapeHtml(match.team1Name)}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${team2ClickHandler} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${escapeHtml(match.team2Name)}${team2RateHint}</span></div></div><div class="sch-tag-col"><span class="${bestOfClass}">${bestOfLabel}</span></div></div>`;
     };
 
     let tablesHtml = "";
@@ -456,9 +458,9 @@ export class HTMLRenderer {
                '<div class="col-date">' + dateHtml + '</div>' +
                '<div class="modal-divider"></div>' +
                '<div class="col-vs-area"><div class="spine-row">' +
-               '<span class="spine-l" ' + team1Style + '>' + team1Name + '</span>' +
+               '<span class="spine-l" ' + team1Style + '>' + escapeHtml(team1Name) + '</span>' +
                '<div ' + STYLE_SCORE_WRAP + '><div class="' + boxClass + '">' + scoreContent + '</div></div>' +
-               '<span class="spine-r" ' + team2Style + '>' + team2Name + '</span>' +
+               '<span class="spine-r" ' + team2Style + '>' + escapeHtml(team2Name) + '</span>' +
                '</div></div>' +
                '<div class="modal-divider"></div>' +
                '<div class="col-res">' + resultTagHtml + '</div>' +
@@ -598,7 +600,14 @@ export class HTMLRenderer {
         let team1Wins = 0, team2Wins = 0;
         h2hHistory.forEach(match => { if(match.matchResultCode === 'WIN') team1Wins++; else if(match.matchResultCode === 'LOSS') team2Wins++; });
         const summary = h2hHistory.length > 0 ? ' <span ' + STYLE_H2H_SUMMARY + '>(' + team1Wins + '<span ' + STYLE_H2H_DASH + '>-</span>' + team2Wins + ')</span>' : "";
-        document.getElementById('modalTitle').innerHTML = team1Name + " vs " + team2Name + summary;
+        const titleEl = document.getElementById('modalTitle');
+        titleEl.textContent = team1Name + " vs " + team2Name;
+        if (summary) {
+            const summarySpan = document.createElement('span');
+            summarySpan.setAttribute('style', STYLE_H2H_SUMMARY);
+            summarySpan.innerHTML = '(' + team1Wins + '<span ' + STYLE_H2H_DASH + '>-</span>' + team2Wins + ')';
+            titleEl.appendChild(summarySpan);
+        }
         const listHtml = h2hHistory.map(match => {
             const icon = RESULT_ICON_MAP[match.matchResultCode] || RESULT_ICON_MAP['NEXT'];
             const resultTag = '<span class="' + ((match.matchResultCode === 'WIN' || match.matchResultCode === 'LOSS') ? '' : 'hist-icon') + '">' + icon + '</span>';
