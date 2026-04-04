@@ -610,7 +610,8 @@ export class Updater {
               slug,
               displayName: getDisplayName(slug),
               added: changedCount.added,
-              updated: changedCount.updated
+              updated: changedCount.updated,
+              isForce: force || (forceSlugs && forceSlugs.has(slug))
             });
           } else {
             idleItems.push({ slug, displayName: getDisplayName(slug), added: 0, updated: 0, isForce: force || (forceSlugs && forceSlugs.has(slug)) });
@@ -690,7 +691,7 @@ export class Updater {
         const revInfo = item.revidChanges[0];
         triggerText = ` | ➕ <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
       } else if (item.isForce) {
-        triggerText = " | Force";
+        triggerText = " | ➕ Force";
       }
       let messageText = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}${triggerText}`;
       pushEntry(item.slug, "SUCCESS", messageText);
@@ -706,7 +707,7 @@ export class Updater {
         const revInfo = item.revidChanges[0];
         triggerText = ` | 🟰 <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
       } else if (item.isForce) {
-        triggerText = " | Force";
+        triggerText = " | 🟰 Force";
       }
 
       let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount}${triggerText}`;
