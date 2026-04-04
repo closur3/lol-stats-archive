@@ -90,7 +90,7 @@ export default {
           const githubClient = new GitHubClient(env);
           const tournaments = await githubClient.fetchJson("config/tour.json");
           sortedTournaments = dateUtils.sortTournamentsByDate(Array.isArray(tournaments) ? tournaments : []);
-        } catch (error) {}
+        } catch (error) { console.error("[Logs] Failed to load tournaments config:", error.message); }
 
         const leagueLogs = [];
         const consumed = new Set();

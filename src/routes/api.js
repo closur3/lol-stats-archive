@@ -143,7 +143,7 @@ export class APIRouter {
       try {
         const githubClient = new GitHubClient(env);
         teamsRaw = await githubClient.fetchJson("config/teams.json");
-      } catch (error) {}
+      } catch (error) { console.error("[Rebuild] Failed to load teams.json:", error.message); }
 
       // 支持 overview_page 为数组或字符串
       const overviewPages = (Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page])
@@ -260,7 +260,7 @@ export class APIRouter {
       try {
         const githubClient = new GitHubClient(env);
         teamsRaw = await githubClient.fetchJson("config/teams.json");
-      } catch (error) {}
+      } catch (error) { console.error("[ManualArchive] Failed to load teams.json:", error.message); }
 
       // 处理 overview_page：支持逗号分隔或 JSON 数组格式
       let overviewPages = payload.overview_page;

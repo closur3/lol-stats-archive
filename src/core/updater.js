@@ -104,7 +104,7 @@ export class Updater {
     try {
       const tournaments = await this.githubClient.fetchJson("config/tour.json");
       if (tournaments) return { TOURNAMENTS: tournaments };
-    } catch (error) {}
+    } catch (error) { console.error("[Config] Failed to load runtime config:", error.message); }
     return null;
   }
 
@@ -227,7 +227,7 @@ export class Updater {
     try {
       teamsRaw = await this.githubClient.fetchJson("config/teams.json");
       runtimeConfig = await this.loadRuntimeConfig();
-    } catch (error) {}
+    } catch (error) { console.error("[Context] Failed to prepare runtime context:", error.message); }
 
     if (!runtimeConfig) {
       this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
@@ -396,11 +396,7 @@ export class Updater {
           return !activeSlugs.has(slug);
         });
       for (const staleRevKey of staleRevKeys) await this.env["lol-stats-kv"].delete(staleRevKey);
-    } catch (error) {}
-  }
-
-  /**
-   * 加载缓存数据
+    } catch (error) { console.error("[Cleanup] Failed to cleanup stale home keys:", error.message); }
    */
   async loadCachedData(tournaments) {
     const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
