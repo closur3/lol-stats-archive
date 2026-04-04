@@ -246,8 +246,7 @@ export class Updater {
     const bypassThreshold = !!options.bypassThreshold;
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
-    const isScopedRun = !!(forceSlugs && forceSlugs.size > 0);
-    console.log(`[FANDOM] start force=${!!force} scoped=${isScopedRun} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
+    console.log(`[FANDOM] slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "all"}`);
     const updateRounds = this.getUpdateRounds();
     const context = await this.prepareRuntimeContext();
     if (!context) return this.logger;
