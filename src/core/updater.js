@@ -246,7 +246,6 @@ export class Updater {
     const bypassThreshold = !!options.bypassThreshold;
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
-    console.log(`[FANDOM] slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "all"}`);
     const updateRounds = this.getUpdateRounds();
     const context = await this.prepareRuntimeContext();
     if (!context) return this.logger;
