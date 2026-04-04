@@ -819,7 +819,11 @@ export class Updater {
       }
     }
 
-    await Promise.all(writePromises);
+    const writeResults = await Promise.allSettled(writePromises);
+    const failedWrites = writeResults.filter(r => r.status === 'rejected');
+    if (failedWrites.length > 0) {
+      console.error(`[KV] ${failedWrites.length} write(s) failed:`, failedWrites.map(r => r.reason?.message || r.reason));
+    }
 
     // 联赛级日志写入独立键（LOG_<slug>），避免影响 HOME_ 写入规则
     const logEntries = leagueLogEntries || {};
@@ -830,7 +834,13 @@ export class Updater {
       const nextLogs = [entry, ...oldLogs].slice(0, 10);
       await this.env["lol-stats-kv"].put(logKey, JSON.stringify(nextLogs));
     });
-    if (logWrites.length > 0) await Promise.all(logWrites);
+    if (logWrites.length > 0) {
+      const logResults = await Promise.allSettled(logWrites);
+      const failedLogs = logResults.filter(r => r.status === 'rejected');
+      if (failedLogs.length > 0) {
+        console.error(`[KV] ${failedLogs.length} log write(s) failed:`, failedLogs.map(r => r.reason?.message || r.reason));
+      }
+    }
 
     // 只有有数据变化时才重新生成归档HTML
     if (syncItems.length > 0) {
