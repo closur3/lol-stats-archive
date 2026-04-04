@@ -763,21 +763,19 @@ export class Updater {
     }
 
     // 保存首页静态HTML
-    if (!scopedOnly) {
-      try {
-        const homeFragment = HTMLRenderer.renderContentOnly(
-          analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-          runtimeConfig, false, (analysis.tournamentMeta || {})
-        );
-        const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", this.env.GITHUB_TIME, this.env.GITHUB_SHA);
-        const existingHomeHTML = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_STATIC_HTML);
-        if (existingHomeHTML !== fullPage) {
-          console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
-          await this.env["lol-stats-kv"].put(KV_KEYS.HOME_STATIC_HTML, fullPage);
-        }
-      } catch (error) {
-        console.error("Error generating home HTML:", error);
+    try {
+      const homeFragment = HTMLRenderer.renderContentOnly(
+        analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
+        runtimeConfig, false, (analysis.tournamentMeta || {})
+      );
+      const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", this.env.GITHUB_TIME, this.env.GITHUB_SHA);
+      const existingHomeHTML = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_STATIC_HTML);
+      if (existingHomeHTML !== fullPage) {
+        console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
+        await this.env["lol-stats-kv"].put(KV_KEYS.HOME_STATIC_HTML, fullPage);
       }
+    } catch (error) {
+      console.error("Error generating home HTML:", error);
     }
 
     // 按slug组织赛程数据
