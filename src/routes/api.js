@@ -15,6 +15,10 @@ export class APIRouter {
    * 处理备份请求
    */
   static async handleBackup(request, env) {
+    if (APIRouter.isUnauthorized(request, env)) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
     const payload = {};
     const allHomeKeys = await env["lol-stats-kv"].list({ prefix: "HOME_" });
     const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
