@@ -316,9 +316,7 @@ export class Updater {
   /**
    * 本地更新：不联网，仅基于缓存重算并写入（用于revid未变化场景）
    */
-  async runLocalUpdate(forceSlugs = null) {
-    const isScopedRun = !!(forceSlugs && forceSlugs.size > 0);
-
+  async runLocalUpdate() {
     const context = await this.prepareRuntimeContext();
     if (!context) return this.logger;
     const { runtimeConfig, teamsRaw, cache } = context;
@@ -334,15 +332,11 @@ export class Updater {
       if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
     }
 
-    const targetTournaments = isScopedRun
-      ? (runtimeConfig.TOURNAMENTS || []).filter(tournament => forceSlugs.has(tournament.slug))
-      : (runtimeConfig.TOURNAMENTS || []);
-
     const nowTimestamp = Date.now();
     const changedSlugs = [];
     const nextTournamentMeta = { ...oldTournamentMeta };
 
-    for (const tournament of targetTournaments) {
+    for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
       const slug = tournament.slug;
       const rawMatches = cache.rawMatches[slug] || [];
       const previousMetaForTournament = oldTournamentMeta[slug] || {};
