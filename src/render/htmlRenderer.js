@@ -113,7 +113,7 @@ export class HTMLRenderer {
                     html += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
                 } else {
                     const fullRate = cellData.fullLengthMatchCount / cellData.totalMatchCount;
-                    const matches = JSON.stringify(cellData.matches).replace(/'/g, "\\u0027");
+                    const matches = JSON.stringify(cellData.matches).replace(/'/g, "&#39;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
                     html += `<td style='background:${dataUtils.color(fullRate, true)}; color:white; font-weight:bold; cursor:pointer;' onclick='showPopup("${label}", ${dayIndex}, ${matches})'><div class="t-cell"><span class="t-val">${cellData.fullLengthMatchCount}<span ${STYLE_SCORE_SEP}>/</span>${cellData.totalMatchCount}</span><span class="t-pct">(${Math.round(fullRate * 100)}%)</span></div></td>`;
                 }
             }
