@@ -299,19 +299,15 @@ export class Updater {
       if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
     }
 
-    const scopedRuntimeConfig = isScopedRun
-      ? { TOURNAMENTS: (runtimeConfig.TOURNAMENTS || []).filter(tournament => forceSlugs.has(tournament.slug)) }
-      : runtimeConfig;
-
-    // 分析数据
-    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, scopedRuntimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap, this.getMaxScheduleDays());
+    // 分析数据（始终使用完整 runtimeConfig 以确保首页 HTML 包含所有赛事）
+    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap, this.getMaxScheduleDays());
 
     // 生成日志
-    this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournamentMeta);
-    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, scopedRuntimeConfig, oldTournamentMeta);
+    this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta);
+    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta);
 
     // 保存数据
-    await this.saveData(scopedRuntimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, isScopedRun, {
+    await this.saveData(runtimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, false, {
       includeArchiveWrites: true
     });
 
