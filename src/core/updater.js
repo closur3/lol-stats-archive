@@ -397,7 +397,10 @@ export class Updater {
         });
       for (const staleRevKey of staleRevKeys) await this.env["lol-stats-kv"].delete(staleRevKey);
     } catch (error) { console.error("[Cleanup] Failed to cleanup stale home keys:", error.message); }
-   */
+  }
+
+  /**
+   * 加载缓存数据
   async loadCachedData(tournaments) {
     const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
     
@@ -676,21 +679,6 @@ export class Updater {
         triggerText = ` | 🟰 <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
       } else if (item.isForce) {
         triggerText = " | 🟰 Force";
-      }
-
-      let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount}${triggerText}`;
-      pushEntry(item.slug, "SUCCESS", messageText);
-    });
-
-    idleItems.forEach(item => {
-      if (bySlug[item.slug]) return;
-      const displayName = getDisplayName(item.slug);
-      const changeCount = item.added + item.updated;
-      let triggerText = "";
-
-      if (item.revidChanges && item.revidChanges.length > 0) {
-        const revInfo = item.revidChanges[0];
-        triggerText = ` | <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
       }
 
       let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount}${triggerText}`;

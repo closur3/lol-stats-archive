@@ -1,6 +1,5 @@
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
-import { MATCH_EXPIRY_HOURS, TABLE_COLUMNS, ICONS } from '../utils/constants.js';
 
 /**
  * 统计分析核心模块 (纯UTC)
