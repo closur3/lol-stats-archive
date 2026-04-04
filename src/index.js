@@ -131,10 +131,7 @@ export default {
       
       case "/favicon.ico":
         return new Response(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>`, {
-          headers: {
-            "content-type": "image/svg+xml",
-            "cache-control": "no-cache, no-store, must-revalidate"
-          }
+          headers: { "content-type": "image/svg+xml" }
         });
       
       default: 
