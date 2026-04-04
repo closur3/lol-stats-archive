@@ -401,6 +401,7 @@ export class Updater {
 
   /**
    * 加载缓存数据
+   */
   async loadCachedData(tournaments) {
     const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
     
