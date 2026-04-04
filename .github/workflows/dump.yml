@@ -18,7 +18,8 @@ jobs:
       - name: Backup Stats
         id: process_data
         env:
-          WORKER_URL: "https://lol-stats.closur3.workers.dev/backup"
+          WORKER_URL: "https://lol.hsux.de/backup"
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           TIMEZONE: "Asia/Shanghai"  # 可修改为其他时区，如 America/New_York
         run: |
           import requests
@@ -36,7 +37,11 @@ jobs:
           print(f"🚀 开始抓取: {url}")
 
           try:
-              resp = requests.get(url, timeout=30)
+              headers = {}
+              secret = os.environ.get("ADMIN_SECRET")
+              if secret:
+                  headers["Authorization"] = f"Bearer {secret}"
+              resp = requests.get(url, headers=headers, timeout=30)
 
               # 尝试解析 JSON，即使 HTTP 状态码不是 200
               try:
