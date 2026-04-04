@@ -1,6 +1,6 @@
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
-import { ICONS, TABLE_COLUMNS, GITHUB_COMMIT_BASE } from '../utils/constants.js';
+import { GITHUB_COMMIT_BASE } from '../utils/constants.js';
 import { PYTHON_STYLE, TOOLS_PAGE_STYLE, LOG_PAGE_STYLE, BUILD_FOOTER_STYLE } from './styles.js';
 
 /**
