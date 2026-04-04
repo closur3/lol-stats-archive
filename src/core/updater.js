@@ -65,7 +65,7 @@ export class Updater {
 
     const NOW = Date.now();
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
-    const { changedSlugs, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
+    const { changedSlugs, revidChanges, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
     console.log(`[CRON] rev-check checked=${checkedSlugs} th-skip=${thresholdSkippedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
 
     if (changedSlugs.size === 0) {
@@ -77,7 +77,8 @@ export class Updater {
     console.log(`[REV-GATE] Changed slugs: ${Array.from(changedSlugs).join(", ")}`);
     return this.runFandomUpdate(false, changedSlugs, {
       bypassThreshold: true,
-      forceWrite: false
+      forceWrite: false,
+      revidChanges: revidChanges
     });
   }
 
@@ -112,6 +113,7 @@ export class Updater {
    */
   async detectRevisionChanges(tournaments, cache, NOW) {
     const changedSlugs = new Set();
+    const revidChanges = {};
     let hasErrors = false;
     let checkedSlugs = 0;
     let thresholdSkippedSlugs = 0;
@@ -179,6 +181,11 @@ export class Updater {
           if (!prevRev || Number(prevRev) !== Number(latest.revid)) {
             slugChanged = true;
             changedPages.push(`${title}:${prevRev || "none"}->${latest.revid}`);
+
+            const safeTitle = title.replace(/ /g, '_');
+            const diffUrl = `https://lol.fandom.com/wiki/${safeTitle}?diff=prev&oldid=${latest.revid}`;
+            if (!revidChanges[slug]) revidChanges[slug] = [];
+            revidChanges[slug].push({ revid: latest.revid, diffUrl, title });
           }
         } catch (error) {
           errCount++;
@@ -210,7 +217,7 @@ export class Updater {
       }
     }
 
-    return { changedSlugs, hasErrors, checkedSlugs, thresholdSkippedSlugs };
+    return { changedSlugs, revidChanges, hasErrors, checkedSlugs, thresholdSkippedSlugs };
   }
 
   async prepareRuntimeContext() {
@@ -238,6 +245,7 @@ export class Updater {
   async runFandomUpdate(force = false, forceSlugs = null, options = {}) {
     const bypassThreshold = !!options.bypassThreshold;
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
+    const passedRevidChanges = options.revidChanges || {};
     const isScopedRun = !!(forceSlugs && forceSlugs.size > 0);
     console.log(`[FANDOM] start force=${!!force} scoped=${isScopedRun} slugs=${forceSlugs ? Array.from(forceSlugs).join(",") : "-"}`);
     const updateRounds = this.getUpdateRounds();
@@ -252,33 +260,8 @@ export class Updater {
       return this.logger;
     }
 
-    // 收集每个候选 slug 的 revid 变化信息
-    const revidChanges = {};
-    for (const candidate of candidates) {
-      const pages = (Array.isArray(candidate.overview_page) ? candidate.overview_page : [candidate.overview_page])
-        .filter(page => typeof page === "string")
-        .map(page => page.trim())
-        .filter(Boolean);
-      const dataPages = Array.from(new Set(pages.map(page => page.startsWith("Data:") ? page : `Data:${page}`)));
-      const revKey = `REV_${candidate.slug}`;
-      const previousRevisionState = await this.env["lol-stats-kv"].get(revKey, { type: "json" });
-      const prevPages = previousRevisionState?.pages || {};
-
-      for (const page of dataPages) {
-        try {
-          const latest = await FandomClient.fetchLatestRevision(page);
-          if (latest?.missing) continue;
-          const title = latest.title || page;
-          const prevRev = prevPages?.[title]?.revid;
-          if (prevRev && Number(prevRev) === Number(latest.revid)) continue;
-
-          const safeTitle = title.replace(/ /g, '_');
-          const diffUrl = `https://lol.fandom.com/wiki/${safeTitle}?diff=prev&oldid=${latest.revid}`;
-          if (!revidChanges[candidate.slug]) revidChanges[candidate.slug] = [];
-          revidChanges[candidate.slug].push({ revid: latest.revid, diffUrl, title });
-        } catch (error) {}
-      }
-    }
+    // 优先使用传入的 revidChanges（避免重复检测导致读到已更新的 KV）
+    const revidChanges = passedRevidChanges;
 
     // 登录到Fandom
     const authContext = await FandomClient.login(this.env.FANDOM_USER, this.env.FANDOM_PASS);
