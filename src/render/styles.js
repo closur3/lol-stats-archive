@@ -47,7 +47,7 @@ export const COMMON_STYLE = `
 // 主页面样式
 export const PYTHON_STYLE = `
     ${COMMON_STYLE}
-    .container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 24px 15px 40px 15px; }
+    .container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 40px 15px 40px 15px; }
     .wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; box-sizing: border-box; display: flex; flex-direction: column; }
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list { -ms-overflow-style: none; scrollbar-width: none; }
@@ -186,7 +186,7 @@ export const BUILD_FOOTER_STYLE = `
 export const TOOLS_PAGE_STYLE = `
     ${COMMON_STYLE}
     body { min-height: 100dvh; display: flex; flex-direction: column; margin: 0; }
-    .container { flex: 1; max-width: 900px; width: 100%; padding: 0 15px 20px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+    .container { flex: 1; max-width: 900px; width: 100%; padding: 40px 15px 20px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
 
     .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
     .table-title { padding: 15px 20px; font-weight: 600; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; box-sizing: border-box; }
@@ -268,7 +268,7 @@ export const TOOLS_PAGE_STYLE = `
 export const LOG_PAGE_STYLE = `
     ${COMMON_STYLE}
     body { min-height: 100vh; min-height: 100dvh; background: #f1f5f9; }
-    .logs-cards-container { max-width: 1000px; width: 100%; padding: 20px 15px 40px 15px; box-sizing: border-box; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .logs-cards-container { max-width: 1000px; width: 100%; padding: 40px 15px 40px 15px; box-sizing: border-box; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .league-card { --card-x-pad: 16px; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); overflow: hidden; height: 300px; display: flex; flex-direction: column; }
     .league-card-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; }
     .league-card-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
