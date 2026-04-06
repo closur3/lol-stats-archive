@@ -253,16 +253,36 @@ export class HTMLRenderer {
    * 渲染页面外壳
    */
   static renderPageShell(title, bodyContent, navMode = "home", time = null, sha = null) {
-    let navBtn = "";
-    const logoIcon = navMode === "archive" ? "📦" : "🥇";
-    if (navMode === "home") navBtn = HTMLRenderer.renderActionBtn("/archive", "📦", "Archive");
-    else if (navMode === "archive") navBtn = HTMLRenderer.renderActionBtn("/", "🏠", "Home");
+    const navItems = [
+      { href: "/", label: "Home" },
+      { href: "/archive", label: "Archive" },
+      { href: "/logs", label: "Logs" },
+      { href: "/tools", label: "Tools" }
+    ];
 
-    const toolsBtn = (navMode !== "home" && navMode !== "archive")
-        ? HTMLRenderer.renderActionBtn("/tools", "🧰", "Tools")
-        : "";
+    const desktopNav = navItems.map(item => {
+      const isActive = (item.href === "/" && navMode === "home") ||
+                       (item.href === "/archive" && navMode === "archive") ||
+                       (item.href === "/tools" && navMode === "tools") ||
+                       (item.href === "/logs" && navMode === "logs");
+      return `<a class="nav-link${isActive ? ' active' : ''}" href="${item.href}">${item.label}</a>`;
+    }).join("");
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>${HTMLRenderer.renderFontLinks()}<style>${PYTHON_STYLE}${BUILD_FOOTER_STYLE}</style><link rel="icon" href="/favicon.ico"></head><body><header class="main-header"><div class="header-left"><span class="header-logo">${logoIcon}</span><h1 class="header-title">${title}</h1></div><div class="header-right">${navBtn}${toolsBtn}${HTMLRenderer.renderActionBtn("/logs", "📜", "Logs")}</div></header><div class="container">${bodyContent}</div>${HTMLRenderer.renderBuildFooter(time, sha)}<div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${HTMLRenderer.renderPythonJS()}</body></html>`;
+    const mobileNav = navItems.map(item => {
+      const isActive = (item.href === "/" && navMode === "home") ||
+                       (item.href === "/archive" && navMode === "archive") ||
+                       (item.href === "/tools" && navMode === "tools") ||
+                       (item.href === "/logs" && navMode === "logs");
+      return `<a class="nav-mobile-link${isActive ? ' active' : ''}" href="${item.href}">${item.label}</a>`;
+    }).join("");
+
+    const logoText = navMode === "home" ? "LoL Stats" : navMode === "archive" ? "LoL Archive" : "LoL Stats";
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>${HTMLRenderer.renderFontLinks()}<style>${PYTHON_STYLE}${BUILD_FOOTER_STYLE}</style><link rel="icon" href="/favicon.ico"></head><body>
+<header class="main-header"><div class="nav-container"><div class="nav-left"><a class="nav-logo" href="/">${logoText}</a><nav class="nav-links">${desktopNav}</nav></div><button class="nav-toggle" onclick="document.getElementById('mobileMenu').classList.add('open');document.getElementById('mobileOverlay').classList.add('open')" aria-label="Open menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg></button></div></header>
+<div class="nav-mobile-overlay" id="mobileOverlay" onclick="document.getElementById('mobileMenu').classList.remove('open');this.classList.remove('open')"></div>
+<div class="nav-mobile-menu" id="mobileMenu"><div class="nav-mobile-header"><span class="nav-mobile-title">Menu</span><button class="nav-mobile-close" onclick="document.getElementById('mobileMenu').classList.remove('open');document.getElementById('mobileOverlay').classList.remove('open')" aria-label="Close menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div><nav class="nav-mobile-links">${mobileNav}</nav></div>
+<div class="container">${bodyContent}</div>${HTMLRenderer.renderBuildFooter(time, sha)}<div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>${HTMLRenderer.renderPythonJS()}</body></html>`;
   }
 
   /**
@@ -741,16 +761,9 @@ export class HTMLRenderer {
             </div>
         </div>
 
-        <header class="main-header">
-            <div class="header-left">
-                <span class="header-logo">🧰</span>
-                <h1 class="header-title">Tools</h1>
-            </div>
-            <div class="header-right">
-                ${HTMLRenderer.renderActionBtn("/", "🏠", "Home")}
-                ${HTMLRenderer.renderActionBtn("/logs", "📜", "Logs")}
-            </div>
-        </header>
+        <header class="main-header"><div class="nav-container"><div class="nav-left"><a class="nav-logo" href="/">LoL Stats</a><nav class="nav-links"><a class="nav-link" href="/">Home</a><a class="nav-link" href="/archive">Archive</a><a class="nav-link" href="/logs">Logs</a><a class="nav-link active" href="/tools">Tools</a></nav></div><button class="nav-toggle" onclick="document.getElementById('mobileMenu').classList.add('open');document.getElementById('mobileOverlay').classList.add('open')" aria-label="Open menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg></button></div></header>
+<div class="nav-mobile-overlay" id="mobileOverlay" onclick="document.getElementById('mobileMenu').classList.remove('open');this.classList.remove('open')"></div>
+<div class="nav-mobile-menu" id="mobileMenu"><div class="nav-mobile-header"><span class="nav-mobile-title">Menu</span><button class="nav-mobile-close" onclick="document.getElementById('mobileMenu').classList.remove('open');document.getElementById('mobileOverlay').classList.remove('open')" aria-label="Close menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div><nav class="nav-mobile-links"><a class="nav-mobile-link" href="/">Home</a><a class="nav-mobile-link" href="/archive">Archive</a><a class="nav-mobile-link" href="/logs">Logs</a><a class="nav-mobile-link active" href="/tools">Tools</a></nav></div>
 
         <div class="container">
 
@@ -1078,13 +1091,9 @@ export class HTMLRenderer {
     </style>
 </head>
 <body>
-    <header class="main-header">
-        <div class="header-left"><span class="header-logo">📜</span><h1 class="header-title">Logs</h1></div>
-        <div class="header-right">
-            ${HTMLRenderer.renderActionBtn("/", "🏠", "Home")}
-            ${HTMLRenderer.renderActionBtn("/tools", "🧰", "Tools")}
-        </div>
-    </header>
+    <header class="main-header"><div class="nav-container"><div class="nav-left"><a class="nav-logo" href="/">LoL Stats</a><nav class="nav-links"><a class="nav-link" href="/">Home</a><a class="nav-link" href="/archive">Archive</a><a class="nav-link active" href="/logs">Logs</a><a class="nav-link" href="/tools">Tools</a></nav></div><button class="nav-toggle" onclick="document.getElementById('mobileMenu').classList.add('open');document.getElementById('mobileOverlay').classList.add('open')" aria-label="Open menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg></button></div></header>
+<div class="nav-mobile-overlay" id="mobileOverlay" onclick="document.getElementById('mobileMenu').classList.remove('open');this.classList.remove('open')"></div>
+<div class="nav-mobile-menu" id="mobileMenu"><div class="nav-mobile-header"><span class="nav-mobile-title">Menu</span><button class="nav-mobile-close" onclick="document.getElementById('mobileMenu').classList.remove('open');document.getElementById('mobileOverlay').classList.remove('open')" aria-label="Close menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div><nav class="nav-mobile-links"><a class="nav-mobile-link" href="/">Home</a><a class="nav-mobile-link" href="/archive">Archive</a><a class="nav-mobile-link active" href="/logs">Logs</a><a class="nav-mobile-link" href="/tools">Tools</a></nav></div>
     <div class="logs-cards-container">
         ${cardsHtml || '<div class="empty-logs">No logs found</div>'}
     </div>
