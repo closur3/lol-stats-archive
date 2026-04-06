@@ -9,12 +9,13 @@ export const COMMON_STYLE = `
     body { background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; }
 
     /* Navigation Bar - VitePress style */
-    .main-header { position: sticky; top: 0; z-index: 100; background: #fff; width: 100%; }
+    .main-header { position: sticky; top: 0; z-index: 100; background: #fff; border-bottom: 1px solid #e2e8f0; width: 100%; }
     .nav-container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 64px; }
     .nav-left { display: flex; align-items: center; gap: 8px; }
+    .nav-right { display: flex; align-items: center; gap: 24px; }
     .nav-logo { font-size: 1.5rem; line-height: 1; }
     .nav-title { margin: 0; font-size: 1.15rem; font-weight: 600; color: #0f172a; letter-spacing: -0.3px; }
-    .nav-links { display: flex; align-items: center; gap: 16px; margin-left: 32px; }
+    .nav-links { display: flex; align-items: center; gap: 20px; }
     .nav-link { display: inline-flex; align-items: center; padding: 0; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none; transition: color 0.2s; line-height: 64px; border-bottom: 2px solid transparent; }
     .nav-link:hover { color: #0f172a; }
     .nav-link.active { color: #0f172a; border-bottom-color: #0f172a; font-weight: 600; }
@@ -46,7 +47,7 @@ export const COMMON_STYLE = `
 // 主页面样式
 export const PYTHON_STYLE = `
     ${COMMON_STYLE}
-    .container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 0 15px 40px 15px; }
+    .container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 24px 15px 40px 15px; }
     .wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; box-sizing: border-box; display: flex; flex-direction: column; }
     .wrapper::-webkit-scrollbar, .match-list::-webkit-scrollbar { display: none; }
     .wrapper, .match-list { -ms-overflow-style: none; scrollbar-width: none; }
