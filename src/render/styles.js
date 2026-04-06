@@ -40,7 +40,6 @@ export const COMMON_STYLE = `
         .nav-links { display: none; }
         .nav-toggle { display: block; }
         .nav-container { padding: 0 16px; }
-        .nav-title { font-size: 1rem; }
     }
 `;
 
