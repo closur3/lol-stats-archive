@@ -414,6 +414,8 @@ export class Analyzer {
         };
         addMatchToSlot(timeGrid[tournament.slug], bestCluster.label, dayIndex);
         addMatchToSlot(timeGrid[tournament.slug], "Total", dayIndex);
+        addMatchToSlot(timeGrid[tournament.slug], bestCluster.label, 7);
+        addMatchToSlot(timeGrid[tournament.slug], "Total", 7);
       }
 
       const modeOverride = modeOverrides[tournament.slug];
