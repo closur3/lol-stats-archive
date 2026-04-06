@@ -299,7 +299,7 @@ export const LOG_PAGE_STYLE = `
     ${BUILD_FOOTER_STYLE}
 
     @media (max-width: 650px) {
-        .logs-cards-container { grid-template-columns: 1fr; padding: 0 10px 30px 10px; }
+        .logs-cards-container { grid-template-columns: 1fr; padding: 40px 10px 30px 10px; }
         .league-card { --card-x-pad: 16px; }
         .league-card-header { padding: 10px 16px; }
         .log-mini-row { flex-direction: column; align-items: flex-start; gap: 2px; }
