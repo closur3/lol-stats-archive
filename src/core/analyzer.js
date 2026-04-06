@@ -117,6 +117,92 @@ export class Analyzer {
       };
     };
 
+    const clusterTimeSlots = (finishedMatches, maxClusters) => {
+      const timeSet = new Set();
+      for (const m of finishedMatches) {
+        timeSet.add(m.roundedMinutes);
+      }
+      const sortedTimes = Array.from(timeSet).sort((a, b) => a - b);
+
+      if (sortedTimes.length <= maxClusters) {
+        return sortedTimes.map(t => {
+          return {
+            actualCenter: t,
+            centerMinutes: t,
+            modeMinutes: t,
+            label: String(Math.floor(t / 60)),
+            matches: []
+          };
+        });
+      }
+
+      const THRESHOLD = 60;
+      const clusters = [];
+      let currentCluster = { centerMinutes: sortedTimes[0], times: [sortedTimes[0]] };
+
+      for (let i = 1; i < sortedTimes.length; i++) {
+        const time = sortedTimes[i];
+        const dist = Math.abs(time - currentCluster.centerMinutes);
+        if (dist <= THRESHOLD && clusters.length + 1 < maxClusters) {
+          currentCluster.times.push(time);
+          currentCluster.centerMinutes = Math.round(currentCluster.times.reduce((a, b) => a + b, 0) / currentCluster.times.length);
+        } else {
+          clusters.push(currentCluster);
+          currentCluster = { centerMinutes: time, times: [time] };
+        }
+      }
+      clusters.push(currentCluster);
+
+      while (clusters.length > maxClusters) {
+        let minDist = Infinity, mergeIdx = 0;
+        for (let i = 0; i < clusters.length - 1; i++) {
+          const dist = clusters[i + 1].centerMinutes - clusters[i].centerMinutes;
+          if (dist < minDist) { minDist = dist; mergeIdx = i; }
+        }
+        const merged = {
+          centerMinutes: Math.round((clusters[mergeIdx].centerMinutes + clusters[mergeIdx + 1].centerMinutes) / 2),
+          times: [...clusters[mergeIdx].times, ...clusters[mergeIdx + 1].times]
+        };
+        clusters.splice(mergeIdx, 2, merged);
+      }
+
+      return clusters.map(c => {
+        const utcHour = Math.round(c.centerMinutes / 60) % 24;
+        return {
+          actualCenter: c.centerMinutes,
+          centerMinutes: utcHour * 60,
+          modeMinutes: null,
+          label: String(utcHour),
+          matches: []
+        };
+      });
+    };
+
+    const assignMatchesToClusters = (finishedMatches, clusters) => {
+      for (const m of finishedMatches) {
+        let bestCluster = 0, bestDist = Infinity;
+        for (let i = 0; i < clusters.length; i++) {
+          const dist = Math.abs(m.timeMinutes - clusters[i].actualCenter);
+          if (dist < bestDist) { bestDist = dist; bestCluster = i; }
+        }
+        clusters[bestCluster].matches.push(m);
+      }
+
+      for (const c of clusters) {
+        if (c.matches.length === 0) continue;
+        const countMap = {};
+        for (const m of c.matches) {
+          countMap[m.roundedMinutes] = (countMap[m.roundedMinutes] || 0) + 1;
+        }
+        let modeMinutes = c.matches[0].roundedMinutes, maxCount = 0;
+        for (const [mins, cnt] of Object.entries(countMap)) {
+          if (cnt > maxCount) { maxCount = cnt; modeMinutes = parseInt(mins); }
+        }
+        c.modeMinutes = modeMinutes;
+        c.label = String(Math.floor(modeMinutes / 60));
+      }
+    };
+
     (runtimeConfig.TOURNAMENTS || []).forEach((tournament, tournamentIndex) => {
       const rawMatches = allRawMatches[tournament.slug] || [];
       const resolveName = buildResolveName(tournament.teamMap);
@@ -133,6 +219,8 @@ export class Analyzer {
           }; 
         } 
       };
+
+      const parsedMatches = [];
 
       rawMatches.forEach(match => {
         const team1Name = resolveName(match.Team1 || match["Team 1"]);
@@ -190,32 +278,16 @@ export class Analyzer {
           if(timestamp > stats[team2Name].last) stats[team2Name].last = timestamp;
 
           const pythonWeekdayIndex = utcTimeParts.dayOfWeek === 0 ? 6 : utcTimeParts.dayOfWeek - 1;
-          const targetUtcHour = parseInt(utcTimeParts.hour, 10);
+          const utcHour = parseInt(utcTimeParts.hour, 10);
+          const utcMinute = parseInt(utcTimeParts.minute, 10);
+          const timeMinutes = utcHour * 60 + utcMinute;
+          const roundedMinutes = Math.round(timeMinutes / 60) * 60;
 
-          const matchObj = { 
-            dateDisplay: dateDisplay,
-            fullDateDisplay: fullDate,
-            isoTimestamp: isoString,
-            timestamp: timestamp,
-            team1Name: team1Name, 
-            team2Name: team2Name, 
-            scoreDisplay: `${team1Score}-${team2Score}`, 
-            isFullLength: isFullLength, 
-            bestOf: bestOf 
-          };
-
-          if (!timeGrid[tournament.slug]) timeGrid[tournament.slug] = { "Total": createSlot() };
-          if (!timeGrid[tournament.slug][targetUtcHour]) timeGrid[tournament.slug][targetUtcHour] = createSlot();
-
-          const addMatchToSlot = (grid, hour, dayIndex) => { 
-            grid[hour][dayIndex].totalMatchCount++; 
-            if(isFullLength) grid[hour][dayIndex].fullLengthMatchCount++; 
-            grid[hour][dayIndex].matches.push(matchObj); 
-          };
-          addMatchToSlot(timeGrid[tournament.slug], targetUtcHour, pythonWeekdayIndex);
-          addMatchToSlot(timeGrid[tournament.slug], "Total", pythonWeekdayIndex);
-          addMatchToSlot(timeGrid[tournament.slug], targetUtcHour, 7);
-          addMatchToSlot(timeGrid[tournament.slug], "Total", 7);
+          parsedMatches.push({
+            team1Name, team2Name, team1Score, team2Score, bestOf, isFullLength,
+            dateDisplay, fullDateDisplay: fullDate, isoTimestamp: isoString,
+            timestamp, pythonWeekdayIndex, timeMinutes, roundedMinutes, matchDateStr
+          });
         }
 
         let team1MatchResultCode = 'NEXT', team2MatchResultCode = 'NEXT';
@@ -297,6 +369,52 @@ export class Analyzer {
 
       Object.values(stats).forEach(team => team.history.sort((leftHistory, rightHistory) => rightHistory.timestamp - leftHistory.timestamp));
       globalStats[tournament.slug] = stats;
+
+      const dayCounts = {};
+      for (const m of parsedMatches) {
+        dayCounts[m.matchDateStr] = (dayCounts[m.matchDateStr] || 0) + 1;
+      }
+      const maxMatchesPerDay = Math.max(...Object.values(dayCounts), 1);
+      const clusters = clusterTimeSlots(parsedMatches, maxMatchesPerDay);
+      assignMatchesToClusters(parsedMatches, clusters);
+
+      if (!timeGrid[tournament.slug]) timeGrid[tournament.slug] = { "Total": createSlot() };
+
+      for (const cluster of clusters) {
+        if (!timeGrid[tournament.slug][cluster.label]) {
+          timeGrid[tournament.slug][cluster.label] = createSlot();
+        }
+      }
+
+      for (const m of parsedMatches) {
+        const matchObj = { 
+          dateDisplay: m.dateDisplay,
+          fullDateDisplay: m.fullDateDisplay,
+          isoTimestamp: m.isoTimestamp,
+          timestamp: m.timestamp,
+          team1Name: m.team1Name, 
+          team2Name: m.team2Name, 
+          scoreDisplay: `${m.team1Score}-${m.team2Score}`, 
+          isFullLength: m.isFullLength, 
+          bestOf: m.bestOf 
+        };
+
+        let bestCluster = null, bestDist = Infinity;
+        for (const c of clusters) {
+          const dist = Math.abs(m.timeMinutes - c.actualCenter);
+          if (dist < bestDist) { bestDist = dist; bestCluster = c; }
+        }
+        if (!bestCluster) continue;
+
+        const dayIndex = m.pythonWeekdayIndex;
+        const addMatchToSlot = (grid, label, dayIndex) => { 
+          grid[label][dayIndex].totalMatchCount++; 
+          if(m.isFullLength) grid[label][dayIndex].fullLengthMatchCount++; 
+          grid[label][dayIndex].matches.push(matchObj); 
+        };
+        addMatchToSlot(timeGrid[tournament.slug], bestCluster.label, dayIndex);
+        addMatchToSlot(timeGrid[tournament.slug], "Total", dayIndex);
+      }
 
       const modeOverride = modeOverrides[tournament.slug];
       const prevMeta = previousTournamentMeta[tournament.slug] || {};
