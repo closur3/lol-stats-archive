@@ -11,9 +11,9 @@ export const COMMON_STYLE = `
     /* Navigation Bar */
     .main-header { position: sticky; top: 0; z-index: 100; background: #fff; border-bottom: 1px solid #e2e8f0; width: 100%; }
     .nav-container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; height: 56px; }
-    .nav-left { display: flex; align-items: center; gap: 16px; }
-    .nav-logo { font-size: 1.1rem; font-weight: 700; color: #0f172a; text-decoration: none; letter-spacing: -0.5px; white-space: nowrap; }
-    .nav-logo:hover { color: #2563eb; }
+    .nav-left { display: flex; align-items: center; gap: 12px; }
+    .nav-logo { font-size: 1.6rem; }
+    .nav-title { margin: 0; font-size: 1.3rem; font-weight: 600; color: #0f172a; letter-spacing: -0.5px; }
     .nav-links { display: flex; align-items: center; gap: 4px; }
     .nav-link { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #475569; text-decoration: none; transition: all 0.15s; border: 1px solid transparent; }
     .nav-link:hover { background: #f1f5f9; color: #0f172a; }
@@ -39,6 +39,7 @@ export const COMMON_STYLE = `
         .nav-links { display: none; }
         .nav-toggle { display: block; }
         .nav-container { padding: 0 16px; }
+        .nav-title { font-size: 1.1rem; }
     }
 `;
 
