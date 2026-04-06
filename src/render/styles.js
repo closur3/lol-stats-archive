@@ -44,10 +44,6 @@ export const COMMON_STYLE = `
 
     /* Global Container */
     .container, .logs-cards-container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 40px 15px 40px 15px; box-sizing: border-box; }
-
-    @media (max-width: 650px) {
-        .container, .logs-cards-container { padding-left: 10px; padding-right: 10px; padding-bottom: 30px; }
-    }
 `;
 
 // 主页面样式
