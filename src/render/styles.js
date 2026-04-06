@@ -185,7 +185,7 @@ export const BUILD_FOOTER_STYLE = `
 export const TOOLS_PAGE_STYLE = `
     ${COMMON_STYLE}
     body { min-height: 100dvh; display: flex; flex-direction: column; margin: 0; }
-    .container { flex: 1; max-width: 900px; width: 100%; padding: 40px 15px 20px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+    .container { flex: 1; max-width: 900px; width: 100%; padding: 40px 15px 40px 15px; box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
 
     .wrapper { width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; box-sizing: border-box; }
     .table-title { padding: 15px 20px; font-weight: 600; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: #fff; color: #0f172a; font-size: 15px; box-sizing: border-box; }
