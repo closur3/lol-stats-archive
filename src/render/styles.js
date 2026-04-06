@@ -13,8 +13,8 @@ export const COMMON_STYLE = `
     .nav-container { max-width: 1400px; width: 100%; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 64px; }
     .nav-left { display: flex; align-items: center; gap: 8px; }
     .nav-right { display: flex; align-items: center; gap: 24px; }
-    .nav-logo { font-size: 1.5rem; line-height: 1; }
-    .nav-title { margin: 0; font-size: 1.15rem; font-weight: 600; color: #0f172a; letter-spacing: -0.3px; }
+    .nav-logo { font-size: 1.8rem; line-height: 1; }
+    .nav-title { margin: 0; font-size: 1.5rem; font-weight: 600; color: #0f172a; letter-spacing: -0.3px; }
     .nav-links { display: flex; align-items: center; gap: 20px; }
     .nav-link { display: inline-flex; align-items: center; padding: 0; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none; transition: color 0.2s; line-height: 64px; border-bottom: 2px solid transparent; }
     .nav-link:hover { color: #0f172a; }
