@@ -7,6 +7,7 @@ export const COMMON_STYLE = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body, code, input, button, select, textarea { font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
     body { background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; }
+    body.nav-mobile-open { overflow: hidden; }
 
     /* Navigation Bar - VitePress style */
     .main-header { position: sticky; top: 0; z-index: 100; background: #fff; border-bottom: 1px solid #e2e8f0; width: 100%; }
@@ -22,12 +23,11 @@ export const COMMON_STYLE = `
     .nav-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: #64748b; }
     .nav-toggle:hover { color: #0f172a; }
     .nav-toggle svg { width: 20px; height: 20px; }
-    .nav-mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 99; }
+    .nav-mobile-overlay { display: none; position: fixed; top: 64px; right: 0; bottom: 0; left: 0; background: rgba(0,0,0,0.25); z-index: 99; }
     .nav-mobile-overlay.open { display: block; }
-    .nav-mobile-menu { position: fixed; top: 0; right: -300px; width: 300px; height: 100%; background: #fff; z-index: 100; transition: right 0.25s ease; box-shadow: -4px 0 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
+    .nav-mobile-menu { position: fixed; top: 64px; right: -300px; width: 300px; height: calc(100% - 64px); background: #fff; z-index: 100; transition: right 0.25s ease; box-shadow: -4px 0 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
     .nav-mobile-menu.open { right: 0; }
-    .nav-mobile-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
-    .nav-mobile-title { font-size: 1rem; font-weight: 600; color: #0f172a; }
+    .nav-mobile-header { display: flex; justify-content: flex-end; align-items: center; padding: 12px 24px; border-bottom: 1px solid #e2e8f0; }
     .nav-mobile-close { background: none; border: none; cursor: pointer; padding: 4px; color: #64748b; }
     .nav-mobile-close:hover { color: #0f172a; }
     .nav-mobile-close svg { width: 20px; height: 20px; }
