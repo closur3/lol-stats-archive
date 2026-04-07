@@ -27,10 +27,6 @@ export const COMMON_STYLE = `
     .nav-mobile-overlay.open { display: block; }
     .nav-mobile-menu { position: fixed; top: 64px; right: -300px; width: 300px; height: calc(100% - 64px); background: #fff; z-index: 100; transition: right 0.25s ease; box-shadow: -4px 0 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
     .nav-mobile-menu.open { right: 0; }
-    .nav-mobile-header { display: flex; justify-content: flex-end; align-items: center; padding: 12px 24px; border-bottom: 1px solid #e2e8f0; }
-    .nav-mobile-close { background: none; border: none; cursor: pointer; padding: 4px; color: #64748b; }
-    .nav-mobile-close:hover { color: #0f172a; }
-    .nav-mobile-close svg { width: 20px; height: 20px; }
     .nav-mobile-links { display: flex; flex-direction: column; padding: 8px 0; }
     .nav-mobile-link { display: block; padding: 12px 24px; font-size: 15px; font-weight: 500; color: #64748b; text-decoration: none; transition: all 0.15s; border-left: 2px solid transparent; }
     .nav-mobile-link:hover { background: #f8fafc; color: #0f172a; }
