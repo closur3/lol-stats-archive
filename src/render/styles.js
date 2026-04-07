@@ -25,7 +25,7 @@ export const COMMON_STYLE = `
     .nav-toggle svg { width: 20px; height: 20px; }
     .nav-mobile-overlay { display: none; position: fixed; top: 64px; right: 0; bottom: 0; left: 0; background: rgba(0,0,0,0.25); z-index: 99; }
     .nav-mobile-overlay.open { display: block; }
-    .nav-mobile-menu { position: fixed; top: 64px; right: -300px; width: 300px; height: calc(100% - 64px); background: #fff; z-index: 100; transition: right 0.25s ease; box-shadow: -4px 0 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
+    .nav-mobile-menu { position: fixed; top: 64px; right: -50vw; width: 50vw; height: calc(100% - 64px); background: #fff; z-index: 100; transition: right 0.25s ease; box-shadow: -4px 0 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
     .nav-mobile-menu.open { right: 0; }
     .nav-mobile-links { display: flex; flex-direction: column; padding: 8px 0; }
     .nav-mobile-link { display: block; padding: 12px 24px; font-size: 15px; font-weight: 500; color: #64748b; text-decoration: none; transition: all 0.15s; border-left: 2px solid transparent; }
