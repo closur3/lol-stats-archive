@@ -400,15 +400,20 @@ export class APIRouter {
         ...metaState,
         tournaments: { ...(metaState.tournaments || {}) }
       };
+      let changed = false;
 
       for (const [slug, mode] of Object.entries(cleanOverrides)) {
         if (!nextMetaState.tournaments[slug]) nextMetaState.tournaments[slug] = {};
+        const currentMode = nextMetaState.tournaments[slug].modeOverride || "auto";
+        if (currentMode !== mode) changed = true;
         if (mode === "auto") delete nextMetaState.tournaments[slug].modeOverride;
         else nextMetaState.tournaments[slug].modeOverride = mode;
       }
-      await writeMetaState(env, nextMetaState);
+      if (changed) {
+        await writeMetaState(env, nextMetaState);
+      }
 
-      return new Response(JSON.stringify({ success: true, overrides: cleanOverrides }), {
+      return new Response(JSON.stringify({ success: true, changed, overrides: cleanOverrides }), {
         headers: { "content-type": "application/json" }
       });
     } catch (error) {

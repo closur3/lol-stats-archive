@@ -928,8 +928,21 @@ export class HTMLRenderer {
                 selects.forEach(function(modeSelect) { overrides[modeSelect.dataset.slug] = modeSelect.value; });
                 sendAuthorizedPost('/mode-overrides', { 'Content-Type': 'application/json' }, JSON.stringify(overrides)).then(function(res) {
                     if (checkAuthError(res.status)) return;
-                    showResult(res.ok, res.ok ? '✅ Saved' : '❌ Failed');
-                    if (res.ok) loadModeOverrides();
+                    if (!res.ok) {
+                        showResult(false, '❌ Failed');
+                        return;
+                    }
+                    res.json().then(function(data) {
+                        if (data && data.changed === false) {
+                            showToast('No changes', 'success');
+                            return;
+                        }
+                        showResult(true, '✅ Saved');
+                        loadModeOverrides();
+                    }).catch(function() {
+                        showResult(true, '✅ Saved');
+                        loadModeOverrides();
+                    });
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 
