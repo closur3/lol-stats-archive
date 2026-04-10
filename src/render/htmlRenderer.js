@@ -845,7 +845,7 @@ export class HTMLRenderer {
             var toastContainer = document.getElementById("toast-container");
             var TOAST_DURATION_MS = 3000;
             var REDIRECT_DELAY_MS = 1500;
-            var AUTH_ERROR_MSG = "Session expired or incorrect password.";
+            var AUTH_ERROR_MSG = "🔒 Session expired or incorrect password.";
             var NETWORK_ERROR_MSG = "❌ Network connection failed";
             var adminToken = sessionStorage.getItem("admin_pwd") || "";
             if (adminToken) authOverlay.style.display = "none";
@@ -949,7 +949,7 @@ export class HTMLRenderer {
             function forceSelected() {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('#active-list .item-chk:checked');
-                if (checked.length === 0) { showToast("No active selected", "error"); return; }
+                if (checked.length === 0) { showToast("⚠️ No active selected", "error"); return; }
                 var slugs = Array.from(checked).map(function(checkboxElement) { return checkboxElement.value; });
                 var button = event.target;
                 var restore = setButtonBusy(button, 'Running...');
@@ -971,19 +971,26 @@ export class HTMLRenderer {
             function rebuildSelected() {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('.qr-chk-archived:checked');
-                if (checked.length === 0) { showToast("No archives selected", "error"); return; }
+                if (checked.length === 0) { showToast("⚠️ No archives selected", "error"); return; }
                 var selected = Array.from(checked).map(function(checkboxElement) { var rawOverview = (checkboxElement.dataset.overview || '').trim(); var parsedOverview; try { parsedOverview = JSON.parse(rawOverview); } catch (error) { parsedOverview = rawOverview; } return { slug: (checkboxElement.value || '').trim(), name: (checkboxElement.dataset.name || '').trim(), overview_page: parsedOverview, league: (checkboxElement.dataset.league || '').trim(), start_date: (checkboxElement.dataset.start || '').trim(), end_date: (checkboxElement.dataset.end || '').trim() }; });
                 var hasMissingField = selected.some(function(item) {
                     return !item.slug || !item.name || !item.overview_page || !item.league || !item.start_date || !item.end_date;
                 });
-                if (hasMissingField) { showToast("Missing required fields", "error"); return; }
+                if (hasMissingField) { showToast("⚠️ Missing required fields", "error"); return; }
                 var button = event.target;
                 var restore = setButtonBusy(button, 'Rebuilding...');
                 var success = 0, fail = 0;
                 var promises = selected.map(function(selectedArchive) {
-                    return sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(selectedArchive)).then(function(res) { if (res.ok) success++; else { fail++; res.text().then(function(errorMessage) { if (errorMessage) showToast(selectedArchive.name + ': ' + errorMessage, "error"); }); if (checkAuthError(res.status)) return; } }).catch(function() { fail++; });
+                    return sendAuthorizedPost('/rebuild-archive', { 'Content-Type': 'application/json' }, JSON.stringify(selectedArchive)).then(function(res) { if (res.ok) success++; else { fail++; res.text().then(function(errorMessage) { if (errorMessage) showToast('❌ ' + selectedArchive.name + ': ' + errorMessage, "error"); }); if (checkAuthError(res.status)) return; } }).catch(function() { fail++; });
                 });
-                Promise.all(promises).then(function() { restore(); showResult(fail === 0, success + '/' + (success + fail) + ' rebuilt'); });
+                Promise.all(promises).then(function() {
+                    restore();
+                    var total = success + fail;
+                    var message = fail === 0
+                        ? ('✅ Rebuild completed: ' + success + '/' + total)
+                        : ('⚠️ Rebuild partial: ' + success + '/' + total);
+                    showResult(fail === 0, message);
+                });
             }
 
             function fillArchive(slug) {
@@ -1003,7 +1010,7 @@ export class HTMLRenderer {
                 sendAuthorizedPost('/delete-archive', { 'Content-Type': 'application/json' }, JSON.stringify({ slug: slug, name: name })).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     if (res.ok) { showResult(true, '🗑️ Deleted'); location.reload(); }
-                    else { res.text().then(function(errorMessage) { showResult(false, errorMessage || '❌ Failed'); }); }
+                    else { res.text().then(function(errorMessage) { showResult(false, errorMessage ? ('❌ ' + errorMessage) : '❌ Failed'); }); }
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 
@@ -1017,11 +1024,11 @@ export class HTMLRenderer {
                     start_date: document.getElementById('ma-start').value.trim(),
                     end_date: document.getElementById('ma-end').value.trim()
                 };
-                if (!payload.slug || !payload.name || !payload.overview_page || !payload.league || !payload.start_date || !payload.end_date) { showToast("Missing required fields", "error"); return; }
+                if (!payload.slug || !payload.name || !payload.overview_page || !payload.league || !payload.start_date || !payload.end_date) { showToast("⚠️ Missing required fields", "error"); return; }
                 sendAuthorizedPost('/manual-archive', { 'Content-Type': 'application/json' }, JSON.stringify(payload)).then(function(res) {
                     if (checkAuthError(res.status)) return;
                     if (res.ok) { showResult(true, '📦 Saved'); setTimeout(function() { location.reload(); }, REDIRECT_DELAY_MS); }
-                    else { res.text().then(function(errorMessage) { showResult(false, errorMessage || '❌ Failed'); }); }
+                    else { res.text().then(function(errorMessage) { showResult(false, errorMessage ? ('❌ ' + errorMessage) : '❌ Failed'); }); }
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 
