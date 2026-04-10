@@ -6,6 +6,7 @@ import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
 import { readMetaState, writeMetaState } from '../utils/Meta.js';
+import { kvPut, kvDelete } from '../utils/kvStore.js';
 
 /**
  * 更新管理器
@@ -238,7 +239,7 @@ export class Updater {
       const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
       // 仅在至少成功获取到一个页面的 revid 时才写入，防止 API 故障清空旧数据
       if (shouldWriteRev && okCount > 0) {
-        await this.env["lol-stats-kv"].put(revKey, JSON.stringify(nextRecord));
+        await kvPut(this.env, revKey, JSON.stringify(nextRecord));
       }
 
       if (slugChanged) {
@@ -416,7 +417,7 @@ export class Updater {
           const slug = keyName.slice(KV_KEYS.HOME_PREFIX.length);
           return !activeSlugs.has(slug);
         });
-      for (const staleKey of staleKeys) await this.env["lol-stats-kv"].delete(staleKey);
+      for (const staleKey of staleKeys) await kvDelete(this.env, staleKey);
 
       const allLogKeys = await this.env["lol-stats-kv"].list({ prefix: "LOG_" });
       const staleLogKeys = allLogKeys.keys
@@ -425,7 +426,7 @@ export class Updater {
           const slug = keyName.slice("LOG_".length);
           return !activeSlugs.has(slug);
         });
-      for (const staleLogKey of staleLogKeys) await this.env["lol-stats-kv"].delete(staleLogKey);
+      for (const staleLogKey of staleLogKeys) await kvDelete(this.env, staleLogKey);
 
       const allRevKeys = await this.env["lol-stats-kv"].list({ prefix: "REV_" });
       const staleRevKeys = allRevKeys.keys
@@ -434,7 +435,7 @@ export class Updater {
           const slug = keyName.slice("REV_".length);
           return !activeSlugs.has(slug);
         });
-      for (const staleRevKey of staleRevKeys) await this.env["lol-stats-kv"].delete(staleRevKey);
+      for (const staleRevKey of staleRevKeys) await kvDelete(this.env, staleRevKey);
     } catch (error) { console.error("[Cleanup] Failed to cleanup stale home keys:", error.message); }
   }
 
@@ -773,8 +774,7 @@ export class Updater {
       const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", this.env.GITHUB_TIME, this.env.GITHUB_SHA);
       const existingHomeHTML = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_STATIC_HTML);
       if (existingHomeHTML !== fullPage) {
-        console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
-        await this.env["lol-stats-kv"].put(KV_KEYS.HOME_STATIC_HTML, fullPage);
+        await kvPut(this.env, KV_KEYS.HOME_STATIC_HTML, fullPage);
       }
     } catch (error) {
       console.error("Error generating home HTML:", error);
@@ -830,8 +830,7 @@ export class Updater {
           JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw);
 
       if (homeHasChanges) {
-        console.log(`[KV] PUT ${homeKey}`);
-        writePromises.push(this.env["lol-stats-kv"].put(homeKey, JSON.stringify(homeSnapshot)));
+        writePromises.push(kvPut(this.env, homeKey, JSON.stringify(homeSnapshot)));
       }
 
       // 保存归档数据
@@ -843,8 +842,7 @@ export class Updater {
             JSON.stringify(existingArchive.rawMatches || []) !== JSON.stringify(raw);
 
         if (archiveHasChanges) {
-          console.log(`[KV] PUT ${archiveKey}`);
-          writePromises.push(this.env["lol-stats-kv"].put(archiveKey, JSON.stringify(snapshot)));
+          writePromises.push(kvPut(this.env, archiveKey, JSON.stringify(snapshot)));
         }
       }
     }
@@ -862,7 +860,7 @@ export class Updater {
       const logKey = `LOG_${slug}`;
       const oldLogs = await this.env["lol-stats-kv"].get(logKey, { type: "json" }) || [];
       const nextLogs = [entry, ...oldLogs].slice(0, 10);
-      await this.env["lol-stats-kv"].put(logKey, JSON.stringify(nextLogs));
+      await kvPut(this.env, logKey, JSON.stringify(nextLogs));
     });
     if (logWrites.length > 0) {
       const logResults = await Promise.allSettled(logWrites);
@@ -878,8 +876,7 @@ export class Updater {
         const archiveHTML = await this.generateArchiveStaticHTML();
         const existingArchiveHTML = await this.env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
         if (existingArchiveHTML !== archiveHTML) {
-          console.log(`[KV] PUT ${KV_KEYS.ARCHIVE_STATIC_HTML}`);
-          await this.env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+          await kvPut(this.env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
         }
       } catch (error) {
         console.error("Error generating archive HTML:", error);
@@ -970,8 +967,7 @@ export class Updater {
     const writePromises = [];
     let homeChanged = false;
     if (existingHomeHTML !== fullPage) {
-      console.log(`[KV] PUT ${KV_KEYS.HOME_STATIC_HTML}`);
-      writePromises.push(this.env["lol-stats-kv"].put(KV_KEYS.HOME_STATIC_HTML, fullPage));
+      writePromises.push(kvPut(this.env, KV_KEYS.HOME_STATIC_HTML, fullPage));
       homeChanged = true;
     }
 
@@ -980,7 +976,7 @@ export class Updater {
       const archiveHTML = await this.generateArchiveStaticHTML();
       const existingArchiveHTML = await this.env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
       if (existingArchiveHTML !== archiveHTML) {
-        writePromises.push(this.env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML));
+        writePromises.push(kvPut(this.env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML));
         archiveChanged = true;
       }
     }

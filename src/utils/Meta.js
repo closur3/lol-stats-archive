@@ -1,4 +1,5 @@
 import { KV_KEYS } from './constants.js';
+import { kvPut } from './kvStore.js';
 
 export function normalizeMetaState(raw) {
   const input = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
@@ -16,6 +17,6 @@ export async function readMetaState(env) {
 
 export async function writeMetaState(env, state) {
   const normalized = normalizeMetaState(state);
-  await env["lol-stats-kv"].put(KV_KEYS.META, JSON.stringify(normalized));
+  await kvPut(env, KV_KEYS.META, JSON.stringify(normalized));
   return normalized;
 }

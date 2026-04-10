@@ -6,6 +6,7 @@ import { dataUtils } from '../utils/dataUtils.js';
 import { dateUtils } from '../utils/dateUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
 import { readMetaState, writeMetaState } from '../utils/Meta.js';
+import { kvPut, kvDelete } from '../utils/kvStore.js';
 
 /**
  * API路由处理
@@ -169,12 +170,12 @@ export class APIRouter {
           teamMap: teamMap
         };
 
-        await env["lol-stats-kv"].put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
+        await kvPut(env, `ARCHIVE_${slug}`, JSON.stringify(snapshot));
 
         const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
         const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
         if (existingArchiveHTML !== archiveHTML) {
-          await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+          await kvPut(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
         }
       } else {
         throw new Error("No matches found from Fandom API");
@@ -209,13 +210,13 @@ export class APIRouter {
     }
 
     try {
-      await env["lol-stats-kv"].delete(`ARCHIVE_${payload.slug}`);
+      await kvDelete(env, `ARCHIVE_${payload.slug}`);
 
       // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
       const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
       if (existingArchiveHTML !== archiveHTML) {
-        await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+        await kvPut(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
       }
 
       return new Response("OK", { status: 200 });
@@ -297,13 +298,13 @@ export class APIRouter {
         teamMap: {} // rawMatches 为空时不需要 teamMap
       };
 
-      await env["lol-stats-kv"].put(`ARCHIVE_${slug}`, JSON.stringify(snapshot));
+      await kvPut(env, `ARCHIVE_${slug}`, JSON.stringify(snapshot));
 
       // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
       const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
       if (existingArchiveHTML !== archiveHTML) {
-        await env["lol-stats-kv"].put(KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+        await kvPut(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
       }
 
       return new Response("OK", { status: 200 });
