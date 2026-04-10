@@ -934,7 +934,7 @@ export class HTMLRenderer {
                     }
                     res.json().then(function(data) {
                         if (data && data.changed === false) {
-                            showToast('No changes', 'success');
+                            showToast('🟰 No changes', 'success');
                             return;
                         }
                         showResult(true, '✅ Saved');
