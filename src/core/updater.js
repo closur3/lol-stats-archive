@@ -50,6 +50,30 @@ export class Updater {
     return "~0";
   }
 
+  async updateLastStatusForSlugs(attemptedSlugs, failedSlugs) {
+    const attempted = Array.from(new Set((attemptedSlugs || []).map(slug => String(slug)).filter(Boolean)));
+    if (attempted.length === 0) return;
+
+    const failedSet = new Set(Array.from(new Set((failedSlugs || []).map(slug => String(slug)).filter(Boolean))));
+    const metaState = await readMetaState(this.env);
+    const nextMetaState = {
+      ...metaState,
+      tournaments: { ...(metaState.tournaments || {}) }
+    };
+
+    let changed = false;
+    attempted.forEach(slug => {
+      if (!nextMetaState.tournaments[slug]) nextMetaState.tournaments[slug] = {};
+      const nextStatus = failedSet.has(slug) ? "failed" : "success";
+      if (nextMetaState.tournaments[slug].lastStatus !== nextStatus) {
+        nextMetaState.tournaments[slug].lastStatus = nextStatus;
+        changed = true;
+      }
+    });
+
+    if (changed) await writeMetaState(this.env, nextMetaState);
+  }
+
   /**
    * Cron入口：先做revid轻量检测，再决定是否触发更新
    */
@@ -65,20 +89,28 @@ export class Updater {
 
     const NOW = Date.now();
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
+    const previousFailedSlugs = new Set(
+      (runtimeConfig.TOURNAMENTS || [])
+        .map(tournament => tournament?.slug)
+        .filter(Boolean)
+        .filter(slug => cache?.meta?.tournaments?.[slug]?.lastStatus === "failed")
+    );
     const { changedSlugs, revidChanges, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
     console.log(`[CRON] rev-check checked=${checkedSlugs} th-skip=${thresholdSkippedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
+    const targetSlugs = new Set([...previousFailedSlugs, ...changedSlugs]);
 
-    if (changedSlugs.size === 0) {
+    if (targetSlugs.size === 0) {
       console.log("[REV-GATE] No revision change, skip cron update");
       console.log("[LOCAL] run (rev unchanged)");
       return this.runLocalUpdate();
     }
 
-    console.log(`[REV-GATE] Changed slugs: ${Array.from(changedSlugs).join(", ")}`);
-    return this.runFandomUpdate(false, changedSlugs, {
+    console.log(`[REV-GATE] Target slugs: ${Array.from(targetSlugs).join(", ")}`);
+    return this.runFandomUpdate(false, targetSlugs, {
       bypassThreshold: true,
       forceWrite: false,
-      revidChanges: revidChanges
+      revidChanges: revidChanges,
+      recordLastStatus: true
     });
   }
 
@@ -246,6 +278,7 @@ export class Updater {
     const bypassThreshold = !!options.bypassThreshold;
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
+    const recordLastStatus = !!options.recordLastStatus;
     const updateRounds = this.getUpdateRounds();
     const context = await this.prepareRuntimeContext();
     if (!context) return this.logger;
@@ -271,6 +304,9 @@ export class Updater {
     // 处理结果
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, forceSlugs, runtimeConfig);
     console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
+    if (recordLastStatus) {
+      await this.updateLastStatusForSlugs(candidates.map(item => item.slug), Array.from(failedSlugs));
+    }
 
     // 将 revid 变化信息注入 syncItems 和 idleItems
     syncItems.forEach(item => {
