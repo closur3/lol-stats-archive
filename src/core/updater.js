@@ -375,11 +375,15 @@ export class Updater {
       const slug = tournament.slug;
       const rawMatches = cache.rawMatches[slug] || [];
       const previousMetaForTournament = oldTournamentMeta[slug] || {};
-      const nextMeta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp, {
+      const computedMeta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp, {
         modeOverride: modeOverrides[slug],
         previousMode: previousMetaForTournament.mode || "fast",
         hasFailure: false
       });
+      const nextMeta = {
+        ...previousMetaForTournament,
+        ...computedMeta
+      };
 
       if (JSON.stringify(previousMetaForTournament) === JSON.stringify(nextMeta)) continue;
       nextTournamentMeta[slug] = nextMeta;
@@ -742,12 +746,18 @@ export class Updater {
   async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}, options = {}) {
     const includeArchiveWrites = options.includeArchiveWrites !== false;
 
+    const previousTournamentsMeta = cache.meta?.tournaments || {};
+    const analyzedTournamentsMeta = analysis.tournamentMeta || {};
+    const mergedTournamentsMeta = { ...previousTournamentsMeta };
+    for (const [slug, nextMeta] of Object.entries(analyzedTournamentsMeta)) {
+      mergedTournamentsMeta[slug] = {
+        ...(previousTournamentsMeta[slug] || {}),
+        ...(nextMeta || {})
+      };
+    }
     const mergedMetaState = {
       ...(cache.meta || {}),
-      tournaments: {
-        ...(cache.meta?.tournaments || {}),
-        ...(analysis.tournamentMeta || {})
-      }
+      tournaments: mergedTournamentsMeta
     };
     if (JSON.stringify(mergedMetaState.tournaments || {}) !== JSON.stringify(cache.meta?.tournaments || {})) {
       await writeMetaState(this.env, mergedMetaState);
