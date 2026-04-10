@@ -46,29 +46,43 @@ jobs:
             sed -nE 's/.*class="footer-sha">@([0-9a-f]{7})<.*/\1/p' | head -n1
           }
 
-          echo "Checking deployed sha from /logs footer..."
-          LOGS_SHA="$(curl -fsSL "${WORKER_BASE_URL}/logs?ts=$(date +%s%N)" | extract_footer_sha || true)"
-          echo "Logs footer sha: ${LOGS_SHA:-<empty>}"
-
-          if [[ "${LOGS_SHA}" != "${TARGET_SHORT_SHA}" ]]; then
-            echo "Deploy not ready: /logs footer sha != target sha"
-            exit 1
-          fi
+          echo "Waiting for /logs footer sha to match target..."
+          logs_attempt=0
+          while true; do
+            logs_attempt=$((logs_attempt + 1))
+            LOGS_SHA="$(curl -fsSL "${WORKER_BASE_URL}/logs?ts=$(date +%s%N)" | extract_footer_sha || true)"
+            echo "Logs footer sha (attempt ${logs_attempt}/20): ${LOGS_SHA:-<empty>}"
+            if [[ "${LOGS_SHA}" == "${TARGET_SHORT_SHA}" ]]; then
+              echo "/logs footer sha matches target sha."
+              break
+            fi
+            if [[ ${logs_attempt} -ge 20 ]]; then
+              echo "Timeout: /logs footer sha did not match target sha within 20 attempts."
+              exit 1
+            fi
+            sleep 3
+          done
 
           REFRESH_URL="${WORKER_BASE_URL}/refresh-ui"
           HOME_URL="${WORKER_BASE_URL}/"
           REFRESH_HEADERS=(-H "Authorization: Bearer ${ADMIN_SECRET}")
 
           echo "Deploy confirmed. Start refresh-ui loop until home footer sha matches..."
+          home_attempt=0
           while true; do
+            home_attempt=$((home_attempt + 1))
             curl -fsSL -X POST "${REFRESH_URL}" "${REFRESH_HEADERS[@]}" > /dev/null
 
             HOME_SHA="$(curl -fsSL "${HOME_URL}?ts=$(date +%s%N)" | extract_footer_sha || true)"
-            echo "Home footer sha: ${HOME_SHA:-<empty>}"
+            echo "Home footer sha (attempt ${home_attempt}/20): ${HOME_SHA:-<empty>}"
 
             if [[ "${HOME_SHA}" == "${TARGET_SHORT_SHA}" ]]; then
               echo "Home footer sha matches target sha. Refresh complete."
               break
+            fi
+            if [[ ${home_attempt} -ge 20 ]]; then
+              echo "Timeout: home footer sha did not match target sha within 20 attempts."
+              exit 1
             fi
 
             sleep 3
