@@ -16,6 +16,8 @@ export const COMMON_STYLE = `
     .nav-right { display: flex; align-items: center; gap: 24px; }
     .nav-logo { font-size: 1.8rem; line-height: 1; }
     .nav-title { margin: 0; font-size: 1.5rem; font-weight: 600; color: #0f172a; letter-spacing: -0.3px; }
+    .nav-title-link { color: inherit; text-decoration: none; }
+    .nav-title-link:hover { color: #334155; }
     .nav-links { display: flex; align-items: center; gap: 20px; }
     .nav-link { display: inline-flex; align-items: center; padding: 0; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none; transition: color 0.2s; line-height: 64px; border-bottom: 2px solid transparent; }
     .nav-link:hover { color: #0f172a; }
