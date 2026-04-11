@@ -758,10 +758,10 @@ export class Updater {
       if (item.revidChanges && item.revidChanges.length > 0) {
         const revInfo = item.revidChanges[0];
         triggerText = ` | ➕ <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
-      } else if (item.isRetry) {
-        triggerText = " | 🔁 Retry";
       } else if (item.isForce) {
         triggerText = " | ➕ Force";
+      } else if (item.isRetry) {
+        triggerText = " | ➕ Retry";
       }
       let messageText = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}${triggerText}`;
       pushEntry(item.slug, "SUCCESS", messageText);
@@ -776,10 +776,10 @@ export class Updater {
       if (item.revidChanges && item.revidChanges.length > 0) {
         const revInfo = item.revidChanges[0];
         triggerText = ` | 🟰 <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
-      } else if (item.isRetry) {
-        triggerText = " | 🔁 Retry";
       } else if (item.isForce) {
         triggerText = " | 🟰 Force";
+      } else if (item.isRetry) {
+        triggerText = " | 🟰 Retry";
       }
 
       let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount}${triggerText}`;
