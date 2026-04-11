@@ -30,12 +30,6 @@ export class Updater {
     return Math.round(mins);
   }
 
-  getUpdateRounds() {
-    const rounds = Number(this.env.UPDATE_ROUNDS);
-    if (!Number.isFinite(rounds) || rounds <= 0) return 1;
-    return Math.floor(rounds);
-  }
-
   getMaxScheduleDays() {
     const days = Number(this.env.MAX_SCHEDULE_DAYS);
     if (!Number.isFinite(days) || days <= 0) return 8;
@@ -280,7 +274,6 @@ export class Updater {
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
     const recordLastStatus = !!options.recordLastStatus;
-    const updateRounds = this.getUpdateRounds();
     const context = await this.prepareRuntimeContext();
     if (!context) return this.logger;
     const { NOW, runtimeConfig, teamsRaw, cache } = context;
@@ -300,7 +293,7 @@ export class Updater {
     const fandomClient = new FandomClient(authContext);
 
     // 执行数据抓取
-    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW, updateRounds);
+    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW);
 
     // 处理结果
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, forceSlugs, runtimeConfig);
@@ -531,19 +524,17 @@ export class Updater {
   /**
    * 抓取比赛数据
    */
-  async fetchMatchData(fandomClient, candidates, cache, NOW, updateRounds = 1) {
-    const rounds = Math.max(1, Number(updateRounds) || 1);
-    const batch = candidates.slice(0, Math.ceil(candidates.length / rounds));
+  async fetchMatchData(fandomClient, candidates, cache, NOW) {
     const results = [];
 
-    for (const candidate of batch) {
+    for (const candidate of candidates) {
       try {
         const fetchedMatches = await fandomClient.fetchAllMatches(candidate.slug, candidate.overview_page, null);
         results.push({ status: 'fulfilled', slug: candidate.slug, data: fetchedMatches });
       } catch (error) {
         results.push({ status: 'rejected', slug: candidate.slug, err: error });
       }
-      if (candidate !== batch[batch.length - 1]) await new Promise(resolveDelay => setTimeout(resolveDelay, 2000));
+      if (candidate !== candidates[candidates.length - 1]) await new Promise(resolveDelay => setTimeout(resolveDelay, 2000));
     }
 
     return results;
