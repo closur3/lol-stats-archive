@@ -1,6 +1,12 @@
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
 
+// 分析配置常量
+const ANALYZER_CONFIG = {
+  MATCH_INTERVAL_HOURS_THRESHOLD: 8,  // 比赛间隔阈值（小时），超过则切换 slow 模式
+  MAX_TIME_SLOTS: 8,                   // 时间聚类最大槽位数
+};
+
 /**
  * 统计分析核心模块 (纯UTC)
  */
@@ -35,7 +41,7 @@ export class Analyzer {
       ? (nextMatchStartTimestamp - lastMatchStartTimestamp) / (1000 * 60 * 60)
       : Infinity;
     const isMatchStarted = nextMatchStartTimestamp !== Infinity && nowTimestamp >= nextMatchStartTimestamp;
-    const isNearInterval = matchIntervalHours < 8;
+    const isNearInterval = matchIntervalHours < ANALYZER_CONFIG.MATCH_INTERVAL_HOURS_THRESHOLD;
     const isModeOverride = modeOverride === "fast" || modeOverride === "slow";
 
     let nextMode;
@@ -73,12 +79,12 @@ export class Analyzer {
     const tournamentMeta = {};
 
     const timeGrid = { "ALL": {} };
-    const createSlot = () => { 
-      const slot = {}; 
-      for(let slotIndex = 0; slotIndex < 8; slotIndex++) { 
-        slot[slotIndex] = { totalMatchCount: 0, fullLengthMatchCount: 0, matches: [] }; 
-      } 
-      return slot; 
+    const createSlot = () => {
+      const slot = {};
+      for(let slotIndex = 0; slotIndex < ANALYZER_CONFIG.MAX_TIME_SLOTS; slotIndex++) {
+        slot[slotIndex] = { totalMatchCount: 0, fullLengthMatchCount: 0, matches: [] };
+      }
+      return slot;
     };
     timeGrid.ALL = createSlot();
 
@@ -247,8 +253,7 @@ export class Analyzer {
           fullDate = `${utcTimeParts.year}-${utcTimeParts.month}-${utcTimeParts.dayOfMonth}`;
           matchDateStr = `${utcTimeParts.year}-${utcTimeParts.month}-${utcTimeParts.dayOfMonth}`;
           isoString = dateTime.toISOString();
-          
-          timestamp = (match.DateTime_UTC || match["DateTime UTC"]) ? new Date(match.DateTime_UTC || match["DateTime UTC"]).getTime() : 0;
+          timestamp = dateTime.getTime();
         }
 
         if (matchDateStr >= todayStr || !isFinished) {

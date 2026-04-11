@@ -8,6 +8,16 @@ import { KV_KEYS } from '../utils/constants.js';
 import { readMetaState, writeMetaState } from '../utils/Meta.js';
 import { kvPut, kvDelete } from '../utils/kvStore.js';
 
+// 更新配置常量
+const UPDATE_CONFIG = {
+  DROP_THRESHOLD: 0.9,            // 数据下降阈值：新数据 < 旧数据 * 0.9 时触发保护
+  MAX_LOG_ENTRIES: 10,             // 每个联赛保留的最大日志条数
+  FETCH_DELAY_MS: 0,               // Fandom 请求间延迟（已改为并发，不再需要）
+  SLOW_THRESHOLD_MINUTES: 60,      // slow 模式阈值（分钟）
+  CRON_INTERVAL_MINUTES: 3,        // Cron 执行间隔（分钟），需与 wrangler.toml crons 保持一致
+  MAX_SCHEDULE_DAYS: 8,            // 赛程最大显示天数
+};
+
 /**
  * 更新管理器
  */
@@ -19,21 +29,15 @@ export class Updater {
   }
 
   getSlowThresholdMs() {
-    const mins = Number(this.env.SLOW_THRESHOLD_MINUTES);
-    if (!Number.isFinite(mins) || mins <= 0) return 120 * 60 * 1000;
-    return Math.round(mins * 60 * 1000);
+    return UPDATE_CONFIG.SLOW_THRESHOLD_MINUTES * 60 * 1000;
   }
 
   getCronIntervalMinutes() {
-    const mins = Number(this.env.CRON_INTERVAL_MINUTES);
-    if (!Number.isFinite(mins) || mins <= 0) return 3;
-    return Math.round(mins);
+    return UPDATE_CONFIG.CRON_INTERVAL_MINUTES;
   }
 
   getMaxScheduleDays() {
-    const days = Number(this.env.MAX_SCHEDULE_DAYS);
-    if (!Number.isFinite(days) || days <= 0) return 8;
-    return Math.floor(days);
+    return UPDATE_CONFIG.MAX_SCHEDULE_DAYS;
   }
 
   formatDeltaTag(item) {
@@ -145,94 +149,144 @@ export class Updater {
     let checkedSlugs = 0;
     let thresholdSkippedSlugs = 0;
 
-    for (const tournament of tournaments || []) {
-      const slug = tournament?.slug;
-      if (!slug) continue;
+    // 第一步：并行检查所有联赛的阈值
+    const thresholdChecks = await Promise.all(
+      (tournaments || []).map(async (tournament) => {
+        const slug = tournament?.slug;
+        if (!slug) return null;
 
-      const pages = (Array.isArray(tournament.overview_page) ? tournament.overview_page : [tournament.overview_page])
-        .filter(page => typeof page === "string")
-        .map(page => page.trim())
-        .filter(Boolean);
+        const pages = (Array.isArray(tournament.overview_page) ? tournament.overview_page : [tournament.overview_page])
+          .filter(page => typeof page === "string")
+          .map(page => page.trim())
+          .filter(Boolean);
 
-      if (pages.length === 0) continue;
-      // revid gate 只看 Data: 页面，避免被 Overview 页面的无关编辑触发
-      const dataPages = Array.from(new Set(pages.map(page => page.startsWith("Data:") ? page : `Data:${page}`)));
-      const tournamentMetaFromKv = cache?.meta?.tournaments?.[slug];
-      const lastUpdateTimestamp = cache?.updateTimestamps?.[slug] || 0;
-      const revKey = `REV_${slug}`;
-      const previousRevisionState = await this.env["lol-stats-kv"].get(revKey, { type: "json" });
-      const lastCheckedAt = Number(previousRevisionState?.checkedAt) || 0;
-      const gateBaseTimestamp = Math.max(lastUpdateTimestamp, lastCheckedAt);
-      const elapsed = NOW - gateBaseTimestamp;
-      let threshold = 0;
-      let mode = "fast";
+        if (pages.length === 0) return null;
 
-      if (tournamentMetaFromKv) {
-        mode = tournamentMetaFromKv.mode || "fast";
-        const startTimestamp = tournamentMetaFromKv.startTimestamp || 0;
-        const isModeOverride = !!tournamentMetaFromKv.modeOverride;
-        const isMatchStarted = startTimestamp > 0 && NOW >= startTimestamp;
-        threshold = (mode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
-      }
+        const dataPages = Array.from(new Set(pages.map(page => page.startsWith("Data:") ? page : `Data:${page}`)));
+        const tournamentMetaFromKv = cache?.meta?.tournaments?.[slug];
+        const lastUpdateTimestamp = cache?.updateTimestamps?.[slug] || 0;
+        const revKey = `REV_${slug}`;
+        const previousRevisionState = await this.env["lol-stats-kv"].get(revKey, { type: "json" });
+        const lastCheckedAt = Number(previousRevisionState?.checkedAt) || 0;
+        const gateBaseTimestamp = Math.max(lastUpdateTimestamp, lastCheckedAt);
+        const elapsed = NOW - gateBaseTimestamp;
+        let threshold = 0;
+        let mode = "fast";
 
-      if (elapsed < threshold) {
-        console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> skip`);
-        thresholdSkippedSlugs++;
-        continue;
-      }
-      console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> check`);
-      checkedSlugs++;
-
-      const prevPages = previousRevisionState?.pages || {};
-      const nextPages = {};
-      let slugChanged = false;
-      let okCount = 0;
-      let errCount = 0;
-      const changedPages = [];
-
-      for (const page of dataPages) {
-        try {
-          const latest = await FandomClient.fetchLatestRevision(page);
-          if (latest?.missing) {
-            continue;
-          }
-          const title = latest.title || page;
-          okCount++;
-          nextPages[title] = {
-            revid: latest.revid,
-            timestamp: latest.timestamp,
-            pageid: latest.pageid
-          };
-
-          const prevRev = prevPages?.[title]?.revid;
-          if (!prevRev || Number(prevRev) !== Number(latest.revid)) {
-            slugChanged = true;
-            changedPages.push(`${title}:${prevRev || "none"}->${latest.revid}`);
-
-            const safeTitle = title.replace(/ /g, '_');
-            const diffUrl = `https://lol.fandom.com/wiki/${safeTitle}?diff=prev&oldid=${latest.revid}`;
-            if (!revidChanges[slug]) revidChanges[slug] = [];
-            revidChanges[slug].push({ revid: latest.revid, diffUrl, title });
-          }
-        } catch (error) {
-          errCount++;
-          console.log(`[REV] ${slug}: ${page} check failed: ${error.message}`);
+        if (tournamentMetaFromKv) {
+          mode = tournamentMetaFromKv.mode || "fast";
+          const startTimestamp = tournamentMetaFromKv.startTimestamp || 0;
+          const isModeOverride = !!tournamentMetaFromKv.modeOverride;
+          const isMatchStarted = startTimestamp > 0 && NOW >= startTimestamp;
+          threshold = (mode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
         }
-      }
 
-      if (errCount > 0 && okCount === 0) hasErrors = true;
+        const shouldSkip = elapsed < threshold;
+        if (!shouldSkip) {
+          console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> check`);
+        } else {
+          console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> skip`);
+        }
 
-      const shouldTrackCheckedAt = mode === "slow";
-      const checkedAt = (shouldTrackCheckedAt && okCount > 0) ? NOW : lastCheckedAt;
-      const prevNormalized = shouldTrackCheckedAt
-        ? { slug, pages: prevPages || {}, checkedAt: lastCheckedAt }
-        : { slug, pages: prevPages || {} };
-      const nextRecord = shouldTrackCheckedAt
-        ? { slug, pages: nextPages || {}, checkedAt }
-        : { slug, pages: nextPages || {} };
-      const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
-      // 仅在至少成功获取到一个页面的 revid 时才写入，防止 API 故障清空旧数据
+        return {
+          slug,
+          dataPages,
+          previousRevisionState,
+          lastCheckedAt,
+          mode,
+          shouldSkip,
+          tournament
+        };
+      })
+    );
+
+    // 第二步：并行检查需要更新的联赛的 revid
+    const revChecks = await Promise.allSettled(
+      thresholdChecks
+        .filter(check => check && !check.shouldSkip)
+        .map(async (check) => {
+          const { slug, dataPages, previousRevisionState, lastCheckedAt, mode } = check;
+          checkedSlugs++;
+
+          const prevPages = previousRevisionState?.pages || {};
+          const nextPages = {};
+          let slugChanged = false;
+          let okCount = 0;
+          let errCount = 0;
+          const changedPages = [];
+
+          // 并行检查所有页面
+          const pageResults = await Promise.allSettled(
+            dataPages.map(async (page) => {
+              const latest = await FandomClient.fetchLatestRevision(page);
+              return { page, latest };
+            })
+          );
+
+          for (const pageResult of pageResults) {
+            if (pageResult.status === 'rejected') {
+              errCount++;
+              console.log(`[REV] ${slug}: ${pageResult.reason?.message || 'unknown error'}`);
+              continue;
+            }
+
+            const { page, latest } = pageResult.value;
+            if (latest?.missing) continue;
+
+            const title = latest.title || page;
+            okCount++;
+            nextPages[title] = {
+              revid: latest.revid,
+              timestamp: latest.timestamp,
+              pageid: latest.pageid
+            };
+
+            const prevRev = prevPages?.[title]?.revid;
+            if (!prevRev || Number(prevRev) !== Number(latest.revid)) {
+              slugChanged = true;
+              changedPages.push(`${title}:${prevRev || "none"}->${latest.revid}`);
+
+              const safeTitle = title.replace(/ /g, '_');
+              const diffUrl = `https://lol.fandom.com/wiki/${safeTitle}?diff=prev&oldid=${latest.revid}`;
+              if (!revidChanges[slug]) revidChanges[slug] = [];
+              revidChanges[slug].push({ revid: latest.revid, diffUrl, title });
+            }
+          }
+
+          if (errCount > 0 && okCount === 0) hasErrors = true;
+
+          const shouldTrackCheckedAt = mode === "slow";
+          const checkedAt = (shouldTrackCheckedAt && okCount > 0) ? NOW : lastCheckedAt;
+          const prevNormalized = shouldTrackCheckedAt
+            ? { slug, pages: prevPages || {}, checkedAt: lastCheckedAt }
+            : { slug, pages: prevPages || {} };
+          const nextRecord = shouldTrackCheckedAt
+            ? { slug, pages: nextPages || {}, checkedAt }
+            : { slug, pages: nextPages || {} };
+          const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
+
+          return {
+            slug,
+            shouldWriteRev,
+            shouldTrackCheckedAt,
+            nextRecord,
+            okCount,
+            slugChanged,
+            errCount,
+            changedPages,
+            thresholdSkipped: false
+          };
+        })
+    );
+
+    // 第三步：处理结果并写入 KV
+    for (const checkResult of revChecks) {
+      if (checkResult.status === 'rejected') continue;
+
+      const { slug, shouldWriteRev, shouldTrackCheckedAt, nextRecord, okCount, slugChanged, errCount, changedPages } = checkResult.value;
+
       if (shouldWriteRev && okCount > 0) {
+        const revKey = `REV_${slug}`;
         await kvPut(this.env, revKey, JSON.stringify(nextRecord));
       }
 
@@ -243,6 +297,9 @@ export class Updater {
         console.log(`[REV] ${slug}: partial errors ok=${okCount} err=${errCount}`);
       }
     }
+
+    // 统计跳过的
+    thresholdSkippedSlugs = thresholdChecks.filter(check => check && check.shouldSkip).length;
 
     return { changedSlugs, revidChanges, hasErrors, checkedSlugs, thresholdSkippedSlugs };
   }
@@ -314,18 +371,8 @@ export class Updater {
       }
     });
 
-    // 为每个锦标赛附加team_map（在数据抓取之后）
-    for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
-      const rawMatches = cache.rawMatches[tournament.slug] || [];
-      tournament.teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, rawMatches);
-    }
-
-    // 从 tournamentMeta 中提取 modeOverrides
-    const oldTournamentMeta = cache.meta?.tournaments || {};
-    const modeOverrides = {};
-    for (const [slug, meta] of Object.entries(oldTournamentMeta)) {
-      if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
-    }
+    // 准备锦标赛上下文（teamMap 和 modeOverrides）
+    const { oldTournamentMeta, modeOverrides } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
 
     // 分析数据（始终使用完整 runtimeConfig 以确保首页 HTML 包含所有赛事）
     const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap, this.getMaxScheduleDays());
@@ -343,13 +390,9 @@ export class Updater {
   }
 
   /**
-   * 本地更新：不联网，仅基于缓存重算并写入（用于revid未变化场景）
+   * 准备锦标赛上下文（teamMap 和 modeOverrides）
    */
-  async runLocalUpdate() {
-    const context = await this.prepareRuntimeContext();
-    if (!context) return this.logger;
-    const { runtimeConfig, teamsRaw, cache } = context;
-
+  prepareTournamentContext(runtimeConfig, cache, teamsRaw) {
     for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
       const rawMatches = cache.rawMatches[tournament.slug] || [];
       tournament.teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, rawMatches);
@@ -360,6 +403,19 @@ export class Updater {
     for (const [slug, meta] of Object.entries(oldTournamentMeta)) {
       if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
     }
+
+    return { oldTournamentMeta, modeOverrides };
+  }
+
+  /**
+   * 本地更新：不联网，仅基于缓存重算并写入（用于revid未变化场景）
+   */
+  async runLocalUpdate() {
+    const context = await this.prepareRuntimeContext();
+    if (!context) return this.logger;
+    const { runtimeConfig, teamsRaw, cache } = context;
+
+    const { oldTournamentMeta, modeOverrides } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
 
     const nowTimestamp = Date.now();
     const changedSlugs = [];
@@ -401,34 +457,31 @@ export class Updater {
    */
   async cleanupStaleHomeKeys(runtimeConfig) {
     try {
-      const allHomeKeys = await this.env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
-      const activeSlugs = new Set((runtimeConfig.TOURNAMENTS || []).map(tournament => tournament.slug));
-      const staleKeys = allHomeKeys.keys
-        .map(key => key.name)
-        .filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML)
-        .filter(keyName => {
-          const slug = keyName.slice(KV_KEYS.HOME_PREFIX.length);
-          return !activeSlugs.has(slug);
-        });
-      for (const staleKey of staleKeys) await kvDelete(this.env, staleKey);
+      const [allHomeKeys, allLogKeys, allRevKeys] = await Promise.all([
+        this.env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX }),
+        this.env["lol-stats-kv"].list({ prefix: "LOG_" }),
+        this.env["lol-stats-kv"].list({ prefix: "REV_" })
+      ]);
 
-      const allLogKeys = await this.env["lol-stats-kv"].list({ prefix: "LOG_" });
+      const activeSlugs = new Set((runtimeConfig.TOURNAMENTS || []).map(tournament => tournament.slug));
+
+      const staleHomeKeys = allHomeKeys.keys
+        .map(key => key.name)
+        .filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML && !activeSlugs.has(keyName.slice(KV_KEYS.HOME_PREFIX.length)));
+
       const staleLogKeys = allLogKeys.keys
         .map(key => key.name)
-        .filter(keyName => {
-          const slug = keyName.slice("LOG_".length);
-          return !activeSlugs.has(slug);
-        });
-      for (const staleLogKey of staleLogKeys) await kvDelete(this.env, staleLogKey);
+        .filter(keyName => !activeSlugs.has(keyName.slice("LOG_".length)));
 
-      const allRevKeys = await this.env["lol-stats-kv"].list({ prefix: "REV_" });
       const staleRevKeys = allRevKeys.keys
         .map(key => key.name)
-        .filter(keyName => {
-          const slug = keyName.slice("REV_".length);
-          return !activeSlugs.has(slug);
-        });
-      for (const staleRevKey of staleRevKeys) await kvDelete(this.env, staleRevKey);
+        .filter(keyName => !activeSlugs.has(keyName.slice("REV_".length)));
+
+      await Promise.all([
+        ...staleHomeKeys.map(key => kvDelete(this.env, key)),
+        ...staleLogKeys.map(key => kvDelete(this.env, key)),
+        ...staleRevKeys.map(key => kvDelete(this.env, key))
+      ]);
     } catch (error) { console.error("[Cleanup] Failed to cleanup stale home keys:", error.message); }
   }
 
@@ -532,13 +585,10 @@ export class Updater {
       })
     );
 
-    return results.map((result, index) => {
-      if (result.status === 'fulfilled') {
-        return { status: 'fulfilled', slug: result.value.slug, data: result.value.data };
-      } else {
-        return { status: 'rejected', slug: candidates[index].slug, err: result.reason };
-      }
-    });
+    return results.map((result, index) => ({
+      ...result,
+      slug: candidates[index].slug
+    }));
   }
 
   /**
@@ -551,10 +601,13 @@ export class Updater {
     const breakers = [];
     const apiErrors = [];
 
-    const getDisplayName = (slug) => {
-      const tournament = runtimeConfig.TOURNAMENTS.find(tournamentItem => tournamentItem.slug === slug);
-      return tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
-    };
+    // 提前构建 Map 避免 O(n) 查找
+    const displayNameMap = new Map(
+      (runtimeConfig.TOURNAMENTS || []).map(t => [
+        t.slug, t.league || t.name || t.slug.toUpperCase()
+      ])
+    );
+    const getDisplayName = (slug) => displayNameMap.get(slug) || slug;
 
     const getMatchKey = (match) => {
       const matchId = match?.MatchId ?? match?.["MatchId"];
@@ -603,7 +656,7 @@ export class Updater {
         const newData = resultItem.data || [];
         const oldData = cache.rawMatches[slug] || [];
 
-        if (!force && oldData.length > 10 && newData.length < oldData.length * 0.9) {
+        if (!force && oldData.length > 10 && newData.length < oldData.length * UPDATE_CONFIG.DROP_THRESHOLD) {
           breakers.push(`${slug}(Drop ${oldData.length}->${newData.length})`);
           failedSlugs.add(slug);
         } else {
@@ -752,7 +805,10 @@ export class Updater {
       ...(cache.meta || {}),
       tournaments: mergedTournamentsMeta
     };
-    if (JSON.stringify(mergedMetaState.tournaments || {}) !== JSON.stringify(cache.meta?.tournaments || {})) {
+    const mergedMetaJson = JSON.stringify(mergedMetaState.tournaments || {});
+    const cacheMetaJson = JSON.stringify(cache.meta?.tournaments || {});
+    
+    if (mergedMetaJson !== cacheMetaJson) {
       await writeMetaState(this.env, mergedMetaState);
       cache.meta = mergedMetaState;
     }
@@ -791,6 +847,27 @@ export class Updater {
       });
     });
 
+    // 并行读取所有现有的 HOME 和 ARCHIVE 数据
+    const kvReadKeys = [];
+    for (const tournament of runtimeConfig.TOURNAMENTS) {
+      kvReadKeys.push(KV_KEYS.HOME_PREFIX + tournament.slug);
+      if (includeArchiveWrites) {
+        kvReadKeys.push(`ARCHIVE_${tournament.slug}`);
+      }
+    }
+
+    const kvReadResults = await Promise.all(
+      kvReadKeys.map(async (key) => {
+        const value = await this.env["lol-stats-kv"].get(key, { type: "json" });
+        return { key, value };
+      })
+    );
+
+    const kvReadMap = {};
+    kvReadResults.forEach(({ key, value }) => {
+      kvReadMap[key] = value;
+    });
+
     // 保存每个锦标赛的数据
     const writePromises = [];
     for (const tournament of runtimeConfig.TOURNAMENTS) {
@@ -804,9 +881,10 @@ export class Updater {
       const teamMap = tournament.teamMap || {};
       const { teamMap: _, ...tournamentStored } = tournament;
 
-      // 数据变化检测
+      // 数据变化检测 - 缓存 JSON 序列化结果
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
-      const existingHome = await this.env["lol-stats-kv"].get(homeKey, { type: "json" });
+      const existingHome = kvReadMap[homeKey];
+      const rawMatchesJson = JSON.stringify(raw);
 
       const homeSnapshot = {
         tournament: tournamentStored,
@@ -819,7 +897,7 @@ export class Updater {
       };
 
       let homeHasChanges = isForceTarget || !existingHome ||
-          JSON.stringify(existingHome.rawMatches || []) !== JSON.stringify(raw);
+          JSON.stringify(existingHome.rawMatches || []) !== rawMatchesJson;
 
       if (homeHasChanges) {
         writePromises.push(kvPut(this.env, homeKey, JSON.stringify(homeSnapshot)));
@@ -829,9 +907,9 @@ export class Updater {
       if (includeArchiveWrites && stats && Object.keys(stats).length > 0) {
         const snapshot = { tournament: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: updateTimestamp }, teamMap: teamMap };
         const archiveKey = `ARCHIVE_${slug}`;
-        const existingArchive = await this.env["lol-stats-kv"].get(archiveKey, { type: "json" });
+        const existingArchive = kvReadMap[archiveKey];
         const archiveHasChanges = isForceTarget || !existingArchive ||
-            JSON.stringify(existingArchive.rawMatches || []) !== JSON.stringify(raw);
+            JSON.stringify(existingArchive.rawMatches || []) !== rawMatchesJson;
 
         if (archiveHasChanges) {
           writePromises.push(kvPut(this.env, archiveKey, JSON.stringify(snapshot)));
@@ -851,7 +929,7 @@ export class Updater {
       if (!slug || !entry) return;
       const logKey = `LOG_${slug}`;
       const oldLogs = await this.env["lol-stats-kv"].get(logKey, { type: "json" }) || [];
-      const nextLogs = [entry, ...oldLogs].slice(0, 10);
+      const nextLogs = [entry, ...oldLogs].slice(0, UPDATE_CONFIG.MAX_LOG_ENTRIES);
       await kvPut(this.env, logKey, JSON.stringify(nextLogs));
     });
     if (logWrites.length > 0) {

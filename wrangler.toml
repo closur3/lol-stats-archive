@@ -7,9 +7,6 @@ compatibility_flags = ["nodejs_compat"]
 GITHUB_USER = "closur3"
 GITHUB_REPO = "lol-stats-archive"
 FANDOM_USER = "HsuX"
-CRON_INTERVAL_MINUTES = "3"
-SLOW_THRESHOLD_MINUTES = "60"
-MAX_SCHEDULE_DAYS = "8"
 
 [[kv_namespaces]]
 binding = "lol-stats-kv"
