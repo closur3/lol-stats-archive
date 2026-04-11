@@ -585,10 +585,14 @@ export class Updater {
       })
     );
 
-    return results.map((result, index) => ({
-      ...result,
-      slug: candidates[index].slug
-    }));
+    return results.map((result, index) => {
+      const slug = candidates[index].slug;
+      if (result.status === 'fulfilled') {
+        return { status: 'fulfilled', slug, data: result.value.data };
+      } else {
+        return { status: 'rejected', slug, err: result.reason };
+      }
+    });
   }
 
   /**
