@@ -753,37 +753,30 @@ export class Updater {
       bySlug[slug] = { timestamp: nowShort, level, message };
     };
 
-    syncItems.forEach(item => {
-      let triggerText = "";
+    // 构建触发来源文本（与数据变动状态无关，仅标识来源）
+    const buildTriggerSource = (item) => {
       if (item.revidChanges && item.revidChanges.length > 0) {
         const revInfo = item.revidChanges[0];
-        triggerText = ` | ➕ <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
-      } else if (item.isForce) {
-        triggerText = " | ➕ Force";
-      } else if (item.isRetry) {
-        triggerText = " | ➕ Retry";
+        return `<a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
       }
-      let messageText = `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}${triggerText}`;
-      pushEntry(item.slug, "SUCCESS", messageText);
+      if (item.isForce) return "Force";
+      if (item.isRetry) return "Retry";
+      return "";
+    };
+
+    // 有变动：🔄 + ➕
+    syncItems.forEach(item => {
+      const source = buildTriggerSource(item);
+      const triggerText = source ? ` | ➕ ${source}` : "";
+      pushEntry(item.slug, "SUCCESS", `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}${triggerText}`);
     });
 
+    // 无变动：🔍 + 🟰
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
-      const displayName = getDisplayName(item.slug);
-      const changeCount = item.added + item.updated;
-      let triggerText = "";
-
-      if (item.revidChanges && item.revidChanges.length > 0) {
-        const revInfo = item.revidChanges[0];
-        triggerText = ` | 🟰 <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
-      } else if (item.isForce) {
-        triggerText = " | 🟰 Force";
-      } else if (item.isRetry) {
-        triggerText = " | 🟰 Retry";
-      }
-
-      let messageText = `⚪ [IDLE] | ${authPrefix}🔍 ${displayName} ~${changeCount}${triggerText}`;
-      pushEntry(item.slug, "SUCCESS", messageText);
+      const source = buildTriggerSource(item);
+      const triggerText = source ? ` | 🟰 ${source}` : "";
+      pushEntry(item.slug, "SUCCESS", `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ~${item.added + item.updated}${triggerText}`);
     });
 
     breakers.forEach(breaker => {
