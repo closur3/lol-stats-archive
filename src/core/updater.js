@@ -109,7 +109,8 @@ export class Updater {
       bypassThreshold: true,
       forceWrite: false,
       revidChanges: revidChanges,
-      recordLastStatus: true
+      recordLastStatus: true,
+      isRetry: previousFailedSlugs.size > 0
     });
   }
 
@@ -331,6 +332,7 @@ export class Updater {
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
     const recordLastStatus = !!options.recordLastStatus;
+    const isRetrySlugs = !!options.isRetry;
     const context = await this.prepareRuntimeContext();
     if (!context) return this.logger;
     const { NOW, runtimeConfig, teamsRaw, cache } = context;
@@ -353,7 +355,7 @@ export class Updater {
     const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW);
 
     // 处理结果
-    const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, forceSlugs, runtimeConfig);
+    const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, forceSlugs, isRetrySlugs, runtimeConfig);
     console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
     if (recordLastStatus) {
       await this.updateLastStatusForSlugs(candidates.map(item => item.slug), Array.from(failedSlugs));
@@ -598,7 +600,7 @@ export class Updater {
   /**
    * 处理抓取结果
    */
-  processResults(results, cache, NOW, force, forceSlugs, runtimeConfig) {
+  processResults(results, cache, NOW, force, forceSlugs, isRetrySlugs, runtimeConfig) {
     const failedSlugs = new Set();
     const syncItems = [];
     const idleItems = [];
@@ -654,13 +656,17 @@ export class Updater {
       return { added, updated, changed: added + updated };
     };
 
+    const isTargetSlug = (slug) => (forceSlugs && forceSlugs.has(slug));
+
     results.forEach(resultItem => {
       if (resultItem.status === 'fulfilled') {
         const slug = resultItem.slug;
         const newData = resultItem.data || [];
         const oldData = cache.rawMatches[slug] || [];
+        const isRetry = isRetrySlugs && isTargetSlug(slug);
+        const isForce = force || (!isRetry && isTargetSlug(slug));
 
-        if (!force && oldData.length > 10 && newData.length < oldData.length * UPDATE_CONFIG.DROP_THRESHOLD) {
+        if (!isForce && oldData.length > 10 && newData.length < oldData.length * UPDATE_CONFIG.DROP_THRESHOLD) {
           breakers.push(`${slug}(Drop ${oldData.length}->${newData.length})`);
           failedSlugs.add(slug);
         } else {
@@ -672,10 +678,11 @@ export class Updater {
               displayName: getDisplayName(slug),
               added: changedCount.added,
               updated: changedCount.updated,
-              isForce: force || (forceSlugs && forceSlugs.has(slug))
+              isForce,
+              isRetry
             });
           } else {
-            idleItems.push({ slug, displayName: getDisplayName(slug), added: 0, updated: 0, isForce: force || (forceSlugs && forceSlugs.has(slug)) });
+            idleItems.push({ slug, displayName: getDisplayName(slug), added: 0, updated: 0, isForce, isRetry });
           }
         }
         cache.updateTimestamps[slug] = NOW;
@@ -751,6 +758,8 @@ export class Updater {
       if (item.revidChanges && item.revidChanges.length > 0) {
         const revInfo = item.revidChanges[0];
         triggerText = ` | ➕ <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
+      } else if (item.isRetry) {
+        triggerText = " | 🔁 Retry";
       } else if (item.isForce) {
         triggerText = " | ➕ Force";
       }
@@ -767,6 +776,8 @@ export class Updater {
       if (item.revidChanges && item.revidChanges.length > 0) {
         const revInfo = item.revidChanges[0];
         triggerText = ` | 🟰 <a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
+      } else if (item.isRetry) {
+        triggerText = " | 🔁 Retry";
       } else if (item.isForce) {
         triggerText = " | 🟰 Force";
       }
