@@ -525,19 +525,20 @@ export class Updater {
    * 抓取比赛数据
    */
   async fetchMatchData(fandomClient, candidates, cache, NOW) {
-    const results = [];
-
-    for (const candidate of candidates) {
-      try {
+    const results = await Promise.allSettled(
+      candidates.map(async (candidate) => {
         const fetchedMatches = await fandomClient.fetchAllMatches(candidate.slug, candidate.overview_page, null);
-        results.push({ status: 'fulfilled', slug: candidate.slug, data: fetchedMatches });
-      } catch (error) {
-        results.push({ status: 'rejected', slug: candidate.slug, err: error });
-      }
-      if (candidate !== candidates[candidates.length - 1]) await new Promise(resolveDelay => setTimeout(resolveDelay, 2000));
-    }
+        return { slug: candidate.slug, data: fetchedMatches };
+      })
+    );
 
-    return results;
+    return results.map((result, index) => {
+      if (result.status === 'fulfilled') {
+        return { status: 'fulfilled', slug: result.value.slug, data: result.value.data };
+      } else {
+        return { status: 'rejected', slug: candidates[index].slug, err: result.reason };
+      }
+    });
   }
 
   /**
