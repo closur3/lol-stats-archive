@@ -777,8 +777,9 @@ export class Updater {
 
     breakers.forEach(breaker => {
       const slug = String(breaker || "").split("(")[0];
+      const dropInfo = String(breaker || "").match(/\(Drop .+\)/)?.[0] || "(Drop)";
       const name = getDisplayName(slug);
-      pushEntry(slug, "ERROR", `🔴 [ERR!] | ${authPrefix}🚧 ${name}(Drop)`);
+      pushEntry(slug, "ERROR", `🔴 [ERR!] | ${authPrefix}🚧 ${name}${dropInfo}`);
     });
 
     apiErrors.forEach(apiError => {
