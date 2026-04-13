@@ -318,8 +318,10 @@ export class APIRouter {
    */
   static isUnauthorized(request, env) {
     const expectedSecret = env.ADMIN_SECRET;
+    // 如果未配置 ADMIN_SECRET，拒绝所有请求（安全优先）
+    if (!expectedSecret) return true;
     const authHeader = request.headers.get("Authorization");
-    return Boolean(expectedSecret && (!authHeader || authHeader !== `Bearer ${expectedSecret}`));
+    return !authHeader || authHeader !== `Bearer ${expectedSecret}`;
   }
 
   /**

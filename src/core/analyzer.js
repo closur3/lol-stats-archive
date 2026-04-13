@@ -256,7 +256,7 @@ export class Analyzer {
           timestamp = dateTime.getTime();
         }
 
-        if (matchDateStr >= todayStr || !isFinished) {
+        if (matchDateStr !== "-" && (matchDateStr >= todayStr || !isFinished)) {
           const bucketDate = matchDateStr;
           if (!allFutureMatches[bucketDate]) allFutureMatches[bucketDate] = [];
           const tabName = match.Tab || "";

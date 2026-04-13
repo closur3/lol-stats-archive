@@ -3,6 +3,23 @@ import { dataUtils } from '../utils/dataUtils.js';
 import { GITHUB_COMMIT_BASE } from '../utils/constants.js';
 import { PYTHON_STYLE, TOOLS_PAGE_STYLE, LOG_PAGE_STYLE, BUILD_FOOTER_STYLE } from './styles.js';
 
+// XSS 防护：转义 HTML 和 JavaScript 特殊字符
+const escapeHtml = (str) => {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+};
+
+const escapeJsString = (str) => {
+  if (!str) return "";
+  return escapeHtml(str)
+    .replace(/\//g, "&#x2F;");
+};
+
 /**
  * HTML渲染器
  */
@@ -68,6 +85,9 @@ export class HTMLRenderer {
         const lastMatch = teamStats.last ? dateUtils.fmtDate(teamStats.last) : "-";
         const lastMatchColor = dateUtils.colorDate(teamStats.last);
 
+        const safeName = escapeJsString(teamStats.name);
+        const safeDisplayName = escapeHtml(teamStats.name);
+
         const emptyBackground = '#f1f5f9', emptyColor = '#cbd5e1';
         const getClass = (baseClass, count) => count > 0 ? `${baseClass} team-clickable` : baseClass;
         const getClickHandler = (name, type, count) => count > 0 ? `onclick="openStats('${slug}', '${name}', '${type}')"` : "";
@@ -77,12 +97,12 @@ export class HTMLRenderer {
         const streakEmpty = teamStats.winStreakCount === 0 && teamStats.lossStreakCount === 0;
         const streakStyle = `style="background:${streakEmpty ? emptyBackground : 'transparent'};color:${streakEmpty ? emptyColor : 'inherit'}"`;
 
-        return `<tr><td class="team-col team-clickable" onclick="openTeam('${slug}', '${teamStats.name}')">${teamStats.name}</td>` +
-               `<td class="${getClass('col-bo3', teamStats.bestOf3TotalMatchCount)}" ${getClickHandler(teamStats.name, 'bo3', teamStats.bestOf3TotalMatchCount)} ${statStyle(teamStats.bestOf3TotalMatchCount)}>${bo3Text}</td>` +
+        return `<tr><td class="team-col team-clickable" onclick="openTeam('${slug}', '${safeName}')">${safeDisplayName}</td>` +
+               `<td class="${getClass('col-bo3', teamStats.bestOf3TotalMatchCount)}" ${getClickHandler(safeName, 'bo3', teamStats.bestOf3TotalMatchCount)} ${statStyle(teamStats.bestOf3TotalMatchCount)}>${bo3Text}</td>` +
                `<td class="col-bo3-pct" ${percentStyle(bo3Rate, true)}>${dataUtils.pct(bo3Rate)}</td>` +
-               `<td class="${getClass('col-bo5', teamStats.bestOf5TotalMatchCount)}" ${getClickHandler(teamStats.name, 'bo5', teamStats.bestOf5TotalMatchCount)} ${statStyle(teamStats.bestOf5TotalMatchCount)}>${bo5Text}</td>` +
+               `<td class="${getClass('col-bo5', teamStats.bestOf5TotalMatchCount)}" ${getClickHandler(safeName, 'bo5', teamStats.bestOf5TotalMatchCount)} ${statStyle(teamStats.bestOf5TotalMatchCount)}>${bo5Text}</td>` +
                `<td class="col-bo5-pct" ${percentStyle(bo5Rate, true)}>${dataUtils.pct(bo5Rate)}</td>` +
-               `<td class="${getClass('col-series', teamStats.seriesTotalMatchCount)}" ${getClickHandler(teamStats.name, 'series', teamStats.seriesTotalMatchCount)} ${statStyle(teamStats.seriesTotalMatchCount)}>${seriesText}</td>` +
+               `<td class="${getClass('col-series', teamStats.seriesTotalMatchCount)}" ${getClickHandler(safeName, 'series', teamStats.seriesTotalMatchCount)} ${statStyle(teamStats.seriesTotalMatchCount)}>${seriesText}</td>` +
                `<td class="col-series-wr" ${percentStyle(winRate)}>${dataUtils.pct(winRate)}</td>` +
                `<td class="col-game" ${statStyle(teamStats.gameTotalCount)}>${gameText}</td>` +
                `<td class="col-game-wr" ${percentStyle(gameRate)}>${dataUtils.pct(gameRate)}</td>` +
@@ -126,10 +146,14 @@ export class HTMLRenderer {
         const bestOfLabel = match.bestOf ? `BO${match.bestOf}` : "";
         const bestOfClass = match.bestOf === 5 ? "sch-pill gold" : "sch-pill";
         const isTbd1 = match.team1Name === "TBD", isTbd2 = match.team2Name === "TBD";
-        const team1ClickHandler = isTbd1 ? "" : `onclick="openTeam('${match.slug}', '${match.team1Name}')"`;
-        const team2ClickHandler = isTbd2 ? "" : `onclick="openTeam('${match.slug}', '${match.team2Name}')"`;
-        const team1RateHint = getRateHtml(match.team1Name, match.slug, match.bestOf);
-        const team2RateHint = getRateHtml(match.team2Name, match.slug, match.bestOf);
+        const safeTeam1 = escapeJsString(match.team1Name);
+        const safeTeam2 = escapeJsString(match.team2Name);
+        const safeDisplay1 = escapeHtml(match.team1Name);
+        const safeDisplay2 = escapeHtml(match.team2Name);
+        const team1ClickHandler = isTbd1 ? "" : `onclick="openTeam('${match.slug}', '${safeTeam1}')"`;
+        const team2ClickHandler = isTbd2 ? "" : `onclick="openTeam('${match.slug}', '${safeTeam2}')"`;
+        const team1RateHint = getRateHtml(safeDisplay1, match.slug, match.bestOf);
+        const team2RateHint = getRateHtml(safeDisplay2, match.slug, match.bestOf);
 
         let midContent = `<span ${STYLE_VS_TEXT}>vs</span>`;
         if (match.isFinished) {
@@ -141,9 +165,9 @@ export class HTMLRenderer {
         }
 
         const h2hClass = (!isTbd1 && !isTbd2) ? "spine-sep clickable" : "spine-sep";
-        const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${match.team1Name}', '${match.team2Name}')"` : "";
+        const h2hClick = (!isTbd1 && !isTbd2) ? `onclick="openH2H('${match.slug}', '${safeTeam1}', '${safeTeam2}')"` : "";
 
-        return `<div class="sch-row"><span class="sch-time"><span class="utc-local" data-utc="${match.isoTimestamp || ''}" data-format="time">${match.time}</span></span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${team1ClickHandler} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${team1RateHint}${match.team1Name}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${team2ClickHandler} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${match.team2Name}${team2RateHint}</span></div></div><div class="sch-tag-col"><span class="${bestOfClass}">${bestOfLabel}</span></div></div>`;
+        return `<div class="sch-row"><span class="sch-time"><span class="utc-local" data-utc="${match.isoTimestamp || ''}" data-format="time">${match.time}</span></span><div class="sch-vs-container"><div class="spine-row"><span class="${isTbd1 ? "spine-l" : "spine-l clickable"}" ${team1ClickHandler} ${isTbd1 ? STYLE_TBD_TEAM : ""}>${team1RateHint}${safeDisplay1}</span><span class="${h2hClass}" ${h2hClick} ${STYLE_SCH_MID_CELL}>${midContent}</span><span class="${isTbd2 ? "spine-r" : "spine-r clickable"}" ${team2ClickHandler} ${isTbd2 ? STYLE_TBD_TEAM : ""}>${safeDisplay2}${team2RateHint}</span></div></div><div class="sch-tag-col"><span class="${bestOfClass}">${bestOfLabel}</span></div></div>`;
     };
 
     let tablesHtml = "";

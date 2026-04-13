@@ -99,8 +99,7 @@ export class Updater {
     const targetSlugs = new Set([...previousFailedSlugs, ...changedSlugs]);
 
     if (targetSlugs.size === 0) {
-      console.log("[REV-GATE] No revision change, skip cron update");
-      console.log("[LOCAL] run (rev unchanged)");
+      console.log("[REV-GATE] No revision changes, running local update");
       return this.runLocalUpdate();
     }
 
@@ -355,23 +354,18 @@ export class Updater {
     const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW);
 
     // 处理结果
-    const { failedSlugs, syncItems, idleItems, breakers, apiErrors } = this.processResults(results, cache, NOW, force, forceSlugs, isRetrySlugs, runtimeConfig);
+    const { failedSlugs, syncItems, idleItems, breakers, apiErrors, displayNameMap } = this.processResults(results, cache, NOW, force, forceSlugs, isRetrySlugs, runtimeConfig);
     console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
     if (recordLastStatus) {
       await this.updateLastStatusForSlugs(candidates.map(item => item.slug), Array.from(failedSlugs));
     }
 
     // 将 revid 变化信息注入 syncItems 和 idleItems
-    syncItems.forEach(item => {
+    for (const item of [...syncItems, ...idleItems]) {
       if (revidChanges[item.slug]) {
         item.revidChanges = revidChanges[item.slug];
       }
-    });
-    idleItems.forEach(item => {
-      if (revidChanges[item.slug]) {
-        item.revidChanges = revidChanges[item.slug];
-      }
-    });
+    }
 
     // 准备锦标赛上下文（teamMap 和 modeOverrides）
     const { oldTournamentMeta, modeOverrides } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
@@ -381,7 +375,7 @@ export class Updater {
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta);
-    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta);
+    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap);
 
     // 保存数据
     await this.saveData(runtimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, false, {
@@ -522,25 +516,28 @@ export class Updater {
   determineCandidates(tournaments, cache, NOW, force, forceSlugs = null, bypassThreshold = false) {
     const candidates = [];
     const hasScope = !!(forceSlugs && forceSlugs.size > 0);
-    
+
     tournaments.forEach(tournament => {
-      if (hasScope && !forceSlugs.has(tournament.slug)) {
+      const slug = tournament?.slug;
+      if (!slug) return; // 跳过无效 slug
+
+      if (hasScope && !forceSlugs.has(slug)) {
         return;
       }
 
-      const isForceTarget = force && (!forceSlugs || forceSlugs.has(tournament.slug));
-      const lastUpdateTimestamp = cache.updateTimestamps[tournament.slug] || 0;
+      const isForceTarget = force && (!forceSlugs || forceSlugs.has(slug));
+      const lastUpdateTimestamp = cache.updateTimestamps[slug] || 0;
       const elapsed = NOW - lastUpdateTimestamp;
 
-      const tournamentMetaFromKv = (cache.meta?.tournaments && cache.meta.tournaments[tournament.slug]);
+      const tournamentMetaFromKv = (cache.meta?.tournaments && cache.meta.tournaments[slug]);
 
       if (!tournamentMetaFromKv) {
         if (!bypassThreshold) {
-          console.log(`[THRESHOLD] ${tournament.slug} no-kv -> pass`);
+          console.log(`[THRESHOLD] ${slug} no-kv -> pass`);
         }
         candidates.push({
-          slug: tournament.slug, 
-          overview_page: tournament.overview_page, 
+          slug,
+          overview_page: tournament.overview_page,
           league: tournament.league,
           mode: "fast",
           start_date: tournament.start_date || null
@@ -557,11 +554,11 @@ export class Updater {
 
       if (isForceTarget || bypassThreshold || elapsed >= threshold) {
         if (!bypassThreshold) {
-          console.log(`[THRESHOLD] ${tournament.slug} ${currentMode} e=${(elapsed/60000).toFixed(1)}m th=${(threshold/60000).toFixed(1)}m -> pass`);
+          console.log(`[THRESHOLD] ${slug} ${currentMode} e=${(elapsed/60000).toFixed(1)}m th=${(threshold/60000).toFixed(1)}m -> pass`);
         }
         candidates.push({
-          slug: tournament.slug, 
-          overview_page: tournament.overview_page, 
+          slug,
+          overview_page: tournament.overview_page,
           league: tournament.league,
           mode: currentMode,
           start_date: tournament.start_date || null
@@ -687,12 +684,14 @@ export class Updater {
         }
         cache.updateTimestamps[slug] = NOW;
       } else {
-        apiErrors.push(`${resultItem.slug}(Fail)`);
+        const errMsg = resultItem.err?.message || resultItem.err?.toString() || 'unknown';
+        console.log(`[PROC-ERR] ${resultItem.slug}: ${errMsg}`);
+        apiErrors.push(`${resultItem.slug}(Fail: ${errMsg.substring(0, 50)})`);
         failedSlugs.add(resultItem.slug);
       }
     });
 
-    return { failedSlugs, syncItems, idleItems, breakers, apiErrors };
+    return { failedSlugs, syncItems, idleItems, breakers, apiErrors, displayNameMap };
   }
 
   /**
@@ -737,16 +736,13 @@ export class Updater {
   /**
    * 构建联赛级独立日志
    */
-  buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta) {
+  buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap) {
     const nowShort = dateUtils.getNow().shortDateTimeString;
     const isAnon = (!authContext || authContext.isAnonymous);
     const authPrefix = isAnon ? "👻 " : "";
     const bySlug = {};
 
-    const getDisplayName = (slug) => {
-      const tournament = (runtimeConfig.TOURNAMENTS || []).find(item => item.slug === slug);
-      return tournament ? (tournament.league || tournament.name || slug.toUpperCase()) : slug;
-    };
+    const getDisplayName = (slug) => displayNameMap?.get(slug) || slug;
 
     const pushEntry = (slug, level, message) => {
       if (!slug) return;
@@ -928,8 +924,25 @@ export class Updater {
 
     const writeResults = await Promise.allSettled(writePromises);
     const failedWrites = writeResults.filter(r => r.status === 'rejected');
+    const failedWriteSlugs = new Set();
+    
     if (failedWrites.length > 0) {
-      console.error(`[KV] ${failedWrites.length} write(s) failed:`, failedWrites.map(r => r.reason?.message || r.reason));
+      // 收集写入失败的 slug 并回滚缓存
+      writeResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const key = kvReadKeys[index];
+          if (key.startsWith(KV_KEYS.HOME_PREFIX)) {
+            const slug = key.slice(KV_KEYS.HOME_PREFIX.length);
+            failedWriteSlugs.add(slug);
+            // 回滚缓存：恢复旧数据
+            const existingHome = kvReadMap[key];
+            if (existingHome && existingHome.rawMatches) {
+              cache.rawMatches[slug] = existingHome.rawMatches;
+            }
+          }
+          console.error(`[KV-WRITE-FAIL] ${key}: ${result.reason?.message || result.reason}`);
+        }
+      });
     }
 
     // 联赛级日志写入独立键（LOG_<slug>），避免影响 HOME_ 写入规则
