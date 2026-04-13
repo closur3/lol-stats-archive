@@ -6,7 +6,7 @@
 export const COMMON_STYLE = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body, code, input, button, select, textarea { font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    body { background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; }
+    body { background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; min-height: 100dvh; display: flex; flex-direction: column; }
     body.nav-mobile-open { overflow: hidden; }
 
     /* Navigation Bar - VitePress style */
@@ -173,7 +173,7 @@ export const PYTHON_STYLE = `
 
 // 页脚样式
 export const BUILD_FOOTER_STYLE = `
-    .build-footer { flex-shrink: 0; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; }
+    .build-footer { margin-top: auto; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; }
 
     .build-footer .footer-label { font-weight: 500; }
     .build-footer .footer-time, .build-footer .footer-sha { color: #64748b; font-weight: 600; }

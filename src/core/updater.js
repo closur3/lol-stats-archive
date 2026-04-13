@@ -699,8 +699,8 @@ export class Updater {
    */
   generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta) {
     const isAnon = (!authContext || authContext.isAnonymous);
-    const authPrefix = isAnon ? "👻 " : "";
-    
+    const authSuffix = isAnon ? " 👻" : "";
+
     // 格式化项目信息
     const formatItem = (item) => `${item.displayName} ${this.formatDeltaTag(item)}`;
 
@@ -708,13 +708,13 @@ export class Updater {
     const idleDetails = idleItems.map(formatItem);
 
     let trafficLight, action, content;
-    
+
     if (syncDetails.length === 0 && apiErrors.length === 0 && breakers.length === 0) {
       trafficLight = "⚪"; action = "[IDLE]";
-      
+
       let parts = [];
       if (idleDetails.length > 0) parts.push(`🔍 ${idleDetails.join(", ")}`);
-      
+
       content = parts.join(" | ");
     } else {
       const hasErr = apiErrors.length > 0 || breakers.length > 0;
@@ -729,7 +729,7 @@ export class Updater {
       content = parts.join(" | ");
     }
 
-    const finalLog = `${trafficLight} ${action} | ${authPrefix}${content}`;
+    const finalLog = `${trafficLight} ${action} | ${content}${authSuffix}`;
     if (trafficLight === "🔴") this.logger.error(finalLog); else this.logger.success(finalLog);
   }
 
@@ -739,7 +739,7 @@ export class Updater {
   buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap) {
     const nowShort = dateUtils.getNow().shortDateTimeString;
     const isAnon = (!authContext || authContext.isAnonymous);
-    const authPrefix = isAnon ? "👻 " : "";
+    const authSuffix = isAnon ? " 👻" : "";
     const bySlug = {};
 
     const getDisplayName = (slug) => displayNameMap?.get(slug) || slug;
@@ -764,7 +764,7 @@ export class Updater {
     syncItems.forEach(item => {
       const source = buildTriggerSource(item);
       const triggerText = source ? ` | ➕ ${source}` : "";
-      pushEntry(item.slug, "SUCCESS", `🟢 [SYNC] | ${authPrefix}🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}${triggerText}`);
+      pushEntry(item.slug, "SUCCESS", `🟢 [SYNC] | 🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}${triggerText}${authSuffix}`);
     });
 
     // 无变动：🔍 + 🟰
@@ -772,20 +772,20 @@ export class Updater {
       if (bySlug[item.slug]) return;
       const source = buildTriggerSource(item);
       const triggerText = source ? ` | 🟰 ${source}` : "";
-      pushEntry(item.slug, "SUCCESS", `⚪ [IDLE] | ${authPrefix}🔍 ${getDisplayName(item.slug)} ~${item.added + item.updated}${triggerText}`);
+      pushEntry(item.slug, "SUCCESS", `⚪ [IDLE] | 🔍 ${getDisplayName(item.slug)} ~${item.added + item.updated}${triggerText}${authSuffix}`);
     });
 
     breakers.forEach(breaker => {
       const slug = String(breaker || "").split("(")[0];
       const dropInfo = String(breaker || "").match(/\(Drop .+\)/)?.[0] || "(Drop)";
       const name = getDisplayName(slug);
-      pushEntry(slug, "ERROR", `🔴 [ERR!] | ${authPrefix}🚧 ${name}${dropInfo}`);
+      pushEntry(slug, "ERROR", `🔴 [ERR!] | 🚧 ${name}${dropInfo}${authSuffix}`);
     });
 
     apiErrors.forEach(apiError => {
       const slug = String(apiError || "").split("(")[0];
       const name = getDisplayName(slug);
-      pushEntry(slug, "ERROR", `🔴 [ERR!] | ${authPrefix}❌ ${name}(Fail)`);
+      pushEntry(slug, "ERROR", `🔴 [ERR!] | ❌ ${name}(Fail)${authSuffix}`);
     });
 
     return bySlug;
