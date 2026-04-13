@@ -461,6 +461,7 @@ export class Updater {
 
       const activeSlugs = new Set((runtimeConfig.TOURNAMENTS || []).map(tournament => tournament.slug));
 
+      // 找出所有不在当前配置中的 SLUG (即将过期)
       const staleHomeKeys = allHomeKeys.keys
         .map(key => key.name)
         .filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML && !activeSlugs.has(keyName.slice(KV_KEYS.HOME_PREFIX.length)));
@@ -473,11 +474,48 @@ export class Updater {
         .map(key => key.name)
         .filter(keyName => !activeSlugs.has(keyName.slice("REV_".length)));
 
-      await Promise.all([
-        ...staleHomeKeys.map(key => kvDelete(this.env, key)),
-        ...staleLogKeys.map(key => kvDelete(this.env, key)),
-        ...staleRevKeys.map(key => kvDelete(this.env, key))
-      ]);
+      // 核心优化：在删除 HOME 数据前，将其移入存档页
+      // 这样存档页只包含已结束的联赛，且不占用活跃联赛的写入配额
+      if (staleHomeKeys.length > 0) {
+        // 1. 并行读取所有过期的数据
+        const staleData = await Promise.all(
+          staleHomeKeys.map(k => this.env["lol-stats-kv"].get(k, { type: "json" }))
+        );
+
+        // 2. 并行写入存档
+        const archiveWrites = staleHomeKeys.map((k, i) => {
+          if (staleData[i]) {
+            return kvPut(this.env, `ARCHIVE_${k.slice(KV_KEYS.HOME_PREFIX.length)}`, JSON.stringify(staleData[i]));
+          }
+          return Promise.resolve();
+        });
+        await Promise.all(archiveWrites);
+        console.log(`[ARCHIVE-MOVE] Moved ${staleHomeKeys.length} expired slugs to archive`);
+      }
+
+      // 3. 清理所有过期键
+      if (staleHomeKeys.length > 0 || staleLogKeys.length > 0 || staleRevKeys.length > 0) {
+        await Promise.all([
+          ...staleHomeKeys.map(key => kvDelete(this.env, key)),
+          ...staleLogKeys.map(key => kvDelete(this.env, key)),
+          ...staleRevKeys.map(key => kvDelete(this.env, key))
+        ]);
+      }
+
+      // 4. 如果有数据移入存档，刷新存档页 HTML
+      if (staleHomeKeys.length > 0) {
+        try {
+          const archiveHTML = await this.generateArchiveStaticHTML();
+          const existingArchiveHTML = await this.env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
+          if (existingArchiveHTML !== archiveHTML) {
+            await kvPut(this.env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+            console.log(`[ARCHIVE] Refreshed static HTML`);
+          }
+        } catch (error) {
+          console.error(`[ARCHIVE] Refresh failed: ${error.message}`);
+        }
+      }
+
     } catch (error) { console.error("[Cleanup] Failed to cleanup stale home keys:", error.message); }
   }
 
@@ -906,19 +944,6 @@ export class Updater {
 
       if (homeHasChanges) {
         writePromises.push(kvPut(this.env, homeKey, JSON.stringify(homeSnapshot)));
-      }
-
-      // 保存归档数据
-      if (includeArchiveWrites && stats && Object.keys(stats).length > 0) {
-        const snapshot = { tournament: tournamentStored, rawMatches: raw, updateTimestamps: { [slug]: updateTimestamp }, teamMap: teamMap };
-        const archiveKey = `ARCHIVE_${slug}`;
-        const existingArchive = kvReadMap[archiveKey];
-        const archiveHasChanges = isForceTarget || !existingArchive ||
-            JSON.stringify(existingArchive.rawMatches || []) !== rawMatchesJson;
-
-        if (archiveHasChanges) {
-          writePromises.push(kvPut(this.env, archiveKey, JSON.stringify(snapshot)));
-        }
       }
     }
 
