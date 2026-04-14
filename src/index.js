@@ -37,9 +37,6 @@ export default {
       case "/refresh-ui":
         return APIRouter.handleRefreshUI(request, env);
 
-      case "/active-tournaments":
-        return APIRouter.handleGetActiveTournaments(request, env);
-
       case "/rebuild-archive":
         return APIRouter.handleRebuildArchive(request, env);
       

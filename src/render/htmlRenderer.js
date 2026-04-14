@@ -745,8 +745,25 @@ export class HTMLRenderer {
   /**
    * 渲染工具页面
    */
-  static renderToolsPage(time, sha, existingArchives = []) {
+  static renderToolsPage(time, sha, activeTournaments = [], existingArchives = []) {
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
+
+    let activeListHtml = activeTournaments.map(activeTournament => {
+        const slug = activeTournament.slug;
+        const name = activeTournament.name.replace(/'/g, '&apos;');
+        return `
+        <div class="item">
+            <label class="item-left">
+                <input type="checkbox" class="item-chk" value="${slug}">
+                <span class="item-name">${activeTournament.name}</span>
+            </label>
+            <div class="item-right">
+                <button class="icon-btn" onclick="forceOne('${slug}', this)" title="Force">🔄</button>
+                <button class="icon-btn icon-btn-del" onclick="deleteArchive('${slug}', '${name}')" title="Delete">🗑️</button>
+            </div>
+        </div>`;
+    }).join("");
+    if (!activeListHtml) activeListHtml = "<div style='text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;'>No active tournaments</div>";
 
     let archiveListHtml = existingArchives.map(archiveTournament => {
         const overviewStr = Array.isArray(archiveTournament.overview_page) ? JSON.stringify(archiveTournament.overview_page) : JSON.stringify([archiveTournament.overview_page]);
@@ -802,7 +819,7 @@ export class HTMLRenderer {
                         <span class="group-label">Active</span>
                     </div>
                     <div id="active-list" class="list">
-                        <div style="text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;">Loading...</div>
+                        ${activeListHtml}
                     </div>
                     <div class="ops-actions">
                         <button class="secondary-btn" onclick="runTask('/refresh-ui', this, 'Refreshing...')">Refresh UI</button>
@@ -911,29 +928,6 @@ export class HTMLRenderer {
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
             }
 
-            function loadActiveTournaments() {
-                fetch('/active-tournaments').then(function(res) { if (!res.ok) return; return res.json(); }).then(function(data) {
-                    if (!data) return;
-                    var container = document.getElementById('active-list');
-                    var tournaments = data.tournaments || [];
-                    if (tournaments.length === 0) { container.innerHTML = '<div style="text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;">No active tournaments</div>'; return; }
-                    container.innerHTML = tournaments.map(function(tournamentItem) {
-                        var modeIcon = tournamentItem.currentMode === 'fast' ? '⚡' : '🐌';
-                        var slug = tournamentItem.slug, name = tournamentItem.name.replace(/'/g, '&apos;');
-                        return '<div class="item">' +
-                            '<label class="item-left">' +
-                            '<input type="checkbox" class="item-chk" value="' + slug + '">' +
-                            '<span class="item-name">' + tournamentItem.name + ' ' + modeIcon + '</span>' +
-                            '</label>' +
-                            '<div class="item-right">' +
-                            '<button class="icon-btn" onclick="forceOne(&apos;' + slug + '&apos;, this)" title="Force">🔄</button>' +
-                            '<button class="icon-btn icon-btn-del" onclick="deleteArchive(&apos;' + slug + '&apos;, &apos;' + name + '&apos;)" title="Delete">🗑️</button>' +
-                            '</div>' +
-                            '</div>';
-                    }).join('');
-                }).catch(function() {});
-            }
-
             function forceSelected() {
                 if (!requireAuth()) return;
                 var checked = document.querySelectorAll('#active-list .item-chk:checked');
@@ -1008,8 +1002,6 @@ export class HTMLRenderer {
                     else { res.text().then(function(errorMessage) { showResult(false, errorMessage ? ('❌ ' + errorMessage) : '❌ Failed'); }); }
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
-
-            loadActiveTournaments();
         </script>
     </body>
     </html>`;

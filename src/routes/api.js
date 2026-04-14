@@ -83,41 +83,6 @@ export class APIRouter {
   }
 
   /**
-   * 获取活跃锦标赛列表
-   */
-  static async handleGetActiveTournaments(request, env) {
-    try {
-      const allHomeKeys = await env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
-      const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
-      const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
-      const metaState = await readMetaState(env);
-
-      const tournaments = rawHomes
-        .filter(home => home && home.tournament)
-        .map(home => {
-          const homeTournament = home.tournament;
-          const slug = homeTournament.slug;
-          const meta = metaState.tournaments?.[slug] || {};
-          const currentMode = meta.mode || "fast";
-          return {
-            slug,
-            name: homeTournament.name,
-            league: homeTournament.league,
-            currentMode,
-            start_date: homeTournament.start_date || ''
-          };
-        });
-
-      const sorted = dateUtils.sortTournamentsByDate(tournaments);
-      return new Response(JSON.stringify({ tournaments: sorted }), {
-        headers: { "content-type": "application/json" }
-      });
-    } catch (error) {
-      return new Response(`Error: ${error.message}`, { status: 500 });
-    }
-  }
-
-  /**
    * 处理刷新UI请求
    */
   static async handleRefreshUI(request, env) {
