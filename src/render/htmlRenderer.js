@@ -769,6 +769,7 @@ export class HTMLRenderer {
         const overviewStr = Array.isArray(archiveTournament.overview_page) ? JSON.stringify(archiveTournament.overview_page) : JSON.stringify([archiveTournament.overview_page]);
         const startDate = archiveTournament.start_date || '';
         const endDate = archiveTournament.end_date || '';
+        const archiveNameEscaped = (archiveTournament.name || '').replace(/'/g, '&apos;');
         return `
         <div class="item">
             <label class="item-left">
@@ -777,7 +778,7 @@ export class HTMLRenderer {
             </label>
             <div class="item-right">
                 <button class="icon-btn icon-btn-fill" onclick="fillArchive('${archiveTournament.slug}')" title="Fill">📋</button>
-                <button class="icon-btn icon-btn-del" onclick="deleteArchive('${archiveTournament.slug}', '${archiveTournament.name}')" title="Delete">🗑️</button>
+                <button class="icon-btn icon-btn-del" onclick="deleteArchive('${archiveTournament.slug}', '${archiveNameEscaped}')" title="Delete">🗑️</button>
             </div>
         </div>`;
     }).join("");
@@ -973,6 +974,31 @@ export class HTMLRenderer {
                         : ('⚠️ Rebuild partial: ' + success + '/' + total);
                     showResult(fail === 0, message);
                 });
+            }
+
+            function fillArchive(slug) {
+                var checkboxElement = document.querySelector('.qr-chk-archived[value="' + slug + '"]');
+                if (!checkboxElement) { showToast("❌ Archive item not found", "error"); return; }
+
+                var overviewValue = "";
+                var rawOverview = (checkboxElement.dataset.overview || "").trim();
+                if (rawOverview) {
+                    try {
+                        var parsedOverview = JSON.parse(rawOverview);
+                        if (Array.isArray(parsedOverview)) overviewValue = parsedOverview.join(" | ");
+                        else overviewValue = String(parsedOverview || "");
+                    } catch (error) {
+                        overviewValue = rawOverview;
+                    }
+                }
+
+                document.getElementById('ma-slug').value = (checkboxElement.value || '').trim();
+                document.getElementById('ma-name').value = (checkboxElement.dataset.name || '').trim();
+                document.getElementById('ma-overview').value = overviewValue;
+                document.getElementById('ma-league').value = (checkboxElement.dataset.league || '').trim();
+                document.getElementById('ma-start').value = (checkboxElement.dataset.start || '').trim();
+                document.getElementById('ma-end').value = (checkboxElement.dataset.end || '').trim();
+                showToast("📋 Filled Manual Archive form", "success");
             }
 
             function deleteArchive(slug, name) {
