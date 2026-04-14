@@ -932,10 +932,6 @@ export class HTMLRenderer {
                             '</div>' +
                             '</div>';
                     }).join('');
-                    var activeSlugs = tournaments.map(function(tournamentItem) { return tournamentItem.slug; });
-                    document.querySelectorAll('.qr-chk-archived').forEach(function(checkboxElement) {
-                        if (activeSlugs.indexOf(checkboxElement.value) >= 0) checkboxElement.closest('.item').style.display = 'none';
-                    });
                 }).catch(function() {});
             }
 
