@@ -985,7 +985,7 @@ export class HTMLRenderer {
                 if (rawOverview) {
                     try {
                         var parsedOverview = JSON.parse(rawOverview);
-                        if (Array.isArray(parsedOverview)) overviewValue = parsedOverview.join(" | ");
+                        if (Array.isArray(parsedOverview)) overviewValue = parsedOverview.join(", ");
                         else overviewValue = String(parsedOverview || "");
                     } catch (error) {
                         overviewValue = rawOverview;
