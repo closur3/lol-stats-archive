@@ -806,7 +806,6 @@ export class HTMLRenderer {
                     </div>
                     <div class="ops-actions">
                         <button class="secondary-btn" onclick="runTask('/refresh-ui', this, 'Refreshing...')">Refresh UI</button>
-                        <button class="primary-btn" onclick="saveModeOverrides()">Save Modes</button>
                         <button class="primary-btn" onclick="forceSelected()">Force Update</button>
                     </div>
 
@@ -912,8 +911,8 @@ export class HTMLRenderer {
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
             }
 
-            function loadModeOverrides() {
-                fetch('/mode-overrides').then(function(res) { if (!res.ok) return; return res.json(); }).then(function(data) {
+            function loadActiveTournaments() {
+                fetch('/active-tournaments').then(function(res) { if (!res.ok) return; return res.json(); }).then(function(data) {
                     if (!data) return;
                     var container = document.getElementById('active-list');
                     var tournaments = data.tournaments || [];
@@ -927,11 +926,6 @@ export class HTMLRenderer {
                             '<span class="item-name">' + tournamentItem.name + ' ' + modeIcon + '</span>' +
                             '</label>' +
                             '<div class="item-right">' +
-                            '<select class="mode-select" data-slug="' + slug + '">' +
-                            '<option value="auto"' + (tournamentItem.override === 'auto' ? ' selected' : '') + '>AUTO</option>' +
-                            '<option value="fast"' + (tournamentItem.override === 'fast' ? ' selected' : '') + '>FAST</option>' +
-                            '<option value="slow"' + (tournamentItem.override === 'slow' ? ' selected' : '') + '>SLOW</option>' +
-                            '</select>' +
                             '<button class="icon-btn" onclick="forceOne(&apos;' + slug + '&apos;, this)" title="Force">🔄</button>' +
                             '<button class="icon-btn icon-btn-fill" onclick="fillArchive(&apos;' + slug + '&apos;)" title="Fill">📋</button>' +
                             '<button class="icon-btn icon-btn-del" onclick="deleteArchive(&apos;' + slug + '&apos;, &apos;' + name + '&apos;)" title="Delete">🗑️</button>' +
@@ -943,31 +937,6 @@ export class HTMLRenderer {
                         if (activeSlugs.indexOf(checkboxElement.value) >= 0) checkboxElement.closest('.item').style.display = 'none';
                     });
                 }).catch(function() {});
-            }
-
-            function saveModeOverrides() {
-                if (!requireAuth()) return;
-                var selects = document.querySelectorAll('#active-list select[data-slug]');
-                var overrides = {};
-                selects.forEach(function(modeSelect) { overrides[modeSelect.dataset.slug] = modeSelect.value; });
-                sendAuthorizedPost('/mode-overrides', { 'Content-Type': 'application/json' }, JSON.stringify(overrides)).then(function(res) {
-                    if (checkAuthError(res.status)) return;
-                    if (!res.ok) {
-                        showResult(false, '❌ Failed');
-                        return;
-                    }
-                    res.json().then(function(data) {
-                        if (data && data.changed === false) {
-                            showToast('🟰 No changes', 'success');
-                            return;
-                        }
-                        showResult(true, '✅ Saved');
-                        loadModeOverrides();
-                    }).catch(function() {
-                        showResult(true, '✅ Saved');
-                        loadModeOverrides();
-                    });
-                }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 
             function forceSelected() {
@@ -1056,7 +1025,7 @@ export class HTMLRenderer {
                 }).catch(function() { showResult(false, NETWORK_ERROR_MSG); });
             }
 
-            loadModeOverrides();
+            loadActiveTournaments();
         </script>
     </body>
     </html>`;

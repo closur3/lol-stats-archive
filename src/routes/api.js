@@ -83,6 +83,41 @@ export class APIRouter {
   }
 
   /**
+   * 获取活跃锦标赛列表
+   */
+  static async handleGetActiveTournaments(request, env) {
+    try {
+      const allHomeKeys = await env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
+      const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
+      const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
+      const metaState = await readMetaState(env);
+
+      const tournaments = rawHomes
+        .filter(home => home && home.tournament)
+        .map(home => {
+          const homeTournament = home.tournament;
+          const slug = homeTournament.slug;
+          const meta = metaState.tournaments?.[slug] || {};
+          const currentMode = meta.mode || "fast";
+          return {
+            slug,
+            name: homeTournament.name,
+            league: homeTournament.league,
+            currentMode,
+            start_date: homeTournament.start_date || ''
+          };
+        });
+
+      const sorted = dateUtils.sortTournamentsByDate(tournaments);
+      return new Response(JSON.stringify({ tournaments: sorted }), {
+        headers: { "content-type": "application/json" }
+      });
+    } catch (error) {
+      return new Response(`Error: ${error.message}`, { status: 500 });
+    }
+  }
+
+  /**
    * 处理刷新UI请求
    */
   static async handleRefreshUI(request, env) {
@@ -333,94 +368,6 @@ export class APIRouter {
       return await updater.rebuildStaticPagesFromCache({ includeArchive: true, requireData: true });
     } catch (error) {
       return { ok: false, reason: "ERROR", message: `Render Error: ${error.message}` };
-    }
-  }
-
-  /**
-   * 获取模式覆盖配置
-   */
-  static async handleGetModeOverrides(request, env) {
-    try {
-      const allHomeKeys = await env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
-      const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
-      const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
-      const metaState = await readMetaState(env);
-
-      const overrides = {};
-      const tournaments = rawHomes
-        .filter(home => home && home.tournament)
-        .map(home => {
-          const homeTournament = home.tournament;
-          const slug = homeTournament.slug;
-          const meta = metaState.tournaments?.[slug] || {};
-          const currentMode = meta.mode || "fast";
-          const modeOverride = meta.modeOverride || "auto";
-          overrides[slug] = modeOverride;
-          return {
-            slug,
-            name: homeTournament.name,
-            league: homeTournament.league,
-            currentMode,
-            override: modeOverride,
-            start_date: homeTournament.start_date || ''
-          };
-        });
-
-      const sorted = dateUtils.sortTournamentsByDate(tournaments);
-      return new Response(JSON.stringify({ overrides, tournaments: sorted }), {
-        headers: { "content-type": "application/json" }
-      });
-    } catch (error) {
-      return new Response(`Error: ${error.message}`, { status: 500 });
-    }
-  }
-
-  /**
-   * 设置模式覆盖配置
-   */
-  static async handleSetModeOverrides(request, env) {
-    if (APIRouter.isUnauthorized(request, env)) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
-    try {
-      const body = await request.json();
-      if (!body || typeof body !== "object") {
-        return new Response("Invalid JSON payload", { status: 400 });
-      }
-
-      const validModes = ["auto", "fast", "slow"];
-      const cleanOverrides = {};
-      for (const [slug, mode] of Object.entries(body)) {
-        if (typeof slug === "string" && validModes.includes(mode)) {
-          cleanOverrides[slug] = mode;
-        }
-      }
-
-      // 写入统一 Meta.tournaments[slug].modeOverride
-      const metaState = await readMetaState(env);
-      const nextMetaState = {
-        ...metaState,
-        tournaments: { ...(metaState.tournaments || {}) }
-      };
-      let changed = false;
-
-      for (const [slug, mode] of Object.entries(cleanOverrides)) {
-        if (!nextMetaState.tournaments[slug]) nextMetaState.tournaments[slug] = {};
-        const currentMode = nextMetaState.tournaments[slug].modeOverride || "auto";
-        if (currentMode !== mode) changed = true;
-        if (mode === "auto") delete nextMetaState.tournaments[slug].modeOverride;
-        else nextMetaState.tournaments[slug].modeOverride = mode;
-      }
-      if (changed) {
-        await writeMetaState(env, nextMetaState);
-      }
-
-      return new Response(JSON.stringify({ success: true, changed, overrides: cleanOverrides }), {
-        headers: { "content-type": "application/json" }
-      });
-    } catch (error) {
-      return new Response(`Error: ${error.message}`, { status: 500 });
     }
   }
 

@@ -367,11 +367,11 @@ export class Updater {
       }
     }
 
-    // 准备锦标赛上下文（teamMap 和 modeOverrides）
-    const { oldTournamentMeta, modeOverrides } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
+    // 准备锦标赛上下文（teamMap）
+    const { oldTournamentMeta } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
 
     // 分析数据（始终使用完整 runtimeConfig 以确保首页 HTML 包含所有赛事）
-    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, modeOverrides, cache.prevScheduleMap, this.getMaxScheduleDays());
+    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, cache.prevScheduleMap, this.getMaxScheduleDays());
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta);
@@ -386,7 +386,7 @@ export class Updater {
   }
 
   /**
-   * 准备锦标赛上下文（teamMap 和 modeOverrides）
+   * 准备锦标赛上下文（teamMap）
    */
   prepareTournamentContext(runtimeConfig, cache, teamsRaw) {
     for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
@@ -395,12 +395,7 @@ export class Updater {
     }
 
     const oldTournamentMeta = cache.meta?.tournaments || {};
-    const modeOverrides = {};
-    for (const [slug, meta] of Object.entries(oldTournamentMeta)) {
-      if (meta.modeOverride) modeOverrides[slug] = meta.modeOverride;
-    }
-
-    return { oldTournamentMeta, modeOverrides };
+    return { oldTournamentMeta };
   }
 
   /**
@@ -411,7 +406,7 @@ export class Updater {
     if (!context) return this.logger;
     const { runtimeConfig, teamsRaw, cache } = context;
 
-    const { oldTournamentMeta, modeOverrides } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
+    const { oldTournamentMeta } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
 
     const nowTimestamp = Date.now();
     const changedSlugs = [];
@@ -422,7 +417,6 @@ export class Updater {
       const rawMatches = cache.rawMatches[slug] || [];
       const previousMetaForTournament = oldTournamentMeta[slug] || {};
       const computedMeta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp, {
-        modeOverride: modeOverrides[slug],
         previousMode: previousMetaForTournament.mode || "fast",
         hasFailure: false
       });

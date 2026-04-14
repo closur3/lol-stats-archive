@@ -12,7 +12,6 @@ const ANALYZER_CONFIG = {
  */
 export class Analyzer {
   static computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp = Date.now(), options = {}) {
-    const modeOverride = options.modeOverride;
     const previousMode = options.previousMode || "fast";
     const hasFailure = !!options.hasFailure;
 
@@ -42,11 +41,9 @@ export class Analyzer {
       : Infinity;
     const isMatchStarted = nextMatchStartTimestamp !== Infinity && nowTimestamp >= nextMatchStartTimestamp;
     const isNearInterval = matchIntervalHours < ANALYZER_CONFIG.MATCH_INTERVAL_HOURS_THRESHOLD;
-    const isModeOverride = modeOverride === "fast" || modeOverride === "slow";
 
     let nextMode;
-    if (isModeOverride) nextMode = modeOverride;
-    else if (hasFailure) nextMode = previousMode || "fast";
+    if (hasFailure) nextMode = previousMode || "fast";
     else if (hasLiveMatch) nextMode = "fast";
     else if (isMatchStarted) nextMode = "fast";
     else if (isNearInterval) nextMode = "fast";
@@ -67,14 +64,13 @@ export class Analyzer {
       matchIntervalHours,
       hasStarted: isMatchStarted
     };
-    if (isModeOverride) meta.modeOverride = modeOverride;
     return meta;
   }
 
   /**
    * 运行完整分析
    */
-  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), modeOverrides = {}, prevScheduleMap = {}, maxScheduleDays = 8) {
+  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), prevScheduleMap = {}, maxScheduleDays = 8) {
     const globalStats = {};
     const tournamentMeta = {};
 
@@ -423,10 +419,8 @@ export class Analyzer {
         addMatchToSlot(timeGrid[tournament.slug], "Total", 7);
       }
 
-      const modeOverride = modeOverrides[tournament.slug];
       const prevMeta = previousTournamentMeta[tournament.slug] || {};
       const meta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp, {
-        modeOverride,
         previousMode: prevMeta.mode || "fast",
         hasFailure: failedSlugs.has(tournament.slug)
       });

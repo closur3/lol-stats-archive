@@ -36,7 +36,10 @@ export default {
       
       case "/refresh-ui":
         return APIRouter.handleRefreshUI(request, env);
-      
+
+      case "/active-tournaments":
+        return APIRouter.handleGetActiveTournaments(request, env);
+
       case "/rebuild-archive":
         return APIRouter.handleRebuildArchive(request, env);
       
@@ -45,13 +48,7 @@ export default {
       
       case "/manual-archive":
         return APIRouter.handleManualArchive(request, env);
-      
-      case "/mode-overrides":
-        if (request.method === "POST") {
-          return APIRouter.handleSetModeOverrides(request, env);
-        }
-        return APIRouter.handleGetModeOverrides(request, env);
-      
+
       case "/logs":
         const detectMode = (logs) => {
           for (const logEntry of (logs || [])) {
