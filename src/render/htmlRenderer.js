@@ -927,7 +927,6 @@ export class HTMLRenderer {
                             '</label>' +
                             '<div class="item-right">' +
                             '<button class="icon-btn" onclick="forceOne(&apos;' + slug + '&apos;, this)" title="Force">🔄</button>' +
-                            '<button class="icon-btn icon-btn-fill" onclick="fillArchive(&apos;' + slug + '&apos;)" title="Fill">📋</button>' +
                             '<button class="icon-btn icon-btn-del" onclick="deleteArchive(&apos;' + slug + '&apos;, &apos;' + name + '&apos;)" title="Delete">🗑️</button>' +
                             '</div>' +
                             '</div>';
@@ -980,17 +979,6 @@ export class HTMLRenderer {
                         : ('⚠️ Rebuild partial: ' + success + '/' + total);
                     showResult(fail === 0, message);
                 });
-            }
-
-            function fillArchive(slug) {
-                var checkbox = document.querySelector('.qr-chk-archived[value="' + slug + '"]');
-                if (!checkbox) return;
-                document.getElementById('ma-slug').value = checkbox.value;
-                document.getElementById('ma-name').value = checkbox.dataset.name || '';
-                document.getElementById('ma-overview').value = checkbox.dataset.overview || '';
-                document.getElementById('ma-league').value = checkbox.dataset.league || '';
-                document.getElementById('ma-start').value = checkbox.dataset.start || '';
-                document.getElementById('ma-end').value = checkbox.dataset.end || '';
             }
 
             function deleteArchive(slug, name) {
