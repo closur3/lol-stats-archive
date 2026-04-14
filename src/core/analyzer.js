@@ -379,6 +379,39 @@ export class Analyzer {
       const clusters = clusterTimeSlots(parsedMatches, maxMatchesPerDay);
       assignMatchesToClusters(parsedMatches, clusters);
 
+      // 同一日期内，按时间顺序将比赛分配到不同时间槽，避免“同一天两场进同一槽”被隐藏
+      const assignedClusterByMatch = new Map();
+      const matchesByDate = {};
+      for (const match of parsedMatches) {
+        if (!matchesByDate[match.matchDateStr]) matchesByDate[match.matchDateStr] = [];
+        matchesByDate[match.matchDateStr].push(match);
+      }
+      for (const dailyMatches of Object.values(matchesByDate)) {
+        const sortedDailyMatches = [...dailyMatches].sort((leftMatch, rightMatch) => {
+          if (leftMatch.timeMinutes !== rightMatch.timeMinutes) return leftMatch.timeMinutes - rightMatch.timeMinutes;
+          return (leftMatch.timestamp || 0) - (rightMatch.timestamp || 0);
+        });
+        const usedClusterIndexes = new Set();
+        for (const match of sortedDailyMatches) {
+          const clusterOrder = clusters.map((cluster, clusterIndex) => ({
+            clusterIndex,
+            dist: Math.abs(match.timeMinutes - cluster.actualCenter),
+            center: cluster.actualCenter
+          })).sort((leftCluster, rightCluster) => {
+            if (leftCluster.dist !== rightCluster.dist) return leftCluster.dist - rightCluster.dist;
+            return leftCluster.center - rightCluster.center;
+          });
+
+          const candidate = clusterOrder.find(clusterItem => !usedClusterIndexes.has(clusterItem.clusterIndex));
+          if (!candidate) {
+            throw new Error(`No available time slot for ${tournament.slug} on ${match.matchDateStr}. dailyMatches=${sortedDailyMatches.length}, clusters=${clusters.length}`);
+          }
+          const chosenClusterIndex = candidate.clusterIndex;
+          usedClusterIndexes.add(chosenClusterIndex);
+          assignedClusterByMatch.set(match, chosenClusterIndex);
+        }
+      }
+
       if (!timeGrid[tournament.slug]) timeGrid[tournament.slug] = { "Total": createSlot() };
 
       for (const cluster of clusters) {
@@ -400,18 +433,24 @@ export class Analyzer {
           bestOf: m.bestOf 
         };
 
-        let bestCluster = null, bestDist = Infinity;
-        for (const c of clusters) {
-          const dist = Math.abs(m.timeMinutes - c.actualCenter);
-          if (dist < bestDist) { bestDist = dist; bestCluster = c; }
+        let bestCluster = null;
+        const assignedClusterIndex = assignedClusterByMatch.get(m);
+        if (assignedClusterIndex != null && clusters[assignedClusterIndex]) {
+          bestCluster = clusters[assignedClusterIndex];
+        } else {
+          let bestDist = Infinity;
+          for (const c of clusters) {
+            const dist = Math.abs(m.timeMinutes - c.actualCenter);
+            if (dist < bestDist) { bestDist = dist; bestCluster = c; }
+          }
         }
         if (!bestCluster) continue;
 
         const dayIndex = m.pythonWeekdayIndex;
-        const addMatchToSlot = (grid, label, dayIndex) => { 
-          grid[label][dayIndex].totalMatchCount++; 
-          if(m.isFullLength) grid[label][dayIndex].fullLengthMatchCount++; 
-          grid[label][dayIndex].matches.push(matchObj); 
+        const addMatchToSlot = (grid, label, dayIndex) => {
+          grid[label][dayIndex].totalMatchCount++;
+          if (m.isFullLength) grid[label][dayIndex].fullLengthMatchCount++;
+          grid[label][dayIndex].matches.push(matchObj);
         };
         addMatchToSlot(timeGrid[tournament.slug], bestCluster.label, dayIndex);
         addMatchToSlot(timeGrid[tournament.slug], "Total", dayIndex);
