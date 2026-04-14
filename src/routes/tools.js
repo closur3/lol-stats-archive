@@ -12,7 +12,7 @@ export class ToolsRouter {
   static async handleTools(request, env) {
     try {
       // 并行读取活跃赛事和归档赛事
-      const [activeTournaments, existingArchives] = await Promise.all([
+      const [activeTournaments, archivedTournaments] = await Promise.all([
         (async () => {
           const allHomeKeys = await env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
           const dataKeys = allHomeKeys.keys.filter(key => key.name !== KV_KEYS.HOME_STATIC_HTML);
@@ -33,7 +33,7 @@ export class ToolsRouter {
 
       const time = env.GITHUB_TIME;
       const sha = env.GITHUB_SHA;
-      const html = HTMLRenderer.renderToolsPage(time, sha, activeTournaments, existingArchives);
+      const html = HTMLRenderer.renderToolsPage(time, sha, activeTournaments, archivedTournaments);
 
       return new Response(html, {
         headers: { "content-type": "text/html;charset=utf-8" }

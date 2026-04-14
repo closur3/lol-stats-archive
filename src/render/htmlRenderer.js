@@ -745,7 +745,7 @@ export class HTMLRenderer {
   /**
    * 渲染工具页面
    */
-  static renderToolsPage(time, sha, activeTournaments = [], existingArchives = []) {
+  static renderToolsPage(time, sha, activeTournaments = [], archivedTournaments = []) {
     const buildFooter = HTMLRenderer.renderBuildFooter(time, sha);
 
     let activeListHtml = activeTournaments.map(activeTournament => {
@@ -765,7 +765,7 @@ export class HTMLRenderer {
     }).join("");
     if (!activeListHtml) activeListHtml = "<div style='text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;'>No active tournaments</div>";
 
-    let archiveListHtml = existingArchives.map(archiveTournament => {
+    let archiveListHtml = archivedTournaments.map(archiveTournament => {
         const overviewStr = Array.isArray(archiveTournament.overview_page) ? JSON.stringify(archiveTournament.overview_page) : JSON.stringify([archiveTournament.overview_page]);
         const startDate = archiveTournament.start_date || '';
         const endDate = archiveTournament.end_date || '';
