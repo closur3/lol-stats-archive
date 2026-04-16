@@ -1,5 +1,6 @@
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
+import { sortPolicy } from '../utils/sortPolicy.js';
 import { GITHUB_COMMIT_BASE } from '../utils/constants.js';
 import { PYTHON_STYLE, TOOLS_PAGE_STYLE, LOG_PAGE_STYLE, BUILD_FOOTER_STYLE } from './styles.js';
 
@@ -70,11 +71,13 @@ export class HTMLRenderer {
         return `<span ${STYLE_RATE_HINT}>(${Math.round(winRate * 100)}%)</span>`;
     };
 
-    const buildTeamRow = (teamStats, slug) => {
+    const buildTeamRow = (teamStats, slug, sortMeta = {}) => {
         const bo3Rate = dataUtils.rate(teamStats.bestOf3FullMatchCount, teamStats.bestOf3TotalMatchCount);
         const bo5Rate = dataUtils.rate(teamStats.bestOf5FullMatchCount, teamStats.bestOf5TotalMatchCount);
         const winRate = dataUtils.rate(teamStats.seriesWinCount, teamStats.seriesTotalMatchCount);
         const gameRate = dataUtils.rate(teamStats.gameWinCount, teamStats.gameTotalCount);
+        const bo3BayesTieBreakRate = sortPolicy.getBestOfBayesTieBreakRate(teamStats, 3, sortMeta.bo3PriorMean);
+        const bo5BayesTieBreakRate = sortPolicy.getBestOfBayesTieBreakRate(teamStats, 5, sortMeta.bo5PriorMean);
         const bo3Text = teamStats.bestOf3TotalMatchCount ? mkSpine(`${teamStats.bestOf3FullMatchCount}/${teamStats.bestOf3TotalMatchCount}`, '/') : "-";
         const bo5Text = teamStats.bestOf5TotalMatchCount ? mkSpine(`${teamStats.bestOf5FullMatchCount}/${teamStats.bestOf5TotalMatchCount}`, '/') : "-";
         const seriesText = teamStats.seriesTotalMatchCount ? mkSpine(`${teamStats.seriesWinCount}-${teamStats.seriesTotalMatchCount - teamStats.seriesWinCount}`, '-') : "-";
@@ -99,9 +102,9 @@ export class HTMLRenderer {
 
         return `<tr><td class="team-col team-clickable" onclick="openTeam('${slug}', '${safeName}')">${safeDisplayName}</td>` +
                `<td class="${getClass('col-bo3', teamStats.bestOf3TotalMatchCount)}" ${getClickHandler(safeName, 'bo3', teamStats.bestOf3TotalMatchCount)} ${statStyle(teamStats.bestOf3TotalMatchCount)}>${bo3Text}</td>` +
-               `<td class="col-bo3-pct" ${percentStyle(bo3Rate, true)}>${dataUtils.pct(bo3Rate)}</td>` +
+               `<td class="col-bo3-pct" data-bayes-tie="${bo3BayesTieBreakRate}" data-sample-size="${teamStats.bestOf3TotalMatchCount || 0}" ${percentStyle(bo3Rate, true)}>${dataUtils.pct(bo3Rate)}</td>` +
                `<td class="${getClass('col-bo5', teamStats.bestOf5TotalMatchCount)}" ${getClickHandler(safeName, 'bo5', teamStats.bestOf5TotalMatchCount)} ${statStyle(teamStats.bestOf5TotalMatchCount)}>${bo5Text}</td>` +
-               `<td class="col-bo5-pct" ${percentStyle(bo5Rate, true)}>${dataUtils.pct(bo5Rate)}</td>` +
+               `<td class="col-bo5-pct" data-bayes-tie="${bo5BayesTieBreakRate}" data-sample-size="${teamStats.bestOf5TotalMatchCount || 0}" ${percentStyle(bo5Rate, true)}>${dataUtils.pct(bo5Rate)}</td>` +
                `<td class="${getClass('col-series', teamStats.seriesTotalMatchCount)}" ${getClickHandler(safeName, 'series', teamStats.seriesTotalMatchCount)} ${statStyle(teamStats.seriesTotalMatchCount)}>${seriesText}</td>` +
                `<td class="col-series-wr" ${percentStyle(winRate)}>${dataUtils.pct(winRate)}</td>` +
                `<td class="col-game" ${statStyle(teamStats.gameTotalCount)}>${gameText}</td>` +
@@ -176,6 +179,10 @@ export class HTMLRenderer {
         if (!tournament || !tournament.slug) return;
         const rawStats = globalStats[tournament.slug] || {};
         const stats = dataUtils.sortTeams(rawStats);
+        const sortMeta = {
+            bo3PriorMean: sortPolicy.getBestOfPriorMean(stats, 3),
+            bo5PriorMean: sortPolicy.getBestOfPriorMean(stats, 5)
+        };
         const tableId = `t_${tournament.slug.replace(/-/g, '_')}`;
 
         // 计算联赛总打满量
@@ -204,7 +211,7 @@ export class HTMLRenderer {
         }
 
         const mainPage = Array.isArray(tournament.overview_page) ? tournament.overview_page[0] : tournament.overview_page;
-        const rows = stats.map(teamStats => buildTeamRow(teamStats, tournament.slug)).join("");
+        const rows = stats.map(teamStats => buildTeamRow(teamStats, tournament.slug, sortMeta)).join("");
         const tableBody = `<table id="${tableId}" data-sort-col="2" data-sort-dir-2="asc"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(5, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(7, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
 
         const regionGrid = timeData[tournament.slug] || {};
@@ -410,15 +417,13 @@ export class HTMLRenderer {
             if (valueA !== valueB) return nextDir === 'asc' ? (valueA > valueB ? 1 : -1) : (valueA < valueB ? 1 : -1);
             
             if (columnIndex === COL_BO3_PCT || columnIndex === COL_BO5_PCT) { 
-              const parseSampleSize = (text) => {
-                if (!text || text === "-" || !text.includes("/")) return 0;
-                const parts = text.split("/");
-                return parseFloat(parts[1]) || 0;
-              };
-              const sampleCol = columnIndex === COL_BO3_PCT ? COL_BO3 : COL_BO5;
-              const sampleA = parseSampleSize(rowA.cells[sampleCol].innerText);
-              const sampleB = parseSampleSize(rowB.cells[sampleCol].innerText);
-              if (sampleA !== sampleB) return nextDir === 'asc' ? (sampleA - sampleB) : (sampleB - sampleA);
+              const tieA = parseFloat(rowA.cells[columnIndex].dataset.bayesTie || "0");
+              const tieB = parseFloat(rowB.cells[columnIndex].dataset.bayesTie || "0");
+              if (tieA !== tieB) return nextDir === 'asc' ? (tieA - tieB) : (tieB - tieA);
+
+              const sampleA = parseFloat(rowA.cells[columnIndex].dataset.sampleSize || "0");
+              const sampleB = parseFloat(rowB.cells[columnIndex].dataset.sampleSize || "0");
+              if (sampleA !== sampleB) return nextDir === 'asc' ? (sampleB - sampleA) : (sampleA - sampleB);
 
               const seriesA = parseValue(rowA.cells[COL_SERIES_WR].innerText);
               const seriesB = parseValue(rowB.cells[COL_SERIES_WR].innerText);

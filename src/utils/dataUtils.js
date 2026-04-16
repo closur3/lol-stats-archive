@@ -1,3 +1,5 @@
+import { sortPolicy } from './sortPolicy.js';
+
 /**
  * 数据处理工具函数
  */
@@ -46,22 +48,24 @@ export const dataUtils = {
    */
   sortTeams: (statsObj) => {
     if (!statsObj) return [];
-    const BO5_WEIGHT = 1.33;
     const statsArray = Object.values(statsObj).filter(teamStats => teamStats && teamStats.name && teamStats.name !== "TBD");
+    const priorMean = sortPolicy.getWeightedPriorMean(statsArray);
 
     return statsArray.sort((leftTeamStats, rightTeamStats) => {
-      const leftWeightedFullMatchCount = (leftTeamStats.bestOf3FullMatchCount || 0) + ((leftTeamStats.bestOf5FullMatchCount || 0) * BO5_WEIGHT);
-      const leftWeightedTotalMatchCount = (leftTeamStats.bestOf3TotalMatchCount || 0) + ((leftTeamStats.bestOf5TotalMatchCount || 0) * BO5_WEIGHT);
-      const rightWeightedFullMatchCount = (rightTeamStats.bestOf3FullMatchCount || 0) + ((rightTeamStats.bestOf5FullMatchCount || 0) * BO5_WEIGHT);
-      const rightWeightedTotalMatchCount = (rightTeamStats.bestOf3TotalMatchCount || 0) + ((rightTeamStats.bestOf5TotalMatchCount || 0) * BO5_WEIGHT);
+      const { weightedFullMatchCount: leftWeightedFullMatchCount, weightedTotalMatchCount: leftWeightedTotalMatchCount } = sortPolicy.getTeamWeightedCounts(leftTeamStats);
+      const { weightedFullMatchCount: rightWeightedFullMatchCount, weightedTotalMatchCount: rightWeightedTotalMatchCount } = sortPolicy.getTeamWeightedCounts(rightTeamStats);
 
       const leftFullRate = leftWeightedTotalMatchCount > 0 ? leftWeightedFullMatchCount / leftWeightedTotalMatchCount : 2.0;
       const rightFullRate = rightWeightedTotalMatchCount > 0 ? rightWeightedFullMatchCount / rightWeightedTotalMatchCount : 2.0;
       if (leftFullRate !== rightFullRate) return leftFullRate - rightFullRate;
 
-      const leftRealTotalMatchCount = (leftTeamStats.bestOf3TotalMatchCount || 0) + (leftTeamStats.bestOf5TotalMatchCount || 0);
-      const rightRealTotalMatchCount = (rightTeamStats.bestOf3TotalMatchCount || 0) + (rightTeamStats.bestOf5TotalMatchCount || 0);
-      if (leftRealTotalMatchCount !== rightRealTotalMatchCount) return leftRealTotalMatchCount - rightRealTotalMatchCount;
+      // 同打满率时使用贝叶斯收缩后验均值，避免固定阈值切分。
+      const leftBayesRate = sortPolicy.bayesPosteriorRate(leftWeightedFullMatchCount, leftWeightedTotalMatchCount, priorMean, sortPolicy.BAYES_PRIOR_STRENGTH);
+      const rightBayesRate = sortPolicy.bayesPosteriorRate(rightWeightedFullMatchCount, rightWeightedTotalMatchCount, priorMean, sortPolicy.BAYES_PRIOR_STRENGTH);
+      if (leftBayesRate !== rightBayesRate) return leftBayesRate - rightBayesRate;
+
+      // 后验相同再按样本量（升序优先大样本）
+      if (leftWeightedTotalMatchCount !== rightWeightedTotalMatchCount) return rightWeightedTotalMatchCount - leftWeightedTotalMatchCount;
 
       const leftSeriesWinRate = dataUtils.rate(leftTeamStats.seriesWinCount, leftTeamStats.seriesTotalMatchCount) || 0;
       const rightSeriesWinRate = dataUtils.rate(rightTeamStats.seriesWinCount, rightTeamStats.seriesTotalMatchCount) || 0;
