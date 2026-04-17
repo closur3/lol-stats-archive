@@ -9,12 +9,11 @@ import { readMetaState, writeMetaState } from '../utils/Meta.js';
 import { kvPut, kvDelete } from '../utils/kvStore.js';
 
 // 更新配置常量
-const UPDATE_CONFIG = {
+export const UPDATE_CONFIG = {
   DROP_THRESHOLD: 0.9,            // 数据下降阈值：新数据 < 旧数据 * 0.9 时触发保护
   MAX_LOG_ENTRIES: 10,             // 每个联赛保留的最大日志条数
-  FETCH_DELAY_MS: 0,               // Fandom 请求间延迟（已改为并发，不再需要）
   SLOW_THRESHOLD_MINUTES: 60,      // slow 模式阈值（分钟）
-  CRON_INTERVAL_MINUTES: 3,        // Cron 执行间隔（分钟），需与 wrangler.toml crons 保持一致
+  CRON_INTERVAL_MINUTES: 3,        // 日志页快模式显示分钟数
   MAX_SCHEDULE_DAYS: 8,            // 赛程最大显示天数
 };
 
@@ -30,10 +29,6 @@ export class Updater {
 
   getSlowThresholdMs() {
     return UPDATE_CONFIG.SLOW_THRESHOLD_MINUTES * 60 * 1000;
-  }
-
-  getCronIntervalMinutes() {
-    return UPDATE_CONFIG.CRON_INTERVAL_MINUTES;
   }
 
   getMaxScheduleDays() {
@@ -105,7 +100,6 @@ export class Updater {
 
     console.log(`[REV-GATE] Target slugs: ${Array.from(targetSlugs).join(", ")}`);
     return this.runFandomUpdate(false, targetSlugs, {
-      bypassThreshold: true,
       forceWrite: false,
       revidChanges: revidChanges,
       recordLastStatus: true,
@@ -268,13 +262,11 @@ export class Updater {
           return {
             slug,
             shouldWriteRev,
-            shouldTrackCheckedAt,
             nextRecord,
             okCount,
             slugChanged,
             errCount,
-            changedPages,
-            thresholdSkipped: false
+            changedPages
           };
         })
     );
@@ -283,7 +275,7 @@ export class Updater {
     for (const checkResult of revChecks) {
       if (checkResult.status === 'rejected') continue;
 
-      const { slug, shouldWriteRev, shouldTrackCheckedAt, nextRecord, okCount, slugChanged, errCount, changedPages } = checkResult.value;
+      const { slug, shouldWriteRev, nextRecord, okCount, slugChanged, errCount, changedPages } = checkResult.value;
 
       if (shouldWriteRev && okCount > 0) {
         const revKey = `REV_${slug}`;
@@ -327,7 +319,6 @@ export class Updater {
    * 联网更新：查Fandom并写回
    */
   async runFandomUpdate(force = false, forceSlugs = null, options = {}) {
-    const bypassThreshold = !!options.bypassThreshold;
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
     const recordLastStatus = !!options.recordLastStatus;
@@ -337,7 +328,7 @@ export class Updater {
     const { NOW, runtimeConfig, teamsRaw, cache } = context;
 
     // 确定需要更新的锦标赛
-    const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, cache, NOW, force, forceSlugs, bypassThreshold);
+    const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, forceSlugs);
     if (candidates.length === 0) {
       console.log(`[SKIP] All tournaments skipped`);
       return this.logger;
@@ -378,9 +369,7 @@ export class Updater {
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap);
 
     // 保存数据
-    await this.saveData(runtimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries, false, {
-      includeArchiveWrites: true
-    });
+    await this.saveData(runtimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries);
 
     return this.logger;
   }
@@ -545,7 +534,7 @@ export class Updater {
   /**
    * 确定需要更新的候选锦标赛
    */
-  determineCandidates(tournaments, cache, NOW, force, forceSlugs = null, bypassThreshold = false) {
+  determineCandidates(tournaments, forceSlugs = null) {
     const candidates = [];
     const hasScope = !!(forceSlugs && forceSlugs.size > 0);
 
@@ -557,49 +546,12 @@ export class Updater {
         return;
       }
 
-      const isForceTarget = force && (!forceSlugs || forceSlugs.has(slug));
-      const lastUpdateTimestamp = cache.updateTimestamps[slug] || 0;
-      const elapsed = NOW - lastUpdateTimestamp;
-
-      const tournamentMetaFromKv = (cache.meta?.tournaments && cache.meta.tournaments[slug]);
-
-      if (!tournamentMetaFromKv) {
-        if (!bypassThreshold) {
-          console.log(`[THRESHOLD] ${slug} no-kv -> pass`);
-        }
-        candidates.push({
-          slug,
-          overview_page: tournament.overview_page,
-          league: tournament.league,
-          mode: "fast",
-          start_date: tournament.start_date || null
-        });
-        return;
-      }
-
-      const currentMode = tournamentMetaFromKv.mode;
-      const startTimestamp = tournamentMetaFromKv.startTimestamp || 0;
-      const isModeOverride = !!tournamentMetaFromKv.modeOverride;
-
-      const isMatchStarted = startTimestamp > 0 && NOW >= startTimestamp;
-      const threshold = (currentMode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
-
-      if (isForceTarget || bypassThreshold || elapsed >= threshold) {
-        if (!bypassThreshold) {
-          console.log(`[THRESHOLD] ${slug} ${currentMode} e=${(elapsed/60000).toFixed(1)}m th=${(threshold/60000).toFixed(1)}m -> pass`);
-        }
-        candidates.push({
-          slug,
-          overview_page: tournament.overview_page,
-          league: tournament.league,
-          mode: currentMode,
-          start_date: tournament.start_date || null
-        });
-      } else {
-        if (!bypassThreshold) {
-          console.log(`[THRESHOLD] ${tournament.slug} ${currentMode} e=${(elapsed/60000).toFixed(1)}m th=${(threshold/60000).toFixed(1)}m -> skip`);
-        }
-      }
+      candidates.push({
+        slug,
+        overview_page: tournament.overview_page,
+        league: tournament.league,
+        start_date: tournament.start_date || null
+      });
     });
 
     return candidates;
@@ -826,9 +778,7 @@ export class Updater {
   /**
    * 保存数据
    */
-  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}, options = {}) {
-    const includeArchiveWrites = options.includeArchiveWrites !== false;
-
+  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}) {
     const previousTournamentsMeta = cache.meta?.tournaments || {};
     const analyzedTournamentsMeta = analysis.tournamentMeta || {};
     const mergedTournamentsMeta = { ...previousTournamentsMeta };
@@ -884,13 +834,10 @@ export class Updater {
       });
     });
 
-    // 并行读取所有现有的 HOME 和 ARCHIVE 数据
+    // 并行读取所有现有的 HOME 数据
     const kvReadKeys = [];
     for (const tournament of runtimeConfig.TOURNAMENTS) {
       kvReadKeys.push(KV_KEYS.HOME_PREFIX + tournament.slug);
-      if (includeArchiveWrites) {
-        kvReadKeys.push(`ARCHIVE_${tournament.slug}`);
-      }
     }
 
     const kvReadResults = await Promise.all(
@@ -907,6 +854,7 @@ export class Updater {
 
     // 保存每个锦标赛的数据
     const writePromises = [];
+    const writeTargets = [];
     for (const tournament of runtimeConfig.TOURNAMENTS) {
       const slug = tournament.slug;
       const isForceTarget = force && (!forceSlugs || forceSlugs.has(slug));
@@ -937,22 +885,22 @@ export class Updater {
           JSON.stringify(existingHome.rawMatches || []) !== rawMatchesJson;
 
       if (homeHasChanges) {
+        writeTargets.push({ key: homeKey, slug });
         writePromises.push(kvPut(this.env, homeKey, JSON.stringify(homeSnapshot)));
       }
     }
 
     const writeResults = await Promise.allSettled(writePromises);
     const failedWrites = writeResults.filter(r => r.status === 'rejected');
-    const failedWriteSlugs = new Set();
     
     if (failedWrites.length > 0) {
       // 收集写入失败的 slug 并回滚缓存
       writeResults.forEach((result, index) => {
         if (result.status === 'rejected') {
-          const key = kvReadKeys[index];
+          const target = writeTargets[index];
+          const key = target?.key || "UNKNOWN_HOME_KEY";
           if (key.startsWith(KV_KEYS.HOME_PREFIX)) {
             const slug = key.slice(KV_KEYS.HOME_PREFIX.length);
-            failedWriteSlugs.add(slug);
             // 回滚缓存：恢复旧数据
             const existingHome = kvReadMap[key];
             if (existingHome && existingHome.rawMatches) {

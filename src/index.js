@@ -2,7 +2,7 @@ import { HomeRouter } from './routes/home.js';
 import { ArchiveRouter } from './routes/archive.js';
 import { ToolsRouter } from './routes/tools.js';
 import { APIRouter } from './routes/api.js';
-import { Updater } from './core/updater.js';
+import { Updater, UPDATE_CONFIG } from './core/updater.js';
 import { HTMLRenderer } from './render/htmlRenderer.js';
 import { GitHubClient } from './api/githubClient.js';
 import { KV_KEYS } from './utils/constants.js';
@@ -113,8 +113,8 @@ export default {
         }
 
         const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha, {
-          slowThresholdMinutes: Number(env.SLOW_THRESHOLD_MINUTES) || 60,
-          cronIntervalMinutes: Number(env.CRON_INTERVAL_MINUTES) || 3
+          slowThresholdMinutes: UPDATE_CONFIG.SLOW_THRESHOLD_MINUTES,
+          cronIntervalMinutes: UPDATE_CONFIG.CRON_INTERVAL_MINUTES
         });
         return new Response(html, { 
           headers: {
