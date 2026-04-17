@@ -277,10 +277,6 @@ export const LOG_PAGE_STYLE = `
     .mode-tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
     .mode-fast { background: #dbeafe; color: #1d4ed8; }
     .mode-slow { background: #f2d49c; color: #9c5326; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .dot-green { background: #22c55e; }
-    .dot-red { background: #ef4444; }
-    .dot-gray { background: #cbd5e1; }
     .card-stats { display: flex; gap: 16px; padding: 8px var(--card-x-pad); font-size: 12px; color: #94a3b8; border-bottom: 1px solid #f8fafc; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
     .stat-val { color: #0f172a; font-weight: 600; }
     .timeline { display: flex; gap: 2px; height: 16px; align-items: flex-end; padding: 6px 16px 0 16px; border-bottom: 1px solid #f8fafc; }

@@ -1065,9 +1065,6 @@ export class HTMLRenderer {
       const lastEntry = entries[0];
       const last = lastEntry.message || "";
       const isSlow = item.mode === "slow";
-      const hasErr = last.includes("❌") || last.includes("🚧");
-      const hasSync = entries.some(entry => entry.message.includes("🔄"));
-      const dotCls = hasErr ? "dot-red" : hasSync ? "dot-green" : "dot-gray";
       const modeCls = isSlow ? "mode-slow" : "mode-fast";
 
       const syncCount = entries.filter(entry => entry.message.includes("🔄")).length;
@@ -1090,7 +1087,7 @@ export class HTMLRenderer {
       }).join("");
 
       return `<div class="league-card">
-        <div class="league-card-header"><div class="league-card-title"><span class="league-card-name">${name}</span>${totalCount == null ? '' : `<span class="league-total-pill">${totalCount}</span>`}</div><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?`🐌${slowThresholdMinutes}m`:`⚡${cronIntervalMinutes}m`}</span><div class="status-dot ${dotCls}"></div></div></div>
+        <div class="league-card-header"><div class="league-card-title"><span class="league-card-name">${name}</span>${totalCount == null ? '' : `<span class="league-total-pill">${totalCount}</span>`}</div><div class="league-card-status"><span class="mode-tag ${modeCls}">${isSlow?`🐌${slowThresholdMinutes}m`:`⚡${cronIntervalMinutes}m`}</span></div></div>
         <div class="card-stats"><span>SYNC <span class="stat-val">${syncCount}</span></span><span>ERR <span class="stat-val">${errCount}</span></span><span>LAST <span class="stat-val utc-local" data-utc="${lastUtcIso}" data-format="datetime">${lastTime}</span></span></div>
         <div class="timeline">${bars}</div>
         <div class="league-card-logs">${rows}</div>
