@@ -122,10 +122,10 @@ jobs:
               return " AND ".join(parts)
 
           def apply_name_mapping(name: str):
-              """模糊替换：name 中包含 key 片段则替换为 value，未命中返回 (None, None)。"""
-              for k, v in NAME_MAPPING.items():
-                  if k.lower() in name.lower():
-                      return re.compile(re.escape(k), re.IGNORECASE).sub(v, name), k
+              for canonical, keywords in NAME_MAPPING.items():
+                  for k in keywords:
+                      if k.lower() in name.lower():
+                          return re.compile(re.escape(k), re.IGNORECASE).sub(canonical, name), k
               return None, None
 
           def make_session(url: str, bot_user: str, bot_pass: str) -> requests.Session:
