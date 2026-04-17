@@ -45,8 +45,7 @@ jobs:
           BLACKLIST = ["Opening"]
 
           NAME_MAPPING = {
-              "Rounds 1-2": "Rounds 1-4",
-              "Rounds 3-4": "Rounds 1-4",
+              "Rounds 1-4": ["Rounds 1-2", "Rounds 3-4"],
           }
 
           CARGO_FIELDS = [
