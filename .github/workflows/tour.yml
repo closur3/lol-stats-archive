@@ -343,18 +343,18 @@ jobs:
                       "end_date": str(v["end"]),
                   })
 
-              # 加载旧数据，保留未过期的，与新数据合并（新覆盖旧）
-              base_dict = {}
+              new_slugs = {item["slug"] for item in final_output}
               if os.path.exists(TARGET_FILE):
                   with open(TARGET_FILE, "r", encoding="utf-8") as f:
                       for item in json.load(f):
                           try:
-                              if today_dt <= (parse_date(item["end_date"]) + timedelta(days=EXPIRE_DAYS)):
-                                  base_dict[item["slug"]] = item
+                              start_dt = parse_date(item["start_date"])
+                              end_dt = parse_date(item["end_date"])
+                              is_cross_year = start_dt.year != end_dt.year
+                              if is_cross_year and today_dt <= (end_dt + timedelta(days=EXPIRE_DAYS)):
+                                  final_output.append(item)
                           except Exception:
                               pass
-              merged = {**base_dict, **{item["slug"]: item for item in final_output}}
-              final_output = list(merged.values())
 
               def sort_key(x):
                   start_date = x.get("start_date", "")
