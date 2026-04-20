@@ -271,15 +271,15 @@ export class Updater {
         })
     );
 
-    // 第三步：处理结果并写入 KV
+    // 第三步：收集需要写入的 KV（延迟写入，避免 CRON 中途失败导致 KV 已更新但实际未完成）
+    const pendingKvWrites = [];
     for (const checkResult of revChecks) {
       if (checkResult.status === 'rejected') continue;
 
       const { slug, shouldWriteRev, nextRecord, okCount, slugChanged, errCount, changedPages } = checkResult.value;
 
       if (shouldWriteRev && okCount > 0) {
-        const revKey = `REV_${slug}`;
-        await kvPut(this.env, revKey, JSON.stringify(nextRecord));
+        pendingKvWrites.push({ revKey: `REV_${slug}`, record: JSON.stringify(nextRecord) });
       }
 
       if (slugChanged) {
@@ -288,6 +288,11 @@ export class Updater {
       } else if (errCount > 0) {
         console.log(`[REV] ${slug}: partial errors ok=${okCount} err=${errCount}`);
       }
+    }
+
+    // 统一写入 KV
+    for (const { revKey, record } of pendingKvWrites) {
+      await kvPut(this.env, revKey, record);
     }
 
     // 统计跳过的
