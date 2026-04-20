@@ -55,7 +55,7 @@ jobs:
               "Year": [now.year],
               "TournamentLevel": "Primary",
               "IsQualifier": "0",
-              "Region": ["International", "China", "Korea", "EMEA"],
+              "Region": ["International", "China", "Korea"],
           }
           CARGO_WHERE_RAW = ["DateStart IS NOT NULL"]
           CARGO_ORDER_BY = "DateStart ASC"
