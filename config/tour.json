@@ -20,16 +20,5 @@
         ],
         "start_date": "2026-04-01",
         "end_date": "2026-08-23"
-    },
-    {
-        "slug": "lec-2026-spring",
-        "name": "LEC 2026 Spring",
-        "league": "LEC",
-        "overview_page": [
-            "LEC/2026 Season/Spring Season",
-            "LEC/2026 Season/Spring Playoffs"
-        ],
-        "start_date": "2026-03-28",
-        "end_date": "2026-06-07"
     }
 ]
