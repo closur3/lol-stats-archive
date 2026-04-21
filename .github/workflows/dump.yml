@@ -148,7 +148,7 @@ jobs:
           echo "commit_msg=$commit_msg" >> "$GITHUB_OUTPUT"
 
       - name: Commit and Push
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "${{ steps.commit_meta.outputs.commit_msg }}"
           file_pattern: "markdown/*.md"
