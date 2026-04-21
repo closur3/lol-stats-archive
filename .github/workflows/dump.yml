@@ -103,55 +103,52 @@ jobs:
                   text = re.sub(r'\*\*(\d{2}):00\*\*', replace_time_slot, text)
                   return text
 
-              changes_count = 0
-              created_files = []
-              updated_files = []
+              processed_files = 0
 
               for file_path, raw_template in data.items():
                   os.makedirs(os.path.dirname(file_path), exist_ok=True)
                   # 转换UTC时间为本地时间
                   converted_template = convert_utc_to_local(raw_template)
 
-                  if not os.path.exists(file_path):
-                      print(f"✨ [新建] {file_path}")
-                      created_files.append(file_path)
-                  else:
-                      with open(file_path, "r", encoding="utf-8") as f:
-                          old_content = f.read()
-
-                      if old_content != converted_template:
-                          print(f"⚡ [更新] {file_path}: 检测到比赛数据或排名变动")
-                          updated_files.append(file_path)
-                      else:
-                          print(f"💤 [跳过] {file_path}: 数据与本地一致")
-                          continue
-
+                  print(f"📝 [写入] {file_path}")
                   with open(file_path, "w", encoding="utf-8") as f:
                       f.write(converted_template)
-                  changes_count += 1
+                  processed_files += 1
 
-              print(f"\n✅ 处理完成。共更新/新建 {changes_count} 个文件。")
-
-              diff = [f"+ {os.path.basename(f)}" for f in created_files] + [f"~ {os.path.basename(f)}" for f in updated_files]
-
-              if len(diff) > 5:
-                  commit_msg = f"📁 Dump: +{len(created_files)}, ~{len(updated_files)}"
-              elif diff:
-                  commit_msg = f"📁 Dump: {' | '.join(diff)}"
-              else:
-                  commit_msg = "📁 Dump: no changes"
-
-              if "GITHUB_OUTPUT" in os.environ:
-                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                      f.write(f"commit_msg={commit_msg}\n")
+              print(f"\n✅ 处理完成。共写入 {processed_files} 个文件。")
 
           except Exception as e:
               print(f"❌ 脚本执行发生错误: {e}")
               exit(1)
         shell: python
 
+      - name: Build Commit Message
+        id: commit_meta
+        shell: bash
+        run: |
+          commit_msg=$(git diff --name-status -- 'markdown/*.md' | awk '
+            { s=substr($1,1,1); f=$2; sub(".*/","",f); sub(/\.[^.]+$/, "", f);
+              if (s=="A") a[++na]=f; else if (s=="M") m[++nm]=f }
+            END {
+              n=na+nm
+              if (n==0) { print "📁 Dump: no changes"; exit }
+              out=""
+              if (na>0) {
+                add="+ "
+                for (i=1;i<=na;i++) add=add (i>1?" / ":"") a[i]
+                out=add
+              }
+              if (nm>0) {
+                mod="~ "
+                for (i=1;i<=nm;i++) mod=mod (i>1?" / ":"") m[i]
+                out=out (length(out)>0?" | ":"") mod
+              }
+              print "📁 Dump: " out
+            }')
+          echo "commit_msg=$commit_msg" >> "$GITHUB_OUTPUT"
+
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "${{ steps.process_data.outputs.commit_msg }}"
+          commit_message: "${{ steps.commit_meta.outputs.commit_msg }}"
           file_pattern: "markdown/*.md"
