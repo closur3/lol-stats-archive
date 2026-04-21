@@ -201,7 +201,8 @@ jobs:
           # ==================== 主流程 ====================
 
           def run_sniff():
-              old_slugs = {item.get("slug") for item in (load_json(TARGET_FILE, []) or []) if item.get("slug")}
+              old_items = load_json(TARGET_FILE, []) or []
+              old_slugs = {item.get("slug") for item in old_items if item.get("slug")}
 
               log_sep()
               log("INFO", f"系统初始化完成 (日期: {today_dt}) | 开始抓取赛事目录")
@@ -371,13 +372,28 @@ jobs:
               with open(TARGET_FILE, "w", encoding="utf-8") as f:
                   json.dump(unique_res, f, indent=4, ensure_ascii=False)
 
-              new_s = {item["slug"] for item in unique_res}
-              diff = [f"+ {s}" for s in sorted(new_s - old_slugs)] + [f"- {s}" for s in sorted(old_slugs - new_s)]
+              old_map = {item.get("slug"): item for item in old_items if item.get("slug")}
+              new_map = {item.get("slug"): item for item in unique_res if item.get("slug")}
 
-              if len(diff) > 5:
-                  commit_msg = f"🎯 Tour: +{len(new_s - old_slugs)}, -{len(old_slugs - new_s)}"
-              elif diff:
-                  commit_msg = f"🎯 Tour: {' | '.join(diff)}"
+              added = sorted(new_map.keys() - old_map.keys())
+              removed = sorted(old_map.keys() - new_map.keys())
+              updated = sorted(
+                  slug for slug in (new_map.keys() & old_map.keys())
+                  if new_map[slug] != old_map[slug]
+              )
+
+              total_changes = len(added) + len(updated) + len(removed)
+              if total_changes > 5:
+                  commit_msg = f"🎯 Tour: +{len(added)}, ~{len(updated)}, -{len(removed)}"
+              elif total_changes > 0:
+                  parts = []
+                  if added:
+                      parts.append(f"+ {' / '.join(added)}")
+                  if updated:
+                      parts.append(f"~ {' / '.join(updated)}")
+                  if removed:
+                      parts.append(f"- {' / '.join(removed)}")
+                  commit_msg = f"🎯 Tour: {' | '.join(parts)}"
               else:
                   commit_msg = "🎯 Tour: no changes"
 
