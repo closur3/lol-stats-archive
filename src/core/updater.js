@@ -55,6 +55,7 @@ export class Updater {
       return this.logger;
     }
 
+    await this.rewriteMetaState(runtimeConfig);
     await this.refreshScheduleBoardOnDayRollover(runtimeConfig);
 
     const NOW = Date.now();
@@ -277,9 +278,20 @@ export class Updater {
       return null;
     }
 
+    await this.rewriteMetaState(runtimeConfig);
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS);
     runtimeConfig.TOURNAMENTS = dateUtils.sortTournamentsByDate(runtimeConfig.TOURNAMENTS);
     return { NOW, runtimeConfig, teamsRaw, cache };
+  }
+
+  async rewriteMetaState(runtimeConfig) {
+    const activeSlugs = (runtimeConfig?.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
+    const meta = await readMetaState(this.env, activeSlugs);
+    return writeMetaState(this.env, {
+      tournamentMetaBySlug: meta.tournaments || {},
+      scheduleDayMark: meta.scheduleDayMark || null,
+      activeSlugs
+    });
   }
 
   /**
