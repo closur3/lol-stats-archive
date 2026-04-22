@@ -315,8 +315,8 @@ export class Updater {
     } catch (error) { console.error("[Context] Failed to prepare runtime context:", error.message); }
 
     if (!runtimeConfig) {
-      console.error(`🔴 [ERR!] | ❌ Config(Fail)`);
-      return null;
+      this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
+      return this.logger;
     }
 
     // 规范化 Meta 状态（移除过期赛事等脏数据）
