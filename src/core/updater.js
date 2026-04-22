@@ -5,7 +5,7 @@ import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
-import { readMetaState, writeMetaState, rewriteMetaState as rewriteMetaStateKV, tournamentMetaEqual } from '../utils/Meta.js';
+import { readMetaState, writeMetaState, tournamentMetaEqual, normalizeMetaState } from '../utils/Meta.js';
 import { kvPut, kvDelete } from '../utils/kvStore.js';
 
 // 更新配置常量
@@ -92,16 +92,22 @@ export class Updater {
   async refreshScheduleBoardOnDayRollover(runtimeConfig) {
     const today = dateUtils.getNow().dateString;
     const activeSlugs = (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
-    const meta = await readMetaState(this.env, activeSlugs);
+    
+    // 只读取一次 KV，同时获取原始数据和规范化数据
+    const currentRaw = await this.env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
+    const meta = normalizeMetaState(currentRaw, activeSlugs);
     const lastDay = meta.scheduleDayMark;
     if (lastDay === today) return;
 
     await this.cleanupStaleHomeKeys(runtimeConfig);
     await this.refreshHomeStaticFromCache();
+    
+    // 复用已读取的 currentRaw，避免二次读取
     await writeMetaState(this.env, {
       tournamentMetaBySlug: meta.tournaments || {},
       scheduleDayMark: today,
-      activeSlugs
+      activeSlugs,
+      currentRaw
     });
     console.log(`[SCHEDULE] rollover refresh ${lastDay || "none"} -> ${today}`);
   }
@@ -309,21 +315,23 @@ export class Updater {
     } catch (error) { console.error("[Context] Failed to prepare runtime context:", error.message); }
 
     if (!runtimeConfig) {
-      this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
+      console.error(`🔴 [ERR!] | ❌ Config(Fail)`);
       return null;
     }
 
+    // 规范化 Meta 状态（移除过期赛事等脏数据）
     if (!skipMetaRewrite) {
-      await this.rewriteMetaState(runtimeConfig);
+      const activeSlugs = (runtimeConfig?.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
+      const currentRaw = await this.env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
+      await writeMetaState(this.env, {
+        tournamentMetaBySlug: currentRaw?.tournaments || {},
+        activeSlugs,
+        currentRaw
+      });
     }
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS);
     runtimeConfig.TOURNAMENTS = dateUtils.sortTournamentsByDate(runtimeConfig.TOURNAMENTS);
     return { NOW, runtimeConfig, teamsRaw, cache };
-  }
-
-  async rewriteMetaState(runtimeConfig) {
-    const activeSlugs = (runtimeConfig?.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
-    return rewriteMetaStateKV(this.env, { activeSlugs });
   }
 
   /**
