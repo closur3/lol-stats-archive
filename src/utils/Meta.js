@@ -60,43 +60,30 @@ export async function readMetaState(env, activeSlugs = null) {
 export async function writeMetaState(env, {
   tournamentMetaBySlug = {},
   scheduleDayMark = null,
-  activeSlugs = null
+  activeSlugs = null,
+  currentRaw = undefined
 } = {}) {
-  const currentRaw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
+  // 复用已读取的数据，避免重复 KV 读取
+  const resolvedCurrentRaw = currentRaw !== undefined
+    ? currentRaw
+    : await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
 
-  // 构建新状态
-  const activeSlugSet = normalizeActiveSlugSet(activeSlugs);
-  const tournaments = {};
-  Object.entries(tournamentMetaBySlug).forEach(([slug, value]) => {
-    if (!slug) return;
-    if (activeSlugSet && !activeSlugSet.has(slug)) return;
-    tournaments[slug] = normalizeTournamentMeta(value);
-  });
-
-  const nextScheduleDayMark = typeof scheduleDayMark === 'string'
+  // 保留原有的 scheduleDayMark（除非显式传入新值）
+  const resolvedScheduleDayMark = typeof scheduleDayMark === 'string'
     ? scheduleDayMark
-    : (currentRaw?.scheduleDayMark || null);
+    : (resolvedCurrentRaw?.scheduleDayMark || null);
 
-  const next = {
-    tournaments,
-    scheduleDayMark: nextScheduleDayMark
-  };
+  // 复用 normalizeMetaState 进行规范化
+  const next = normalizeMetaState({
+    tournaments: tournamentMetaBySlug,
+    scheduleDayMark: resolvedScheduleDayMark
+  }, activeSlugs);
 
   // 简单对比：无变化则跳过写入
-  if (JSON.stringify(currentRaw) === JSON.stringify(next)) {
+  if (JSON.stringify(resolvedCurrentRaw) === JSON.stringify(next)) {
     return next;
   }
 
   await kvPut(env, KV_KEYS.META, JSON.stringify(next));
   return next;
-}
-
-export async function rewriteMetaState(env, { activeSlugs = null } = {}) {
-  const currentRaw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
-  const normalized = normalizeMetaState(currentRaw, activeSlugs);
-  if (JSON.stringify(currentRaw || {}) === JSON.stringify(normalized)) {
-    return normalized;
-  }
-  await kvPut(env, KV_KEYS.META, JSON.stringify(normalized));
-  return normalized;
 }
