@@ -44,30 +44,6 @@ export class Updater {
     return "~0";
   }
 
-  async updateLastStatusForSlugs(attemptedSlugs, failedSlugs) {
-    const attempted = Array.from(new Set((attemptedSlugs || []).map(slug => String(slug)).filter(Boolean)));
-    if (attempted.length === 0) return;
-
-    const failedSet = new Set(Array.from(new Set((failedSlugs || []).map(slug => String(slug)).filter(Boolean))));
-    const metaState = await readMetaState(this.env);
-    const nextMetaState = {
-      ...metaState,
-      tournaments: { ...(metaState.tournaments || {}) }
-    };
-
-    let changed = false;
-    attempted.forEach(slug => {
-      if (!nextMetaState.tournaments[slug]) nextMetaState.tournaments[slug] = {};
-      const nextStatus = failedSet.has(slug) ? "failed" : "success";
-      if (nextMetaState.tournaments[slug].lastStatus !== nextStatus) {
-        nextMetaState.tournaments[slug].lastStatus = nextStatus;
-        changed = true;
-      }
-    });
-
-    if (changed) await writeMetaState(this.env, nextMetaState);
-  }
-
   /**
    * Cron入口：先做revid轻量检测，再决定是否触发更新
    */
@@ -83,15 +59,9 @@ export class Updater {
 
     const NOW = Date.now();
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
-    const previousFailedSlugs = new Set(
-      (runtimeConfig.TOURNAMENTS || [])
-        .map(tournament => tournament?.slug)
-        .filter(Boolean)
-        .filter(slug => cache?.meta?.tournaments?.[slug]?.lastStatus === "failed")
-    );
     const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
     console.log(`[CRON] rev-check checked=${checkedSlugs} th-skip=${thresholdSkippedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
-    const targetSlugs = new Set([...previousFailedSlugs, ...changedSlugs]);
+    const targetSlugs = new Set(changedSlugs);
 
     if (targetSlugs.size === 0) {
       console.log("[REV-GATE] No revision changes, running local update");
@@ -102,9 +72,7 @@ export class Updater {
     return this.runFandomUpdate(false, targetSlugs, {
       forceWrite: false,
       revidChanges: revidChanges,
-      pendingRevisionWrites,
-      recordLastStatus: true,
-      isRetry: previousFailedSlugs.size > 0
+      pendingRevisionWrites
     });
   }
 
@@ -317,8 +285,6 @@ export class Updater {
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
     const pendingRevisionWrites = options.pendingRevisionWrites || {};
-    const recordLastStatus = !!options.recordLastStatus;
-    const isRetrySlugs = !!options.isRetry;
     const context = await this.prepareRuntimeContext();
     if (!context) return this.logger;
     const { NOW, runtimeConfig, teamsRaw, cache } = context;
@@ -338,14 +304,11 @@ export class Updater {
     const fandomClient = new FandomClient(authContext);
 
     // 执行数据抓取
-    const results = await this.fetchMatchData(fandomClient, candidates, cache, NOW);
+    const results = await this.fetchMatchData(fandomClient, candidates);
 
     // 处理结果
-    const { failedSlugs, syncItems, idleItems, breakers, apiErrors, displayNameMap } = this.processResults(results, cache, NOW, force, forceSlugs, isRetrySlugs, runtimeConfig);
+    const { failedSlugs, syncItems, idleItems, breakers, apiErrors, displayNameMap } = this.processResults(results, cache, force, forceSlugs, runtimeConfig);
     console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
-    if (recordLastStatus) {
-      await this.updateLastStatusForSlugs(candidates.map(item => item.slug), Array.from(failedSlugs));
-    }
 
     // 将 revid 变化信息注入 syncItems 和 idleItems
     for (const item of [...syncItems, ...idleItems]) {
@@ -571,7 +534,7 @@ export class Updater {
   /**
    * 抓取比赛数据
    */
-  async fetchMatchData(fandomClient, candidates, cache, NOW) {
+  async fetchMatchData(fandomClient, candidates) {
     const results = await Promise.allSettled(
       candidates.map(async (candidate) => {
         const fetchedMatches = await fandomClient.fetchAllMatches(candidate.slug, candidate.overview_page, null);
@@ -592,7 +555,7 @@ export class Updater {
   /**
    * 处理抓取结果
    */
-  processResults(results, cache, NOW, force, forceSlugs, isRetrySlugs, runtimeConfig) {
+  processResults(results, cache, force, forceSlugs, runtimeConfig) {
     const failedSlugs = new Set();
     const syncItems = [];
     const idleItems = [];
@@ -655,8 +618,7 @@ export class Updater {
         const slug = resultItem.slug;
         const newData = resultItem.data || [];
         const oldData = cache.rawMatches[slug] || [];
-        const isRetry = isRetrySlugs && isTargetSlug(slug);
-        const isForce = force || (!isRetry && isTargetSlug(slug));
+        const isForce = force || isTargetSlug(slug);
 
         if (!isForce && oldData.length > 10 && newData.length < oldData.length * UPDATE_CONFIG.DROP_THRESHOLD) {
           breakers.push(`${slug}(Drop ${oldData.length}->${newData.length})`);
@@ -670,11 +632,10 @@ export class Updater {
               displayName: getDisplayName(slug),
               added: changedCount.added,
               updated: changedCount.updated,
-              isForce,
-              isRetry
+              isForce
             });
           } else {
-            idleItems.push({ slug, displayName: getDisplayName(slug), added: 0, updated: 0, isForce, isRetry });
+            idleItems.push({ slug, displayName: getDisplayName(slug), added: 0, updated: 0, isForce });
           }
         }
       } else {
@@ -750,7 +711,6 @@ export class Updater {
         return `<a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
       }
       if (item.isForce) return "Force";
-      if (item.isRetry) return "Retry";
       return "";
     };
 
