@@ -1,6 +1,51 @@
 import { KV_KEYS } from './constants.js';
 import { kvPut } from './kvStore.js';
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function shallowEqual(left, right) {
+  if (left === right) return true;
+  if (!isPlainObject(left) || !isPlainObject(right)) return false;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (const key of leftKeys) {
+    if (!Object.prototype.hasOwnProperty.call(right, key)) return false;
+    if (left[key] !== right[key]) return false;
+  }
+  return true;
+}
+
+function tournamentsMetaEqual(left, right) {
+  const leftInput = isPlainObject(left) ? left : {};
+  const rightInput = isPlainObject(right) ? right : {};
+  const leftKeys = Object.keys(leftInput);
+  const rightKeys = Object.keys(rightInput);
+  if (leftKeys.length !== rightKeys.length) return false;
+
+  for (const slug of leftKeys) {
+    if (!Object.prototype.hasOwnProperty.call(rightInput, slug)) return false;
+    if (!shallowEqual(leftInput[slug], rightInput[slug])) return false;
+  }
+  return true;
+}
+
+function metaStateEqual(left, right) {
+  const leftInput = isPlainObject(left) ? left : {};
+  const rightInput = isPlainObject(right) ? right : {};
+  if ((leftInput.scheduleDayMark || null) !== (rightInput.scheduleDayMark || null)) return false;
+  return tournamentsMetaEqual(leftInput.tournaments, rightInput.tournaments);
+}
+
+export function tournamentMetaEqual(left, right) {
+  return shallowEqual(
+    normalizeTournamentMeta(left),
+    normalizeTournamentMeta(right)
+  );
+}
+
 function normalizeTournamentMeta(rawTournamentMeta) {
   const input = (rawTournamentMeta && typeof rawTournamentMeta === 'object' && !Array.isArray(rawTournamentMeta))
     ? rawTournamentMeta
@@ -43,14 +88,33 @@ export async function readMetaState(env, activeSlugs = null) {
   return normalizeMetaState(raw, activeSlugs);
 }
 
-export async function writeMetaState(env, { tournamentMetaBySlug = {}, scheduleDayMark = null, activeSlugs = null } = {}) {
-  const normalized = normalizeMetaState(
+export async function writeMetaState(env, { tournamentMetaBySlug = {}, scheduleDayMark = undefined, activeSlugs = null } = {}) {
+  // Read-latest then merge to reduce concurrent overwrite risk between cron and manual triggers.
+  const currentRaw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
+  const current = normalizeMetaState(currentRaw, activeSlugs);
+  const incoming = normalizeMetaState(
     {
-      tournaments: tournamentMetaBySlug,
-      scheduleDayMark
+      tournaments: tournamentMetaBySlug
     },
     activeSlugs
   );
-  await kvPut(env, KV_KEYS.META, JSON.stringify(normalized));
-  return normalized;
+
+  const next = {
+    tournaments: {
+      ...(current.tournaments || {}),
+      ...(incoming.tournaments || {})
+    },
+    scheduleDayMark: typeof scheduleDayMark === 'string'
+      ? scheduleDayMark
+      : scheduleDayMark === null
+        ? null
+        : (current.scheduleDayMark || null)
+  };
+
+  if (metaStateEqual(current, next)) {
+    return next;
+  }
+
+  await kvPut(env, KV_KEYS.META, JSON.stringify(next));
+  return next;
 }

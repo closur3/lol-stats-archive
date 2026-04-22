@@ -5,7 +5,7 @@ import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
-import { readMetaState, writeMetaState } from '../utils/Meta.js';
+import { readMetaState, writeMetaState, normalizeMetaState, tournamentMetaEqual } from '../utils/Meta.js';
 import { kvPut, kvDelete } from '../utils/kvStore.js';
 
 // 更新配置常量
@@ -66,14 +66,15 @@ export class Updater {
 
     if (targetSlugs.size === 0) {
       console.log("[REV-GATE] No revision changes, running local update");
-      return this.runLocalUpdate();
+      return this.runLocalUpdate({ skipMetaRewrite: true });
     }
 
     console.log(`[REV-GATE] Target slugs: ${Array.from(targetSlugs).join(", ")}`);
     return this.runFandomUpdate(false, targetSlugs, {
       forceWrite: false,
       revidChanges: revidChanges,
-      pendingRevisionWrites
+      pendingRevisionWrites,
+      skipMetaRewrite: true
     });
   }
 
@@ -264,7 +265,8 @@ export class Updater {
     return { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs };
   }
 
-  async prepareRuntimeContext() {
+  async prepareRuntimeContext(options = {}) {
+    const skipMetaRewrite = options.skipMetaRewrite === true;
     const NOW = Date.now();
     let runtimeConfig = null;
     let teamsRaw = null;
@@ -278,7 +280,9 @@ export class Updater {
       return null;
     }
 
-    await this.rewriteMetaState(runtimeConfig);
+    if (!skipMetaRewrite) {
+      await this.rewriteMetaState(runtimeConfig);
+    }
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS);
     runtimeConfig.TOURNAMENTS = dateUtils.sortTournamentsByDate(runtimeConfig.TOURNAMENTS);
     return { NOW, runtimeConfig, teamsRaw, cache };
@@ -286,13 +290,14 @@ export class Updater {
 
   async rewriteMetaState(runtimeConfig) {
     const activeSlugs = (runtimeConfig?.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
-    const currentMeta = await this.env["lol-stats-kv"].get(KV_KEYS.META, { type: "json" });
-    const meta = await readMetaState(this.env, activeSlugs);
+    const currentMetaRaw = await this.env["lol-stats-kv"].get(KV_KEYS.META, { type: "json" });
+    const currentMeta = normalizeMetaState(currentMetaRaw);
+    const meta = normalizeMetaState(currentMetaRaw, activeSlugs);
     const nextMeta = {
       tournaments: meta.tournaments || {},
       scheduleDayMark: meta.scheduleDayMark || null
     };
-    if (JSON.stringify(currentMeta || {}) === JSON.stringify(nextMeta)) {
+    if (JSON.stringify(currentMeta) === JSON.stringify(nextMeta)) {
       return nextMeta;
     }
     return writeMetaState(this.env, {
@@ -309,7 +314,8 @@ export class Updater {
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
     const pendingRevisionWrites = options.pendingRevisionWrites || {};
-    const context = await this.prepareRuntimeContext();
+    const skipMetaRewrite = options.skipMetaRewrite === true;
+    const context = await this.prepareRuntimeContext({ skipMetaRewrite });
     if (!context) return this.logger;
     const { NOW, runtimeConfig, teamsRaw, cache } = context;
 
@@ -389,8 +395,9 @@ export class Updater {
   /**
    * 本地更新：不联网，仅基于缓存重算并写入（用于revid未变化场景）
    */
-  async runLocalUpdate() {
-    const context = await this.prepareRuntimeContext();
+  async runLocalUpdate(options = {}) {
+    const skipMetaRewrite = options.skipMetaRewrite === true;
+    const context = await this.prepareRuntimeContext({ skipMetaRewrite });
     if (!context) return this.logger;
     const { runtimeConfig, teamsRaw, cache } = context;
 
@@ -413,7 +420,7 @@ export class Updater {
         ...computedMeta
       };
 
-      if (JSON.stringify(previousMetaForTournament) === JSON.stringify(nextMeta)) continue;
+      if (tournamentMetaEqual(previousMetaForTournament, nextMeta)) continue;
       nextTournamentMeta[slug] = nextMeta;
       changedSlugs.push(slug);
     }
@@ -778,20 +785,23 @@ export class Updater {
     const previousTournamentsMeta = cache.meta?.tournaments || {};
     const analyzedTournamentsMeta = analysis.tournamentMeta || {};
     const mergedTournamentsMeta = { ...previousTournamentsMeta };
+    let metaChanged = false;
     for (const [slug, nextMeta] of Object.entries(analyzedTournamentsMeta)) {
-      mergedTournamentsMeta[slug] = {
+      const mergedForSlug = {
         ...(previousTournamentsMeta[slug] || {}),
         ...(nextMeta || {})
       };
+      mergedTournamentsMeta[slug] = mergedForSlug;
+      if (!metaChanged && !tournamentMetaEqual(previousTournamentsMeta[slug], mergedForSlug)) {
+        metaChanged = true;
+      }
     }
     const mergedMetaState = {
       tournaments: mergedTournamentsMeta,
       scheduleDayMark: cache.meta?.scheduleDayMark || null
     };
-    const mergedMetaJson = JSON.stringify(mergedMetaState.tournaments || {});
-    const cacheMetaJson = JSON.stringify(cache.meta?.tournaments || {});
-    
-    if (mergedMetaJson !== cacheMetaJson) {
+
+    if (metaChanged) {
       await writeMetaState(this.env, {
         tournamentMetaBySlug: mergedTournamentsMeta,
         scheduleDayMark: mergedMetaState.scheduleDayMark,
