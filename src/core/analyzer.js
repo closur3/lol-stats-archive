@@ -4,7 +4,6 @@ import { dataUtils } from '../utils/dataUtils.js';
 // 分析配置常量
 const ANALYZER_CONFIG = {
   MATCH_INTERVAL_HOURS_THRESHOLD: 8,  // 比赛间隔阈值（小时），超过则切换 slow 模式
-  MAX_TIME_SLOTS: 8,                   // 时间聚类最大槽位数
 };
 
 /**
@@ -77,8 +76,8 @@ export class Analyzer {
     const timeGrid = { "ALL": {} };
     const createSlot = () => {
       const slot = {};
-      for(let slotIndex = 0; slotIndex < ANALYZER_CONFIG.MAX_TIME_SLOTS; slotIndex++) {
-        slot[slotIndex] = { totalMatchCount: 0, fullLengthMatchCount: 0, matches: [] };
+      for (let dayIndex = 0; dayIndex < 8; dayIndex++) {
+        slot[dayIndex] = { totalMatchCount: 0, fullLengthMatchCount: 0, matches: [] };
       }
       return slot;
     };
