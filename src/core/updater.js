@@ -81,13 +81,18 @@ export class Updater {
    */
   async refreshScheduleBoardOnDayRollover(runtimeConfig) {
     const today = dateUtils.getNow().dateString;
-    const meta = await readMetaState(this.env);
+    const activeSlugs = (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
+    const meta = await readMetaState(this.env, activeSlugs);
     const lastDay = meta.scheduleDayMark;
     if (lastDay === today) return;
 
     await this.cleanupStaleHomeKeys(runtimeConfig);
     await this.refreshHomeStaticFromCache();
-    await writeMetaState(this.env, { ...meta, scheduleDayMark: today });
+    await writeMetaState(this.env, {
+      tournamentMetaBySlug: meta.tournaments || {},
+      scheduleDayMark: today,
+      activeSlugs
+    });
     console.log(`[SCHEDULE] rollover refresh ${lastDay || "none"} -> ${today}`);
   }
 
@@ -138,9 +143,8 @@ export class Updater {
         if (tournamentMetaFromKv) {
           mode = tournamentMetaFromKv.mode || "fast";
           const startTimestamp = tournamentMetaFromKv.startTimestamp || 0;
-          const isModeOverride = !!tournamentMetaFromKv.modeOverride;
           const isMatchStarted = startTimestamp > 0 && NOW >= startTimestamp;
-          threshold = (mode === "slow" && (isModeOverride || !isMatchStarted)) ? this.getSlowThresholdMs() : 0;
+          threshold = (mode === "slow" && !isMatchStarted) ? this.getSlowThresholdMs() : 0;
         }
 
         const shouldSkip = elapsed < threshold;
@@ -396,8 +400,9 @@ export class Updater {
 
     if (changedSlugs.length > 0) {
       await writeMetaState(this.env, {
-        ...(cache.meta || {}),
-        tournaments: nextTournamentMeta
+        tournamentMetaBySlug: nextTournamentMeta,
+        scheduleDayMark: cache.meta?.scheduleDayMark || null,
+        activeSlugs: (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean)
       });
       console.log(`[LOCAL] meta changed: ${changedSlugs.join(", ")}`);
       await this.refreshHomeStaticFromCache();
@@ -482,13 +487,14 @@ export class Updater {
    */
   async loadCachedData(tournaments) {
     const cache = { rawMatches: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
+    const activeSlugs = (tournaments || []).map(tournament => tournament?.slug).filter(Boolean);
     
     const homeEntries = await Promise.all((tournaments || []).map(async tournament => {
       const homeEntry = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + tournament.slug, { type: "json" });
       return [tournament.slug, homeEntry];
     }));
 
-    const metaState = await readMetaState(this.env);
+    const metaState = await readMetaState(this.env, activeSlugs);
     const mergedTournamentsMeta = { ...(metaState.tournaments || {}) };
     
     homeEntries.forEach(([slug, home]) => {
@@ -759,14 +765,18 @@ export class Updater {
       };
     }
     const mergedMetaState = {
-      ...(cache.meta || {}),
-      tournaments: mergedTournamentsMeta
+      tournaments: mergedTournamentsMeta,
+      scheduleDayMark: cache.meta?.scheduleDayMark || null
     };
     const mergedMetaJson = JSON.stringify(mergedMetaState.tournaments || {});
     const cacheMetaJson = JSON.stringify(cache.meta?.tournaments || {});
     
     if (mergedMetaJson !== cacheMetaJson) {
-      await writeMetaState(this.env, mergedMetaState);
+      await writeMetaState(this.env, {
+        tournamentMetaBySlug: mergedTournamentsMeta,
+        scheduleDayMark: mergedMetaState.scheduleDayMark,
+        activeSlugs: (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean)
+      });
       cache.meta = mergedMetaState;
     }
 
