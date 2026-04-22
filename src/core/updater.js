@@ -89,7 +89,7 @@ export class Updater {
         .filter(Boolean)
         .filter(slug => cache?.meta?.tournaments?.[slug]?.lastStatus === "failed")
     );
-    const { changedSlugs, revidChanges, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
+    const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
     console.log(`[CRON] rev-check checked=${checkedSlugs} th-skip=${thresholdSkippedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
     const targetSlugs = new Set([...previousFailedSlugs, ...changedSlugs]);
 
@@ -102,6 +102,7 @@ export class Updater {
     return this.runFandomUpdate(false, targetSlugs, {
       forceWrite: false,
       revidChanges: revidChanges,
+      pendingRevisionWrites,
       recordLastStatus: true,
       isRetry: previousFailedSlugs.size > 0
     });
@@ -139,6 +140,7 @@ export class Updater {
   async detectRevisionChanges(tournaments, cache, NOW) {
     const changedSlugs = new Set();
     const revidChanges = {};
+    const pendingRevisionWrites = {};
     let hasErrors = false;
     let checkedSlugs = 0;
     let thresholdSkippedSlugs = 0;
@@ -271,15 +273,14 @@ export class Updater {
         })
     );
 
-    // 第三步：处理结果并写入 KV
+    // 第三步：处理结果，记录待提交的 REV 写入
     for (const checkResult of revChecks) {
       if (checkResult.status === 'rejected') continue;
 
       const { slug, shouldWriteRev, nextRecord, okCount, slugChanged, errCount, changedPages } = checkResult.value;
 
       if (shouldWriteRev && okCount > 0) {
-        const revKey = `REV_${slug}`;
-        await kvPut(this.env, revKey, JSON.stringify(nextRecord));
+        pendingRevisionWrites[slug] = nextRecord;
       }
 
       if (slugChanged) {
@@ -293,7 +294,7 @@ export class Updater {
     // 统计跳过的
     thresholdSkippedSlugs = thresholdChecks.filter(check => check && check.shouldSkip).length;
 
-    return { changedSlugs, revidChanges, hasErrors, checkedSlugs, thresholdSkippedSlugs };
+    return { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs };
   }
 
   async prepareRuntimeContext() {
@@ -321,6 +322,7 @@ export class Updater {
   async runFandomUpdate(force = false, forceSlugs = null, options = {}) {
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
+    const pendingRevisionWrites = options.pendingRevisionWrites || {};
     const recordLastStatus = !!options.recordLastStatus;
     const isRetrySlugs = !!options.isRetry;
     const context = await this.prepareRuntimeContext();
@@ -369,9 +371,25 @@ export class Updater {
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap);
 
     // 保存数据
-    await this.saveData(runtimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries);
+    const saveSummary = await this.saveData(runtimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries);
+
+    await this.commitRevisionWrites(pendingRevisionWrites, failedSlugs, saveSummary?.failedHomeSlugs || new Set());
 
     return this.logger;
+  }
+
+  async commitRevisionWrites(pendingRevisionWrites, failedSlugs = new Set(), failedHomeSlugs = new Set()) {
+    const entries = Object.entries(pendingRevisionWrites || {}).filter(([slug, record]) => {
+      if (!slug || !record) return false;
+      if (failedSlugs.has(slug)) return false;
+      if (failedHomeSlugs.has(slug)) return false;
+      return true;
+    });
+
+    for (const [slug, record] of entries) {
+      const revKey = `REV_${slug}`;
+      await kvPut(this.env, revKey, JSON.stringify(record));
+    }
   }
 
   /**
@@ -892,6 +910,7 @@ export class Updater {
 
     const writeResults = await Promise.allSettled(writePromises);
     const failedWrites = writeResults.filter(r => r.status === 'rejected');
+    const failedHomeSlugs = new Set();
     
     if (failedWrites.length > 0) {
       // 收集写入失败的 slug 并回滚缓存
@@ -901,6 +920,7 @@ export class Updater {
           const key = target?.key || "UNKNOWN_HOME_KEY";
           if (key.startsWith(KV_KEYS.HOME_PREFIX)) {
             const slug = key.slice(KV_KEYS.HOME_PREFIX.length);
+            failedHomeSlugs.add(slug);
             // 回滚缓存：恢复旧数据
             const existingHome = kvReadMap[key];
             if (existingHome && existingHome.rawMatches) {
@@ -942,6 +962,7 @@ export class Updater {
       }
     }
 
+    return { failedHomeSlugs };
   }
 
   /**
