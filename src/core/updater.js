@@ -74,6 +74,8 @@ export class Updater {
 
     if (targetSlugs.size === 0) {
       console.log("[REV-GATE] No revision changes, running local update");
+      // 即使没有 revid 变化，也需要提交 pending revision writes（更新 checkedAt）
+      await this.commitRevisionWrites(pendingRevisionWrites);
       return this.runLocalUpdate({ skipMetaRewrite: true });
     }
 
