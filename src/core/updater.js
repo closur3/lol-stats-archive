@@ -49,18 +49,28 @@ export class Updater {
    */
   async runScheduledUpdate() {
     const startedAt = Date.now();
+    const markStart = Date.now();
     const runtimeConfig = await this.loadRuntimeConfig();
+    console.log(`[PERF] scheduled.loadRuntimeConfig=${Date.now() - markStart}ms`);
     if (!runtimeConfig) {
       this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
       return this.logger;
     }
 
+    const rewriteStart = Date.now();
     await this.rewriteMetaState(runtimeConfig);
+    console.log(`[PERF] scheduled.rewriteMetaState=${Date.now() - rewriteStart}ms`);
+    const refreshStart = Date.now();
     await this.refreshScheduleBoardOnDayRollover(runtimeConfig);
+    console.log(`[PERF] scheduled.refreshScheduleBoardOnDayRollover=${Date.now() - refreshStart}ms`);
 
     const NOW = Date.now();
+    const cacheStart = Date.now();
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
+    console.log(`[PERF] scheduled.loadCachedData=${Date.now() - cacheStart}ms`);
+    const revStart = Date.now();
     const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
+    console.log(`[PERF] scheduled.detectRevisionChanges=${Date.now() - revStart}ms`);
     console.log(`[CRON] rev-check checked=${checkedSlugs} th-skip=${thresholdSkippedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
     const targetSlugs = new Set(changedSlugs);
 
@@ -336,11 +346,14 @@ export class Updater {
    * 联网更新：查Fandom并写回
    */
   async runFandomUpdate(force = false, forceSlugs = null, options = {}) {
+    const totalStart = Date.now();
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
     const pendingRevisionWrites = options.pendingRevisionWrites || {};
     const skipMetaRewrite = options.skipMetaRewrite === true;
+    const contextStart = Date.now();
     const context = await this.prepareRuntimeContext({ skipMetaRewrite });
+    console.log(`[PERF] fandom.prepareRuntimeContext=${Date.now() - contextStart}ms`);
     if (!context) return this.logger;
     const { NOW, runtimeConfig, teamsRaw, cache } = context;
 
@@ -355,14 +368,20 @@ export class Updater {
     const revidChanges = passedRevidChanges;
 
     // 登录到Fandom
+    const loginStart = Date.now();
     const authContext = await FandomClient.login(this.env.FANDOM_USER, this.env.FANDOM_PASS);
+    console.log(`[PERF] fandom.login=${Date.now() - loginStart}ms`);
     const fandomClient = new FandomClient(authContext);
 
     // 执行数据抓取
+    const fetchStart = Date.now();
     const results = await this.fetchMatchData(fandomClient, candidates);
+    console.log(`[PERF] fandom.fetchMatchData=${Date.now() - fetchStart}ms`);
 
     // 处理结果
+    const processStart = Date.now();
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors, displayNameMap } = this.processResults(results, cache, force, forceSlugs, runtimeConfig);
+    console.log(`[PERF] fandom.processResults=${Date.now() - processStart}ms`);
     console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
 
     // 将 revid 变化信息注入 syncItems 和 idleItems
@@ -376,16 +395,23 @@ export class Updater {
     const { oldTournamentMeta } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
 
     // 分析数据（始终使用完整 runtimeConfig 以确保首页 HTML 包含所有赛事）
+    const analyzeStart = Date.now();
     const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, cache.prevScheduleMap, this.getMaxScheduleDays());
+    console.log(`[PERF] fandom.runFullAnalysis=${Date.now() - analyzeStart}ms`);
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta);
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap);
 
     // 保存数据
+    const saveStart = Date.now();
     const saveSummary = await this.saveData(runtimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries);
+    console.log(`[PERF] fandom.saveData=${Date.now() - saveStart}ms`);
 
+    const revWriteStart = Date.now();
     await this.commitRevisionWrites(pendingRevisionWrites, failedSlugs, saveSummary?.failedHomeSlugs || new Set());
+    console.log(`[PERF] fandom.commitRevisionWrites=${Date.now() - revWriteStart}ms`);
+    console.log(`[PERF] fandom.total=${Date.now() - totalStart}ms`);
 
     return this.logger;
   }
@@ -875,23 +901,21 @@ export class Updater {
       });
     });
 
-    // 并行读取所有现有的 HOME 数据
-    const kvReadKeys = [];
-    for (const tournament of runtimeConfig.TOURNAMENTS) {
-      kvReadKeys.push(KV_KEYS.HOME_PREFIX + tournament.slug);
+    const changedSlugSet = new Set((syncItems || []).map(item => item?.slug).filter(Boolean));
+    const writeScopeSlugSet = new Set(changedSlugSet);
+    if (force) {
+      if (forceSlugs && forceSlugs.size > 0) {
+        for (const slug of forceSlugs) writeScopeSlugSet.add(slug);
+      } else {
+        for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
+          if (tournament?.slug) writeScopeSlugSet.add(tournament.slug);
+        }
+      }
     }
 
-    const kvReadResults = await Promise.all(
-      kvReadKeys.map(async (key) => {
-        const value = await this.env["lol-stats-kv"].get(key, { type: "json" });
-        return { key, value };
-      })
-    );
-
-    const kvReadMap = {};
-    kvReadResults.forEach(({ key, value }) => {
-      kvReadMap[key] = value;
-    });
+    // 仅做 key-level existence 检查，避免读取所有 HOME_ JSON 带来的反序列化开销。
+    const existingHomeList = await this.env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
+    const existingHomeKeySet = new Set(existingHomeList.keys.map(key => key.name));
 
     // 保存每个锦标赛的数据
     const writePromises = [];
@@ -906,11 +930,7 @@ export class Updater {
       const teamMap = tournament.teamMap || {};
       const { teamMap: _, ...tournamentStored } = tournament;
 
-      // 数据变化检测 - 缓存 JSON 序列化结果
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
-      const existingHome = kvReadMap[homeKey];
-      const rawMatchesJson = JSON.stringify(raw);
-
       const homeSnapshot = {
         tournament: tournamentStored,
         rawMatches: raw,
@@ -920,8 +940,8 @@ export class Updater {
         teamMap: teamMap
       };
 
-      let homeHasChanges = isForceTarget || !existingHome ||
-          JSON.stringify(existingHome.rawMatches || []) !== rawMatchesJson;
+      const shouldBackfillMissing = !existingHomeKeySet.has(homeKey);
+      const homeHasChanges = isForceTarget || writeScopeSlugSet.has(slug) || shouldBackfillMissing;
 
       if (homeHasChanges) {
         writeTargets.push({ key: homeKey, slug });
@@ -934,7 +954,7 @@ export class Updater {
     const failedHomeSlugs = new Set();
     
     if (failedWrites.length > 0) {
-      // 收集写入失败的 slug 并回滚缓存
+      // 收集写入失败的 slug，供上游跳过 REV 提交
       writeResults.forEach((result, index) => {
         if (result.status === 'rejected') {
           const target = writeTargets[index];
@@ -942,11 +962,6 @@ export class Updater {
           if (key.startsWith(KV_KEYS.HOME_PREFIX)) {
             const slug = key.slice(KV_KEYS.HOME_PREFIX.length);
             failedHomeSlugs.add(slug);
-            // 回滚缓存：恢复旧数据
-            const existingHome = kvReadMap[key];
-            if (existingHome && existingHome.rawMatches) {
-              cache.rawMatches[slug] = existingHome.rawMatches;
-            }
           }
           console.error(`[KV-WRITE-FAIL] ${key}: ${result.reason?.message || result.reason}`);
         }
