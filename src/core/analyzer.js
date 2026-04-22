@@ -87,10 +87,15 @@ export class Analyzer {
     const allFutureMatches = {};
 
     const buildResolveName = (teamMap = {}) => {
-      const teamMapEntries = Object.entries(teamMap || {}).map(([key, value]) => ({ 
-        key: key.toUpperCase(), 
-        value 
-      }));
+      const teamMapEntries = Object.entries(teamMap || {}).map(([key, value]) => {
+        const upperKey = String(key || "").toUpperCase();
+        return {
+          key: upperKey,
+          value,
+          keyTokens: upperKey.split(/\s+/).filter(Boolean)
+        };
+      });
+      const exactTeamMap = new Map(teamMapEntries.map(teamEntry => [teamEntry.key, teamEntry.value]));
       const nameCache = new Map();
       return (rawName) => {
         if (!rawName) return "Unknown";
@@ -102,13 +107,13 @@ export class Analyzer {
         if (upperName.includes("TBD") || upperName.includes("TBA") || upperName.includes("TO BE DETERMINED")) {
           resolvedName = "TBD";
         } else {
-          let match = teamMapEntries.find(teamEntry => upperName === teamEntry.key);
+          const exactName = exactTeamMap.get(upperName);
+          let match = exactName ? { value: exactName } : null;
           if (!match) match = teamMapEntries.find(teamEntry => upperName.includes(teamEntry.key));
           if (!match) {
             const inputTokens = upperName.split(/\s+/);
             match = teamMapEntries.find(teamEntry => {
-              const keyTokens = teamEntry.key.split(/\s+/);
-              return inputTokens.every(token => keyTokens.includes(token));
+              return inputTokens.every(token => teamEntry.keyTokens.includes(token));
             });
           }
           if (match) resolvedName = match.value;
@@ -392,20 +397,25 @@ export class Analyzer {
         });
         const usedClusterIndexes = new Set();
         for (const match of sortedDailyMatches) {
-          const clusterOrder = clusters.map((cluster, clusterIndex) => ({
-            clusterIndex,
-            dist: Math.abs(match.timeMinutes - cluster.actualCenter),
-            center: cluster.actualCenter
-          })).sort((leftCluster, rightCluster) => {
-            if (leftCluster.dist !== rightCluster.dist) return leftCluster.dist - rightCluster.dist;
-            return leftCluster.center - rightCluster.center;
-          });
+          let chosenClusterIndex = -1;
+          let chosenDist = Infinity;
+          let chosenCenter = Infinity;
 
-          const candidate = clusterOrder.find(clusterItem => !usedClusterIndexes.has(clusterItem.clusterIndex));
-          if (!candidate) {
+          for (let clusterIndex = 0; clusterIndex < clusters.length; clusterIndex++) {
+            if (usedClusterIndexes.has(clusterIndex)) continue;
+            const cluster = clusters[clusterIndex];
+            const dist = Math.abs(match.timeMinutes - cluster.actualCenter);
+            const center = cluster.actualCenter;
+            if (dist < chosenDist || (dist === chosenDist && center < chosenCenter)) {
+              chosenDist = dist;
+              chosenCenter = center;
+              chosenClusterIndex = clusterIndex;
+            }
+          }
+
+          if (chosenClusterIndex < 0) {
             throw new Error(`No available time slot for ${tournament.slug} on ${match.matchDateStr}. dailyMatches=${sortedDailyMatches.length}, clusters=${clusters.length}`);
           }
-          const chosenClusterIndex = candidate.clusterIndex;
           usedClusterIndexes.add(chosenClusterIndex);
           assignedClusterByMatch.set(match, chosenClusterIndex);
         }

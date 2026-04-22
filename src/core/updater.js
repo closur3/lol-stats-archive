@@ -225,9 +225,11 @@ export class Updater {
 
           const shouldTrackCheckedAt = mode === "slow" ? okCount > 0 : slugChanged;
           const checkedAt = shouldTrackCheckedAt ? NOW : lastCheckedAt;
-          const prevNormalized = { slug, pages: prevPages || {}, checkedAt: lastCheckedAt };
           const nextRecord = { slug, pages: nextPages || {}, checkedAt };
-          const shouldWriteRev = JSON.stringify(prevNormalized) !== JSON.stringify(nextRecord);
+          const shouldWriteRev = this.hasRevisionRecordChanged(
+            { slug, pages: prevPages || {}, checkedAt: lastCheckedAt },
+            nextRecord
+          );
 
           return {
             slug,
@@ -263,6 +265,29 @@ export class Updater {
     thresholdSkippedSlugs = thresholdChecks.filter(check => check && check.shouldSkip).length;
 
     return { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs };
+  }
+
+  hasRevisionRecordChanged(previousRecord, nextRecord) {
+    const prev = previousRecord || {};
+    const next = nextRecord || {};
+    if ((prev.slug || "") !== (next.slug || "")) return true;
+    if ((Number(prev.checkedAt) || 0) !== (Number(next.checkedAt) || 0)) return true;
+
+    const prevPages = prev.pages && typeof prev.pages === "object" ? prev.pages : {};
+    const nextPages = next.pages && typeof next.pages === "object" ? next.pages : {};
+    const prevTitles = Object.keys(prevPages);
+    const nextTitles = Object.keys(nextPages);
+    if (prevTitles.length !== nextTitles.length) return true;
+
+    for (const title of prevTitles) {
+      if (!Object.prototype.hasOwnProperty.call(nextPages, title)) return true;
+      const prevPage = prevPages[title] || {};
+      const nextPage = nextPages[title] || {};
+      if ((Number(prevPage.revid) || 0) !== (Number(nextPage.revid) || 0)) return true;
+      if ((prevPage.timestamp || "") !== (nextPage.timestamp || "")) return true;
+      if ((Number(prevPage.pageid) || 0) !== (Number(nextPage.pageid) || 0)) return true;
+    }
+    return false;
   }
 
   async prepareRuntimeContext(options = {}) {
@@ -614,19 +639,19 @@ export class Updater {
       return `fallback:${overview}|${nInPage}|${dateTimeUtc}|${team1Name}|${team2Name}`;
     };
 
-    const canonicalMatch = (match) => JSON.stringify({
-      MatchId: match?.MatchId ?? match?.["MatchId"] ?? "",
-      Team1: match?.Team1 ?? match?.["Team 1"] ?? "",
-      Team2: match?.Team2 ?? match?.["Team 2"] ?? "",
-      Team1Score: match?.Team1Score ?? match?.["Team 1 Score"] ?? "",
-      Team2Score: match?.Team2Score ?? match?.["Team 2 Score"] ?? "",
-      DateTime_UTC: match?.DateTime_UTC ?? match?.["DateTime UTC"] ?? "",
-      OverviewPage: match?.OverviewPage ?? match?.["Overview Page"] ?? "",
-      BestOf: match?.BestOf ?? match?.["Best Of"] ?? "",
-      N_MatchInPage: match?.N_MatchInPage ?? match?.["N MatchInPage"] ?? "",
-      Tab: match?.Tab ?? "",
-      Round: match?.Round ?? ""
-    });
+    const canonicalMatch = (match) => [
+      match?.MatchId ?? match?.["MatchId"] ?? "",
+      match?.Team1 ?? match?.["Team 1"] ?? "",
+      match?.Team2 ?? match?.["Team 2"] ?? "",
+      match?.Team1Score ?? match?.["Team 1 Score"] ?? "",
+      match?.Team2Score ?? match?.["Team 2 Score"] ?? "",
+      match?.DateTime_UTC ?? match?.["DateTime UTC"] ?? "",
+      match?.OverviewPage ?? match?.["Overview Page"] ?? "",
+      match?.BestOf ?? match?.["Best Of"] ?? "",
+      match?.N_MatchInPage ?? match?.["N MatchInPage"] ?? "",
+      match?.Tab ?? "",
+      match?.Round ?? ""
+    ].join("\u001f");
 
     const calcChangedCount = (oldData, newData) => {
       const oldMap = new Map();
@@ -791,10 +816,11 @@ export class Updater {
         ...(previousTournamentsMeta[slug] || {}),
         ...(nextMeta || {})
       };
-      if (!metaChanged && !tournamentMetaEqual(previousTournamentsMeta[slug], mergedForSlug)) {
+      const hasSlugMetaChanged = !tournamentMetaEqual(previousTournamentsMeta[slug], mergedForSlug);
+      if (!metaChanged && hasSlugMetaChanged) {
         metaChanged = true;
       }
-      if (!tournamentMetaEqual(previousTournamentsMeta[slug], mergedForSlug)) {
+      if (hasSlugMetaChanged) {
         changedTournamentMeta[slug] = mergedForSlug;
       }
     }
