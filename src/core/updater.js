@@ -5,7 +5,7 @@ import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
-import { readMetaState, writeMetaState, normalizeMetaState, tournamentMetaEqual, metaStateEqual } from '../utils/Meta.js';
+import { readMetaState, writeMetaState, rewriteMetaState as rewriteMetaStateKV, tournamentMetaEqual } from '../utils/Meta.js';
 import { kvPut, kvDelete } from '../utils/kvStore.js';
 
 // 更新配置常量
@@ -331,21 +331,7 @@ export class Updater {
 
   async rewriteMetaState(runtimeConfig) {
     const activeSlugs = (runtimeConfig?.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
-    const currentMetaRaw = await this.env["lol-stats-kv"].get(KV_KEYS.META, { type: "json" });
-    const currentMeta = normalizeMetaState(currentMetaRaw);
-    const meta = normalizeMetaState(currentMetaRaw, activeSlugs);
-    const nextMeta = {
-      tournaments: meta.tournaments || {},
-      scheduleDayMark: meta.scheduleDayMark || null
-    };
-    if (metaStateEqual(currentMeta, nextMeta)) {
-      return nextMeta;
-    }
-    return writeMetaState(this.env, {
-      tournamentMetaBySlug: nextMeta.tournaments,
-      scheduleDayMark: nextMeta.scheduleDayMark,
-      activeSlugs
-    });
+    return rewriteMetaStateKV(this.env, { activeSlugs });
   }
 
   /**

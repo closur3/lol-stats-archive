@@ -1,8 +1,21 @@
 import { KV_KEYS } from './constants.js';
 import { kvPut } from './kvStore.js';
 
+const META_ROOT_KEYS = new Set(['tournaments', 'scheduleDayMark']);
+const TOURNAMENT_META_KEYS = new Set(['mode', 'startTimestamp', 'emoji', 'matchIntervalHours', 'hasStarted']);
+
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeActiveSlugSet(activeSlugs = null) {
+  if (activeSlugs instanceof Set) {
+    return new Set(Array.from(activeSlugs).map(slug => String(slug)).filter(Boolean));
+  }
+  if (Array.isArray(activeSlugs)) {
+    return new Set(activeSlugs.map(slug => String(slug)).filter(Boolean));
+  }
+  return null;
 }
 
 function shallowEqual(left, right) {
@@ -24,7 +37,6 @@ function tournamentsMetaEqual(left, right) {
   const leftKeys = Object.keys(leftInput);
   const rightKeys = Object.keys(rightInput);
   if (leftKeys.length !== rightKeys.length) return false;
-
   for (const slug of leftKeys) {
     if (!Object.prototype.hasOwnProperty.call(rightInput, slug)) return false;
     if (!shallowEqual(leftInput[slug], rightInput[slug])) return false;
@@ -32,45 +44,21 @@ function tournamentsMetaEqual(left, right) {
   return true;
 }
 
-export function metaStateEqual(left, right) {
-  const leftInput = isPlainObject(left) ? left : {};
-  const rightInput = isPlainObject(right) ? right : {};
-  if ((leftInput.scheduleDayMark || null) !== (rightInput.scheduleDayMark || null)) return false;
-  return tournamentsMetaEqual(leftInput.tournaments, rightInput.tournaments);
-}
-
-export function tournamentMetaEqual(left, right) {
-  return shallowEqual(
-    normalizeTournamentMeta(left),
-    normalizeTournamentMeta(right)
-  );
-}
-
-function normalizeTournamentMeta(rawTournamentMeta) {
-  const input = (rawTournamentMeta && typeof rawTournamentMeta === 'object' && !Array.isArray(rawTournamentMeta))
-    ? rawTournamentMeta
-    : {};
+export function normalizeTournamentMeta(rawTournamentMeta) {
+  const input = isPlainObject(rawTournamentMeta) ? rawTournamentMeta : {};
   const normalized = {};
-
   if (input.mode === 'fast' || input.mode === 'slow') normalized.mode = input.mode;
   if (typeof input.startTimestamp === 'number' && Number.isFinite(input.startTimestamp)) normalized.startTimestamp = input.startTimestamp;
   if (typeof input.emoji === 'string') normalized.emoji = input.emoji;
   if (typeof input.matchIntervalHours === 'number' && Number.isFinite(input.matchIntervalHours)) normalized.matchIntervalHours = input.matchIntervalHours;
   if (typeof input.hasStarted === 'boolean') normalized.hasStarted = input.hasStarted;
-
   return normalized;
 }
 
 export function normalizeMetaState(raw, activeSlugs = null) {
-  const input = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
-  const tournamentsInput = (input.tournaments && typeof input.tournaments === 'object' && !Array.isArray(input.tournaments))
-    ? input.tournaments
-    : {};
-  const activeSlugSet = activeSlugs instanceof Set
-    ? activeSlugs
-    : Array.isArray(activeSlugs)
-      ? new Set(activeSlugs.map(slug => String(slug)).filter(Boolean))
-      : null;
+  const input = isPlainObject(raw) ? raw : {};
+  const tournamentsInput = isPlainObject(input.tournaments) ? input.tournaments : {};
+  const activeSlugSet = normalizeActiveSlugSet(activeSlugs);
   const tournaments = {};
 
   Object.entries(tournamentsInput).forEach(([slug, value]) => {
@@ -83,38 +71,87 @@ export function normalizeMetaState(raw, activeSlugs = null) {
   return { tournaments, scheduleDayMark };
 }
 
+export function tournamentMetaEqual(left, right) {
+  return shallowEqual(normalizeTournamentMeta(left), normalizeTournamentMeta(right));
+}
+
+export function metaStateEqual(left, right) {
+  const leftInput = normalizeMetaState(left);
+  const rightInput = normalizeMetaState(right);
+  if ((leftInput.scheduleDayMark || null) !== (rightInput.scheduleDayMark || null)) return false;
+  return tournamentsMetaEqual(leftInput.tournaments, rightInput.tournaments);
+}
+
+function isTournamentMetaCanonical(rawTournamentMeta) {
+  if (!isPlainObject(rawTournamentMeta)) return false;
+  for (const key of Object.keys(rawTournamentMeta)) {
+    if (!TOURNAMENT_META_KEYS.has(key)) return false;
+  }
+  return shallowEqual(rawTournamentMeta, normalizeTournamentMeta(rawTournamentMeta));
+}
+
+function isMetaStateCanonical(rawMetaState, activeSlugs = null) {
+  if (!isPlainObject(rawMetaState)) return false;
+  for (const key of Object.keys(rawMetaState)) {
+    if (!META_ROOT_KEYS.has(key)) return false;
+  }
+
+  const activeSlugSet = normalizeActiveSlugSet(activeSlugs);
+  if (!isPlainObject(rawMetaState.tournaments)) return false;
+  for (const [slug, tournamentMeta] of Object.entries(rawMetaState.tournaments)) {
+    if (!slug) return false;
+    if (activeSlugSet && !activeSlugSet.has(slug)) return false;
+    if (!isTournamentMetaCanonical(tournamentMeta)) return false;
+  }
+
+  if (!(rawMetaState.scheduleDayMark === null || typeof rawMetaState.scheduleDayMark === 'string')) return false;
+  return true;
+}
+
+function resolveNextScheduleDayMark(currentScheduleDayMark, requestedScheduleDayMark) {
+  if (requestedScheduleDayMark === null) return null;
+  if (typeof requestedScheduleDayMark === 'string') return requestedScheduleDayMark;
+  return currentScheduleDayMark || null;
+}
+
 export async function readMetaState(env, activeSlugs = null) {
   const raw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
   return normalizeMetaState(raw, activeSlugs);
 }
 
-export async function writeMetaState(env, { tournamentMetaBySlug = {}, scheduleDayMark = undefined, activeSlugs = null } = {}) {
-  // Read-latest then merge to reduce concurrent overwrite risk between cron and manual triggers.
+export async function writeMetaState(env, {
+  tournamentMetaBySlug = {},
+  scheduleDayMark = undefined,
+  activeSlugs = null,
+  replaceTournaments = false
+} = {}) {
   const currentRaw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
   const current = normalizeMetaState(currentRaw, activeSlugs);
-  const incoming = normalizeMetaState(
-    {
-      tournaments: tournamentMetaBySlug
-    },
-    activeSlugs
-  );
-
+  const incoming = normalizeMetaState({ tournaments: tournamentMetaBySlug }, activeSlugs);
+  const nextTournaments = replaceTournaments
+    ? { ...(incoming.tournaments || {}) }
+    : { ...(current.tournaments || {}), ...(incoming.tournaments || {}) };
   const next = {
-    tournaments: {
-      ...(current.tournaments || {}),
-      ...(incoming.tournaments || {})
-    },
-    scheduleDayMark: typeof scheduleDayMark === 'string'
-      ? scheduleDayMark
-      : scheduleDayMark === null
-        ? null
-        : (current.scheduleDayMark || null)
+    tournaments: nextTournaments,
+    scheduleDayMark: resolveNextScheduleDayMark(current.scheduleDayMark, scheduleDayMark)
   };
 
-  if (metaStateEqual(current, next)) {
+  const currentRawIsCanonical = isMetaStateCanonical(currentRaw, activeSlugs);
+  if (currentRawIsCanonical && metaStateEqual(current, next)) {
     return next;
   }
 
   await kvPut(env, KV_KEYS.META, JSON.stringify(next));
   return next;
+}
+
+export async function rewriteMetaState(env, { activeSlugs = null } = {}) {
+  const currentRaw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
+  const normalized = normalizeMetaState(currentRaw, activeSlugs);
+  const currentRawIsCanonical = isMetaStateCanonical(currentRaw, activeSlugs);
+  if (currentRawIsCanonical && metaStateEqual(normalized, currentRaw)) {
+    return normalized;
+  }
+  await kvPut(env, KV_KEYS.META, JSON.stringify(normalized));
+  return normalized;
 }
