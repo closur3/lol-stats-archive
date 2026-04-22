@@ -160,12 +160,10 @@ export class Updater {
 
         const dataPages = Array.from(new Set(pages.map(page => page.startsWith("Data:") ? page : `Data:${page}`)));
         const tournamentMetaFromKv = cache?.meta?.tournaments?.[slug];
-        const lastUpdateTimestamp = cache?.updateTimestamps?.[slug] || 0;
         const revKey = `REV_${slug}`;
         const previousRevisionState = await this.env["lol-stats-kv"].get(revKey, { type: "json" });
         const lastCheckedAt = Number(previousRevisionState?.checkedAt) || 0;
-        const gateBaseTimestamp = Math.max(lastUpdateTimestamp, lastCheckedAt);
-        const elapsed = NOW - gateBaseTimestamp;
+        const elapsed = NOW - lastCheckedAt;
         let threshold = 0;
         let mode = "fast";
 
@@ -524,7 +522,7 @@ export class Updater {
    * 加载缓存数据
    */
   async loadCachedData(tournaments) {
-    const cache = { rawMatches: {}, updateTimestamps: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
+    const cache = { rawMatches: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
     
     const homeEntries = await Promise.all((tournaments || []).map(async tournament => {
       const homeEntry = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + tournament.slug, { type: "json" });
@@ -536,7 +534,6 @@ export class Updater {
     
     homeEntries.forEach(([slug, home]) => {
       if (home && home.rawMatches) cache.rawMatches[slug] = home.rawMatches;
-      if (home && home.updateTimestamps && home.updateTimestamps[slug]) cache.updateTimestamps[slug] = home.updateTimestamps[slug];
       if (home && home.scheduleMap) cache.prevScheduleMap[slug] = home.scheduleMap;
 
     });
@@ -684,7 +681,6 @@ export class Updater {
             idleItems.push({ slug, displayName: getDisplayName(slug), added: 0, updated: 0, isForce, isRetry });
           }
         }
-        cache.updateTimestamps[slug] = NOW;
       } else {
         const errMsg = resultItem.err?.message || resultItem.err?.toString() || 'unknown';
         console.log(`[PROC-ERR] ${resultItem.slug}: ${errMsg}`);
@@ -877,7 +873,6 @@ export class Updater {
       const slug = tournament.slug;
       const isForceTarget = force && (!forceSlugs || forceSlugs.has(slug));
       const raw = cache.rawMatches[slug] || [];
-      const updateTimestamp = cache.updateTimestamps[slug] || 0;
       const stats = analysis.globalStats[slug] || {};
       const grid = analysis.timeGrid[slug] || {};
 
@@ -892,7 +887,6 @@ export class Updater {
       const homeSnapshot = {
         tournament: tournamentStored,
         rawMatches: raw,
-        updateTimestamps: { [slug]: updateTimestamp },
         stats: stats,
         timeGrid: grid,
         scheduleMap: scheduleBySlug[slug] || {},

@@ -166,7 +166,6 @@ export class APIRouter {
         const snapshot = {
           tournament,
           rawMatches: matches,
-          updateTimestamps: { [slug]: Date.now() },
           teamMap: teamMap
         };
 
@@ -294,7 +293,6 @@ export class APIRouter {
           end_date: endDate
         },
         rawMatches: [], // 空数据
-        updateTimestamps: { [slug]: Date.now() },
         teamMap: {} // rawMatches 为空时不需要 teamMap
       };
 
