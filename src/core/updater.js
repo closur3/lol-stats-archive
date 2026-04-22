@@ -424,7 +424,7 @@ export class Updater {
 
     const nowTimestamp = Date.now();
     const changedSlugs = [];
-    const changedTournamentMeta = {};
+    const nextTournamentMeta = { ...oldTournamentMeta };
 
     for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
       const slug = tournament.slug;
@@ -440,13 +440,13 @@ export class Updater {
       };
 
       if (tournamentMetaEqual(previousMetaForTournament, nextMeta)) continue;
-      changedTournamentMeta[slug] = nextMeta;
+      nextTournamentMeta[slug] = nextMeta;
       changedSlugs.push(slug);
     }
 
     if (changedSlugs.length > 0) {
       await writeMetaState(this.env, {
-        tournamentMetaBySlug: changedTournamentMeta,
+        tournamentMetaBySlug: nextTournamentMeta,
         scheduleDayMark: cache.meta?.scheduleDayMark || null,
         activeSlugs: (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean)
       });
@@ -828,7 +828,7 @@ export class Updater {
 
     if (metaChanged) {
       await writeMetaState(this.env, {
-        tournamentMetaBySlug: changedTournamentMeta,
+        tournamentMetaBySlug: mergedMetaState.tournaments,
         scheduleDayMark: mergedMetaState.scheduleDayMark,
         activeSlugs: (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean)
       });

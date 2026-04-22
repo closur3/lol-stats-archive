@@ -93,18 +93,20 @@ export async function readMetaState(env, activeSlugs = null) {
 export async function writeMetaState(env, {
   tournamentMetaBySlug = {},
   scheduleDayMark = undefined,
-  activeSlugs = null,
-  replaceTournaments = false
+  activeSlugs = null
 } = {}) {
   const currentRaw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
   const current = normalizeMetaState(currentRaw, activeSlugs);
-  const incoming = normalizeMetaState({ tournaments: tournamentMetaBySlug }, activeSlugs);
-  const nextTournaments = replaceTournaments
-    ? { ...(incoming.tournaments || {}) }
-    : { ...(current.tournaments || {}), ...(incoming.tournaments || {}) };
+  const incoming = normalizeMetaState(
+    {
+      tournaments: tournamentMetaBySlug,
+      scheduleDayMark: resolveNextScheduleDayMark(current.scheduleDayMark, scheduleDayMark)
+    },
+    activeSlugs
+  );
   const next = {
-    tournaments: nextTournaments,
-    scheduleDayMark: resolveNextScheduleDayMark(current.scheduleDayMark, scheduleDayMark)
+    tournaments: incoming.tournaments || {},
+    scheduleDayMark: incoming.scheduleDayMark || null
   };
 
   const rawNeedsCleanup = JSON.stringify(currentRaw || {}) !== JSON.stringify(current);
