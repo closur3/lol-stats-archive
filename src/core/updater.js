@@ -983,8 +983,7 @@ export class Updater {
    * 基于 HOME_ 缓存重建首页静态HTML（轻量，不重新抓取/分析全联赛）
    */
   async refreshHomeStaticFromCache() {
-    const result = await this.rebuildStaticPagesFromCache({ includeArchive: false, requireData: false });
-    return result;
+    return this.rebuildStaticPagesFromCache({ includeArchive: false, requireData: false });
   }
 
   /**

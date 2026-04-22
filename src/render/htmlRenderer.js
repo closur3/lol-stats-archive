@@ -3,6 +3,7 @@ import { dataUtils } from '../utils/dataUtils.js';
 import { sortPolicy } from '../utils/sortPolicy.js';
 import { GITHUB_COMMIT_BASE } from '../utils/constants.js';
 import { PYTHON_STYLE, TOOLS_PAGE_STYLE, LOG_PAGE_STYLE, BUILD_FOOTER_STYLE } from './styles.js';
+import { Analyzer } from '../core/analyzer.js';
 
 // XSS 防护：转义 HTML 和 JavaScript 特殊字符
 const escapeHtml = (str) => {
@@ -1121,19 +1122,12 @@ export class HTMLRenderer {
   }
 
   /**
-   * 生成完整率字符串
+   * 生成完整率字符串（复用 Analyzer 的逻辑）
    */
   static generateFullRateString(bestOf3FullMatchCount, bestOf3TotalMatchCount, bestOf5FullMatchCount, bestOf5TotalMatchCount) {
-    if (bestOf3TotalMatchCount === 0 && bestOf5TotalMatchCount === 0) return "";
-    
-    let parts = [];
-    if (bestOf3TotalMatchCount > 0) {
-      parts.push(`BO3: **${bestOf3FullMatchCount}/${bestOf3TotalMatchCount}** (${dataUtils.pct(dataUtils.rate(bestOf3FullMatchCount, bestOf3TotalMatchCount))})`);
-    }
-    if (bestOf5TotalMatchCount > 0) {
-      parts.push(`BO5: **${bestOf5FullMatchCount}/${bestOf5TotalMatchCount}** (${dataUtils.pct(dataUtils.rate(bestOf5FullMatchCount, bestOf5TotalMatchCount))})`);
-    }
-    return `📊 **Fullrate**: ${parts.join(" | ")}\n\n`;
+    const core = Analyzer.generateFullRateString(bestOf3FullMatchCount, bestOf3TotalMatchCount, bestOf5FullMatchCount, bestOf5TotalMatchCount);
+    if (!core) return "";
+    return `📊 **Fullrate**: ${core}\n\n`;
   }
 
   /**
