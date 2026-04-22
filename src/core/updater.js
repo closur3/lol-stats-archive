@@ -57,19 +57,25 @@ export class Updater {
       return this.logger;
     }
 
-    const rewriteStart = Date.now();
-    await this.rewriteMetaState(runtimeConfig);
-    console.log(`[PERF] scheduled.rewriteMetaState=${Date.now() - rewriteStart}ms`);
+    // Cron path skips eager meta rewrite. Meta is normalized on actual write paths
+    // (day rollover / local update / fandom update), avoiding a fixed KV read each round.
     const refreshStart = Date.now();
     await this.refreshScheduleBoardOnDayRollover(runtimeConfig);
     console.log(`[PERF] scheduled.refreshScheduleBoardOnDayRollover=${Date.now() - refreshStart}ms`);
 
     const NOW = Date.now();
+    const activeSlugs = (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
     const cacheStart = Date.now();
-    const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS || []);
-    console.log(`[PERF] scheduled.loadCachedData=${Date.now() - cacheStart}ms`);
+    const metaForRevGate = await readMetaState(this.env, activeSlugs);
+    const revGateCache = {
+      meta: {
+        tournaments: metaForRevGate.tournaments || {},
+        scheduleDayMark: metaForRevGate.scheduleDayMark || null
+      }
+    };
+    console.log(`[PERF] scheduled.loadMetaForRevGate=${Date.now() - cacheStart}ms`);
     const revStart = Date.now();
-    const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], cache, NOW);
+    const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], revGateCache, NOW);
     console.log(`[PERF] scheduled.detectRevisionChanges=${Date.now() - revStart}ms`);
     console.log(`[CRON] rev-check checked=${checkedSlugs} th-skip=${thresholdSkippedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
     const targetSlugs = new Set(changedSlugs);
