@@ -15,31 +15,7 @@ function normalizeActiveSlugSet(activeSlugs = null) {
   return null;
 }
 
-function shallowEqual(left, right) {
-  if (left === right) return true;
-  if (!isPlainObject(left) || !isPlainObject(right)) return false;
-  const leftKeys = Object.keys(left);
-  const rightKeys = Object.keys(right);
-  if (leftKeys.length !== rightKeys.length) return false;
-  for (const key of leftKeys) {
-    if (!Object.prototype.hasOwnProperty.call(right, key)) return false;
-    if (left[key] !== right[key]) return false;
-  }
-  return true;
-}
 
-function tournamentsMetaEqual(left, right) {
-  const leftInput = isPlainObject(left) ? left : {};
-  const rightInput = isPlainObject(right) ? right : {};
-  const leftKeys = Object.keys(leftInput);
-  const rightKeys = Object.keys(rightInput);
-  if (leftKeys.length !== rightKeys.length) return false;
-  for (const slug of leftKeys) {
-    if (!Object.prototype.hasOwnProperty.call(rightInput, slug)) return false;
-    if (!shallowEqual(leftInput[slug], rightInput[slug])) return false;
-  }
-  return true;
-}
 
 export function normalizeTournamentMeta(rawTournamentMeta) {
   const input = isPlainObject(rawTournamentMeta) ? rawTournamentMeta : {};
@@ -50,6 +26,12 @@ export function normalizeTournamentMeta(rawTournamentMeta) {
   if (typeof input.matchIntervalHours === 'number' && Number.isFinite(input.matchIntervalHours)) normalized.matchIntervalHours = input.matchIntervalHours;
   if (typeof input.hasStarted === 'boolean') normalized.hasStarted = input.hasStarted;
   return normalized;
+}
+
+export function tournamentMetaEqual(left, right) {
+  const leftNorm = normalizeTournamentMeta(left);
+  const rightNorm = normalizeTournamentMeta(right);
+  return JSON.stringify(leftNorm) === JSON.stringify(rightNorm);
 }
 
 export function normalizeMetaState(raw, activeSlugs = null) {
@@ -68,22 +50,7 @@ export function normalizeMetaState(raw, activeSlugs = null) {
   return { tournaments, scheduleDayMark };
 }
 
-export function tournamentMetaEqual(left, right) {
-  return shallowEqual(normalizeTournamentMeta(left), normalizeTournamentMeta(right));
-}
 
-export function metaStateEqual(left, right) {
-  const leftInput = normalizeMetaState(left);
-  const rightInput = normalizeMetaState(right);
-  if ((leftInput.scheduleDayMark || null) !== (rightInput.scheduleDayMark || null)) return false;
-  return tournamentsMetaEqual(leftInput.tournaments, rightInput.tournaments);
-}
-
-function resolveNextScheduleDayMark(currentScheduleDayMark, requestedScheduleDayMark) {
-  if (requestedScheduleDayMark === null) return null;
-  if (typeof requestedScheduleDayMark === 'string') return requestedScheduleDayMark;
-  return currentScheduleDayMark || null;
-}
 
 export async function readMetaState(env, activeSlugs = null) {
   const raw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
@@ -92,25 +59,31 @@ export async function readMetaState(env, activeSlugs = null) {
 
 export async function writeMetaState(env, {
   tournamentMetaBySlug = {},
-  scheduleDayMark = undefined,
+  scheduleDayMark = null,
   activeSlugs = null
 } = {}) {
   const currentRaw = await env["lol-stats-kv"].get(KV_KEYS.META, { type: 'json' });
-  const current = normalizeMetaState(currentRaw, activeSlugs);
-  const incoming = normalizeMetaState(
-    {
-      tournaments: tournamentMetaBySlug,
-      scheduleDayMark: resolveNextScheduleDayMark(current.scheduleDayMark, scheduleDayMark)
-    },
-    activeSlugs
-  );
+
+  // 构建新状态
+  const activeSlugSet = normalizeActiveSlugSet(activeSlugs);
+  const tournaments = {};
+  Object.entries(tournamentMetaBySlug).forEach(([slug, value]) => {
+    if (!slug) return;
+    if (activeSlugSet && !activeSlugSet.has(slug)) return;
+    tournaments[slug] = normalizeTournamentMeta(value);
+  });
+
+  const nextScheduleDayMark = typeof scheduleDayMark === 'string'
+    ? scheduleDayMark
+    : (currentRaw?.scheduleDayMark || null);
+
   const next = {
-    tournaments: incoming.tournaments || {},
-    scheduleDayMark: incoming.scheduleDayMark || null
+    tournaments,
+    scheduleDayMark: nextScheduleDayMark
   };
 
-  const rawNeedsCleanup = JSON.stringify(currentRaw || {}) !== JSON.stringify(current);
-  if (!rawNeedsCleanup && metaStateEqual(current, next)) {
+  // 简单对比：无变化则跳过写入
+  if (JSON.stringify(currentRaw) === JSON.stringify(next)) {
     return next;
   }
 
