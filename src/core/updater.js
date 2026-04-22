@@ -5,7 +5,7 @@ import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
-import { readMetaState, writeMetaState, normalizeMetaState, tournamentMetaEqual } from '../utils/Meta.js';
+import { readMetaState, writeMetaState, normalizeMetaState, tournamentMetaEqual, metaStateEqual } from '../utils/Meta.js';
 import { kvPut, kvDelete } from '../utils/kvStore.js';
 
 // 更新配置常量
@@ -297,7 +297,7 @@ export class Updater {
       tournaments: meta.tournaments || {},
       scheduleDayMark: meta.scheduleDayMark || null
     };
-    if (JSON.stringify(currentMeta) === JSON.stringify(nextMeta)) {
+    if (metaStateEqual(currentMeta, nextMeta)) {
       return nextMeta;
     }
     return writeMetaState(this.env, {
@@ -373,10 +373,10 @@ export class Updater {
       return true;
     });
 
-    for (const [slug, record] of entries) {
+    await Promise.all(entries.map(([slug, record]) => {
       const revKey = `REV_${slug}`;
-      await kvPut(this.env, revKey, JSON.stringify(record));
-    }
+      return kvPut(this.env, revKey, JSON.stringify(record));
+    }));
   }
 
   /**
@@ -405,7 +405,7 @@ export class Updater {
 
     const nowTimestamp = Date.now();
     const changedSlugs = [];
-    const nextTournamentMeta = { ...oldTournamentMeta };
+    const changedTournamentMeta = {};
 
     for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
       const slug = tournament.slug;
@@ -421,13 +421,13 @@ export class Updater {
       };
 
       if (tournamentMetaEqual(previousMetaForTournament, nextMeta)) continue;
-      nextTournamentMeta[slug] = nextMeta;
+      changedTournamentMeta[slug] = nextMeta;
       changedSlugs.push(slug);
     }
 
     if (changedSlugs.length > 0) {
       await writeMetaState(this.env, {
-        tournamentMetaBySlug: nextTournamentMeta,
+        tournamentMetaBySlug: changedTournamentMeta,
         scheduleDayMark: cache.meta?.scheduleDayMark || null,
         activeSlugs: (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean)
       });
@@ -784,26 +784,31 @@ export class Updater {
   async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}) {
     const previousTournamentsMeta = cache.meta?.tournaments || {};
     const analyzedTournamentsMeta = analysis.tournamentMeta || {};
-    const mergedTournamentsMeta = { ...previousTournamentsMeta };
+    const changedTournamentMeta = {};
     let metaChanged = false;
     for (const [slug, nextMeta] of Object.entries(analyzedTournamentsMeta)) {
       const mergedForSlug = {
         ...(previousTournamentsMeta[slug] || {}),
         ...(nextMeta || {})
       };
-      mergedTournamentsMeta[slug] = mergedForSlug;
       if (!metaChanged && !tournamentMetaEqual(previousTournamentsMeta[slug], mergedForSlug)) {
         metaChanged = true;
       }
+      if (!tournamentMetaEqual(previousTournamentsMeta[slug], mergedForSlug)) {
+        changedTournamentMeta[slug] = mergedForSlug;
+      }
     }
     const mergedMetaState = {
-      tournaments: mergedTournamentsMeta,
+      tournaments: {
+        ...previousTournamentsMeta,
+        ...changedTournamentMeta
+      },
       scheduleDayMark: cache.meta?.scheduleDayMark || null
     };
 
     if (metaChanged) {
       await writeMetaState(this.env, {
-        tournamentMetaBySlug: mergedTournamentsMeta,
+        tournamentMetaBySlug: changedTournamentMeta,
         scheduleDayMark: mergedMetaState.scheduleDayMark,
         activeSlugs: (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean)
       });

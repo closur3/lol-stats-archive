@@ -32,7 +32,7 @@ function tournamentsMetaEqual(left, right) {
   return true;
 }
 
-function metaStateEqual(left, right) {
+export function metaStateEqual(left, right) {
   const leftInput = isPlainObject(left) ? left : {};
   const rightInput = isPlainObject(right) ? right : {};
   if ((leftInput.scheduleDayMark || null) !== (rightInput.scheduleDayMark || null)) return false;

@@ -69,7 +69,7 @@ export default {
         }));
         const logsBySlug = new Map(logPairs.filter(([, logs]) => Array.isArray(logs) && logs.length > 0));
         const logSlugs = Array.from(logsBySlug.keys());
-        const metaState = await readMetaState(env);
+        const metaState = await readMetaState(env, logSlugs);
         const homePairs = await Promise.all(logSlugs.map(async slug => {
           const home = await env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + slug, { type: "json" });
           const totalMatchCount = Array.isArray(home?.rawMatches) ? home.rawMatches.length : null;
