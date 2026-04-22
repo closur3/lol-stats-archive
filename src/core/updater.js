@@ -346,7 +346,7 @@ export class Updater {
     const skipMetaRewrite = options.skipMetaRewrite === true;
     const context = await this.prepareRuntimeContext({ skipMetaRewrite });
     if (!context) return this.logger;
-    const { NOW, runtimeConfig, teamsRaw, cache } = context;
+    const { runtimeConfig, teamsRaw, cache } = context;
 
     // 确定需要更新的锦标赛
     const candidates = this.determineCandidates(runtimeConfig.TOURNAMENTS, forceSlugs);
@@ -383,7 +383,7 @@ export class Updater {
     const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, cache.prevScheduleMap, this.getMaxScheduleDays());
 
     // 生成日志
-    this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta);
+    this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext);
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap);
 
     // 保存数据
@@ -714,7 +714,7 @@ export class Updater {
   /**
    * 生成日志
    */
-  generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta) {
+  generateLog(syncItems, idleItems, breakers, apiErrors, authContext) {
     const isAnon = (!authContext || authContext.isAnonymous);
     const authSuffix = isAnon ? " 👻" : "";
 

@@ -3,9 +3,7 @@ import { Updater } from '../core/updater.js';
 import { GitHubClient } from '../api/githubClient.js';
 import { FandomClient } from '../api/fandomClient.js';
 import { dataUtils } from '../utils/dataUtils.js';
-import { dateUtils } from '../utils/dateUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
-import { readMetaState, writeMetaState } from '../utils/Meta.js';
 import { kvPut, kvDelete } from '../utils/kvStore.js';
 
 /**
@@ -256,12 +254,6 @@ export class APIRouter {
     }
 
     try {
-      let teamsRaw = null;
-      try {
-        const githubClient = new GitHubClient(env);
-        teamsRaw = await githubClient.fetchJson("config/teams.json");
-      } catch (error) { console.error("[ManualArchive] Failed to load teams.json:", error.message); }
-
       // 处理 overview_page：支持逗号分隔或 JSON 数组格式
       let overviewPages = payload.overview_page;
       if (typeof overviewPages === 'string') {

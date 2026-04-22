@@ -1,5 +1,4 @@
 import { BOT_UA, MAX_RETRIES, FETCH_DELAY_MS } from '../utils/constants.js';
-import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
 
 /**

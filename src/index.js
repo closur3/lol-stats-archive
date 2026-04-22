@@ -13,7 +13,7 @@ import { dateUtils } from './utils/dateUtils.js';
  * 主Worker入口
  */
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env, _ctx) {
     const url = new URL(request.url);
     const time = env.GITHUB_TIME;
     const sha = env.GITHUB_SHA;
@@ -46,7 +46,7 @@ export default {
       case "/manual-archive":
         return APIRouter.handleManualArchive(request, env);
 
-      case "/logs":
+      case "/logs": {
         const detectMode = (logs) => {
           for (const logEntry of (logs || [])) {
             const logMessage = String(logEntry?.message || "");
@@ -122,6 +122,7 @@ export default {
             "cache-control": "no-store, no-cache, must-revalidate"
           }
         });
+      }
       
       case "/favicon.ico":
         return new Response(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='.9em' font-size='85' text-anchor='middle'>🥇</text></svg>`, {
@@ -133,7 +134,7 @@ export default {
     }
   },
 
-  async scheduled(event, env, ctx) {
+  async scheduled(event, env, _ctx) {
     const updater = new Updater(env);
     await updater.runScheduledUpdate();
   }

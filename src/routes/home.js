@@ -1,4 +1,3 @@
-import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { KV_KEYS } from '../utils/constants.js';
 
 /**

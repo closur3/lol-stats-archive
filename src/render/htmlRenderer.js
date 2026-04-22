@@ -5,6 +5,11 @@ import { GITHUB_COMMIT_BASE } from '../utils/constants.js';
 import { PYTHON_STYLE, TOOLS_PAGE_STYLE, LOG_PAGE_STYLE, BUILD_FOOTER_STYLE } from './styles.js';
 import { Analyzer } from '../core/analyzer.js';
 
+// 渲染配置常量
+const RENDER_CONFIG = {
+  TIME_GRID_COLUMN_COUNT: 8,  // 时间网格列数：周一到周日(7) + Total列(1)
+};
+
 // XSS 防护：转义 HTML 和 JavaScript 特殊字符
 const escapeHtml = (str) => {
   if (!str) return "";
@@ -128,7 +133,7 @@ export class HTMLRenderer {
             const hourAttr = isTotal ? '' : ` utc-local" data-utc="2026-01-01T${String(hour).padStart(2,'0')}:00:00Z" data-format="hour`;
             html += `<tr style="${isTotal ? 'font-weight:bold; background:#f8fafc;' : ''}"><td class="team-col ${hourAttr}" style="${isTotal ? 'background:#f1f5f9;' : ''}">${label}</td>`;
 
-            for (let dayIndex = 0; dayIndex < 8; dayIndex++) {
+            for (let dayIndex = 0; dayIndex < RENDER_CONFIG.TIME_GRID_COLUMN_COUNT; dayIndex++) {
                 const cellData = regionGrid[hour][dayIndex] || { totalMatchCount: 0 };
                 if (cellData.totalMatchCount === 0) {
                     html += "<td style='background:#f1f5f9; color:#cbd5e1'>-</td>";
@@ -1064,14 +1069,13 @@ export class HTMLRenderer {
       const name = item.name || "";
       const entries = (item.logs || []).map(entry => ({ ...entry, message: extractLeaguePart(entry.message || "", name) }));
       const lastEntry = entries[0];
-      const last = lastEntry.message || "";
       const isSlow = item.mode === "slow";
       const modeCls = isSlow ? "mode-slow" : "mode-fast";
 
       const syncCount = entries.filter(entry => entry.message.includes("🔄")).length;
       const errCount = entries.filter(entry => entry.message.includes("❌") || entry.message.includes("🚧")).length;
       const totalCount = Number.isFinite(item.totalMatches) ? item.totalMatches : null;
-      const lastTime = lastEntry.timestamp || "";
+      const lastTime = lastEntry?.timestamp || "";
       const lastUtcIso = lastTime.length >= 16 ? `20${lastTime.slice(0,8)}T${lastTime.slice(9)}:00Z` : "";
 
       const bars = entries.slice(-10).reverse().map(entry => {
@@ -1176,7 +1180,7 @@ export class HTMLRenderer {
       if (!regionGrid[hourOrTotal]) return;
           const label = hourOrTotal === "Total" ? `**Total**` : `**${String(hourOrTotal).padStart(2,'0')}:00**`;
       let line = `| ${label} |`;
-      for (let weekdayIndex = 0; weekdayIndex < 8; weekdayIndex++) {
+      for (let weekdayIndex = 0; weekdayIndex < RENDER_CONFIG.TIME_GRID_COLUMN_COUNT; weekdayIndex++) {
         const cell = regionGrid[hourOrTotal][weekdayIndex];
         if (!cell || cell.totalMatchCount === 0) line += " - |";
         else {

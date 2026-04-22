@@ -4,7 +4,29 @@ import { dataUtils } from '../utils/dataUtils.js';
 // 分析配置常量
 const ANALYZER_CONFIG = {
   MATCH_INTERVAL_HOURS_THRESHOLD: 8,  // 比赛间隔阈值（小时），超过则切换 slow 模式
+  NAME_CACHE_MAX_SIZE: 500,  // 名称缓存最大条目数，防止内存泄漏
+  TIME_GRID_COLUMN_COUNT: 8,  // 时间网格列数：周一到周日(7) + Total列(1)
+  DEFAULT_MAX_SCHEDULE_DAYS: 8,  // 默认最大赛程天数
 };
+
+/**
+ * LRU缓存实现，限制缓存大小以防止内存泄漏
+ */
+class LimitedCache extends Map {
+  constructor(maxSize) {
+    super();
+    this.maxSize = maxSize;
+  }
+  
+  set(key, value) {
+    if (this.size >= this.maxSize) {
+      // 删除最早插入的条目
+      const firstKey = this.keys().next().value;
+      this.delete(firstKey);
+    }
+    super.set(key, value);
+  }
+}
 
 /**
  * 统计分析核心模块 (纯UTC)
@@ -26,7 +48,8 @@ export class Analyzer {
       const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
       if (isLive) hasLiveMatch = true;
 
-      const tsRaw = match.DateTime_UTC || match["DateTime UTC"];
+      // 统一访问时间戳字段（兼容两种命名风格）
+      const tsRaw = match.DateTime_UTC ?? match["DateTime UTC"];
       const timestamp = tsRaw ? new Date(tsRaw).getTime() : 0;
       if (!timestamp || Number.isNaN(timestamp)) continue;
 
@@ -69,14 +92,14 @@ export class Analyzer {
   /**
    * 运行完整分析
    */
-  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), prevScheduleMap = {}, maxScheduleDays = 8) {
+  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), _prevScheduleMap = {}, maxScheduleDays = ANALYZER_CONFIG.DEFAULT_MAX_SCHEDULE_DAYS) {
     const globalStats = {};
     const tournamentMeta = {};
 
     const timeGrid = { "ALL": {} };
     const createSlot = () => {
       const slot = {};
-      for (let dayIndex = 0; dayIndex < 8; dayIndex++) {
+      for (let dayIndex = 0; dayIndex < ANALYZER_CONFIG.TIME_GRID_COLUMN_COUNT; dayIndex++) {
         slot[dayIndex] = { totalMatchCount: 0, fullLengthMatchCount: 0, matches: [] };
       }
       return slot;
@@ -96,7 +119,8 @@ export class Analyzer {
         };
       });
       const exactTeamMap = new Map(teamMapEntries.map(teamEntry => [teamEntry.key, teamEntry.value]));
-      const nameCache = new Map();
+      // 使用LRU缓存限制大小，防止内存泄漏
+      const nameCache = new LimitedCache(ANALYZER_CONFIG.NAME_CACHE_MAX_SIZE);
       return (rawName) => {
         if (!rawName) return "Unknown";
         if (nameCache.has(rawName)) return nameCache.get(rawName);
@@ -211,6 +235,8 @@ export class Analyzer {
 
     (runtimeConfig.TOURNAMENTS || []).forEach((tournament, tournamentIndex) => {
       const rawMatches = allRawMatches[tournament.slug] || [];
+      // 注意：rawMatches可能包含不一致的字段命名（如"Team 1" vs "Team1"）
+      // 这是由Fandom API返回的数据格式决定的，已在数据入口处处理
       const resolveName = buildResolveName(tournament.teamMap);
       const stats = {};
       const nowTimestamp = Date.now();
@@ -229,21 +255,24 @@ export class Analyzer {
       const parsedMatches = [];
 
       rawMatches.forEach(match => {
-        const team1Name = resolveName(match.Team1 || match["Team 1"]);
-        const team2Name = resolveName(match.Team2 || match["Team 2"]);
+        // 统一访问方式：优先使用无空格版本，兼容两种命名风格
+        const team1Name = resolveName(match.Team1 ?? match["Team 1"]);
+        const team2Name = resolveName(match.Team2 ?? match["Team 2"]);
         if(!team1Name || !team2Name) { return; }
 
         ensureTeam(team1Name); 
         ensureTeam(team2Name);
 
-        const team1Score = parseInt(match.Team1Score) || 0;
-        const team2Score = parseInt(match.Team2Score) || 0;
-        const bestOf = parseInt(match.BestOf) || 3;
+        // 统一访问比分和最佳局数字段
+        const team1Score = parseInt(match.Team1Score ?? match["Team 1 Score"]) || 0;
+        const team2Score = parseInt(match.Team2Score ?? match["Team 2 Score"]) || 0;
+        const bestOf = parseInt(match.BestOf ?? match["Best Of"]) || 3;
         const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
         const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
         const isFullLength = (bestOf === 3 && Math.min(team1Score, team2Score) === 1) || (bestOf === 5 && Math.min(team1Score, team2Score) === 2);
 
-        const dateTime = dateUtils.parseDate(match.DateTime_UTC || match["DateTime UTC"]);
+        // 统一访问时间戳字段（兼容两种命名风格）
+        const dateTime = dateUtils.parseDate(match.DateTime_UTC ?? match["DateTime UTC"]);
         const utcTimeParts = dateTime ? dateUtils.getUtcTimeParts(dateTime) : null;
         let dateDisplay = "-", fullDate = "-", matchDateStr = "-", matchTimeStr = "-", timestamp = 0;
         let isoString = "";

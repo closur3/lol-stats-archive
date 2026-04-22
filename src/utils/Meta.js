@@ -28,10 +28,31 @@ export function normalizeTournamentMeta(rawTournamentMeta) {
   return normalized;
 }
 
+/**
+ * 深度比较两个值是否相等（避免JSON序列化的性能开销）
+ */
+function deepEqual(a, b) {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    return a.every((item, index) => deepEqual(item, b[index]));
+  }
+
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+
+  return keysA.every(key => deepEqual(a[key], b[key]));
+}
+
 export function tournamentMetaEqual(left, right) {
   const leftNorm = normalizeTournamentMeta(left);
   const rightNorm = normalizeTournamentMeta(right);
-  return JSON.stringify(leftNorm) === JSON.stringify(rightNorm);
+  return deepEqual(leftNorm, rightNorm);
 }
 
 export function normalizeMetaState(raw, activeSlugs = null) {
@@ -79,8 +100,8 @@ export async function writeMetaState(env, {
     scheduleDayMark: resolvedScheduleDayMark
   }, activeSlugs);
 
-  // 简单对比：无变化则跳过写入
-  if (JSON.stringify(resolvedCurrentRaw) === JSON.stringify(next)) {
+  // 使用深度比较替代JSON序列化，提升性能
+  if (deepEqual(resolvedCurrentRaw, next)) {
     return next;
   }
 
