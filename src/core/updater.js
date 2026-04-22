@@ -49,9 +49,7 @@ export class Updater {
    */
   async runScheduledUpdate() {
     const startedAt = Date.now();
-    const markStart = Date.now();
     const runtimeConfig = await this.loadRuntimeConfig();
-    console.log(`[PERF] scheduled.loadRuntimeConfig=${Date.now() - markStart}ms`);
     if (!runtimeConfig) {
       this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
       return this.logger;
@@ -59,13 +57,10 @@ export class Updater {
 
     // Cron path skips eager meta rewrite. Meta is normalized on actual write paths
     // (day rollover / local update / fandom update), avoiding a fixed KV read each round.
-    const refreshStart = Date.now();
     await this.refreshScheduleBoardOnDayRollover(runtimeConfig);
-    console.log(`[PERF] scheduled.refreshScheduleBoardOnDayRollover=${Date.now() - refreshStart}ms`);
 
     const NOW = Date.now();
     const activeSlugs = (runtimeConfig.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
-    const cacheStart = Date.now();
     const metaForRevGate = await readMetaState(this.env, activeSlugs);
     const revGateCache = {
       meta: {
@@ -73,10 +68,7 @@ export class Updater {
         scheduleDayMark: metaForRevGate.scheduleDayMark || null
       }
     };
-    console.log(`[PERF] scheduled.loadMetaForRevGate=${Date.now() - cacheStart}ms`);
-    const revStart = Date.now();
     const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await this.detectRevisionChanges(runtimeConfig.TOURNAMENTS || [], revGateCache, NOW);
-    console.log(`[PERF] scheduled.detectRevisionChanges=${Date.now() - revStart}ms`);
     console.log(`[CRON] rev-check checked=${checkedSlugs} th-skip=${thresholdSkippedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
     const targetSlugs = new Set(changedSlugs);
 
@@ -338,14 +330,11 @@ export class Updater {
    * 联网更新：查Fandom并写回
    */
   async runFandomUpdate(force = false, forceSlugs = null, options = {}) {
-    const totalStart = Date.now();
     const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
     const passedRevidChanges = options.revidChanges || {};
     const pendingRevisionWrites = options.pendingRevisionWrites || {};
     const skipMetaRewrite = options.skipMetaRewrite === true;
-    const contextStart = Date.now();
     const context = await this.prepareRuntimeContext({ skipMetaRewrite });
-    console.log(`[PERF] fandom.prepareRuntimeContext=${Date.now() - contextStart}ms`);
     if (!context) return this.logger;
     const { NOW, runtimeConfig, teamsRaw, cache } = context;
 
@@ -360,20 +349,14 @@ export class Updater {
     const revidChanges = passedRevidChanges;
 
     // 登录到Fandom
-    const loginStart = Date.now();
     const authContext = await FandomClient.login(this.env.FANDOM_USER, this.env.FANDOM_PASS);
-    console.log(`[PERF] fandom.login=${Date.now() - loginStart}ms`);
     const fandomClient = new FandomClient(authContext);
 
     // 执行数据抓取
-    const fetchStart = Date.now();
     const results = await this.fetchMatchData(fandomClient, candidates);
-    console.log(`[PERF] fandom.fetchMatchData=${Date.now() - fetchStart}ms`);
 
     // 处理结果
-    const processStart = Date.now();
     const { failedSlugs, syncItems, idleItems, breakers, apiErrors, displayNameMap } = this.processResults(results, cache, force, forceSlugs, runtimeConfig);
-    console.log(`[PERF] fandom.processResults=${Date.now() - processStart}ms`);
     console.log(`[FANDOM] process sync=${syncItems.length} idle=${idleItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
 
     // 将 revid 变化信息注入 syncItems 和 idleItems
@@ -387,23 +370,16 @@ export class Updater {
     const { oldTournamentMeta } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
 
     // 分析数据（始终使用完整 runtimeConfig 以确保首页 HTML 包含所有赛事）
-    const analyzeStart = Date.now();
     const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, cache.prevScheduleMap, this.getMaxScheduleDays());
-    console.log(`[PERF] fandom.runFullAnalysis=${Date.now() - analyzeStart}ms`);
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta);
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap);
 
     // 保存数据
-    const saveStart = Date.now();
     const saveSummary = await this.saveData(runtimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries);
-    console.log(`[PERF] fandom.saveData=${Date.now() - saveStart}ms`);
 
-    const revWriteStart = Date.now();
     await this.commitRevisionWrites(pendingRevisionWrites, failedSlugs, saveSummary?.failedHomeSlugs || new Set());
-    console.log(`[PERF] fandom.commitRevisionWrites=${Date.now() - revWriteStart}ms`);
-    console.log(`[PERF] fandom.total=${Date.now() - totalStart}ms`);
 
     return this.logger;
   }
