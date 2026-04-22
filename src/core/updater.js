@@ -286,10 +286,18 @@ export class Updater {
 
   async rewriteMetaState(runtimeConfig) {
     const activeSlugs = (runtimeConfig?.TOURNAMENTS || []).map(tournament => tournament?.slug).filter(Boolean);
+    const currentMeta = await this.env["lol-stats-kv"].get(KV_KEYS.META, { type: "json" });
     const meta = await readMetaState(this.env, activeSlugs);
+    const nextMeta = {
+      tournaments: meta.tournaments || {},
+      scheduleDayMark: meta.scheduleDayMark || null
+    };
+    if (JSON.stringify(currentMeta || {}) === JSON.stringify(nextMeta)) {
+      return nextMeta;
+    }
     return writeMetaState(this.env, {
-      tournamentMetaBySlug: meta.tournaments || {},
-      scheduleDayMark: meta.scheduleDayMark || null,
+      tournamentMetaBySlug: nextMeta.tournaments,
+      scheduleDayMark: nextMeta.scheduleDayMark,
       activeSlugs
     });
   }
