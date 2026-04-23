@@ -11,7 +11,7 @@ import { kvPut, kvDelete } from '../utils/kvStore.js';
 // 更新配置常量
 export const UPDATE_CONFIG = {
   DROP_THRESHOLD: 0.9,            // 数据下降阈值：新数据 < 旧数据 * 0.9 时触发保护
-  MAX_LOG_ENTRIES: 10,             // 每个联赛保留的最大日志条数
+  MAX_LOG_ENTRIES: 20,             // 每个联赛保留的最大日志条数
   SLOW_THRESHOLD_MINUTES: 60,      // slow 模式阈值（分钟）
   CRON_INTERVAL_MINUTES: 2,        // 日志页快模式显示分钟数
   MAX_SCHEDULE_DAYS: 8,            // 赛程最大显示天数
