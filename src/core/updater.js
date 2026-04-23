@@ -380,7 +380,7 @@ export class Updater {
     const { oldTournamentMeta } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
 
     // 分析数据（始终使用完整 runtimeConfig 以确保首页 HTML 包含所有赛事）
-    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, cache.prevScheduleMap, this.getMaxScheduleDays());
+    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, this.getMaxScheduleDays());
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext);
@@ -542,7 +542,7 @@ export class Updater {
    * 加载缓存数据
    */
   async loadCachedData(tournaments) {
-    const cache = { rawMatches: {}, meta: { tournaments: {}, scheduleDayMark: null }, prevScheduleMap: {} };
+    const cache = { rawMatches: {}, meta: { tournaments: {}, scheduleDayMark: null } };
     const activeSlugs = (tournaments || []).map(tournament => tournament?.slug).filter(Boolean);
     
     const homeEntries = await Promise.all((tournaments || []).map(async tournament => {
@@ -555,8 +555,6 @@ export class Updater {
     
     homeEntries.forEach(([slug, home]) => {
       if (home && home.rawMatches) cache.rawMatches[slug] = home.rawMatches;
-      if (home && home.scheduleMap) cache.prevScheduleMap[slug] = home.scheduleMap;
-
     });
 
     cache.meta = {
@@ -905,8 +903,7 @@ export class Updater {
       const stats = analysis.globalStats[slug] || {};
       const grid = analysis.timeGrid[slug] || {};
 
-      const teamMap = tournament.teamMap || {};
-      const { teamMap: _, ...tournamentStored } = tournament;
+      const { teamMap, ...tournamentStored } = tournament;
 
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
       const homeSnapshot = {

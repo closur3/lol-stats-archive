@@ -16,7 +16,7 @@ module.exports = {
   },
   rules: {
     "no-empty": ["warn", { "allowEmptyCatch": true }],
-    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "no-unused-vars": "error",
     "no-case-declarations": "warn",
     "no-constant-condition": ["warn", { "checkLoops": false }]
   }

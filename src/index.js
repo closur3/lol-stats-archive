@@ -13,7 +13,7 @@ import { dateUtils } from './utils/dateUtils.js';
  * 主Worker入口
  */
 export default {
-  async fetch(request, env, _ctx) {
+  async fetch(request, env) {
     const url = new URL(request.url);
     const time = env.GITHUB_TIME;
     const sha = env.GITHUB_SHA;
@@ -134,7 +134,7 @@ export default {
     }
   },
 
-  async scheduled(event, env, _ctx) {
+  async scheduled(event, env) {
     const updater = new Updater(env);
     await updater.runScheduledUpdate();
   }

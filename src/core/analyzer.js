@@ -1,32 +1,11 @@
 import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
+import { TIME_GRID_COLUMN_COUNT, DEFAULT_MAX_SCHEDULE_DAYS } from '../utils/constants.js';
 
 // 分析配置常量
 const ANALYZER_CONFIG = {
   MATCH_INTERVAL_HOURS_THRESHOLD: 8,  // 比赛间隔阈值（小时），超过则切换 slow 模式
-  NAME_CACHE_MAX_SIZE: 500,  // 名称缓存最大条目数，防止内存泄漏
-  TIME_GRID_COLUMN_COUNT: 8,  // 时间网格列数：周一到周日(7) + Total列(1)
-  DEFAULT_MAX_SCHEDULE_DAYS: 8,  // 默认最大赛程天数
 };
-
-/**
- * LRU缓存实现，限制缓存大小以防止内存泄漏
- */
-class LimitedCache extends Map {
-  constructor(maxSize) {
-    super();
-    this.maxSize = maxSize;
-  }
-  
-  set(key, value) {
-    if (this.size >= this.maxSize) {
-      // 删除最早插入的条目
-      const firstKey = this.keys().next().value;
-      this.delete(firstKey);
-    }
-    super.set(key, value);
-  }
-}
 
 /**
  * 统计分析核心模块 (纯UTC)
@@ -92,14 +71,14 @@ export class Analyzer {
   /**
    * 运行完整分析
    */
-  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), _prevScheduleMap = {}, maxScheduleDays = ANALYZER_CONFIG.DEFAULT_MAX_SCHEDULE_DAYS) {
+  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), maxScheduleDays = DEFAULT_MAX_SCHEDULE_DAYS) {
     const globalStats = {};
     const tournamentMeta = {};
 
     const timeGrid = { "ALL": {} };
     const createSlot = () => {
       const slot = {};
-      for (let dayIndex = 0; dayIndex < ANALYZER_CONFIG.TIME_GRID_COLUMN_COUNT; dayIndex++) {
+      for (let dayIndex = 0; dayIndex < TIME_GRID_COLUMN_COUNT; dayIndex++) {
         slot[dayIndex] = { totalMatchCount: 0, fullLengthMatchCount: 0, matches: [] };
       }
       return slot;
@@ -119,8 +98,7 @@ export class Analyzer {
         };
       });
       const exactTeamMap = new Map(teamMapEntries.map(teamEntry => [teamEntry.key, teamEntry.value]));
-      // 使用LRU缓存限制大小，防止内存泄漏
-      const nameCache = new LimitedCache(ANALYZER_CONFIG.NAME_CACHE_MAX_SIZE);
+      const nameCache = new Map();
       return (rawName) => {
         if (!rawName) return "Unknown";
         if (nameCache.has(rawName)) return nameCache.get(rawName);
