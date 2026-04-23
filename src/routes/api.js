@@ -282,8 +282,8 @@ export class APIRouter {
           start_date: startDate,
           end_date: endDate
         },
-        rawMatches: [], // 空数据
-        teamMap: {} // rawMatches 为空时不需要 teamMap
+        rawMatches: [],
+        teamMap: {}
       };
 
       await kvPutIfChanged(env, `ARCHIVE_${slug}`, snapshot);
