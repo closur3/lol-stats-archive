@@ -6,7 +6,6 @@ import { Updater, UPDATE_CONFIG } from './core/updater.js';
 import { HTMLRenderer } from './render/htmlRenderer.js';
 import { GitHubClient } from './api/githubClient.js';
 import { KV_KEYS } from './utils/constants.js';
-import { readMetaState } from './utils/Meta.js';
 import { dateUtils } from './utils/dateUtils.js';
 
 /**
@@ -69,11 +68,10 @@ export default {
         }));
         const logsBySlug = new Map(logPairs.filter(([, logs]) => Array.isArray(logs) && logs.length > 0));
         const logSlugs = Array.from(logsBySlug.keys());
-        const metaState = await readMetaState(env, logSlugs);
         const homePairs = await Promise.all(logSlugs.map(async slug => {
           const home = await env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + slug, { type: "json" });
           const totalMatchCount = Array.isArray(home?.rawMatches) ? home.rawMatches.length : null;
-          const metaMode = metaState?.tournaments?.[slug]?.mode;
+          const metaMode = home?.tournament?.mode;
           const mode = metaMode === "slow" || metaMode === "fast" ? metaMode : null;
           return [slug, { totalMatchCount, mode }];
         }));

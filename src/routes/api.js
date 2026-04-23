@@ -4,7 +4,7 @@ import { GitHubClient } from '../api/githubClient.js';
 import { FandomClient } from '../api/fandomClient.js';
 import { dataUtils } from '../utils/dataUtils.js';
 import { KV_KEYS } from '../utils/constants.js';
-import { kvPut, kvDelete } from '../utils/kvStore.js';
+import { kvDelete, kvPutIfChanged } from '../utils/kvStore.js';
 
 /**
  * API路由处理
@@ -72,7 +72,12 @@ export class APIRouter {
       }
 
       const updater = new Updater(env);
-      await updater.runFandomUpdate(true, forceSlugs);
+      const runtimeConfig = await updater.loadRuntimeConfig();
+      if (!runtimeConfig) {
+        return new Response("Config load failed", { status: 500 });
+      }
+      const cache = await updater.loadCachedData(runtimeConfig.TOURNAMENTS);
+      await updater.runFandomUpdate(runtimeConfig, cache, true, forceSlugs);
       
       return new Response("OK", { status: 200 });
     } catch (error) {
@@ -167,13 +172,10 @@ export class APIRouter {
           teamMap: teamMap
         };
 
-        await kvPut(env, `ARCHIVE_${slug}`, JSON.stringify(snapshot));
+        await kvPutIfChanged(env, `ARCHIVE_${slug}`, snapshot);
 
         const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-        const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
-        if (existingArchiveHTML !== archiveHTML) {
-          await kvPut(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
-        }
+        await kvPutIfChanged(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
       } else {
         throw new Error("No matches found from Fandom API");
       }
@@ -209,12 +211,8 @@ export class APIRouter {
     try {
       await kvDelete(env, `ARCHIVE_${payload.slug}`);
 
-      // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-      const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
-      if (existingArchiveHTML !== archiveHTML) {
-        await kvPut(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
-      }
+      await kvPutIfChanged(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
 
       return new Response("OK", { status: 200 });
     } catch (error) {
@@ -288,14 +286,10 @@ export class APIRouter {
         teamMap: {} // rawMatches 为空时不需要 teamMap
       };
 
-      await kvPut(env, `ARCHIVE_${slug}`, JSON.stringify(snapshot));
+      await kvPutIfChanged(env, `ARCHIVE_${slug}`, snapshot);
 
-      // 重新生成 archive HTML
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-      const existingArchiveHTML = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
-      if (existingArchiveHTML !== archiveHTML) {
-        await kvPut(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
-      }
+      await kvPutIfChanged(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
 
       return new Response("OK", { status: 200 });
     } catch (error) {
