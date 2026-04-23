@@ -23,8 +23,10 @@ export class GitHubClient {
       });
       if (!response.ok) return null;
       const fileResponse = await response.json();
-      const content = atob(fileResponse.content);
-      return JSON.parse(decodeURIComponent(escape(content)));
+      const content = new TextDecoder().decode(
+        Uint8Array.from(atob(fileResponse.content), c => c.charCodeAt(0))
+      );
+      return JSON.parse(content);
     } catch (error) {
       return null;
     }
