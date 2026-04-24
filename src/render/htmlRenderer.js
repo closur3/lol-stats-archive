@@ -1048,10 +1048,15 @@ export class HTMLRenderer {
       const kept = [];
       for (const sec of sections) {
         if (sec.includes("⚙️")) continue;
-        const items = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*\([^)]*\)/g);
-        if (!items) { kept.push(sec); continue; }
-        const matched = items.filter(itemText => itemText.includes(league));
-        if (matched.length > 0) kept.push(sec.replace(/(?:❌|🚧)?\s*[A-Za-z0-9]+(?:\s[A-Za-z0-9]+)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*\([^)]*\)(?:,\s*)?/g, "").trim() + " " + matched.join(", "));
+        const triggerItems = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+[\w-]*(?:\s[A-Za-z0-9]+[\w-]*)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*(?:\([^)]*\))?/g);
+        if (!triggerItems) { kept.push(sec); continue; }
+        const matched = triggerItems.filter(itemText => itemText.includes(league));
+        if (matched.length > 0) {
+          const cleaned = sec.replace(/(?:❌|🚧)?\s*[A-Za-z0-9]+[\w-]*(?:\s[A-Za-z0-9]+[\w-]*)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*\([^)]*\)(?:,\s*)?/g, "").trim();
+          kept.push(cleaned ? cleaned + " " + matched.join(", ") : matched.join(", "));
+        } else if (sec.includes("🟰") || sec.includes("⚡") || sec.includes("🔄")) {
+          kept.push(sec.trim());
+        }
       }
       return kept.join(" | ").replace(/\s+/g, " ").trim();
     }
