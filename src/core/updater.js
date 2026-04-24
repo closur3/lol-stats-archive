@@ -780,7 +780,10 @@ export class Updater {
     const suffix = entry.isAnon ? " 👻" : "";
     const { action, displayName, added, updated, trigger, dropInfo } = entry;
     if (action === "SYNC") {
-      const delta = `+${added}~${updated}`;
+      let delta = "";
+      if (added > 0) delta += `+${added}`;
+      if (updated > 0) delta += `~${updated}`;
+      if (delta === "") delta = "~0";
       const triggerText = trigger ? ` | ➕ <a href="${trigger.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${trigger.revid}</a>` : "";
       return `🟢 [SYNC] | 🔄 ${displayName} ${delta}${triggerText}${suffix}`;
     }
