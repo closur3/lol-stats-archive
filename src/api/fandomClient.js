@@ -190,25 +190,25 @@ export class FandomClient {
          whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
        }
 
-       const cargoParams = new URLSearchParams({
-         action: "cargoquery", format: "json", tables: "MatchSchedule",
-         fields: "MatchId,Team1,Team2,Team1Score,Team2Score,DateTime_UTC,OverviewPage,BestOf,N_MatchInPage,Tab,Round",
-         where: whereClause,
-         limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
-       });
+    const cargoParams = new URLSearchParams({
+      action: "cargoquery", format: "json", tables: "MatchSchedule",
+      fields: "MatchId,Team1,Team2,Team1Score,Team2Score,DateTime_UTC=DateTimeUTC,OverviewPage,BestOf,Tab",
+      where: whereClause,
+      limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
+    });
 
        const batchRaw = await this.fetchWithRetry(`https://lol.fandom.com/api.php?${cargoParams}`);
        const batch = batchRaw.map(record => record.title);
 
        if (!batch.length) break;
 
-       // 检测重复：如果本批次有任何一条记录的 MatchId 已经见过，说明 offset 失效，陷入死循环
-       const hasDuplicates = batch.some(record => {
-         const matchId = record?.MatchId ?? record?.["MatchId"];
-         if (matchId != null && seenIds.has(String(matchId))) return true;
-         if (matchId != null) seenIds.add(String(matchId));
-         return false;
-       });
+    // 检测重复：如果本批次有任何一条记录的 MatchId 已经见过，说明 offset 失效，陷入死循环
+    const hasDuplicates = batch.some(record => {
+      const matchId = record.MatchId;
+      if (matchId != null && seenIds.has(String(matchId))) return true;
+      if (matchId != null) seenIds.add(String(matchId));
+      return false;
+    });
 
        if (hasDuplicates) {
          console.error(`[Fandom] ${slug}: detected duplicate MatchId, aborting to prevent infinite loop`);

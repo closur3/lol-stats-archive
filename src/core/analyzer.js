@@ -27,9 +27,7 @@ export class Analyzer {
       const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
       if (isLive) hasLiveMatch = true;
 
-      // 统一访问时间戳字段（兼容两种命名风格）
-      const tsRaw = match.DateTime_UTC ?? match["DateTime UTC"];
-      const timestamp = tsRaw ? new Date(tsRaw).getTime() : 0;
+      const timestamp = match.DateTimeUTC ? new Date(match.DateTimeUTC).getTime() : 0;
       if (!timestamp || Number.isNaN(timestamp)) continue;
 
       if (!isFinished && timestamp < nextMatchStartTimestamp) nextMatchStartTimestamp = timestamp;
@@ -213,8 +211,7 @@ export class Analyzer {
 
     (runtimeConfig.TOURNAMENTS || []).forEach((tournament, tournamentIndex) => {
       const rawMatches = allRawMatches[tournament.slug] || [];
-      // 注意：rawMatches可能包含不一致的字段命名（如"Team 1" vs "Team1"）
-      // 这是由Fandom API返回的数据格式决定的，已在数据入口处处理
+
       const resolveName = buildResolveName(tournament.teamMap);
       const stats = {};
       const nowTimestamp = Date.now();
@@ -232,25 +229,22 @@ export class Analyzer {
 
       const parsedMatches = [];
 
-      rawMatches.forEach(match => {
-        // 统一访问方式：优先使用无空格版本，兼容两种命名风格
-        const team1Name = resolveName(match.Team1 ?? match["Team 1"]);
-        const team2Name = resolveName(match.Team2 ?? match["Team 2"]);
-        if(!team1Name || !team2Name) { return; }
+  rawMatches.forEach(match => {
+    const team1Name = resolveName(match.Team1);
+    const team2Name = resolveName(match.Team2);
+    if(!team1Name || !team2Name) { return; }
 
-        ensureTeam(team1Name); 
-        ensureTeam(team2Name);
+    ensureTeam(team1Name);
+    ensureTeam(team2Name);
 
-        // 统一访问比分和最佳局数字段
-        const team1Score = parseInt(match.Team1Score ?? match["Team 1 Score"]) || 0;
-        const team2Score = parseInt(match.Team2Score ?? match["Team 2 Score"]) || 0;
-        const bestOf = parseInt(match.BestOf ?? match["Best Of"]) || 3;
-        const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
-        const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
-        const isFullLength = (bestOf === 3 && Math.min(team1Score, team2Score) === 1) || (bestOf === 5 && Math.min(team1Score, team2Score) === 2);
+    const team1Score = parseInt(match.Team1Score) || 0;
+    const team2Score = parseInt(match.Team2Score) || 0;
+    const bestOf = parseInt(match.BestOf) || 3;
+    const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
+    const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
+    const isFullLength = (bestOf === 3 && Math.min(team1Score, team2Score) === 1) || (bestOf === 5 && Math.min(team1Score, team2Score) === 2);
 
-        // 统一访问时间戳字段（兼容两种命名风格）
-        const dateTime = dateUtils.parseDate(match.DateTime_UTC ?? match["DateTime UTC"]);
+    const dateTime = dateUtils.parseDate(match.DateTimeUTC);
         const utcTimeParts = dateTime ? dateUtils.getUtcTimeParts(dateTime) : null;
         let dateDisplay = "-", fullDate = "-", matchDateStr = "-", matchTimeStr = "-", timestamp = 0;
         let isoString = "";

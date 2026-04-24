@@ -96,10 +96,8 @@ export const dataUtils = {
     if (!baseMap || typeof baseMap !== "object") return {};
     const rawNames = new Set();
     rawMatches.forEach(match => {
-      const team1 = match.Team1 || match["Team 1"];
-      const team2 = match.Team2 || match["Team 2"];
-      if (team1) rawNames.add(team1);
-      if (team2) rawNames.add(team2);
+      if (match.Team1) rawNames.add(match.Team1);
+      if (match.Team2) rawNames.add(match.Team2);
     });
     if (rawNames.size === 0) return baseMap || {};
 

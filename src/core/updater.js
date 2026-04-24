@@ -596,29 +596,18 @@ export class Updater {
     );
     const getDisplayName = (slug) => displayNameMap.get(slug) || slug;
 
-    const getMatchKey = (match) => {
-      const matchId = match?.MatchId ?? match?.["MatchId"];
-      if (matchId != null && String(matchId).trim() !== "") return `id:${String(matchId)}`;
-      const overview = match?.OverviewPage ?? match?.["Overview Page"] ?? "";
-      const nInPage = match?.N_MatchInPage ?? match?.["N MatchInPage"] ?? "";
-      const dateTimeUtc = match?.DateTime_UTC ?? match?.["DateTime UTC"] ?? "";
-      const team1Name = match?.Team1 ?? match?.["Team 1"] ?? "";
-      const team2Name = match?.Team2 ?? match?.["Team 2"] ?? "";
-      return `fallback:${overview}|${nInPage}|${dateTimeUtc}|${team1Name}|${team2Name}`;
-    };
+    const getMatchKey = (match) => String(match.MatchId);
 
     const canonicalMatch = (match) => [
-      match?.MatchId ?? match?.["MatchId"] ?? "",
-      match?.Team1 ?? match?.["Team 1"] ?? "",
-      match?.Team2 ?? match?.["Team 2"] ?? "",
-      match?.Team1Score ?? match?.["Team 1 Score"] ?? "",
-      match?.Team2Score ?? match?.["Team 2 Score"] ?? "",
-      match?.DateTime_UTC ?? match?.["DateTime UTC"] ?? "",
-      match?.OverviewPage ?? match?.["Overview Page"] ?? "",
-      match?.BestOf ?? match?.["Best Of"] ?? "",
-      match?.N_MatchInPage ?? match?.["N MatchInPage"] ?? "",
-      match?.Tab ?? "",
-      match?.Round ?? ""
+      match.MatchId,
+      match.Team1,
+      match.Team2,
+      match.Team1Score,
+      match.Team2Score,
+      match.DateTimeUTC,
+      match.OverviewPage,
+      match.BestOf,
+      match.Tab
     ].join("\u001f");
 
     const calcChangedCount = (oldData, newData) => {
