@@ -870,7 +870,7 @@ export class Updater {
 
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
       const homeSnapshot = {
-        tournament: { ...tournamentStored, ...(analyzedTournamentMeta[slug] || {}), ...(previousMeta[slug] || {}) },
+        tournament: { ...tournamentStored, ...(previousMeta[slug] || {}), ...(analyzedTournamentMeta[slug] || {}) },
         rawMatches: raw,
         stats: stats,
         timeGrid: grid,
