@@ -417,7 +417,6 @@ export class Updater {
     }
 
     if (changedSlugs.length > 0) {
-      console.log(`[LOCAL] meta changed: ${changedSlugs.join(", ")}`);
       await this.refreshHomeStaticFromCache();
     }
 
