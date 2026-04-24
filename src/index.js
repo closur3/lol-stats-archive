@@ -46,19 +46,6 @@ export default {
         return APIRouter.handleManualArchive(request, env);
 
       case "/logs": {
-        const detectMode = (logs) => {
-          for (const logEntry of (logs || [])) {
-            const logMessage = String(logEntry?.message || "");
-            const switchMatch = logMessage.match(/(⚡->🐌|🐌->⚡)/);
-            if (switchMatch) {
-              return switchMatch[1].endsWith("🐌") ? "slow" : "fast";
-            }
-            if (logMessage.includes("⚡")) return "fast";
-            if (logMessage.includes("🐌")) return "slow";
-          }
-          return "fast";
-        };
-
         const allLogKeys = await env["lol-stats-kv"].list({ prefix: "LOG_" });
         const logKeys = allLogKeys.keys.map(logKey => logKey.name);
         const logPairs = await Promise.all(logKeys.map(async key => {
@@ -93,7 +80,7 @@ export default {
           leagueLogs.push({
             name: tournament.league || tournament.name || slug,
             logs,
-            mode: homeBySlug.get(slug)?.mode || detectMode(logs),
+            mode: homeBySlug.get(slug)?.mode,
             totalMatches: homeBySlug.get(slug)?.totalMatchCount ?? null
           });
           consumed.add(slug);
@@ -105,7 +92,7 @@ export default {
           leagueLogs.push({
             name: slug,
             logs,
-            mode: homeBySlug.get(slug)?.mode || detectMode(logs),
+            mode: homeBySlug.get(slug)?.mode,
             totalMatches: homeBySlug.get(slug)?.totalMatchCount ?? null
           });
         }
