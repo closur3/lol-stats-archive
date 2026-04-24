@@ -334,7 +334,7 @@ export class Updater {
     const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap);
 
     // 保存数据
-    const saveSummary = await this.saveData(runtimeConfig, cache, analysis, syncItems, forceWrite, forceSlugs, leagueLogEntries);
+    const saveSummary = await this.saveData(runtimeConfig, cache, analysis, syncItems, idleItems, forceWrite, forceSlugs, leagueLogEntries);
 
     await this.commitRevisionWrites(pendingRevisionWrites, failedSlugs, saveSummary?.failedHomeSlugs || new Set());
 
@@ -801,7 +801,7 @@ export class Updater {
   /**
    * 保存数据
    */
-  async saveData(runtimeConfig, cache, analysis, syncItems, force = false, forceSlugs = null, leagueLogEntries = {}) {
+  async saveData(runtimeConfig, cache, analysis, syncItems, idleItems = [], force = false, forceSlugs = null, leagueLogEntries = {}) {
     const previousMeta = cache.meta || {};
     const analyzedTournamentMeta = analysis.tournamentMeta || {};
 
@@ -837,7 +837,8 @@ export class Updater {
     });
 
     const changedSlugSet = new Set((syncItems || []).map(item => item?.slug).filter(Boolean));
-    const writeScopeSlugSet = new Set(changedSlugSet);
+    const idleSlugSet = new Set((idleItems || []).map(item => item?.slug).filter(Boolean));
+    const writeScopeSlugSet = new Set([...changedSlugSet, ...idleSlugSet]);
     if (force) {
       if (forceSlugs && forceSlugs.size > 0) {
         for (const slug of forceSlugs) writeScopeSlugSet.add(slug);
