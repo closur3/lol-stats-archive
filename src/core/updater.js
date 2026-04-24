@@ -721,55 +721,81 @@ export class Updater {
   buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap) {
     const nowShort = dateUtils.getNow().shortDateTimeString;
     const isAnon = (!authContext || authContext.isAnonymous);
-    const authSuffix = isAnon ? " 👻" : "";
     const bySlug = {};
 
     const getDisplayName = (slug) => displayNameMap?.get(slug) || slug;
 
-    const pushEntry = (slug, level, message) => {
+    const pushEntry = (slug, entry) => {
       if (!slug) return;
-      bySlug[slug] = { timestamp: nowShort, level, message };
-    };
-
-    // 构建触发来源文本（与数据变动状态无关，仅标识来源）
-    const buildTriggerSource = (item) => {
-      if (item.revidChanges && item.revidChanges.length > 0) {
-        const revInfo = item.revidChanges[0];
-        return `<a href="${revInfo.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${revInfo.revid}</a>`;
-      }
-      if (item.isForce) return "Force";
-      return "";
+      bySlug[slug] = { timestamp: nowShort, ...entry };
     };
 
     // 有变动：🔄 + ➕
     syncItems.forEach(item => {
-      const source = buildTriggerSource(item);
-      const triggerText = source ? ` | ➕ ${source}` : "";
-      pushEntry(item.slug, "SUCCESS", `🟢 [SYNC] | 🔄 ${getDisplayName(item.slug)} ${this.formatDeltaTag(item)}${triggerText}${authSuffix}`);
+      pushEntry(item.slug, {
+        action: "SYNC",
+        level: "SUCCESS",
+        displayName: getDisplayName(item.slug),
+        added: item.added || 0,
+        updated: item.updated || 0,
+        trigger: item.revidChanges?.[0] || null,
+        isForce: item.isForce || false,
+        isAnon
+      });
     });
 
     // 无变动：🔍 + 🟰
     idleItems.forEach(item => {
       if (bySlug[item.slug]) return;
-      const source = buildTriggerSource(item);
-      const triggerText = source ? ` | 🟰 ${source}` : "";
-      pushEntry(item.slug, "SUCCESS", `⚪ [IDLE] | 🔍 ${getDisplayName(item.slug)} ~${item.added + item.updated}${triggerText}${authSuffix}`);
+      pushEntry(item.slug, {
+        action: "IDLE",
+        level: "SUCCESS",
+        displayName: getDisplayName(item.slug),
+        added: item.added || 0,
+        updated: item.updated || 0,
+        trigger: item.revidChanges?.[0] || null,
+        isForce: item.isForce || false,
+        isAnon
+      });
     });
 
+    // breakers / apiErrors
     breakers.forEach(breaker => {
       const slug = String(breaker || "").split("(")[0];
       const dropInfo = String(breaker || "").match(/\(Drop .+\)/)?.[0] || "(Drop)";
       const name = getDisplayName(slug);
-      pushEntry(slug, "ERROR", `🔴 [ERR!] | 🚧 ${name}${dropInfo}${authSuffix}`);
+      pushEntry(slug, { action: "BREAKER", level: "ERROR", displayName: name, dropInfo, isAnon });
     });
 
     apiErrors.forEach(apiError => {
       const slug = String(apiError || "").split("(")[0];
       const name = getDisplayName(slug);
-      pushEntry(slug, "ERROR", `🔴 [ERR!] | ❌ ${name}(Fail)${authSuffix}`);
+      pushEntry(slug, { action: "API_ERROR", level: "ERROR", displayName: name, isAnon });
     });
 
     return bySlug;
+  }
+
+  formatLogEntry(entry) {
+    const suffix = entry.isAnon ? " 👻" : "";
+    const { action, displayName, added, updated, trigger, dropInfo } = entry;
+    if (action === "SYNC") {
+      const delta = `+${added}~${updated}`;
+      const triggerText = trigger ? ` | ➕ <a href="${trigger.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${trigger.revid}</a>` : "";
+      return `🟢 [SYNC] | 🔄 ${displayName} ${delta}${triggerText}${suffix}`;
+    }
+    if (action === "IDLE") {
+      const delta = `~${added + updated}`;
+      const triggerText = trigger ? ` | 🟰 <a href="${trigger.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${trigger.revid}</a>` : "";
+      return `⚪ [IDLE] | 🔍 ${displayName} ${delta}${triggerText}${suffix}`;
+    }
+    if (action === "BREAKER") {
+      return `🔴 [ERR!] | 🚧 ${displayName}${dropInfo || "(Drop)"}${suffix}`;
+    }
+    if (action === "API_ERROR") {
+      return `🔴 [ERR!] | ❌ ${displayName}(Fail)${suffix}`;
+    }
+    return "";
   }
 
   /**
@@ -881,7 +907,8 @@ export class Updater {
       if (!slug || !entry) return;
       const logKey = `LOG_${slug}`;
       const oldLogs = await this.env["lol-stats-kv"].get(logKey, { type: "json" }) || [];
-      const nextLogs = [entry, ...oldLogs].slice(0, UPDATE_CONFIG.MAX_LOG_ENTRIES);
+      const logEntry = { ...entry, message: this.formatLogEntry(entry) };
+      const nextLogs = [logEntry, ...oldLogs].slice(0, UPDATE_CONFIG.MAX_LOG_ENTRIES);
       await kvPut(this.env, logKey, JSON.stringify(nextLogs));
     });
     if (logWrites.length > 0) {

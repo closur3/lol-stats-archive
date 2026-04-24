@@ -1043,31 +1043,13 @@ export class HTMLRenderer {
     const slowThresholdMinutes = Number(options.slowThresholdMinutes) || 60;
     const cronIntervalMinutes = Number(options.cronIntervalMinutes) || 3;
 
-    function extractLeaguePart(msg, league) {
-      const sections = msg.split(/\s*\|\s*/);
-      const kept = [];
-      for (const sec of sections) {
-        if (sec.includes("⚙️")) continue;
-        const triggerItems = sec.match(/(?:❌|🚧)?\s*[A-Za-z0-9]+[\w-]*(?:\s[A-Za-z0-9]+[\w-]*)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*(?:\([^)]*\))?/g);
-        if (!triggerItems) { kept.push(sec); continue; }
-        const matched = triggerItems.filter(itemText => itemText.includes(league));
-        if (matched.length > 0) {
-          const cleaned = sec.replace(/(?:❌|🚧)?\s*[A-Za-z0-9]+[\w-]*(?:\s[A-Za-z0-9]+[\w-]*)*\s*(?:(?:\+\d+(?:~\d+)?)|(?:~\d+)|±0)?\s*\([^)]*\)(?:,\s*)?/g, "").trim();
-          kept.push(cleaned ? cleaned + " " + matched.join(", ") : matched.join(", "));
-        } else if (sec.includes("🟰") || sec.includes("⚡") || sec.includes("🔄")) {
-          kept.push(sec.trim());
-        }
-      }
-      return kept.join(" | ").replace(/\s+/g, " ").trim();
-    }
-
     const leagueItems = Array.isArray(leagueLogs)
       ? leagueLogs
       : Object.keys(leagueLogs).map(name => ({ name, ...(leagueLogs[name] || {}) }));
 
     const cardsHtml = leagueItems.map(item => {
       const name = item.name || "";
-      const entries = (item.logs || []).map(entry => ({ ...entry, message: extractLeaguePart(entry.message || "", name) }));
+      const entries = item.logs || [];
       const lastEntry = entries[0];
       const isSlow = item.mode === "slow";
       const modeCls = isSlow ? "mode-slow" : "mode-fast";
