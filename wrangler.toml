@@ -10,7 +10,7 @@ FANDOM_USER = "HsuX"
 
 [[kv_namespaces]]
 binding = "lol-stats-kv"
-id = "caebca8919434b009d1b80fa89ff818f"
+id = "eac61be4fd134ab7a4282bf749791563"
 
 [observability]
 [observability.logs]
