@@ -633,7 +633,7 @@ export class Updater {
         const slug = resultItem.slug;
         const newData = resultItem.data || [];
         const oldData = cache.rawMatches[slug] || [];
-        const isForce = force || isTargetSlug(slug);
+        const isForce = force;
 
         if (!isForce && oldData.length > 10 && newData.length < oldData.length * UPDATE_CONFIG.DROP_THRESHOLD) {
           breakers.push(`${slug}(Drop ${oldData.length}->${newData.length})`);
@@ -766,18 +766,28 @@ export class Updater {
 
   formatLogEntry(entry) {
     const suffix = entry.isAnon ? " 👻" : "";
-    const { action, displayName, added, updated, trigger, dropInfo } = entry;
+    const { action, displayName, added, updated, trigger, dropInfo, isForce } = entry;
     if (action === "SYNC") {
       let delta = "";
       if (added > 0) delta += `+${added}`;
       if (updated > 0) delta += `~${updated}`;
       if (delta === "") delta = "~0";
-      const triggerText = trigger ? ` | ➕ <a href="${trigger.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${trigger.revid}</a>` : "";
+      let triggerText = "";
+      if (isForce) {
+        triggerText = " | ➕ Force";
+      } else if (trigger) {
+        triggerText = ` | ➕ <a href="${trigger.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${trigger.revid}</a>`;
+      }
       return `🟢 [SYNC] | 🔄 ${displayName} ${delta}${triggerText}${suffix}`;
     }
     if (action === "IDLE") {
       const delta = `~${added + updated}`;
-      const triggerText = trigger ? ` | 🟰 <a href="${trigger.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${trigger.revid}</a>` : "";
+      let triggerText = "";
+      if (isForce) {
+        triggerText = " | 🟰 Force";
+      } else if (trigger) {
+        triggerText = ` | 🟰 <a href="${trigger.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${trigger.revid}</a>`;
+      }
       return `⚪ [IDLE] | 🔍 ${displayName} ${delta}${triggerText}${suffix}`;
     }
     if (action === "BREAKER") {
