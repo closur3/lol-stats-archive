@@ -127,20 +127,16 @@ export class Updater {
         if (pages.length === 0) return null;
 
         const dataPages = Array.from(new Set(pages.map(page => page.startsWith("Data:") ? page : `Data:${page}`)));
-        const tournamentMetaFromKv = cache?.meta?.[slug];
+        const homeTournament = cache?.homes?.[slug]?.tournament;
         const revKey = `REV_${slug}`;
         const previousRevisionState = await this.env["lol-stats-kv"].get(revKey, { type: "json" });
         const lastCheckedAt = Number(previousRevisionState?.checkedAt) || 0;
         const elapsed = NOW - lastCheckedAt;
-        let threshold = 0;
-        let mode = "fast";
-
-        if (tournamentMetaFromKv) {
-          mode = tournamentMetaFromKv.mode || "fast";
-          const startTimestamp = tournamentMetaFromKv.startTimestamp || 0;
-          const isMatchStarted = startTimestamp > 0 && NOW >= startTimestamp;
-          threshold = (mode === "slow" && !isMatchStarted) ? this.getSlowThresholdMs() : 0;
-        }
+        const mode = homeTournament?.mode || "fast";
+        const todayEarliestTs = homeTournament?.todayEarliestTimestamp || 0;
+        const threshold = (mode === "slow" && (!todayEarliestTs || NOW < todayEarliestTs))
+          ? this.getSlowThresholdMs()
+          : 0;
 
         const shouldSkip = elapsed < threshold;
         if (!shouldSkip) {
@@ -324,14 +320,14 @@ export class Updater {
     }
 
     // 准备锦标赛上下文（teamMap）
-    const { oldTournamentMeta } = this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
+    this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
 
     // 分析数据（始终使用完整 runtimeConfig 以确保首页 HTML 包含所有赛事）
-    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, oldTournamentMeta, runtimeConfig, failedSlugs, this.getMaxScheduleDays());
+    const analysis = Analyzer.runFullAnalysis(cache.rawMatches, runtimeConfig, this.getMaxScheduleDays());
 
     // 生成日志
     this.generateLog(syncItems, idleItems, breakers, apiErrors, authContext);
-    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap);
+    const leagueLogEntries = this.buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, runtimeConfig, displayNameMap);
 
     // 保存数据
     const saveSummary = await this.saveData(runtimeConfig, cache, analysis, syncItems, idleItems, forceWrite, forceSlugs, leagueLogEntries);
@@ -363,9 +359,6 @@ export class Updater {
       const rawMatches = cache.rawMatches[tournament.slug] || [];
       tournament.teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, rawMatches);
     }
-
-    const oldTournamentMeta = cache.meta || {};
-    return { oldTournamentMeta };
   }
 
   /**
@@ -378,7 +371,6 @@ export class Updater {
     } catch (error) { console.error("[Context] Failed to load teams.json:", error.message); }
     this.prepareTournamentContext(runtimeConfig, cache, teamsRaw);
 
-    const nowTimestamp = Date.now();
     const changedSlugs = [];
 
     for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
@@ -386,23 +378,17 @@ export class Updater {
       const home = cache.homes[slug];
       if (!home) continue;
       const rawMatches = cache.rawMatches[slug] || [];
-      const previousMetaForTournament = cache.meta[slug] || {};
-      const computedMeta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp, {
-        previousMode: previousMetaForTournament.mode || "fast",
-        hasFailure: false
-      });
-      const nextMeta = {
-        ...previousMetaForTournament,
-        ...computedMeta
-      };
 
-      if (this.tournamentMetaEqual(previousMetaForTournament, nextMeta)) continue;
+      const computedMeta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches);
+
+      const existingTournament = home.tournament || {};
+      if (existingTournament.mode === computedMeta.mode && existingTournament.emoji === computedMeta.emoji && existingTournament.todayEarliestTimestamp === computedMeta.todayEarliestTimestamp) continue;
 
       const { teamMap, ...tournamentStored } = tournament;
       const scheduleMap = home.scheduleMap || {};
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
       const homeSnapshot = {
-        tournament: { ...tournamentStored, ...nextMeta },
+        tournament: { ...tournamentStored, ...computedMeta },
         rawMatches: home.rawMatches,
         stats: home.stats,
         timeGrid: home.timeGrid,
@@ -412,7 +398,6 @@ export class Updater {
 
       await kvPutIfChanged(this.env, homeKey, homeSnapshot);
       cache.homes[slug] = homeSnapshot;
-      cache.meta[slug] = nextMeta;
       changedSlugs.push(slug);
     }
 
@@ -421,19 +406,6 @@ export class Updater {
     }
 
     return this.logger;
-  }
-
-  tournamentMetaEqual(left, right) {
-    const META_KEYS = ["mode", "startTimestamp", "emoji", "matchIntervalHours", "hasStarted"];
-    if (!left && !right) return true;
-    if (!left || !right) return false;
-    return META_KEYS.every(key => {
-      const lv = left[key];
-      const rv = right[key];
-      if (lv === rv) return true;
-      if (typeof lv !== typeof rv) return false;
-      return false;
-    });
   }
 
   /**
@@ -508,7 +480,7 @@ export class Updater {
    * 加载缓存数据
    */
   async loadCachedData(tournaments) {
-    const cache = { rawMatches: {}, meta: {}, homes: {} };
+    const cache = { rawMatches: {}, homes: {} };
     
     const homeEntries = await Promise.all((tournaments || []).map(async tournament => {
       const homeEntry = await this.env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + tournament.slug, { type: "json" });
@@ -519,12 +491,6 @@ export class Updater {
       if (home) {
         if (home.rawMatches) cache.rawMatches[slug] = home.rawMatches;
         cache.homes[slug] = home;
-        if (home.tournament) {
-          const { mode, startTimestamp, emoji, matchIntervalHours, hasStarted } = home.tournament;
-          if (mode) {
-            cache.meta[slug] = { mode, startTimestamp, emoji, matchIntervalHours, hasStarted };
-          }
-        }
       }
     });
     
@@ -704,7 +670,7 @@ export class Updater {
   /**
    * 构建联赛级独立日志
    */
-  buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, analysis, runtimeConfig, oldTournamentMeta, displayNameMap) {
+  buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors, authContext, runtimeConfig, displayNameMap) {
     const nowShort = dateUtils.getNow().shortDateTimeString;
     const isAnon = (!authContext || authContext.isAnonymous);
     const bySlug = {};
@@ -801,7 +767,6 @@ export class Updater {
    * 保存数据
    */
   async saveData(runtimeConfig, cache, analysis, syncItems, idleItems = [], force = false, forceSlugs = null, leagueLogEntries = {}) {
-    const previousMeta = cache.meta || {};
     const analyzedTournamentMeta = analysis.tournamentMeta || {};
 
     // 保存首页静态HTML
@@ -866,7 +831,7 @@ export class Updater {
 
       const homeKey = KV_KEYS.HOME_PREFIX + slug;
       const homeSnapshot = {
-        tournament: { ...tournamentStored, ...(previousMeta[slug] || {}), ...(analyzedTournamentMeta[slug] || {}) },
+        tournament: { ...tournamentStored, ...(analyzedTournamentMeta[slug] || {}) },
         rawMatches: raw,
         stats: stats,
         timeGrid: grid,
@@ -969,9 +934,8 @@ export class Updater {
       if (!slug) return;
       if (home.stats) globalStats[slug] = home.stats;
       if (home.timeGrid) timeGrid[slug] = home.timeGrid;
-      if (homeTournament) {
-        const { mode, startTimestamp, emoji, matchIntervalHours, hasStarted } = homeTournament;
-        if (mode) tournamentMeta[slug] = { mode, startTimestamp, emoji, matchIntervalHours, hasStarted };
+      if (homeTournament && homeTournament.mode) {
+        tournamentMeta[slug] = { mode: homeTournament.mode, emoji: homeTournament.emoji };
       }
 
       const schedule = home.scheduleMap || {};
@@ -1065,7 +1029,7 @@ export class Updater {
         const snapshotTournament = snap.tournament;
         const tournamentWithMap = { ...snapshotTournament, teamMap: snap.teamMap || {} };
         const miniConfig = { TOURNAMENTS: [tournamentWithMap] };
-        const analysis = Analyzer.runFullAnalysis({ [snapshotTournament.slug]: snap.rawMatches || [] }, {}, miniConfig);
+        const analysis = Analyzer.runFullAnalysis({ [snapshotTournament.slug]: snap.rawMatches || [] }, miniConfig);
         const statsObj = analysis.globalStats[snapshotTournament.slug] || {};
         const timeObj = analysis.timeGrid[snapshotTournament.slug] || {};
         const content = HTMLRenderer.renderContentOnly(

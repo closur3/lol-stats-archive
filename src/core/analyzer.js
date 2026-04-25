@@ -2,74 +2,54 @@ import { dateUtils } from '../utils/dateUtils.js';
 import { dataUtils } from '../utils/dataUtils.js';
 import { TIME_GRID_COLUMN_COUNT, DEFAULT_MAX_SCHEDULE_DAYS } from '../utils/constants.js';
 
-// 分析配置常量
-const ANALYZER_CONFIG = {
-  MATCH_INTERVAL_HOURS_THRESHOLD: 8,  // 比赛间隔阈值（小时），超过则切换 slow 模式
-};
-
 /**
  * 统计分析核心模块 (纯UTC)
  */
 export class Analyzer {
-  static computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp = Date.now(), options = {}) {
-    const previousMode = options.previousMode || "fast";
-    const hasFailure = !!options.hasFailure;
-
-    let nextMatchStartTimestamp = Infinity;
-    let lastMatchStartTimestamp = 0;
-    let hasLiveMatch = false;
+  static computeTournamentMetaFromRawMatches(rawMatches) {
+    const now = Date.now();
+    const todayStr = dateUtils.getNow().dateString;
+    let todayEarliest = 0;
+    let todayUnfinished = 0;
+    let hasHistoryUnfinished = false;
 
     for (const match of (rawMatches || [])) {
+      const dt = dateUtils.parseDate(match.DateTimeUTC);
+      const parts = dt ? dateUtils.getUtcTimeParts(dt) : null;
+      if (!parts) continue;
+      const dateStr = `${parts.year}-${parts.month}-${parts.dayOfMonth}`;
+      const ts = dt.getTime();
+
+      if (dateStr === todayStr && ts && (!todayEarliest || ts < todayEarliest)) {
+        todayEarliest = ts;
+      }
+
       const team1Score = parseInt(match.Team1Score) || 0;
       const team2Score = parseInt(match.Team2Score) || 0;
       const bestOf = parseInt(match.BestOf) || 3;
       const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
-      const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
-      if (isLive) hasLiveMatch = true;
+      if (isFinished) continue;
 
-      const timestamp = match.DateTimeUTC ? new Date(match.DateTimeUTC).getTime() : 0;
-      if (!timestamp || Number.isNaN(timestamp)) continue;
-
-      if (!isFinished && timestamp < nextMatchStartTimestamp) nextMatchStartTimestamp = timestamp;
-      if (isFinished && timestamp > lastMatchStartTimestamp) lastMatchStartTimestamp = timestamp;
+      if (dateStr === todayStr) {
+        todayUnfinished++;
+      } else if (dateStr < todayStr) {
+        hasHistoryUnfinished = true;
+      }
     }
 
-    const startTimestamp = nextMatchStartTimestamp !== Infinity ? nextMatchStartTimestamp : 0;
-    const matchIntervalHours = (lastMatchStartTimestamp > 0 && nextMatchStartTimestamp !== Infinity)
-      ? (nextMatchStartTimestamp - lastMatchStartTimestamp) / (1000 * 60 * 60)
-      : Infinity;
-    const isMatchStarted = nextMatchStartTimestamp !== Infinity && nowTimestamp >= nextMatchStartTimestamp;
-    const isNearInterval = matchIntervalHours < ANALYZER_CONFIG.MATCH_INTERVAL_HOURS_THRESHOLD;
-
-    let nextMode;
-    if (hasFailure) nextMode = previousMode || "fast";
-    else if (hasLiveMatch) nextMode = "fast";
-    else if (isMatchStarted) nextMode = "fast";
-    else if (isNearInterval) nextMode = "fast";
-    else nextMode = "slow";
-
-    let emoji = "";
-    if (nextMode === "fast") {
-      emoji = "🎮";
-    } else {
-      const timeToNextMatch = nextMatchStartTimestamp !== Infinity ? (nextMatchStartTimestamp - nowTimestamp) / (1000 * 60 * 60) : Infinity;
-      emoji = timeToNextMatch <= 24 ? "⏳" : "🕊️";
+    if (hasHistoryUnfinished || (todayUnfinished && todayEarliest && now >= todayEarliest)) {
+      return { mode: "fast", emoji: "🎮", todayEarliestTimestamp: todayEarliest || 0 };
     }
-
-    const meta = {
-      mode: nextMode,
-      startTimestamp: startTimestamp,
-      emoji,
-      matchIntervalHours,
-      hasStarted: isMatchStarted
-    };
-    return meta;
+    if (todayEarliest) {
+      return { mode: "slow", emoji: "⏳", todayEarliestTimestamp: todayEarliest };
+    }
+    return { mode: "slow", emoji: "🕊️", todayEarliestTimestamp: todayEarliest || 0 };
   }
 
   /**
    * 运行完整分析
    */
-  static runFullAnalysis(allRawMatches, previousTournamentMeta, runtimeConfig, failedSlugs = new Set(), maxScheduleDays = DEFAULT_MAX_SCHEDULE_DAYS) {
+  static runFullAnalysis(allRawMatches, runtimeConfig, maxScheduleDays = DEFAULT_MAX_SCHEDULE_DAYS) {
     const globalStats = {};
     const tournamentMeta = {};
 
@@ -214,7 +194,6 @@ export class Analyzer {
 
       const resolveName = buildResolveName(tournament.teamMap);
       const stats = {};
-      const nowTimestamp = Date.now();
 
       const ensureTeam = (teamName) => { 
         if(!stats[teamName]) { 
@@ -468,11 +447,7 @@ export class Analyzer {
         addMatchToSlot(timeGrid[tournament.slug], "Total", 7);
       }
 
-      const prevMeta = previousTournamentMeta[tournament.slug] || {};
-      const meta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches, nowTimestamp, {
-        previousMode: prevMeta.mode || "fast",
-        hasFailure: failedSlugs.has(tournament.slug)
-      });
+      const meta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches);
       tournamentMeta[tournament.slug] = meta;
     });
 
