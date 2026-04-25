@@ -1060,13 +1060,13 @@ export class HTMLRenderer {
       const lastTime = lastEntry?.timestamp || "";
       const lastUtcIso = lastTime.length >= 16 ? `20${lastTime.slice(0,8)}T${lastTime.slice(9)}:00Z` : "";
 
-      const bars = entries.slice(-10).reverse().map(entry => {
+      const bars = entries.slice().reverse().map(entry => {
         const cls = entry.message.includes("🔄") ? "bar-sync" : entry.message.includes("❌") ? "bar-err" : "bar-idle";
         const barHeight = entry.message.includes("🔄") ? "100%" : entry.message.includes("❌") ? "70%" : "30%";
         return `<div class="bar ${cls}" style="height:${barHeight}"></div>`;
       }).join("");
 
-      const rows = entries.slice(-10).map(entry => {
+      const rows = entries.map(entry => {
         const rowTime = entry.timestamp || "";
         const utcIso = rowTime.length >= 16 ? `20${rowTime.slice(0,8)}T${rowTime.slice(9)}:00Z` : "";
         const formattedMessage = entry.message.replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
