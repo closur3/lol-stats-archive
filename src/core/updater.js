@@ -163,8 +163,8 @@ export class Updater {
 
           const prevPages = previousRevisionState?.pages || {};
           const nextPages = {};
-          let slugChanged = false;
-          let okCount = 0;
+          let revisionChanged = false;
+          let pagesFetched = 0;
           let errCount = 0;
           const changedPages = [];
 
@@ -187,7 +187,7 @@ export class Updater {
             if (latest?.missing) continue;
 
             const title = latest.title || page;
-            okCount++;
+            pagesFetched++;
             nextPages[title] = {
               revid: latest.revid,
               timestamp: latest.timestamp,
@@ -196,7 +196,7 @@ export class Updater {
 
             const prevRev = prevPages?.[title]?.revid;
             if (!prevRev || Number(prevRev) !== Number(latest.revid)) {
-              slugChanged = true;
+              revisionChanged = true;
               changedPages.push(`${title}:${prevRev || "none"}->${latest.revid}`);
 
               const safeTitle = title.replace(/ /g, '_');
@@ -206,9 +206,9 @@ export class Updater {
             }
           }
 
-          if (errCount > 0 && okCount === 0) hasErrors = true;
+          if (errCount > 0 && pagesFetched === 0) hasErrors = true;
 
-          const shouldTrackCheckedAt = mode === "slow" && okCount > 0;
+          const shouldTrackCheckedAt = mode === "slow" ? pagesFetched > 0 : revisionChanged;
           const checkedAt = shouldTrackCheckedAt ? NOW : lastCheckedAt;
           const nextRecord = { slug, pages: nextPages || {}, checkedAt };
           const shouldWriteRev = this.hasRevisionRecordChanged(
@@ -220,8 +220,8 @@ export class Updater {
             slug,
             shouldWriteRev,
             nextRecord,
-            okCount,
-            slugChanged,
+            pagesFetched,
+            revisionChanged,
             errCount,
             changedPages
           };
@@ -232,17 +232,17 @@ export class Updater {
     for (const checkResult of revChecks) {
       if (checkResult.status === 'rejected') continue;
 
-      const { slug, shouldWriteRev, nextRecord, okCount, slugChanged, errCount, changedPages } = checkResult.value;
+      const { slug, shouldWriteRev, nextRecord, pagesFetched, revisionChanged, errCount, changedPages } = checkResult.value;
 
-      if (shouldWriteRev && okCount > 0) {
+      if (shouldWriteRev && pagesFetched > 0) {
         pendingRevisionWrites[slug] = nextRecord;
       }
 
-      if (slugChanged) {
+      if (revisionChanged) {
         changedSlugs.add(slug);
         console.log(`[REV] ${slug}: changed pages=${changedPages.length}${changedPages.length ? ` | ${changedPages.join(", ")}` : ""}`);
       } else if (errCount > 0) {
-        console.log(`[REV] ${slug}: partial errors ok=${okCount} err=${errCount}`);
+        console.log(`[REV] ${slug}: partial errors ok=${pagesFetched} err=${errCount}`);
       }
     }
 
