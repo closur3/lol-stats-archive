@@ -769,7 +769,7 @@ export class HTMLRenderer {
             </div>
         </div>`;
     }).join("");
-    if (!activeListHtml) activeListHtml = "<div style='text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;'>No active tournaments</div>";
+    if (!activeListHtml) activeListHtml = "<div style='text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;'>No active</div>";
 
     let archiveListHtml = archivedTournaments.map(archiveTournament => {
         const overviewStr = Array.isArray(archiveTournament.overview_page) ? JSON.stringify(archiveTournament.overview_page) : JSON.stringify([archiveTournament.overview_page]);

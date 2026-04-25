@@ -111,7 +111,6 @@ export class Updater {
     const pendingRevisionWrites = {};
     let hasErrors = false;
     let checkedSlugs = 0;
-    let thresholdSkippedSlugs = 0;
 
     // 第一步：并行检查所有联赛的阈值
     const thresholdChecks = await Promise.all(
@@ -251,10 +250,9 @@ export class Updater {
     }
 
     // 统计跳过的
-    thresholdSkippedSlugs = thresholdChecks.filter(check => check && check.shouldSkip).length;
+    const thresholdSkippedSlugs = thresholdChecks.filter(check => check && check.shouldSkip).length;
 
-    return { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs };
-  }
+    return { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs };}
 
   hasRevisionRecordChanged(previousRecord, nextRecord) {
     const prev = previousRecord || {};

@@ -52,8 +52,8 @@ export class APIRouter {
       return new Response("Unauthorized", { status: 401 });
     }
     
-    let forceSlugs = null;
     try {
+      let forceSlugs = null;
       try {
         const body = await request.json();
         if (!body || !Array.isArray(body.slugs)) {
@@ -67,7 +67,7 @@ export class APIRouter {
           return new Response("Missing required field: slugs[]", { status: 400 });
         }
         forceSlugs = new Set(cleanSlugs);
-      } catch (error) {
+      } catch (_error) {
         return new Response("Invalid JSON payload", { status: 400 });
       }
 
@@ -122,7 +122,7 @@ export class APIRouter {
     let payload;
     try {
       payload = await request.json();
-    } catch (error) {
+    } catch (_error) {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
@@ -200,7 +200,7 @@ export class APIRouter {
     let payload;
     try {
       payload = await request.json();
-    } catch (error) {
+    } catch (_error) {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
@@ -234,7 +234,7 @@ export class APIRouter {
     let payload;
     try {
       payload = await request.json();
-    } catch (error) {
+    } catch (_error) {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
@@ -259,7 +259,7 @@ export class APIRouter {
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           try {
             overviewPages = JSON.parse(trimmed);
-          } catch (error) {
+          } catch (_error) {
             overviewPages = trimmed.split(',').map(page => page.trim()).filter(page => page.length > 0);
           }
         } else {

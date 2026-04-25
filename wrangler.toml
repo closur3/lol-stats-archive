@@ -19,10 +19,3 @@ invocation_logs = true
 
 [triggers]
 crons = ["*/2 * * * *"]
-
-# 构建配置
-[build]
-command = "echo 'No build step needed for ES modules'"
-
-[build.upload]
-format = "modules"

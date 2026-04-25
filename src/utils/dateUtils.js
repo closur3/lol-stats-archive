@@ -77,7 +77,7 @@ export const dateUtils = {
         return new Date(dateStringInput);
       }
       return new Date(dateStringInput + (dateStringInput.endsWith('Z') ? '' : 'Z'));
-    } catch(error) {
+    } catch(_error) {
       return null;
     }
   },

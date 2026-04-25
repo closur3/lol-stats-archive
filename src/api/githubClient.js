@@ -27,7 +27,7 @@ export class GitHubClient {
 
       return await response.json();
 
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }

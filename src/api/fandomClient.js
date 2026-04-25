@@ -142,8 +142,8 @@ export class FandomClient {
         let apiResponse;
         try { 
           apiResponse = JSON.parse(rawBody); 
-        } catch (error) { 
-          throw new Error(`JSON Parse Fail`); 
+        } catch (e) { 
+          throw new Error(`JSON Parse Fail`, { cause: e }); 
         }
 
         if (apiResponse.error) {

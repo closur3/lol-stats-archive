@@ -11,8 +11,9 @@
     "lint": "eslint src/"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240405.0",
-    "eslint": "^8.57.0",
-    "wrangler": "^3.24.0"
+    "@cloudflare/workers-types": "^4.20260425.1",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.2.1",
+    "wrangler": "^4.85.0"
   }
 }
