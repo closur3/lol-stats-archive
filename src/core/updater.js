@@ -132,10 +132,7 @@ export class Updater {
         const lastCheckedAt = Number(previousRevisionState?.checkedAt) || 0;
         const elapsed = NOW - lastCheckedAt;
         const mode = homeTournament?.mode || "fast";
-        const todayEarliestTs = homeTournament?.todayEarliestTimestamp || 0;
-        const threshold = (mode === "slow" && (!todayEarliestTs || NOW < todayEarliestTs))
-          ? this.getSlowThresholdMs()
-          : 0;
+        const threshold = (mode === "slow") ? this.getSlowThresholdMs() : 0;
 
         const shouldSkip = elapsed < threshold;
         if (!shouldSkip) {
@@ -211,7 +208,7 @@ export class Updater {
 
           if (errCount > 0 && okCount === 0) hasErrors = true;
 
-          const shouldTrackCheckedAt = mode === "slow" ? okCount > 0 : slugChanged;
+          const shouldTrackCheckedAt = mode === "slow" && okCount > 0;
           const checkedAt = shouldTrackCheckedAt ? NOW : lastCheckedAt;
           const nextRecord = { slug, pages: nextPages || {}, checkedAt };
           const shouldWriteRev = this.hasRevisionRecordChanged(
