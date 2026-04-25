@@ -626,8 +626,6 @@ export class Updater {
       return { added, updated, changed: added + updated };
     };
 
-    const isTargetSlug = (slug) => (forceSlugs && forceSlugs.has(slug));
-
     results.forEach(resultItem => {
       if (resultItem.status === 'fulfilled') {
         const slug = resultItem.slug;
@@ -975,9 +973,6 @@ export class Updater {
         const { mode, startTimestamp, emoji, matchIntervalHours, hasStarted } = homeTournament;
         if (mode) tournamentMeta[slug] = { mode, startTimestamp, emoji, matchIntervalHours, hasStarted };
       }
-      if (!slug) return;
-      if (home.stats) globalStats[slug] = home.stats;
-      if (home.timeGrid) timeGrid[slug] = home.timeGrid;
 
       const schedule = home.scheduleMap || {};
       Object.keys(schedule).forEach(date => {
