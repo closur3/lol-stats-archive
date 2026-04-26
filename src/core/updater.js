@@ -132,7 +132,18 @@ export class Updater {
         const lastCheckedAt = Number(previousRevisionState?.checkedAt) || 0;
         const elapsed = NOW - lastCheckedAt;
         const mode = homeTournament?.mode || "fast";
-        const threshold = (mode === "slow") ? this.getSlowThresholdMs() : 0;
+        let threshold;
+        if (mode === "fast") {
+          threshold = 0;
+        } else {
+          const todayUnfinished = homeTournament?.todayUnfinished || 0;
+          const ts = homeTournament?.todayEarliestTimestamp || 0;
+          if (todayUnfinished > 0 && ts > 0 && NOW >= ts) {
+            threshold = 0;
+          } else {
+            threshold = this.getSlowThresholdMs();
+          }
+        }
 
         const shouldSkip = elapsed < threshold;
         if (!shouldSkip) {

@@ -38,12 +38,12 @@ export class Analyzer {
     }
 
     if (hasHistoryUnfinished || (todayUnfinished && todayEarliest && now >= todayEarliest)) {
-      return { mode: "fast", emoji: "🎮", todayEarliestTimestamp: todayEarliest || 0 };
+      return { mode: "fast", emoji: "🎮", todayEarliestTimestamp: todayEarliest, todayUnfinished };
     }
     if (todayEarliest) {
-      return { mode: "slow", emoji: "⏳", todayEarliestTimestamp: todayEarliest };
+      return { mode: "slow", emoji: "⏳", todayEarliestTimestamp: todayEarliest, todayUnfinished };
     }
-    return { mode: "slow", emoji: "🕊️", todayEarliestTimestamp: todayEarliest || 0 };
+    return { mode: "slow", emoji: "🕊️", todayEarliestTimestamp: 0, todayUnfinished: 0 };
   }
 
   /**
