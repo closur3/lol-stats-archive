@@ -44,7 +44,7 @@ export function renderBuildFooter(time, sha) {
 }
 
 export function renderClientJS() {
-  return SORT_SCRIPT + MODAL_SCRIPT + UTC_SCRIPT;
+  return `<script>${SORT_SCRIPT}${MODAL_SCRIPT}${UTC_SCRIPT}</script>`;
 }
 
 export function renderPageShell(title, bodyContent, navMode = "home", time = null, sha = null) {

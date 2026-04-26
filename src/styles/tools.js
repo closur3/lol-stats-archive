@@ -1,3 +1,5 @@
+import footerCSS from './footer.js';
+
 export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     body, code, input, button, select, textarea { font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
     body { background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; min-height: 100dvh; display: flex; flex-direction: column; }
@@ -99,12 +101,7 @@ export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     @media (max-width: 650px) { .form-grid { grid-template-columns: 1fr; gap: 12px; } .flex-row { flex-direction: column; align-items: stretch; text-align: left; } .primary-btn, .secondary-btn { width: 100%; } .actions-row-end { flex-direction: column; } .qr-list-container { grid-template-columns: 1fr; } .ops-actions { flex-direction: column; } .ops-body .item { flex-wrap: wrap; } .ops-body .item-right { width: 100%; justify-content: flex-end; margin-top: 4px; } }
 
     
-    .build-footer { margin-top: auto; text-align: center; padding: 15px 20px; padding-bottom: calc(15px + env(safe-area-inset-bottom)); color: #94a3b8; font-size: 11px; }
-
-    .build-footer .footer-label { font-weight: 500; }
-    .build-footer .footer-time, .build-footer .footer-sha { color: #64748b; font-weight: 600; }
-    .build-footer a { color: inherit; text-decoration: none; opacity: 1; transition: filter 0.2s ease; }
-    .build-footer a:hover { filter: brightness(1.08); text-decoration: underline; }
+    ${footerCSS}
 
 
     /* Clean Glass Auth Overlay */

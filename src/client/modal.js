@@ -1,5 +1,4 @@
 export const MODAL_SCRIPT = `
-<script>
 (function(){
 const RESULT_ICON_MAP = { 
   'WIN': '\u2714', 
@@ -227,5 +226,4 @@ window.openStats = openStats;
 window.openH2H = openH2H;
 window.closePopup = closePopup;
 })();
-</script>
 `;

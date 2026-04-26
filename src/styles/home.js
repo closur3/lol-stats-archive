@@ -1,3 +1,5 @@
+import footerCSS from './footer.js';
+
 export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     body, code, input, button, select, textarea { font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
     body { background: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; min-height: 100dvh; display: flex; flex-direction: column; }
@@ -159,4 +161,6 @@ export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     .score-text.live { color: #10b981; }
     .score-text.vs { color: #94a3b8; font-size: 10px; letter-spacing: 0; font-weight: 600; }
     @media (max-width: 650px) { .match-item { padding: 10px 8px; } .col-date { width: 48px; font-size: 12px; } .modal-divider { margin: 0 6px; } .col-res { width: 48px; font-size: 18px; } .col-res .hist-icon { font-size: 18px; } .score-box { min-width: 48px; } .spine-l { padding-right: 2px; } .spine-r { padding-left: 2px; } }
+
+    ${footerCSS}
 `;
