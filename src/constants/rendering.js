@@ -1,0 +1,2 @@
+export const TIME_GRID_COLUMN_COUNT = 8;
+export const DEFAULT_MAX_SCHEDULE_DAYS = 8;

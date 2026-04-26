@@ -1,4 +1,4 @@
-import { BOT_UA, MAX_RETRIES, FETCH_DELAY_MS } from '../utils/constants.js';
+import { BOT_UA, MAX_RETRIES, FETCH_DELAY_MS } from '../constants/index.js';
 import { dataUtils } from '../utils/dataUtils.js';
 
 /**

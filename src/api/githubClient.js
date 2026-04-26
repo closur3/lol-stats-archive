@@ -1,4 +1,4 @@
-import { BOT_UA } from '../utils/constants.js';
+import { BOT_UA } from '../constants/index.js';
 
 /**
  * GitHub API 客户端
@@ -23,12 +23,12 @@ export class GitHubClient {
         }
       });
 
-      if (!response.ok) return null;
+      if (!response.ok) throw new Error(`GitHub fetch ${filePath}: HTTP ${response.status}`);
 
       return await response.json();
 
-    } catch (_error) {
-      return null;
+    } catch (error) {
+      throw new Error(`GitHub fetch ${filePath}: ${error.message}`, { cause: error });
     }
   }
 }

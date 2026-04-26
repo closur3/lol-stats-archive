@@ -71,15 +71,11 @@ export const dateUtils = {
    * 解析日期字符串
    */
   parseDate: (dateStringInput) => {
-    if(!dateStringInput) return null;
-    try {
-      if (dateStringInput.includes('T')) {
-        return new Date(dateStringInput);
-      }
-      return new Date(dateStringInput + (dateStringInput.endsWith('Z') ? '' : 'Z'));
-    } catch(_error) {
-      return null;
+    if (!dateStringInput) throw new Error(`Invalid date format: ${dateStringInput}`);
+    if (dateStringInput.includes('T')) {
+      return new Date(dateStringInput);
     }
+    return new Date(dateStringInput + (dateStringInput.endsWith('Z') ? '' : 'Z'));
   },
 
   /**

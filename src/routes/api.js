@@ -3,7 +3,7 @@ import { Updater } from '../core/updater.js';
 import { GitHubClient } from '../api/githubClient.js';
 import { FandomClient } from '../api/fandomClient.js';
 import { dataUtils } from '../utils/dataUtils.js';
-import { KV_KEYS } from '../utils/constants.js';
+import { kvKeys } from '../infrastructure/kv/keyFactory.js';
 import { kvDelete, kvPutIfChanged } from '../utils/kvStore.js';
 
 /**
@@ -19,8 +19,9 @@ export class APIRouter {
     }
 
     const payload = {};
-    const allHomeKeys = await env["lol-stats-kv"].list({ prefix: "HOME_" });
-    const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== KV_KEYS.HOME_STATIC_HTML);
+    const kv = env["lol-stats-kv"];
+    const allHomeKeys = await kv.list({ prefix: kvKeys.HOME_PREFIX });
+    const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== kvKeys.homeStatic());
     const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
       rawHomes.forEach(home => {
         const homeTournament = home?.tournament;
@@ -172,10 +173,10 @@ export class APIRouter {
           teamMap: teamMap
         };
 
-        await kvPutIfChanged(env, `ARCHIVE_${slug}`, snapshot);
+        await kvPutIfChanged(env, kvKeys.archive(slug), snapshot);
 
         const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-        await kvPutIfChanged(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+        await kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML);
       } else {
         throw new Error("No matches found from Fandom API");
       }
@@ -209,10 +210,10 @@ export class APIRouter {
     }
 
     try {
-      await kvDelete(env, `ARCHIVE_${payload.slug}`);
+      await kvDelete(env, kvKeys.archive(payload.slug));
 
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-      await kvPutIfChanged(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+      await kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML);
 
       return new Response("OK", { status: 200 });
     } catch (error) {
@@ -286,10 +287,10 @@ export class APIRouter {
         teamMap: {}
       };
 
-      await kvPutIfChanged(env, `ARCHIVE_${slug}`, snapshot);
+      await kvPutIfChanged(env, kvKeys.archive(slug), snapshot);
 
       const archiveHTML = await APIRouter.generateArchiveStaticHTML(env);
-      await kvPutIfChanged(env, KV_KEYS.ARCHIVE_STATIC_HTML, archiveHTML);
+      await kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML);
 
       return new Response("OK", { status: 200 });
     } catch (error) {

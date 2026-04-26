@@ -1,5 +1,5 @@
 import { HTMLRenderer } from '../render/htmlRenderer.js';
-import { KV_KEYS } from '../utils/constants.js';
+import { kvKeys } from '../infrastructure/kv/keyFactory.js';
 import { dateUtils } from '../utils/dateUtils.js';
 
 /**
@@ -11,21 +11,22 @@ export class ToolsRouter {
    */
   static async handleTools(request, env) {
     try {
+      const kv = env["lol-stats-kv"];
       // 并行读取活跃赛事和归档赛事
       const [activeTournaments, archivedTournaments] = await Promise.all([
       (async () => {
-        const allHomeKeys = await env["lol-stats-kv"].list({ prefix: KV_KEYS.HOME_PREFIX });
-        const dataKeys = allHomeKeys.keys.filter(key => key.name !== KV_KEYS.HOME_STATIC_HTML);
-        const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key.name, { type: "json" })));
+        const allHomeKeys = await kv.list({ prefix: kvKeys.HOME_PREFIX });
+        const dataKeys = allHomeKeys.keys.filter(key => key.name !== kvKeys.homeStatic());
+        const rawHomes = await Promise.all(dataKeys.map(key => kv.get(key.name, { type: "json" })));
         const tournaments = rawHomes
           .map(home => home?.tournament)
           .filter(Boolean);
         return dateUtils.sortTournamentsByDate(tournaments);
       })(),
       (async () => {
-        const allKeys = await env["lol-stats-kv"].list({ prefix: KV_KEYS.ARCHIVE_PREFIX });
-        const dataKeys = allKeys.keys.filter(key => key.name !== KV_KEYS.ARCHIVE_STATIC_HTML);
-        const rawSnapshots = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key.name, { type: "json" })));
+        const allKeys = await kv.list({ prefix: kvKeys.ARCHIVE_PREFIX });
+        const dataKeys = allKeys.keys.filter(key => key.name !== kvKeys.archiveStatic());
+        const rawSnapshots = await Promise.all(dataKeys.map(key => kv.get(key.name, { type: "json" })));
         const tournaments = rawSnapshots
           .map(snapshot => snapshot?.tournament)
           .filter(Boolean);

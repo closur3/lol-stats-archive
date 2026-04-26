@@ -1,4 +1,4 @@
-import { KV_KEYS } from '../utils/constants.js';
+import { kvKeys } from '../infrastructure/kv/keyFactory.js';
 
 /**
  * 归档路由处理
@@ -17,7 +17,7 @@ export class ArchiveRouter {
    * 处理归档页面请求
    */
   static async handleArchive(request, env) {
-    const html = await env["lol-stats-kv"].get(KV_KEYS.ARCHIVE_STATIC_HTML);
+    const html = await env["lol-stats-kv"].get(kvKeys.archiveStatic());
     if (html) {
       return new Response(html, { headers: ArchiveRouter.htmlHeaders() });
     }

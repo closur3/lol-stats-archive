@@ -1,4 +1,4 @@
-import { KV_KEYS } from '../utils/constants.js';
+import { kvKeys } from '../infrastructure/kv/keyFactory.js';
 
 /**
  * 首页路由处理
@@ -16,7 +16,7 @@ export class HomeRouter {
       );
     }
 
-    const html = await kvStore.get(KV_KEYS.HOME_STATIC_HTML);
+    const html = await kvStore.get(kvKeys.homeStatic());
     if (html) {
       return new Response(html, { 
         headers: { "content-type": "text/html;charset=utf-8" } 

@@ -5,7 +5,7 @@ import { APIRouter } from './routes/api.js';
 import { Updater, UPDATE_CONFIG } from './core/updater.js';
 import { HTMLRenderer } from './render/htmlRenderer.js';
 import { GitHubClient } from './api/githubClient.js';
-import { KV_KEYS } from './utils/constants.js';
+import { kvKeys } from './infrastructure/kv/keyFactory.js';
 import { dateUtils } from './utils/dateUtils.js';
 
 /**
@@ -46,17 +46,18 @@ export default {
         return APIRouter.handleManualArchive(request, env);
 
       case "/logs": {
-        const allLogKeys = await env["lol-stats-kv"].list({ prefix: "LOG_" });
+        const kv = env["lol-stats-kv"];
+        const allLogKeys = await kv.list({ prefix: kvKeys.LOG_PREFIX });
         const logKeys = allLogKeys.keys.map(logKey => logKey.name);
         const logPairs = await Promise.all(logKeys.map(async key => {
-          const slug = key.slice("LOG_".length);
-          const logs = await env["lol-stats-kv"].get(key, { type: "json" }) || [];
+          const slug = key.slice(kvKeys.LOG_PREFIX.length);
+          const logs = await kv.get(key, { type: "json" }) || [];
           return [slug, logs];
         }));
         const logsBySlug = new Map(logPairs.filter(([, logs]) => Array.isArray(logs) && logs.length > 0));
         const logSlugs = Array.from(logsBySlug.keys());
         const homePairs = await Promise.all(logSlugs.map(async slug => {
-          const home = await env["lol-stats-kv"].get(KV_KEYS.HOME_PREFIX + slug, { type: "json" });
+          const home = await kv.get(kvKeys.home(slug), { type: "json" });
           const totalMatchCount = Array.isArray(home?.rawMatches) ? home.rawMatches.length : null;
           const metaMode = home?.tournament?.mode;
           const mode = metaMode === "slow" || metaMode === "fast" ? metaMode : null;
