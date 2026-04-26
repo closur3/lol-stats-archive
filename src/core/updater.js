@@ -88,7 +88,7 @@ export class Updater {
     await this.refreshHomeStaticFromCache();
 
     await kvPutIfChanged(this.env, KV_KEYS.SCHEDULE_DAY, today);
-    console.log(`[SCHEDULE] rollover refresh ${lastDay || "none"} -> ${today}`);
+    console.log(`[SCHEDULE] ${lastDay || "none"} -> ${today}`);
   }
 
   /**
