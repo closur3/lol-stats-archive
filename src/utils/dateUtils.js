@@ -101,7 +101,7 @@ export const dateUtils = {
    * - 过期天仅在仍有未结束比赛时保留
    * - 最后按日期升序截断到 maxDays
    */
-  pruneScheduleMapByDayStatus: (scheduleMap, maxDays = 8, todayStr = null) => {
+  pruneScheduleMapByDayStatus: (scheduleMap, maxDays = 8, todayStr = null, hasHistoryUnfinished = {}) => {
     const today = todayStr || dateUtils.getNow().dateString;
     const kept = {};
 
@@ -111,8 +111,8 @@ export const dateUtils = {
         kept[date] = matches;
         return;
       }
-      const hasUnfinished = matches.some(match => !match || match.isFinished !== true);
-      if (hasUnfinished) kept[date] = matches;
+      const slugHasUnfinished = matches.some(match => hasHistoryUnfinished[match?.slug]);
+      if (slugHasUnfinished) kept[date] = matches;
     });
 
     const limited = {};

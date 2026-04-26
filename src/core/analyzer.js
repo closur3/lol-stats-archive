@@ -38,12 +38,12 @@ export class Analyzer {
     }
 
     if (hasHistoryUnfinished || (todayUnfinished && todayEarliest && now >= todayEarliest)) {
-      return { mode: "fast", emoji: "🎮", todayEarliestTimestamp: todayEarliest, todayUnfinished };
+      return { mode: "fast", emoji: "🎮", todayEarliestTimestamp: todayEarliest, todayUnfinished, hasHistoryUnfinished };
     }
     if (todayEarliest) {
-      return { mode: "slow", emoji: "⏳", todayEarliestTimestamp: todayEarliest, todayUnfinished };
+      return { mode: "slow", emoji: "⏳", todayEarliestTimestamp: todayEarliest, todayUnfinished, hasHistoryUnfinished };
     }
-    return { mode: "slow", emoji: "🕊️", todayEarliestTimestamp: 0, todayUnfinished: 0 };
+    return { mode: "slow", emoji: "🕊️", todayEarliestTimestamp: 0, todayUnfinished: 0, hasHistoryUnfinished: false };
   }
 
   /**
@@ -462,7 +462,11 @@ export class Analyzer {
       });
     });
 
-    scheduleMap = dateUtils.pruneScheduleMapByDayStatus(scheduleMap, maxScheduleDays, todayStr);
+    const historyUnfinished = {};
+    for (const [slug, meta] of Object.entries(tournamentMeta)) {
+      if (meta.hasHistoryUnfinished) historyUnfinished[slug] = true;
+    }
+    scheduleMap = dateUtils.pruneScheduleMapByDayStatus(scheduleMap, maxScheduleDays, todayStr, historyUnfinished);
 
     return {
       globalStats,

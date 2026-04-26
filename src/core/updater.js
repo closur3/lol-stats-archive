@@ -941,7 +941,7 @@ export class Updater {
       if (home.stats) globalStats[slug] = home.stats;
       if (home.timeGrid) timeGrid[slug] = home.timeGrid;
       if (homeTournament && homeTournament.mode) {
-        tournamentMeta[slug] = { mode: homeTournament.mode, emoji: homeTournament.emoji };
+        tournamentMeta[slug] = { mode: homeTournament.mode, emoji: homeTournament.emoji, hasHistoryUnfinished: homeTournament.hasHistoryUnfinished };
       }
 
       const schedule = home.scheduleMap || {};
@@ -968,10 +968,16 @@ export class Updater {
       });
     });
 
+    const historyUnfinished = {};
+    for (const [slug, meta] of Object.entries(tournamentMeta)) {
+      if (meta.hasHistoryUnfinished) historyUnfinished[slug] = true;
+    }
+
     const limitedScheduleMap = dateUtils.pruneScheduleMapByDayStatus(
       scheduleMap,
       maxScheduleDays,
-      dateUtils.getNow().dateString
+      dateUtils.getNow().dateString,
+      historyUnfinished
     );
 
     if (requireData && Object.keys(globalStats).length === 0) {
