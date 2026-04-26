@@ -5,4 +5,4 @@ dist/
 .dev.vars
 *.log
 tests/
-AGENTS.md
+*.md
