@@ -29,7 +29,7 @@ export function parseAllMatches(rawMatches, resolveName, todayStr, tournamentSlu
 
     const team1Score = parseInt(match.Team1Score) || 0;
     const team2Score = parseInt(match.Team2Score) || 0;
-    const bestOf = parseInt(match.BestOf) || 3;
+    const bestOf = parseInt(match.BestOf);
     const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
     const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
     const isFullLength = (bestOf === 3 && Math.min(team1Score, team2Score) === 1) || (bestOf === 5 && Math.min(team1Score, team2Score) === 2);
@@ -37,7 +37,8 @@ export function parseAllMatches(rawMatches, resolveName, todayStr, tournamentSlu
     let dateTime;
     try {
       dateTime = dateUtils.parseDate(match.DateTimeUTC);
-    } catch {
+    } catch (error) {
+      console.error(`[matchParser] Failed to parse date "${match.DateTimeUTC}": ${error.message}`);
       return;
     }
     const utcTimeParts = dateTime ? dateUtils.getUtcTimeParts(dateTime) : null;

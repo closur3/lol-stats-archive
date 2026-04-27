@@ -32,9 +32,11 @@ export class Updater {
 
   async runScheduledUpdate() {
     const startedAt = Date.now();
-    const runtimeConfig = await this.loadRuntimeConfig();
-    if (!runtimeConfig) {
-      this.logger.error(`🔴 [ERR!] | ❌ Config(Fail)`);
+    let runtimeConfig;
+    try {
+      runtimeConfig = await this.loadRuntimeConfig();
+    } catch (error) {
+      this.logger.error(`🔴 [ERR!] | ❌ Config(Fail): ${error.message}`);
       return this.logger;
     }
 

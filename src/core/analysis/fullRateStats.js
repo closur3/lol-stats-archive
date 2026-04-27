@@ -3,10 +3,10 @@ import { dataUtils } from '../../utils/dataUtils.js';
 export function calculateFullRateStats(sortedStats) {
   let bo3FullMatches = 0, bo3TotalMatches = 0, bo5FullMatches = 0, bo5TotalMatches = 0;
   sortedStats.forEach(stat => {
-    bo3FullMatches += stat.bestOf3FullMatchCount || 0;
-    bo3TotalMatches += stat.bestOf3TotalMatchCount || 0;
-    bo5FullMatches += stat.bestOf5FullMatchCount || 0;
-    bo5TotalMatches += stat.bestOf5TotalMatchCount || 0;
+    bo3FullMatches += stat.bestOf3FullMatchCount ?? 0;
+    bo3TotalMatches += stat.bestOf3TotalMatchCount ?? 0;
+    bo5FullMatches += stat.bestOf5FullMatchCount ?? 0;
+    bo5TotalMatches += stat.bestOf5TotalMatchCount ?? 0;
   });
   bo3FullMatches /= 2;
   bo3TotalMatches /= 2;

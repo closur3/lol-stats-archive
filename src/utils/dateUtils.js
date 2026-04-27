@@ -112,7 +112,7 @@ export const dateUtils = {
     });
 
     const limited = {};
-    Object.keys(kept).sort().slice(0, Math.max(1, Number(maxDays) || 8)).forEach(date => {
+    Object.keys(kept).sort().slice(0, Math.max(1, Number(maxDays))).forEach(date => {
       limited[date] = kept[date];
     });
     return limited;

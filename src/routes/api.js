@@ -73,8 +73,10 @@ export class APIRouter {
       }
 
       const updater = new Updater(env);
-      const runtimeConfig = await updater.loadRuntimeConfig();
-      if (!runtimeConfig) {
+      let runtimeConfig;
+      try {
+        runtimeConfig = await updater.loadRuntimeConfig();
+      } catch (_error) {
         return new Response("Config load failed", { status: 500 });
       }
       const cache = await updater.loadCachedData(runtimeConfig.TOURNAMENTS);

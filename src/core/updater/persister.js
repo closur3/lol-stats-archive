@@ -26,11 +26,11 @@ export async function saveData(env, runtimeConfig, cache, analysis, syncItems, i
     const list = analysis.scheduleMap[date] || [];
     list.forEach(match => {
       const slug = match.slug;
+      const index = tournamentIndexMap.get(slug);
+      if (index === undefined) return;
       const normalizedMatch = {
         ...match,
-        tournamentIndex: tournamentIndexMap.has(slug)
-          ? tournamentIndexMap.get(slug)
-          : (match.tournamentIndex ?? 9999)
+        tournamentIndex: index
       };
       if (!scheduleBySlug[slug]) scheduleBySlug[slug] = {};
       if (!scheduleBySlug[slug][date]) scheduleBySlug[slug][date] = [];

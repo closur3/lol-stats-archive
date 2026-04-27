@@ -46,11 +46,11 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
       if (!scheduleMap[date]) scheduleMap[date] = [];
       (schedule[date] || []).forEach(match => {
         const slug = match?.slug;
+        const index = tournamentIndexMap.get(slug);
+        if (index === undefined) return;
         scheduleMap[date].push({
           ...match,
-          tournamentIndex: tournamentIndexMap.has(slug)
-            ? tournamentIndexMap.get(slug)
-            : (match?.tournamentIndex ?? 9999)
+          tournamentIndex: index
         });
       });
     });
@@ -58,8 +58,8 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
 
   Object.keys(scheduleMap).forEach(date => {
     scheduleMap[date].sort((leftMatch, rightMatch) => {
-      const leftTournamentIndex = leftMatch.tournamentIndex ?? 9999;
-      const rightTournamentIndex = rightMatch.tournamentIndex ?? 9999;
+      const leftTournamentIndex = leftMatch.tournamentIndex;
+      const rightTournamentIndex = rightMatch.tournamentIndex;
       if (leftTournamentIndex !== rightTournamentIndex) return leftTournamentIndex - rightTournamentIndex;
       return (leftMatch.time || "").localeCompare(rightMatch.time || "");
     });

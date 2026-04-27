@@ -1,5 +1,5 @@
 import toolsCSS from '../../styles/tools.js';
-import { renderFontLinks, renderNavBar, renderBuildFooter, renderClientJS } from './page.js';
+import { renderFontLinks, renderNavBar, renderBuildFooter } from './page.js';
 
 export function renderToolsPage(time, sha, activeTournaments = [], archivedTournaments = []) {
   const buildFooter = renderBuildFooter(time, sha);
@@ -210,7 +210,7 @@ export function renderToolsPage(time, sha, activeTournaments = [], archivedTourn
               if (!requireAuth()) return;
               var checked = document.querySelectorAll('.qr-chk-archived:checked');
               if (checked.length === 0) { showToast("⚠️ No archives selected", "error"); return; }
-              var selected = Array.from(checked).map(function(checkboxElement) { var rawOverview = (checkboxElement.dataset.overview || '').trim(); var parsedOverview; try { parsedOverview = JSON.parse(rawOverview); } catch (error) { parsedOverview = rawOverview; } return { slug: (checkboxElement.value || '').trim(), name: (checkboxElement.dataset.name || '').trim(), overview_page: parsedOverview, league: (checkboxElement.dataset.league || '').trim(), start_date: (checkboxElement.dataset.start || '').trim(), end_date: (checkboxElement.dataset.end || '').trim() }; });
+              var selected = Array.from(checked).map(function(checkboxElement) { var rawOverview = (checkboxElement.dataset.overview || '').trim(); var parsedOverview; try { parsedOverview = JSON.parse(rawOverview); } catch (error) { showToast("❌ Invalid overview format for " + (checkboxElement.dataset.name || ''), "error"); throw error; } return { slug: (checkboxElement.value || '').trim(), name: (checkboxElement.dataset.name || '').trim(), overview_page: parsedOverview, league: (checkboxElement.dataset.league || '').trim(), start_date: (checkboxElement.dataset.start || '').trim(), end_date: (checkboxElement.dataset.end || '').trim() }; });
               var hasMissingField = selected.some(function(item) {
                   return !item.slug || !item.name || !item.overview_page || !item.league || !item.start_date || !item.end_date;
               });
@@ -243,7 +243,8 @@ export function renderToolsPage(time, sha, activeTournaments = [], archivedTourn
                       if (Array.isArray(parsedOverview)) overviewValue = parsedOverview.join(", ");
                       else overviewValue = String(parsedOverview || "");
                   } catch (error) {
-                      overviewValue = rawOverview;
+                      showToast("❌ Invalid overview data format", "error");
+                      return;
                   }
               }
 

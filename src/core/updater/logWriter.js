@@ -61,10 +61,10 @@ export function buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors,
       action: "SYNC",
       level: "SUCCESS",
       displayName: getDisplayName(item.slug),
-      added: item.added || 0,
-      updated: item.updated || 0,
+      added: item.added ?? 0,
+      updated: item.updated ?? 0,
       trigger: item.revidChanges?.[0] || null,
-      isForce: item.isForce || false,
+      isForce: item.isForce ?? false,
       isAnon
     });
   });
@@ -75,17 +75,17 @@ export function buildLeagueLogEntries(syncItems, idleItems, breakers, apiErrors,
       action: "IDLE",
       level: "SUCCESS",
       displayName: getDisplayName(item.slug),
-      added: item.added || 0,
-      updated: item.updated || 0,
+      added: item.added ?? 0,
+      updated: item.updated ?? 0,
       trigger: item.revidChanges?.[0] || null,
-      isForce: item.isForce || false,
+      isForce: item.isForce ?? false,
       isAnon
     });
   });
 
   breakers.forEach(breaker => {
-    const slug = String(breaker || "").split("(")[0];
-    const dropInfo = String(breaker || "").match(/\(Drop .+\)/)?.[0] || "(Drop)";
+    const slug = String(breaker ?? "").split("(")[0];
+    const dropInfo = String(breaker ?? "").match(/\(Drop .+\)/)?.[0] || "(Drop)";
     const name = getDisplayName(slug);
     pushEntry(slug, { action: "BREAKER", level: "ERROR", displayName: name, dropInfo, isAnon });
   });

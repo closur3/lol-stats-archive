@@ -15,11 +15,11 @@ const STYLE_SCH_GROUP_BLOCK = 'style="font-weight:700; opacity:0.7"';
 const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function renderContentOnly(globalStats, timeData, scheduleMap, runtimeConfig, isArchive = false, tournamentMeta = {}) {
-  globalStats = globalStats || {};
-  timeData = timeData || {};
-  scheduleMap = scheduleMap || {};
+  globalStats = globalStats ?? {};
+  timeData = timeData ?? {};
+  scheduleMap = scheduleMap ?? {};
 
-  const injectedData = `<script>window.g_stats = Object.assign(window.g_stats || {}, ${JSON.stringify(globalStats)});</script>`;
+  const injectedData = `<script>window.g_stats = Object.assign(window.g_stats ?? {}, ${JSON.stringify(globalStats)});</script>`;
 
   let tablesHtml = "";
 

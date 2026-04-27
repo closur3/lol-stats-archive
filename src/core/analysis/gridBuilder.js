@@ -77,7 +77,7 @@ function buildDateDedupAssignment(parsedMatches, clusters) {
   for (const dailyMatches of Object.values(matchesByDate)) {
     const sortedDailyMatches = [...dailyMatches].sort((leftMatch, rightMatch) => {
       if (leftMatch.timeMinutes !== rightMatch.timeMinutes) return leftMatch.timeMinutes - rightMatch.timeMinutes;
-      return (leftMatch.timestamp || 0) - (rightMatch.timestamp || 0);
+      return (leftMatch.timestamp ?? 0) - (rightMatch.timestamp ?? 0);
     });
     const usedClusterIndexes = new Set();
     for (const match of sortedDailyMatches) {

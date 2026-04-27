@@ -5,8 +5,8 @@ export function buildScheduleMap(allFutureMatches, runtimeConfig, maxScheduleDay
   const sortedFutureDates = Object.keys(allFutureMatches).sort();
   sortedFutureDates.forEach(date => {
     scheduleMap[date] = allFutureMatches[date].sort((matchA, matchB) => {
-      const matchATournamentIndex = matchA.tournamentIndex ?? 9999;
-      const matchBTournamentIndex = matchB.tournamentIndex ?? 9999;
+      const matchATournamentIndex = matchA.tournamentIndex;
+      const matchBTournamentIndex = matchB.tournamentIndex;
       if (matchATournamentIndex !== matchBTournamentIndex) return matchATournamentIndex - matchBTournamentIndex;
       return matchA.time.localeCompare(matchB.time);
     });

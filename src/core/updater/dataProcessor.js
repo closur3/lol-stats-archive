@@ -18,8 +18,8 @@ const canonicalMatch = (match) => [
 function calcChangedCount(oldData, newData) {
   const oldMap = new Map();
   const newMap = new Map();
-  for (const matchRecord of (oldData || [])) oldMap.set(getMatchKey(matchRecord), canonicalMatch(matchRecord));
-  for (const matchRecord of (newData || [])) newMap.set(getMatchKey(matchRecord), canonicalMatch(matchRecord));
+  for (const matchRecord of oldData) oldMap.set(getMatchKey(matchRecord), canonicalMatch(matchRecord));
+  for (const matchRecord of newData) newMap.set(getMatchKey(matchRecord), canonicalMatch(matchRecord));
 
   let added = 0;
   let updated = 0;
@@ -43,8 +43,8 @@ export function processResults(results, cache, force, forceSlugs, runtimeConfig)
   results.forEach(resultItem => {
     if (resultItem.status === 'fulfilled') {
       const slug = resultItem.slug;
-      const newData = resultItem.data || [];
-      const oldData = cache.rawMatches[slug] || [];
+      const newData = resultItem.data;
+      const oldData = cache.rawMatches[slug] ?? [];
       const isForce = force;
 
       if (!isForce && oldData.length > 10 && newData.length < oldData.length * UPDATE_CONFIG.DROP_THRESHOLD) {
