@@ -100,7 +100,8 @@ export default {
 
         const html = HTMLRenderer.renderLogPage(leagueLogs, time, sha, {
           slowThresholdMinutes: UPDATE_CONFIG.SLOW_THRESHOLD_MINUTES,
-          cronIntervalMinutes: UPDATE_CONFIG.CRON_INTERVAL_MINUTES
+          cronIntervalMinutes: UPDATE_CONFIG.CRON_INTERVAL_MINUTES,
+          maxLogEntries: UPDATE_CONFIG.MAX_LOG_ENTRIES
         });
         return new Response(html, { 
           headers: {

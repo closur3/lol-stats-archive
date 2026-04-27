@@ -3,8 +3,9 @@ import { renderFontLinks, renderNavBar, renderBuildFooter, renderClientJS } from
 
 export function renderLogPage(leagueLogs, time, sha, options = {}) {
   if (!leagueLogs) leagueLogs = [];
-  const slowThresholdMinutes = Number(options.slowThresholdMinutes) || 60;
-  const cronIntervalMinutes = Number(options.cronIntervalMinutes) || 3;
+  const slowThresholdMinutes = Number(options.slowThresholdMinutes);
+  const cronIntervalMinutes = Number(options.cronIntervalMinutes);
+  const maxLogEntries = Number(options.maxLogEntries);
 
   const leagueItems = Array.isArray(leagueLogs)
     ? leagueLogs
@@ -29,7 +30,7 @@ export function renderLogPage(leagueLogs, time, sha, options = {}) {
       return `<div class="bar ${cls}" style="height:${barHeight}"></div>`;
     }).join("");
 
-    const rows = entries.slice(0, 10).map(entry => {
+    const rows = entries.slice(0, maxLogEntries).map(entry => {
       const rowTime = entry.timestamp || "";
       const utcIso = rowTime.length >= 16 ? `20${rowTime.slice(0,8)}T${rowTime.slice(9)}:00Z` : "";
       const formattedMessage = entry.message.replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
