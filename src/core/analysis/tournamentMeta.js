@@ -29,7 +29,9 @@ export function computeTournamentMetaFromRawMatches(rawMatches) {
     const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
     if (isFinished) continue;
 
-    unfinished++;
+    if (dateStr <= todayStr) {
+      unfinished++;
+    }
   }
 
   if (unfinished && (!todayEarliest || now >= todayEarliest)) {
