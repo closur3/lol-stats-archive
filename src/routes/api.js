@@ -134,9 +134,8 @@ export class APIRouter {
     const league = typeof payload.league === "string" ? payload.league.trim() : "";
     const startDate = typeof payload.start_date === "string" ? payload.start_date.trim() : "";
     const endDate = typeof payload.end_date === "string" ? payload.end_date.trim() : "";
-    const hasOverviewPage = Array.isArray(payload.overview_page)
-      ? payload.overview_page.some(page => typeof page === "string" && page.trim().length > 0)
-      : (typeof payload.overview_page === "string" && payload.overview_page.trim().length > 0);
+    const overviewPages = dataUtils.normalizeOverviewPages(payload.overview_page);
+    const hasOverviewPage = overviewPages.length > 0;
 
     if (!slug || !name || !league || !startDate || !endDate || !hasOverviewPage) {
       return new Response("Missing required fields. Please provide slug, name, overview_page, league, start_date, and end_date.", { status: 400 });
@@ -152,10 +151,6 @@ export class APIRouter {
         teamsRaw = await githubClient.fetchJson("config/teams.json");
       } catch (error) { console.error("[Rebuild] Failed to load teams.json:", error.message); }
 
-      // 支持 overview_page 为数组或字符串
-      const overviewPages = (Array.isArray(payload.overview_page) ? payload.overview_page : [payload.overview_page])
-        .map(page => typeof page === "string" ? page.trim() : "")
-        .filter(Boolean);
       const matches = await fandomClient.fetchAllMatches(slug, overviewPages, null);
 
       if (matches && matches.length > 0) {
@@ -246,35 +241,14 @@ export class APIRouter {
     const league = typeof payload.league === "string" ? payload.league.trim() : "";
     const startDate = typeof payload.start_date === "string" ? payload.start_date.trim() : "";
     const endDate = typeof payload.end_date === "string" ? payload.end_date.trim() : "";
-    const hasOverviewPage = Array.isArray(payload.overview_page)
-      ? payload.overview_page.some(page => typeof page === "string" && page.trim().length > 0)
-      : (typeof payload.overview_page === "string" && payload.overview_page.trim().length > 0);
+    const overviewPages = dataUtils.parseOverviewPages(payload.overview_page);
+    const hasOverviewPage = overviewPages.length > 0;
 
     if (!slug || !name || !league || !startDate || !endDate || !hasOverviewPage) {
       return new Response("Missing required fields. Please provide slug, name, overview_page, league, start_date, and end_date.", { status: 400 });
     }
 
     try {
-      // 处理 overview_page：支持逗号分隔或 JSON 数组格式
-      let overviewPages = payload.overview_page;
-      if (typeof overviewPages === 'string') {
-        const trimmed = overviewPages.trim();
-        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-          try {
-            overviewPages = JSON.parse(trimmed);
-          } catch (_error) {
-            overviewPages = trimmed.split(',').map(page => page.trim()).filter(page => page.length > 0);
-          }
-        } else {
-          overviewPages = trimmed.split(',').map(page => page.trim()).filter(page => page.length > 0);
-        }
-      } else if (!Array.isArray(overviewPages)) {
-        overviewPages = [overviewPages];
-      }
-      overviewPages = overviewPages
-        .map(page => typeof page === "string" ? page.trim() : "")
-        .filter(Boolean);
-
       // 创建空的存档（仅元数据，无比赛数据）
       const snapshot = {
         tournament: {

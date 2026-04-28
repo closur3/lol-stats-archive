@@ -1,4 +1,4 @@
-import { BOT_UA, MAX_RETRIES, FETCH_DELAY_MS } from '../constants/index.js';
+import { BOT_UA, MAX_RETRIES, FETCH_DELAY_MS, FANDOM_API } from '../constants/index.js';
 import { dataUtils } from '../utils/dataUtils.js';
 
 /**
@@ -20,12 +20,11 @@ export class FandomClient {
       return null;
     }
 
-    const API = "https://lol.fandom.com/api.php";
     const MAX_LOGIN_RETRIES = 3;
 
     for (let attempt = 1; attempt <= MAX_LOGIN_RETRIES; attempt++) {
       try {
-        const tokenResp = await fetch(`${API}?action=query&meta=tokens&type=login&format=json`, {
+        const tokenResp = await fetch(`${FANDOM_API}?action=query&meta=tokens&type=login&format=json`, {
           headers: { "User-Agent": BOT_UA }
         });
         if (!tokenResp.ok) throw new Error(`Token HTTP Error: ${tokenResp.status}`);
@@ -40,7 +39,7 @@ export class FandomClient {
         loginParams.append("action", "login"); loginParams.append("format", "json");
         loginParams.append("lgname", user); loginParams.append("lgpassword", pass); loginParams.append("lgtoken", loginToken);
 
-        const loginResp = await fetch(API, {
+        const loginResp = await fetch(FANDOM_API, {
           method: "POST", body: loginParams,
           headers: { "User-Agent": BOT_UA, "Cookie": step1Cookie }
         });
@@ -69,7 +68,6 @@ export class FandomClient {
    * 获取页面最新 revision（用于轻量变更检测）
    */
   static async fetchLatestRevision(pageTitle, maxRetries = 3) {
-    const API = "https://lol.fandom.com/api.php";
     const revisionParams = new URLSearchParams({
       action: "query",
       prop: "revisions",
@@ -82,7 +80,7 @@ export class FandomClient {
     let attempt = 1;
     while (attempt <= maxRetries) {
       try {
-        const response = await fetch(`${API}?${revisionParams.toString()}`, {
+        const response = await fetch(`${FANDOM_API}?${revisionParams.toString()}`, {
           headers: { "User-Agent": BOT_UA, "Accept": "application/json" }
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -113,6 +111,46 @@ export class FandomClient {
         attempt++;
       }
     }
+  }
+
+  /**
+   * 获取页面的所有子页面
+   */
+  static async fetchAllSubpages(basePage) {
+    const allPages = [basePage];
+    let continueToken = null;
+
+    do {
+      const params = new URLSearchParams({
+        action: "query",
+        list: "allpages",
+        apnamespace: "10008",
+        apprefix: basePage.replace(/^Data:/, ""),
+        apfrom: continueToken || "",
+        aplimit: "500",
+        format: "json"
+      });
+
+      const response = await fetch(`${FANDOM_API}?${params.toString()}`, {
+        headers: { "User-Agent": BOT_UA, "Accept": "application/json" }
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const data = await response.json();
+      const pages = data?.query?.allpages || [];
+
+      for (const page of pages) {
+        const title = page.title;
+        if (title.startsWith(basePage + "/")) {
+          allPages.push(title);
+        }
+      }
+
+      continueToken = data?.continue?.apcontinue || null;
+    } while (continueToken);
+
+    return Array.from(new Set(allPages));
   }
 
   /**
@@ -174,55 +212,55 @@ export class FandomClient {
    * 获取所有比赛
    */
    async fetchAllMatches(slug, sourceInput, dateFilter = null) {
-     const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
-     const inClause = pages.map(page => `'${page}'`).join(", ");
-     let all = [];
-     let offset = 0;
-     const limit = 200;
-     const seenIds = new Set();
+      const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
+      const inClause = pages.map(page => `'${page}'`).join(", ");
+      let all = [];
+      let offset = 0;
+      const limit = 200;
+      const seenIds = new Set();
 
-     while (true) {
-       let whereClause = pages.length === 1
-         ? `OverviewPage = '${pages[0]}'`
-         : `OverviewPage IN (${inClause})`;
+      while (true) {
+        let whereClause = pages.length === 1
+          ? `OverviewPage = '${pages[0]}'`
+          : `OverviewPage IN (${inClause})`;
 
-       if (dateFilter) {
-         whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
-       }
+        if (dateFilter) {
+          whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
+        }
 
-    const cargoParams = new URLSearchParams({
-      action: "cargoquery", format: "json", tables: "MatchSchedule",
-      fields: "MatchId,Team1,Team2,Team1Score,Team2Score,DateTime_UTC=DateTimeUTC,OverviewPage,BestOf,Tab",
-      where: whereClause,
-      limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
-    });
+     const cargoParams = new URLSearchParams({
+       action: "cargoquery", format: "json", tables: "MatchSchedule",
+       fields: "MatchId,Team1,Team2,Team1Score,Team2Score,DateTime_UTC=DateTimeUTC,OverviewPage,BestOf,Tab",
+       where: whereClause,
+       limit: limit.toString(), offset: offset.toString(), order_by: "DateTime_UTC ASC", maxlag: "5"
+     });
 
-       const batchRaw = await this.fetchWithRetry(`https://lol.fandom.com/api.php?${cargoParams}`);
-       const batch = batchRaw.map(record => record.title);
+        const batchRaw = await this.fetchWithRetry(`${FANDOM_API}?${cargoParams}`);
+        const batch = batchRaw.map(record => record.title);
 
-       if (!batch.length) break;
+        if (!batch.length) break;
 
-    // 检测重复：如果本批次有任何一条记录的 MatchId 已经见过，说明 offset 失效，陷入死循环
-    const hasDuplicates = batch.some(record => {
-      const matchId = record.MatchId;
-      if (matchId != null && seenIds.has(String(matchId))) return true;
-      if (matchId != null) seenIds.add(String(matchId));
-      return false;
-    });
+     // 检测重复：如果本批次有任何一条记录的 MatchId 已经见过，说明 offset 失效，陷入死循环
+     const hasDuplicates = batch.some(record => {
+       const matchId = record.MatchId;
+       if (matchId != null && seenIds.has(String(matchId))) return true;
+       if (matchId != null) seenIds.add(String(matchId));
+       return false;
+     });
 
-       if (hasDuplicates) {
-         console.error(`[Fandom] ${slug}: detected duplicate MatchId, aborting to prevent infinite loop`);
-         break;
-       }
+        if (hasDuplicates) {
+          console.error(`[Fandom] ${slug}: detected duplicate MatchId, aborting to prevent infinite loop`);
+          break;
+        }
 
-       all = all.concat(batch);
-       offset += batch.length;
+        all = all.concat(batch);
+        offset += batch.length;
 
-       if (dateFilter) break;
-       if (batch.length < limit) break;
+        if (dateFilter) break;
+        if (batch.length < limit) break;
 
-       await new Promise(resolveDelay => setTimeout(resolveDelay, FETCH_DELAY_MS));
-     }
-     return all;
-  }
+        await new Promise(resolveDelay => setTimeout(resolveDelay, FETCH_DELAY_MS));
+      }
+      return all;
+   }
 }

@@ -1,5 +1,6 @@
 import { FandomClient } from '../../api/fandomClient.js';
 import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
+import { dataUtils } from '../../utils/dataUtils.js';
 
 export function hasRevisionRecordChanged(previousRecord, nextRecord) {
   const prev = previousRecord || {};
@@ -36,14 +37,22 @@ export async function detectRevisionChanges(env, tournaments, cache, NOW, slowTh
       const slug = tournament?.slug;
       if (!slug) return null;
 
-      const pages = (Array.isArray(tournament.overview_page) ? tournament.overview_page : [tournament.overview_page])
-        .filter(page => typeof page === "string")
-        .map(page => page.trim())
-        .filter(Boolean);
-
+      const pages = dataUtils.normalizeOverviewPages(tournament.overview_page);
       if (pages.length === 0) return null;
 
-      const dataPages = Array.from(new Set(pages.map(page => page.startsWith("Data:") ? page : `Data:${page}`)));
+      const dataPages = Array.from(new Set(pages.map(dataUtils.toDataPage)));
+      const expandedDataPages = [];
+      for (const dataPage of dataPages) {
+        try {
+          const subpages = await FandomClient.fetchAllSubpages(dataPage);
+          expandedDataPages.push(...subpages);
+        } catch (error) {
+          console.log(`[REV] ${slug}: failed to fetch subpages for ${dataPage}: ${error.message}`);
+          expandedDataPages.push(dataPage);
+        }
+      }
+
+      const finalDataPages = Array.from(new Set(expandedDataPages));
       const kv = env["lol-stats-kv"];
       const homeTournament = cache?.homes?.[slug]?.tournament;
       const revKey = kvKeys.rev(slug);
@@ -73,7 +82,7 @@ export async function detectRevisionChanges(env, tournaments, cache, NOW, slowTh
 
       return {
         slug,
-        dataPages,
+        dataPages: finalDataPages,
         previousRevisionState,
         lastCheckedAt,
         mode,

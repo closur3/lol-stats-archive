@@ -1,5 +1,6 @@
 import toolsCSS from '../../styles/tools.js';
 import { renderFontLinks, renderNavBar, renderBuildFooter } from './page.js';
+import { dataUtils } from '../../utils/dataUtils.js';
 
 export function renderToolsPage(time, sha, activeTournaments = [], archivedTournaments = []) {
   const buildFooter = renderBuildFooter(time, sha);
@@ -22,7 +23,7 @@ export function renderToolsPage(time, sha, activeTournaments = [], archivedTourn
   if (!activeListHtml) activeListHtml = "<div style='text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;'>No active</div>";
 
   let archiveListHtml = archivedTournaments.map(archiveTournament => {
-      const overviewStr = Array.isArray(archiveTournament.overview_page) ? JSON.stringify(archiveTournament.overview_page) : JSON.stringify([archiveTournament.overview_page]);
+      const overviewStr = JSON.stringify(dataUtils.normalizeOverviewPages(archiveTournament.overview_page));
       const startDate = archiveTournament.start_date || '';
       const endDate = archiveTournament.end_date || '';
       const archiveNameEscaped = (archiveTournament.name || '').replace(/'/g, '&apos;');

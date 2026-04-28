@@ -137,6 +137,53 @@ export const dataUtils = {
     else if (teamsRaw[tournament.league] && typeof teamsRaw[tournament.league] === "object") base = teamsRaw[tournament.league];
     else if (dataUtils.isFlatTeamMap(teamsRaw)) base = teamsRaw;
     return dataUtils.filterTeamMapForMatches(base, rawMatches);
+  },
+
+  /**
+   * 规范化 overview_page 为数组
+   */
+  normalizeOverviewPages: (overviewPage) => {
+    return (Array.isArray(overviewPage) ? overviewPage : [overviewPage])
+      .filter(page => typeof page === "string")
+      .map(page => page.trim())
+      .filter(Boolean);
+  },
+
+  /**
+   * 转换为 Data: 前缀
+   */
+  toDataPage: (page) => page.startsWith("Data:") ? page : `Data:${page}`,
+
+  /**
+   * 解析 overview_page（支持逗号分隔、JSON 数组格式）
+   */
+  parseOverviewPages: (overviewPage) => {
+    let pages = overviewPage;
+    if (typeof pages === 'string') {
+      const trimmed = pages.trim();
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          pages = JSON.parse(trimmed);
+        } catch (_error) {
+          pages = trimmed.split(',').map(page => page.trim()).filter(page => page.length > 0);
+        }
+      } else {
+        pages = trimmed.split(',').map(page => page.trim()).filter(page => page.length > 0);
+      }
+    } else if (!Array.isArray(pages)) {
+      pages = [pages];
+    }
+    return pages
+      .map(page => typeof page === "string" ? page.trim() : "")
+      .filter(Boolean);
+  },
+
+  /**
+   * 获取第一个 overview_page
+   */
+  getFirstOverviewPage: (overviewPage) => {
+    const pages = dataUtils.normalizeOverviewPages(overviewPage);
+    return pages.length > 0 ? pages[0] : "";
   }
 
 };

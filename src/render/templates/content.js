@@ -56,7 +56,7 @@ export function renderContentOnly(globalStats, timeData, scheduleMap, runtimeCon
       leagueSummaryHtml = `<div class="league-summary">${parts.join(" <span class='summary-sep'>|</span> ")}</div>`;
     }
 
-    const mainPage = Array.isArray(tournament.overview_page) ? tournament.overview_page[0] : tournament.overview_page;
+    const mainPage = dataUtils.getFirstOverviewPage(tournament.overview_page);
     const rows = stats.map(teamStats => buildTeamRow(teamStats, tournament.slug, sortMeta)).join("");
     const tableBody = `<table id="${tableId}" data-sort-col="2" data-sort-dir-2="asc"><thead><tr><th class="team-col" onclick="doSort(0, '${tableId}')">TEAM</th><th colspan="2" onclick="doSort(2, '${tableId}')">BO3 FULLRATE</th><th colspan="2" onclick="doSort(4, '${tableId}')">BO5 FULLRATE</th><th colspan="2" onclick="doSort(5, '${tableId}')">SERIES</th><th colspan="2" onclick="doSort(7, '${tableId}')">GAMES</th><th class="col-streak" onclick="doSort(9, '${tableId}')">STREAK</th><th class="col-last" onclick="doSort(10, '${tableId}')">LAST DATE</th></tr></thead><tbody>${rows}</tbody></table>`;
 
