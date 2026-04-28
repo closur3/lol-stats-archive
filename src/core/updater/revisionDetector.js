@@ -64,9 +64,9 @@ export async function detectRevisionChanges(env, tournaments, cache, NOW, slowTh
       if (mode === "fast") {
         threshold = 0;
       } else {
-        const todayUnfinished = homeTournament?.todayUnfinished || 0;
+        const unfinished = homeTournament?.unfinished || 0;
         const ts = homeTournament?.todayEarliestTimestamp || 0;
-        if (todayUnfinished > 0 && ts > 0 && NOW >= ts) {
+        if (unfinished > 0 && ts > 0 && NOW >= ts) {
           threshold = 0;
         } else {
           threshold = slowThresholdMs;

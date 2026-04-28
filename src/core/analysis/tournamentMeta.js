@@ -4,8 +4,7 @@ export function computeTournamentMetaFromRawMatches(rawMatches) {
   const now = Date.now();
   const todayStr = dateUtils.getNow().dateString;
   let todayEarliest = 0;
-  let todayUnfinished = 0;
-  let hasHistoryUnfinished = false;
+  let unfinished = 0;
 
   for (const match of (rawMatches || [])) {
     let dt;
@@ -30,18 +29,14 @@ export function computeTournamentMetaFromRawMatches(rawMatches) {
     const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
     if (isFinished) continue;
 
-    if (dateStr === todayStr) {
-      todayUnfinished++;
-    } else if (dateStr < todayStr) {
-      hasHistoryUnfinished = true;
-    }
+    unfinished++;
   }
 
-  if (hasHistoryUnfinished || (todayUnfinished && todayEarliest && now >= todayEarliest)) {
-    return { mode: "fast", emoji: "🎮", todayEarliestTimestamp: todayEarliest, todayUnfinished, hasHistoryUnfinished };
+  if (unfinished && (!todayEarliest || now >= todayEarliest)) {
+    return { mode: "fast", emoji: "🎮", todayEarliestTimestamp: todayEarliest, unfinished };
   }
   if (todayEarliest) {
-    return { mode: "slow", emoji: "⏳", todayEarliestTimestamp: todayEarliest, todayUnfinished, hasHistoryUnfinished };
+    return { mode: "slow", emoji: "⏳", todayEarliestTimestamp: todayEarliest, unfinished };
   }
-  return { mode: "slow", emoji: "🕊️", todayEarliestTimestamp: 0, todayUnfinished: 0, hasHistoryUnfinished: false };
+  return { mode: "slow", emoji: "🕊️", todayEarliestTimestamp: 0, unfinished: 0 };
 }
