@@ -126,10 +126,10 @@ export function formatLogEntry(entry) {
     return `⚪ [IDLE] | 🔍 ${displayName} ${delta}${triggerText}${suffix}`;
   }
   if (action === "BREAKER") {
-    return `🔴 [ERR!] | 🚧 ${displayName}${dropInfo || "(Drop)"}${suffix}`;
+    return `🔴 [ERR!] | 🚧 ${displayName} ${dropInfo || "(Drop)"}${suffix}`;
   }
   if (action === "API_ERROR") {
-    return `🔴 [ERR!] | ❌ ${displayName}(Fail)${suffix}`;
+    return `🔴 [ERR!] | ❌ ${displayName} (Fail)${suffix}`;
   }
   return "";
 }
