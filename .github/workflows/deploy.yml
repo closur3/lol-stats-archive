@@ -17,8 +17,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Set Src Commit Time
-        run: echo "SRC_COMMIT_TIME=$(git log -1 --date=format:'%Y-%m-%d %H:%M:%S' --format='%cd' -- src)" >> "$GITHUB_ENV"
+      - name: Set Src Commit Metadata
+        run: |
+          echo "SRC_COMMIT_SHA=$(git log -1 --format='%H' -- src)" >> "$GITHUB_ENV"
+          echo "SRC_COMMIT_TIME=$(git log -1 --date=format:'%Y-%m-%d %H:%M:%S' --format='%cd' -- src)" >> "$GITHUB_ENV"
       - name: Install Wrangler
         run: npm install -g wrangler
       - name: Deploy
@@ -29,14 +31,14 @@ jobs:
             GITHUB_SHA
             GITHUB_TIME
         env:
-          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_SHA: ${{ env.SRC_COMMIT_SHA }}
           GITHUB_TIME: ${{ env.SRC_COMMIT_TIME }}
 
       - name: Refresh UI
         env:
           WORKER_BASE_URL: "https://lol.hsux.de"
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-          TARGET_SHA: ${{ github.sha }}
+          TARGET_SHA: ${{ env.SRC_COMMIT_SHA }}
         run: |
           set -euo pipefail
 
