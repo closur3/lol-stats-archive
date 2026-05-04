@@ -27,9 +27,7 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          vars: |
-            GITHUB_SHA
-            GITHUB_TIME
+          command: deploy --var GITHUB_SHA:${{ env.SRC_COMMIT_SHA }} --var GITHUB_TIME:"${{ env.SRC_COMMIT_TIME }}"
         env:
           GITHUB_SHA: ${{ env.SRC_COMMIT_SHA }}
           GITHUB_TIME: ${{ env.SRC_COMMIT_TIME }}
@@ -38,29 +36,29 @@ jobs:
         env:
           WORKER_BASE_URL: "https://lol.hsux.de"
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-          TARGET_SHA: ${{ env.SRC_COMMIT_SHA }}
+          SRC_COMMIT_SHA: ${{ env.SRC_COMMIT_SHA }}
         run: |
           set -euo pipefail
 
-          TARGET_SHORT_SHA="${TARGET_SHA:0:7}"
-          echo "Target short sha: ${TARGET_SHORT_SHA}"
+          SRC_COMMIT_SHORT_SHA="${SRC_COMMIT_SHA:0:7}"
+          echo "Src commit short sha: ${SRC_COMMIT_SHORT_SHA}"
 
           extract_footer_sha() {
             sed -nE 's/.*class="footer-sha">@([0-9a-f]{7})<.*/\1/p' | head -n1
           }
 
-          echo "Waiting for /logs footer sha to match target..."
+          echo "Waiting for /logs footer sha to match src commit..."
           logs_attempt=0
           while true; do
             logs_attempt=$((logs_attempt + 1))
             LOGS_SHA="$(curl -fsSL "${WORKER_BASE_URL}/logs?ts=$(date +%s%N)" | extract_footer_sha || true)"
             echo "Logs footer sha (attempt ${logs_attempt}/20): ${LOGS_SHA:-<empty>}"
-            if [[ "${LOGS_SHA}" == "${TARGET_SHORT_SHA}" ]]; then
-              echo "/logs footer sha matches target sha."
+            if [[ "${LOGS_SHA}" == "${SRC_COMMIT_SHORT_SHA}" ]]; then
+              echo "/logs footer sha matches src commit sha."
               break
             fi
             if [[ ${logs_attempt} -ge 20 ]]; then
-              echo "Timeout: /logs footer sha did not match target sha within 20 attempts."
+              echo "Timeout: /logs footer sha did not match src commit sha within 20 attempts."
               exit 1
             fi
             sleep 3
@@ -70,7 +68,7 @@ jobs:
           HOME_URL="${WORKER_BASE_URL}/"
           REFRESH_HEADERS=(-H "Authorization: Bearer ${ADMIN_SECRET}")
 
-          echo "Deploy confirmed. Start refresh-ui loop until home footer sha matches..."
+          echo "Deploy confirmed. Start refresh-ui loop until home footer sha matches src commit..."
           home_attempt=0
           while true; do
             home_attempt=$((home_attempt + 1))
@@ -79,12 +77,12 @@ jobs:
             HOME_SHA="$(curl -fsSL "${HOME_URL}?ts=$(date +%s%N)" | extract_footer_sha || true)"
             echo "Home footer sha (attempt ${home_attempt}/20): ${HOME_SHA:-<empty>}"
 
-            if [[ "${HOME_SHA}" == "${TARGET_SHORT_SHA}" ]]; then
-              echo "Home footer sha matches target sha. Refresh complete."
+            if [[ "${HOME_SHA}" == "${SRC_COMMIT_SHORT_SHA}" ]]; then
+              echo "Home footer sha matches src commit sha. Refresh complete."
               break
             fi
             if [[ ${home_attempt} -ge 20 ]]; then
-              echo "Timeout: home footer sha did not match target sha within 20 attempts."
+              echo "Timeout: home footer sha did not match src commit sha within 20 attempts."
               exit 1
             fi
 
