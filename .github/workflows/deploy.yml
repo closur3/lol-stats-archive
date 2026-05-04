@@ -20,7 +20,7 @@ jobs:
       - name: Set Src Commit Metadata
         run: |
           echo "SRC_COMMIT_SHA=$(git log -1 --format='%H' -- src)" >> "$GITHUB_ENV"
-          echo "SRC_COMMIT_TIME=$(git log -1 --date=format:'%Y-%m-%d %H:%M:%S' --format='%cd' -- src)" >> "$GITHUB_ENV"
+          echo "SRC_COMMIT_TIME=$(TZ=Asia/Shanghai git log -1 --date=format-local:'%Y-%m-%d %H:%M:%S' --format='%cd' -- src)" >> "$GITHUB_ENV"
       - name: Install Wrangler
         run: npm install -g wrangler
       - name: Deploy
