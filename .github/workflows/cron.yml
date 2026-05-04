@@ -3,9 +3,6 @@ name: "Cron: Dynamic Window"
 on:
   schedule:
     - cron: "0 0 * * 1"
-  push:
-    paths:
-      - "config/tour.json"
   workflow_dispatch:
 
 jobs:

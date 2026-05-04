@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout repo
@@ -405,7 +406,21 @@ jobs:
               run_sniff()
 
       - name: Commit and Push
+        id: auto_commit
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "${{ steps.process_data.outputs.commit_msg }}"
           file_pattern: 'config/tour.json'
+
+      - name: Trigger Cron
+        if: steps.auto_commit.outputs.changes_detected == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_REF: ${{ github.ref_name }}
+        run: |
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GH_REPO}/actions/workflows/cron.yml/dispatches" \
+            -d "{\"ref\":\"${GH_REF}\"}"
