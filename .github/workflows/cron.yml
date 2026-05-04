@@ -41,6 +41,7 @@ jobs:
           TOUR_PATH = "config/tour.json"
           WRANGLER_PATH = "wrangler.toml"
           BASELINE_CRON = "0 0 * * *"
+          MAX_DYNAMIC_CRONS = 4
 
           def must_env(name: str) -> str:
             value = os.environ.get(name, "").strip()
@@ -99,15 +100,26 @@ jobs:
               raise RuntimeError(f"Fandom cargoquery error: {payload['error']}")
             return [row.get("title", {}).get("DateTimeUTC") for row in payload.get("cargoquery", [])]
 
-          def compute_dynamic_cron(session: requests.Session, tours: list[dict]) -> str | None:
+          def merge_window(a: dict, b: dict) -> dict:
+            return {
+              "start": min(a["start"], b["start"]),
+              "end": max(a["end"], b["end"]),
+              "days": set(a["days"]) | set(b["days"])
+            }
+
+          def merge_cost(a: dict, b: dict) -> int:
+            before = (a["end"] - a["start"] + 1) + (b["end"] - b["start"] + 1)
+            after = max(a["end"], b["end"]) - min(a["start"], b["start"]) + 1
+            return after - before
+
+          def compute_dynamic_crons(session: requests.Session, tours: list[dict]) -> list[str]:
             now_utc = datetime.now(timezone.utc)
             week_start = (now_utc - timedelta(days=now_utc.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
             week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
             print(f"[Cron] 本周时间窗 (UTC): {week_start.strftime('%Y-%m-%d %H:%M:%S')} -> {week_end.strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"[Cron] 赛事数量: {len(tours)}")
 
-            hours = []
-            weekdays = set()
+            weekday_hours = {d: [] for d in range(1, 8)}
             match_debug_rows = []
             for tour in tours:
               slug = tour.get("slug", "<unknown>")
@@ -123,30 +135,66 @@ jobs:
                 if not item:
                   continue
                 dt = datetime.strptime(item, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-                hours.append(dt.hour)
-                weekdays.add(dt.isoweekday())
-                match_debug_rows.append((slug, dt.strftime("%Y-%m-%d %H:%M:%S"), dt.isoweekday(), dt.hour))
+                weekday = dt.isoweekday()
+                hour = dt.hour
+                weekday_hours[weekday].append(hour)
+                match_debug_rows.append((slug, dt.strftime("%Y-%m-%d %H:%M:%S"), weekday, hour))
 
-            if not hours or not weekdays:
+            if not match_debug_rows:
               print("[Cron] 本周时间窗内无比赛，动态 CRON 已禁用")
-              return None
-
-            start_hour = min(hours)
-            end_hour = min(23, max(hours) + 4)
-            if start_hour > end_hour:
-              raise RuntimeError(f"Invalid hour window: {start_hour}-{end_hour}")
-            day_field = ",".join(str(day) for day in sorted(weekdays))
-            cron = f"*/2 {start_hour}-{end_hour} * * {day_field}"
+              return []
 
             print("[Cron] 参与计算的比赛明细:")
             for slug, dt_str, weekday, hour in match_debug_rows:
               print(f"[Cron]   slug={slug}, dt_utc={dt_str}, weekday={weekday}, hour={hour}")
-            print(f"[Cron] 收集到的小时集合: {sorted(hours)}")
-            print(f"[Cron] 收集到的星期集合: {sorted(weekdays)}")
-            print(f"[Cron] 开始小时 = min(hours) = {start_hour}")
-            print(f"[Cron] 结束小时 = min(23, max(hours)+4) = {end_hour}")
-            print(f"[Cron] 最终 CRON = {cron}")
-            return cron
+            windows = []
+            for day in range(1, 8):
+              hours = weekday_hours[day]
+              if not hours:
+                continue
+              start_hour = min(hours)
+              end_hour = min(23, max(hours) + 4)
+              if start_hour > end_hour:
+                raise RuntimeError(f"Invalid hour window for weekday {day}: {start_hour}-{end_hour}")
+              windows.append({"start": start_hour, "end": end_hour, "days": {day}})
+              print(f"[Cron] 星期{day}: 小时={sorted(hours)} -> 窗口={start_hour}-{end_hour}")
+
+            grouped = {}
+            for w in windows:
+              key = (w["start"], w["end"])
+              grouped.setdefault(key, set()).update(w["days"])
+            merged = [{"start": s, "end": e, "days": days} for (s, e), days in grouped.items()]
+            print(f"[Cron] 首轮聚合后窗口数: {len(merged)}")
+
+            while len(merged) > MAX_DYNAMIC_CRONS:
+              best_i, best_j, best_cost = -1, -1, None
+              for i in range(len(merged)):
+                for j in range(i + 1, len(merged)):
+                  cost = merge_cost(merged[i], merged[j])
+                  if best_cost is None or cost < best_cost:
+                    best_i, best_j, best_cost = i, j, cost
+              if best_i < 0:
+                raise RuntimeError("Window merge failed")
+              a = merged[best_i]
+              b = merged[best_j]
+              combined = merge_window(a, b)
+              print(f"[Cron] 合并窗口: {a['start']}-{a['end']}@{sorted(a['days'])} + {b['start']}-{b['end']}@{sorted(b['days'])} -> {combined['start']}-{combined['end']}@{sorted(combined['days'])} (增量小时={best_cost})")
+              next_list = []
+              for idx, w in enumerate(merged):
+                if idx not in (best_i, best_j):
+                  next_list.append(w)
+              next_list.append(combined)
+              merged = next_list
+
+            merged.sort(key=lambda w: (w["start"], w["end"], min(w["days"])))
+            crons = []
+            for w in merged:
+              day_field = ",".join(str(day) for day in sorted(w["days"]))
+              crons.append(f"*/2 {w['start']}-{w['end']} * * {day_field}")
+            print(f"[Cron] 最终动态 CRON 数量: {len(crons)}")
+            for c in crons:
+              print(f"[Cron] 动态 CRON: {c}")
+            return crons
 
           def write_triggers_crons(path: str, crons: list[str]) -> None:
             with open(path, "r", encoding="utf-8") as f:
@@ -172,15 +220,15 @@ jobs:
               raise RuntimeError("config/tour.json must be a list")
 
             fandom_session = fandom_login(fandom_user, fandom_pass)
-            dynamic_cron = compute_dynamic_cron(fandom_session, tours)
+            dynamic_crons = compute_dynamic_crons(fandom_session, tours)
             final_crons = [BASELINE_CRON]
-            if dynamic_cron:
-              final_crons.append(dynamic_cron)
+            final_crons.extend(dynamic_crons)
 
             write_triggers_crons(WRANGLER_PATH, final_crons)
+            print(f"[Cron] 最终 CRON 条数: {len(final_crons)} (1 条日切 + {len(dynamic_crons)} 条动态)")
             print(f"Updated wrangler triggers: {final_crons}")
 
-            commit_msg = f"⏱️ Cron: {dynamic_cron}" if dynamic_cron else "⏱️ Cron: disabled"
+            commit_msg = f"⏱️ Cron: {' || '.join(dynamic_crons)}" if dynamic_crons else "⏱️ Cron: disabled"
             with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
               f.write(f"commit_msg={commit_msg}\n")
 
