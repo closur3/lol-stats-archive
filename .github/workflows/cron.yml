@@ -168,7 +168,7 @@ jobs:
               hours = weekday_hours[day]
               if not hours:
                 continue
-              clusters = split_hour_clusters(hours, WINDOW_PADDING_HOURS)
+              clusters = split_hour_clusters(hours, WINDOW_PADDING_HOURS + 1)
               print(f"[Cron] 星期{day}: 小时={sorted(set(hours))}, 分簇={clusters}")
               for cluster in clusters:
                 start_hour = min(cluster)
