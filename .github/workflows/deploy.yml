@@ -4,7 +4,6 @@ on:
     paths:
       - 'wrangler.toml'
       - 'src/**'
-      - 'package.json'
   workflow_dispatch:
 
 concurrency:
@@ -16,8 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Set Time Variable
-        run: echo "CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+        with:
+          fetch-depth: 0
+      - name: Set Src Commit Time
+        run: echo "SRC_COMMIT_TIME=$(git log -1 --date=format:'%Y-%m-%d %H:%M:%S' --format='%cd' -- src)" >> "$GITHUB_ENV"
       - name: Install Wrangler
         run: npm install -g wrangler
       - name: Deploy
@@ -29,7 +30,7 @@ jobs:
             GITHUB_TIME
         env:
           GITHUB_SHA: ${{ github.sha }}
-          GITHUB_TIME: ${{ env.CURRENT_TIME }}
+          GITHUB_TIME: ${{ env.SRC_COMMIT_TIME }}
 
       - name: Refresh UI
         env:
