@@ -1,0 +1,175 @@
+name: "Cron: Dynamic Match Window"
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+  push:
+    paths:
+      - "config/tour.json"
+  workflow_dispatch:
+
+jobs:
+  control-cron:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Compute and Apply Worker Schedules
+        id: cron_update
+        env:
+          PYTHONUNBUFFERED: "1"
+          FANDOM_BOT_USERNAME: ${{ secrets.FANDOM_BOT_USERNAME }}
+          FANDOM_BOT_PASSWORD: ${{ secrets.FANDOM_BOT_PASSWORD }}
+        shell: python
+        run: |
+          import json
+          import os
+          from datetime import datetime, timedelta, timezone
+          import requests
+          import re
+
+          FANDOM_API = "https://lol.fandom.com/api.php"
+          TOUR_PATH = "config/tour.json"
+          WRANGLER_PATH = "wrangler.toml"
+          BASELINE_CRON = "0 0 * * *"
+
+          def must_env(name: str) -> str:
+            value = os.environ.get(name, "").strip()
+            if not value:
+              raise RuntimeError(f"Missing required env: {name}")
+            return value
+
+          def fandom_login(username: str, password: str) -> requests.Session:
+            session = requests.Session()
+            session.headers.update({"User-Agent": "LoLStatsWorker/2026 (User:HsuX)"})
+
+            token_resp = session.get(FANDOM_API, params={
+              "action": "query",
+              "meta": "tokens",
+              "type": "login",
+              "format": "json"
+            }, timeout=20)
+            token_resp.raise_for_status()
+            login_token = token_resp.json().get("query", {}).get("tokens", {}).get("logintoken")
+            if not login_token:
+              raise RuntimeError("Failed to get Fandom login token")
+
+            login_resp = session.post(FANDOM_API, data={
+              "action": "login",
+              "lgname": username,
+              "lgpassword": password,
+              "lgtoken": login_token,
+              "format": "json"
+            }, timeout=20)
+            login_resp.raise_for_status()
+            result = login_resp.json().get("login", {}).get("result")
+            if result != "Success":
+              raise RuntimeError(f"Fandom login failed: {result}")
+            return session
+
+          def fetch_matches_for_pages(session: requests.Session, pages: list[str], week_start: datetime, week_end: datetime):
+            in_clause = ", ".join(f"'{page}'" for page in pages)
+            where_clause = (
+              f"OverviewPage IN ({in_clause}) "
+              f"AND DateTime_UTC >= '{week_start.strftime('%Y-%m-%d %H:%M:%S')}' "
+              f"AND DateTime_UTC <= '{week_end.strftime('%Y-%m-%d %H:%M:%S')}'"
+            )
+            params = {
+              "action": "cargoquery",
+              "format": "json",
+              "tables": "MatchSchedule",
+              "fields": "DateTime_UTC=DateTimeUTC",
+              "where": where_clause,
+              "order_by": "DateTime_UTC ASC",
+              "limit": "500"
+            }
+            resp = session.get(FANDOM_API, params=params, timeout=30)
+            resp.raise_for_status()
+            payload = resp.json()
+            if "error" in payload:
+              raise RuntimeError(f"Fandom cargoquery error: {payload['error']}")
+            return [row.get("title", {}).get("DateTimeUTC") for row in payload.get("cargoquery", [])]
+
+          def compute_dynamic_cron(session: requests.Session, tours: list[dict]) -> str | None:
+            now_utc = datetime.now(timezone.utc)
+            week_start = (now_utc - timedelta(days=now_utc.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+            week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+            hours = []
+            weekdays = set()
+            for tour in tours:
+              pages = tour.get("overview_page")
+              if isinstance(pages, str):
+                pages = [pages]
+              if not pages:
+                raise RuntimeError(f"overview_page missing: {tour.get('slug')}")
+              raw_times = fetch_matches_for_pages(session, pages, week_start, week_end)
+              for item in raw_times:
+                if not item:
+                  continue
+                dt = datetime.strptime(item, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                hours.append(dt.hour)
+                weekdays.add(dt.isoweekday())
+
+            if not hours or not weekdays:
+              return None
+
+            start_hour = min(hours)
+            end_hour = min(23, max(hours) + 5)
+            if start_hour > end_hour:
+              raise RuntimeError(f"Invalid hour window: {start_hour}-{end_hour}")
+            day_field = ",".join(str(day) for day in sorted(weekdays))
+            return f"*/2 {start_hour}-{end_hour} * * {day_field}"
+
+          def write_triggers_crons(path: str, crons: list[str]) -> None:
+            with open(path, "r", encoding="utf-8") as f:
+              text = f.read()
+
+            new_block = "[triggers]\ncrons = [" + ", ".join(f"\"{c}\"" for c in crons) + "]\n"
+            pattern = re.compile(r"(?ms)^\[triggers\]\n.*?(?=^\[|\Z)")
+            if pattern.search(text):
+              updated = pattern.sub(new_block + "\n", text, count=1)
+            else:
+              updated = text.rstrip() + "\n\n" + new_block
+
+            with open(path, "w", encoding="utf-8", newline="\n") as f:
+              f.write(updated)
+
+          if __name__ == "__main__":
+            fandom_user = must_env("FANDOM_BOT_USERNAME")
+            fandom_pass = must_env("FANDOM_BOT_PASSWORD")
+
+            with open(TOUR_PATH, "r", encoding="utf-8") as f:
+              tours = json.load(f)
+            if not isinstance(tours, list):
+              raise RuntimeError("config/tour.json must be a list")
+
+            fandom_session = fandom_login(fandom_user, fandom_pass)
+            dynamic_cron = compute_dynamic_cron(fandom_session, tours)
+            final_crons = [BASELINE_CRON]
+            if dynamic_cron:
+              final_crons.append(dynamic_cron)
+
+            write_triggers_crons(WRANGLER_PATH, final_crons)
+            print(f"Updated wrangler triggers: {final_crons}")
+
+            commit_msg = f"⏱️ Cron: {' | '.join(final_crons)}"
+            with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"commit_msg={commit_msg}\n")
+
+      - name: Commit and Push
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "${{ steps.cron_update.outputs.commit_msg }}"
+          file_pattern: "wrangler.toml"
