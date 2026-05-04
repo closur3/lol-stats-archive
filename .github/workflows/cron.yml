@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  control-cron:
+  cron:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Compute and Apply Worker Schedules
+      - name: Compute Schedules
         id: cron_update
         env:
           PYTHONUNBUFFERED: "1"
@@ -42,7 +42,6 @@ jobs:
           FANDOM_API = "https://lol.fandom.com/api.php"
           TOUR_PATH = "config/tour.json"
           WRANGLER_PATH = "wrangler.toml"
-          BASELINE_CRON = "0 0 * * *"
 
           def must_env(name: str) -> str:
             value = os.environ.get(name, "").strip()
@@ -105,24 +104,32 @@ jobs:
             now_utc = datetime.now(timezone.utc)
             week_start = (now_utc - timedelta(days=now_utc.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
             week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+            print(f"[Cron] 本周时间窗 (UTC): {week_start.strftime('%Y-%m-%d %H:%M:%S')} -> {week_end.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"[Cron] 赛事数量: {len(tours)}")
 
             hours = []
             weekdays = set()
+            match_debug_rows = []
             for tour in tours:
+              slug = tour.get("slug", "<unknown>")
               pages = tour.get("overview_page")
               if isinstance(pages, str):
                 pages = [pages]
               if not pages:
                 raise RuntimeError(f"overview_page missing: {tour.get('slug')}")
+              print(f"[Cron] 抓取赛程: slug={slug}, pages={pages}")
               raw_times = fetch_matches_for_pages(session, pages, week_start, week_end)
+              print(f"[Cron]   原始比赛条数: {len(raw_times)}")
               for item in raw_times:
                 if not item:
                   continue
                 dt = datetime.strptime(item, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
                 hours.append(dt.hour)
                 weekdays.add(dt.isoweekday())
+                match_debug_rows.append((slug, dt.strftime("%Y-%m-%d %H:%M:%S"), dt.isoweekday(), dt.hour))
 
             if not hours or not weekdays:
+              print("[Cron] 本周时间窗内无比赛，动态 CRON 已禁用")
               return None
 
             start_hour = min(hours)
@@ -130,7 +137,17 @@ jobs:
             if start_hour > end_hour:
               raise RuntimeError(f"Invalid hour window: {start_hour}-{end_hour}")
             day_field = ",".join(str(day) for day in sorted(weekdays))
-            return f"*/2 {start_hour}-{end_hour} * * {day_field}"
+            cron = f"*/2 {start_hour}-{end_hour} * * {day_field}"
+
+            print("[Cron] 参与计算的比赛明细:")
+            for slug, dt_str, weekday, hour in match_debug_rows:
+              print(f"[Cron]   slug={slug}, dt_utc={dt_str}, weekday={weekday}, hour={hour}")
+            print(f"[Cron] 收集到的小时集合: {sorted(hours)}")
+            print(f"[Cron] 收集到的星期集合: {sorted(weekdays)}")
+            print(f"[Cron] 开始小时 = min(hours) = {start_hour}")
+            print(f"[Cron] 结束小时 = min(23, max(hours)+5) = {end_hour}")
+            print(f"[Cron] 最终 CRON = {cron}")
+            return cron
 
           def write_triggers_crons(path: str, crons: list[str]) -> None:
             with open(path, "r", encoding="utf-8") as f:
@@ -157,14 +174,12 @@ jobs:
 
             fandom_session = fandom_login(fandom_user, fandom_pass)
             dynamic_cron = compute_dynamic_cron(fandom_session, tours)
-            final_crons = [BASELINE_CRON]
-            if dynamic_cron:
-              final_crons.append(dynamic_cron)
+            final_crons = [dynamic_cron] if dynamic_cron else []
 
             write_triggers_crons(WRANGLER_PATH, final_crons)
             print(f"Updated wrangler triggers: {final_crons}")
 
-            commit_msg = f"⏱️ Cron: {' | '.join(final_crons)}"
+            commit_msg = f"⏱️ Cron: {dynamic_cron}" if dynamic_cron else "⏱️ Cron: disabled"
             with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
               f.write(f"commit_msg={commit_msg}\n")
 
