@@ -42,6 +42,7 @@ jobs:
           FANDOM_API = "https://lol.fandom.com/api.php"
           TOUR_PATH = "config/tour.json"
           WRANGLER_PATH = "wrangler.toml"
+          BASELINE_CRON = "0 0 * * *"
 
           def must_env(name: str) -> str:
             value = os.environ.get(name, "").strip()
@@ -133,7 +134,7 @@ jobs:
               return None
 
             start_hour = min(hours)
-            end_hour = min(23, max(hours) + 5)
+            end_hour = min(23, max(hours) + 4)
             if start_hour > end_hour:
               raise RuntimeError(f"Invalid hour window: {start_hour}-{end_hour}")
             day_field = ",".join(str(day) for day in sorted(weekdays))
@@ -145,7 +146,7 @@ jobs:
             print(f"[Cron] 收集到的小时集合: {sorted(hours)}")
             print(f"[Cron] 收集到的星期集合: {sorted(weekdays)}")
             print(f"[Cron] 开始小时 = min(hours) = {start_hour}")
-            print(f"[Cron] 结束小时 = min(23, max(hours)+5) = {end_hour}")
+            print(f"[Cron] 结束小时 = min(23, max(hours)+4) = {end_hour}")
             print(f"[Cron] 最终 CRON = {cron}")
             return cron
 
@@ -174,7 +175,9 @@ jobs:
 
             fandom_session = fandom_login(fandom_user, fandom_pass)
             dynamic_cron = compute_dynamic_cron(fandom_session, tours)
-            final_crons = [dynamic_cron] if dynamic_cron else []
+            final_crons = [BASELINE_CRON]
+            if dynamic_cron:
+              final_crons.append(dynamic_cron)
 
             write_triggers_crons(WRANGLER_PATH, final_crons)
             print(f"Updated wrangler triggers: {final_crons}")
