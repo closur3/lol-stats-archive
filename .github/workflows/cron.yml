@@ -42,6 +42,7 @@ jobs:
           WRANGLER_PATH = "wrangler.toml"
           BASELINE_CRON = "0 0 * * *"
           MAX_DYNAMIC_CRONS = 4
+          WINDOW_PADDING_HOURS = 4
 
           def must_env(name: str) -> str:
             value = os.environ.get(name, "").strip()
@@ -112,6 +113,21 @@ jobs:
             after = max(a["end"], b["end"]) - min(a["start"], b["start"]) + 1
             return after - before
 
+          def split_hour_clusters(hours: list[int], gap_threshold: int) -> list[list[int]]:
+            if not hours:
+              return []
+            unique_sorted = sorted(set(hours))
+            clusters = [[unique_sorted[0]]]
+            for h in unique_sorted[1:]:
+              if h - clusters[-1][-1] > gap_threshold:
+                clusters.append([h])
+              else:
+                clusters[-1].append(h)
+            return clusters
+
+          def next_weekday(day: int) -> int:
+            return 1 if day == 7 else day + 1
+
           def compute_dynamic_crons(session: requests.Session, tours: list[dict]) -> list[str]:
             now_utc = datetime.now(timezone.utc)
             week_start = (now_utc - timedelta(days=now_utc.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -152,12 +168,27 @@ jobs:
               hours = weekday_hours[day]
               if not hours:
                 continue
-              start_hour = min(hours)
-              end_hour = min(23, max(hours) + 4)
-              if start_hour > end_hour:
-                raise RuntimeError(f"Invalid hour window for weekday {day}: {start_hour}-{end_hour}")
-              windows.append({"start": start_hour, "end": end_hour, "days": {day}})
-              print(f"[Cron] 星期{day}: 小时={sorted(hours)} -> 窗口={start_hour}-{end_hour}")
+              clusters = split_hour_clusters(hours, WINDOW_PADDING_HOURS)
+              print(f"[Cron] 星期{day}: 小时={sorted(set(hours))}, 分簇={clusters}")
+              for cluster in clusters:
+                start_hour = min(cluster)
+                raw_end_hour = max(cluster) + WINDOW_PADDING_HOURS
+                if raw_end_hour <= 23:
+                  end_hour = raw_end_hour
+                  if start_hour > end_hour:
+                    raise RuntimeError(f"Invalid hour window for weekday {day}: {start_hour}-{end_hour}")
+                  windows.append({"start": start_hour, "end": end_hour, "days": {day}})
+                  print(f"[Cron] 星期{day}: 簇={cluster} -> 窗口={start_hour}-{end_hour}")
+                else:
+                  overflow_end = raw_end_hour - 24
+                  if start_hour > 23:
+                    raise RuntimeError(f"Invalid cross-day start hour for weekday {day}: {start_hour}")
+                  if overflow_end < 0 or overflow_end > 23:
+                    raise RuntimeError(f"Invalid overflow hour for weekday {day}: {overflow_end}")
+                  windows.append({"start": start_hour, "end": 23, "days": {day}})
+                  spill_day = next_weekday(day)
+                  windows.append({"start": 0, "end": overflow_end, "days": {spill_day}})
+                  print(f"[Cron] 星期{day}: 簇={cluster} -> 跨天窗口={start_hour}-23 (星期{day}) + 0-{overflow_end} (星期{spill_day})")
 
             grouped = {}
             for w in windows:
