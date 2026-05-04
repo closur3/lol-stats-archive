@@ -85,21 +85,33 @@ jobs:
               f"AND DateTime_UTC >= '{week_start.strftime('%Y-%m-%d %H:%M:%S')}' "
               f"AND DateTime_UTC <= '{week_end.strftime('%Y-%m-%d %H:%M:%S')}'"
             )
-            params = {
-              "action": "cargoquery",
-              "format": "json",
-              "tables": "MatchSchedule",
-              "fields": "DateTime_UTC=DateTimeUTC",
-              "where": where_clause,
-              "order_by": "DateTime_UTC ASC",
-              "limit": "500"
-            }
-            resp = session.get(FANDOM_API, params=params, timeout=30)
-            resp.raise_for_status()
-            payload = resp.json()
-            if "error" in payload:
-              raise RuntimeError(f"Fandom cargoquery error: {payload['error']}")
-            return [row.get("title", {}).get("DateTimeUTC") for row in payload.get("cargoquery", [])]
+            all_rows = []
+            offset = 0
+            limit = 100
+            while True:
+              params = {
+                "action": "cargoquery",
+                "format": "json",
+                "tables": "MatchSchedule",
+                "fields": "DateTime_UTC=DateTimeUTC",
+                "where": where_clause,
+                "order_by": "DateTime_UTC ASC",
+                "limit": str(limit),
+                "offset": str(offset)
+              }
+              resp = session.get(FANDOM_API, params=params, timeout=30)
+              resp.raise_for_status()
+              payload = resp.json()
+              if "error" in payload:
+                raise RuntimeError(f"Fandom cargoquery error: {payload['error']}")
+              batch = payload.get("cargoquery", [])
+              if not batch:
+                break
+              all_rows.extend(batch)
+              if len(batch) < limit:
+                break
+              offset += len(batch)
+            return [row.get("title", {}).get("DateTimeUTC") for row in all_rows]
 
           def merge_window(a: dict, b: dict) -> dict:
             return {
@@ -111,7 +123,9 @@ jobs:
           def merge_cost(a: dict, b: dict) -> int:
             before = (a["end"] - a["start"] + 1) + (b["end"] - b["start"] + 1)
             after = max(a["end"], b["end"]) - min(a["start"], b["start"]) + 1
-            return after - before
+            width_increase = after - before
+            impacted_days = len(set(a["days"]) | set(b["days"]))
+            return width_increase * impacted_days
 
           def split_hour_clusters(hours: list[int], gap_threshold: int) -> list[list[int]]:
             if not hours:
