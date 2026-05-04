@@ -1,4 +1,4 @@
-name: "Cron: Dynamic Match Window"
+name: "Cron: Dynamic Window"
 
 on:
   schedule:
