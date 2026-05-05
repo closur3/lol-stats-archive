@@ -43,7 +43,7 @@ jobs:
           BASELINE_CRON = "0 0 * * *"
           MAX_DYNAMIC_CRONS = 4
           WINDOW_PADDING_HOURS = 4
-          ISO_DAY_NAMES = {1: "MON", 2: "TUE", 3: "WED", 4: "THU", 5: "FRI", 6: "SAT", 7: "SUN"}
+          ISO_DAY_NAMES = {1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat", 7: "sun"}
 
           def fandom_login(username: str, password: str) -> requests.Session:
             session = requests.Session()
@@ -168,7 +168,7 @@ jobs:
               if not hours:
                 continue
               clusters = split_hour_clusters(hours, WINDOW_PADDING_HOURS + 1)
-              print(f"[Cron] 星期{day}: 小时={sorted(set(hours))}, 分簇={clusters}")
+              day_windows = []
               for cluster in clusters:
                 start_hour = min(cluster)
                 raw_end_hour = max(cluster) + WINDOW_PADDING_HOURS
@@ -177,7 +177,7 @@ jobs:
                   if start_hour > end_hour:
                     raise RuntimeError(f"Invalid hour window for weekday {day}: {start_hour}-{end_hour}")
                   windows.append({"start": start_hour, "end": end_hour, "days": {day}})
-                  print(f"[Cron] 星期{day}: 簇={cluster} -> 窗口={start_hour}-{end_hour}")
+                  day_windows.append(f"{cluster}->{start_hour}-{end_hour}")
                 else:
                   overflow_end = raw_end_hour - 24
                   if not (0 <= overflow_end <= 23):
@@ -185,7 +185,8 @@ jobs:
                   windows.append({"start": start_hour, "end": 23, "days": {day}})
                   spill_day = 1 if day == 7 else day + 1
                   windows.append({"start": 0, "end": overflow_end, "days": {spill_day}})
-                  print(f"[Cron] 星期{day}: 簇={cluster} -> 跨天窗口={start_hour}-23 (星期{day}) + 0-{overflow_end} (星期{spill_day})")
+                  day_windows.append(f"{cluster}->{start_hour}-23(d{day})+0-{overflow_end}(d{spill_day})")
+              print(f"[Cron] 星期{day}: 小时={sorted(set(hours))}; 分簇={clusters}; 窗口={day_windows}")
 
             grouped = {}
             for w in windows:
