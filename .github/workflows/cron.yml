@@ -43,12 +43,7 @@ jobs:
           BASELINE_CRON = "0 0 * * *"
           MAX_DYNAMIC_CRONS = 4
           WINDOW_PADDING_HOURS = 4
-
-          def must_env(name: str) -> str:
-            value = os.environ.get(name, "").strip()
-            if not value:
-              raise RuntimeError(f"Missing required env: {name}")
-            return value
+          ISO_DAY_NAMES = {1: "MON", 2: "TUE", 3: "WED", 4: "THU", 5: "FRI", 6: "SAT", 7: "SUN"}
 
           def fandom_login(username: str, password: str) -> requests.Session:
             session = requests.Session()
@@ -113,13 +108,6 @@ jobs:
               offset += len(batch)
             return [row.get("title", {}).get("DateTimeUTC") for row in all_rows]
 
-          def merge_window(a: dict, b: dict) -> dict:
-            return {
-              "start": min(a["start"], b["start"]),
-              "end": max(a["end"], b["end"]),
-              "days": set(a["days"]) | set(b["days"])
-            }
-
           def merge_cost(a: dict, b: dict) -> int:
             before = (a["end"] - a["start"] + 1) + (b["end"] - b["start"] + 1)
             after = max(a["end"], b["end"]) - min(a["start"], b["start"]) + 1
@@ -138,9 +126,6 @@ jobs:
               else:
                 clusters[-1].append(h)
             return clusters
-
-          def next_weekday(day: int) -> int:
-            return 1 if day == 7 else day + 1
 
           def compute_dynamic_crons(session: requests.Session, tours: list[dict]) -> list[str]:
             now_utc = datetime.now(timezone.utc)
@@ -195,12 +180,10 @@ jobs:
                   print(f"[Cron] 星期{day}: 簇={cluster} -> 窗口={start_hour}-{end_hour}")
                 else:
                   overflow_end = raw_end_hour - 24
-                  if start_hour > 23:
-                    raise RuntimeError(f"Invalid cross-day start hour for weekday {day}: {start_hour}")
-                  if overflow_end < 0 or overflow_end > 23:
+                  if not (0 <= overflow_end <= 23):
                     raise RuntimeError(f"Invalid overflow hour for weekday {day}: {overflow_end}")
                   windows.append({"start": start_hour, "end": 23, "days": {day}})
-                  spill_day = next_weekday(day)
+                  spill_day = 1 if day == 7 else day + 1
                   windows.append({"start": 0, "end": overflow_end, "days": {spill_day}})
                   print(f"[Cron] 星期{day}: 簇={cluster} -> 跨天窗口={start_hour}-23 (星期{day}) + 0-{overflow_end} (星期{spill_day})")
 
@@ -222,7 +205,7 @@ jobs:
                 raise RuntimeError("Window merge failed")
               a = merged[best_i]
               b = merged[best_j]
-              combined = merge_window(a, b)
+              combined = {"start": min(a["start"], b["start"]), "end": max(a["end"], b["end"]), "days": set(a["days"]) | set(b["days"])}
               print(f"[Cron] 合并窗口: {a['start']}-{a['end']}@{sorted(a['days'])} + {b['start']}-{b['end']}@{sorted(b['days'])} -> {combined['start']}-{combined['end']}@{sorted(combined['days'])} (增量小时={best_cost})")
               next_list = []
               for idx, w in enumerate(merged):
@@ -234,7 +217,8 @@ jobs:
             merged.sort(key=lambda w: (w["start"], w["end"], min(w["days"])))
             crons = []
             for w in merged:
-              day_field = ",".join(str(day) for day in sorted(w["days"]))
+              cron_days = [ISO_DAY_NAMES[day] for day in sorted(w["days"])]
+              day_field = ",".join(cron_days)
               crons.append(f"*/2 {w['start']}-{w['end']} * * {day_field}")
             print(f"[Cron] 最终动态 CRON 数量: {len(crons)}")
             for c in crons:
@@ -256,8 +240,10 @@ jobs:
               f.write(updated)
 
           if __name__ == "__main__":
-            fandom_user = must_env("FANDOM_BOT_USERNAME")
-            fandom_pass = must_env("FANDOM_BOT_PASSWORD")
+            fandom_user = os.environ.get("FANDOM_BOT_USERNAME", "").strip()
+            fandom_pass = os.environ.get("FANDOM_BOT_PASSWORD", "").strip()
+            if not fandom_user or not fandom_pass:
+              raise RuntimeError("Missing required env: FANDOM_BOT_USERNAME/FANDOM_BOT_PASSWORD")
 
             with open(TOUR_PATH, "r", encoding="utf-8") as f:
               tours = json.load(f)
