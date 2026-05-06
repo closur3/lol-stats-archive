@@ -14,7 +14,7 @@ export function buildScheduleMap(allFutureMatches, runtimeConfig, maxScheduleDay
 
   const historyUnfinished = {};
   for (const [slug, meta] of Object.entries(tournamentMeta)) {
-    if (meta.unfinished > 0) historyUnfinished[slug] = true;
+    if (meta.hasHistoryUnfinished) historyUnfinished[slug] = true;
   }
   const todayStr = dateUtils.getNow().dateString;
   scheduleMap = dateUtils.pruneScheduleMapByDayStatus(scheduleMap, maxScheduleDays, todayStr, historyUnfinished);

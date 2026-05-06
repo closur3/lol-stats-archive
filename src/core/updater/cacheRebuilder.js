@@ -38,7 +38,7 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
     if (home.stats) globalStats[slug] = home.stats;
     if (home.timeGrid) timeGrid[slug] = home.timeGrid;
     if (homeTournament && homeTournament.mode) {
-      tournamentMeta[slug] = { mode: homeTournament.mode, emoji: homeTournament.emoji, unfinished: homeTournament.unfinished };
+      tournamentMeta[slug] = { mode: homeTournament.mode, emoji: homeTournament.emoji, hasHistoryUnfinished: homeTournament.hasHistoryUnfinished };
     }
 
     const schedule = home.scheduleMap || {};
@@ -67,7 +67,7 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
 
   const historyUnfinished = {};
   for (const [slug, meta] of Object.entries(tournamentMeta)) {
-    if (meta.unfinished > 0) historyUnfinished[slug] = meta.unfinished;
+    if (meta.hasHistoryUnfinished) historyUnfinished[slug] = true;
   }
 
   const limitedScheduleMap = dateUtils.pruneScheduleMapByDayStatus(
