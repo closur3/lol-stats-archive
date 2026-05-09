@@ -21,3 +21,8 @@ export function resolveLogsPhaseLabel(phase, meta) {
   return isRestDayMeta(meta) ? "🕊️OFFDAY" : "⏳IDLE";
 }
 
+export function resolveHomeEmojiByPhase(phase, meta) {
+  if (phase === "window") return "🎮";
+  if (phase === "tail") return "👀";
+  return isRestDayMeta(meta) ? "🕊️" : "⏳";
+}

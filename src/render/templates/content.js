@@ -3,6 +3,7 @@ import { sortPolicy } from '../../utils/sortPolicy.js';
 import { buildTeamRow } from '../components/teamRow.js';
 import { buildTimeTable } from '../components/timeTable.js';
 import { buildScheduleRow } from '../components/scheduleRow.js';
+import { resolveHomeEmojiByPhase } from '../../utils/leagueState.js';
 
 const STYLE_EMOJI = 'style="font-size: 16px; line-height: 1; display: block; transform: translateY(-1px);"';
 const STYLE_TITLE_ROW = 'style="display:flex; align-items:center; gap: 6px;"';
@@ -63,9 +64,13 @@ export function renderContentOnly(globalStats, timeData, scheduleMap, runtimeCon
     const regionGrid = timeData[tournament.slug] || {};
     const timeTableHtml = buildTimeTable(regionGrid);
 
-    const emojiStr = (!isArchive && tournamentMeta[tournament.slug] && tournamentMeta[tournament.slug].emoji)
-      ? `<span ${STYLE_EMOJI}>${tournamentMeta[tournament.slug].emoji}</span>`
-      : "";
+    let emojiStr = "";
+    if (!isArchive && tournamentMeta[tournament.slug]) {
+      const meta = tournamentMeta[tournament.slug];
+      const phase = meta?.phase || "idle";
+      const displayEmoji = resolveHomeEmojiByPhase(phase, meta);
+      emojiStr = `<span ${STYLE_EMOJI}>${displayEmoji}</span>`;
+    }
     const pageUrl = `https://lol.fandom.com/wiki/${mainPage}`;
     const titleText = `<span class="league-title-text">${tournament.name}</span>`;
     const jumpBtn = `<a class="league-jump-btn" href="${pageUrl}" target="_blank" rel="noopener noreferrer" aria-label="Open link"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>`;
@@ -75,7 +80,7 @@ export function renderContentOnly(globalStats, timeData, scheduleMap, runtimeCon
       tablesHtml += `<details class="home-sec archive-sec"><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
     } else {
       const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
-      const isSleepCollapsed = tournamentMeta[tournament.slug] && tournamentMeta[tournament.slug].emoji === "🕊️";
+      const isSleepCollapsed = tournamentMeta[tournament.slug] && resolveHomeEmojiByPhase(tournamentMeta[tournament.slug]?.phase || "idle", tournamentMeta[tournament.slug]) === "🕊️";
       const openAttr = (isSleepCollapsed || hasNoData) ? "" : " open";
       tablesHtml += `<details class="home-sec"${openAttr}><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${emojiStr}${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
     }

@@ -8,11 +8,18 @@ import { recomputeCronOnMetaChange } from '../scheduler/dynamicCronManager.js';
 
 export async function saveData(env, runtimeConfig, cache, analysis, syncItems, idleItems = [], force = false, forceSlugs = null, leagueLogEntries = {}) {
   const analyzedTournamentMeta = analysis.tournamentMeta || {};
+  const kv = env["lol-stats-kv"];
+  const scheduleState = await kv.get(kvKeys.scheduleDay(), { type: "json" });
+  const cronPhase = scheduleState?.cron?.phase || "idle";
+  const renderTournamentMeta = {};
+  for (const [slug, meta] of Object.entries(analyzedTournamentMeta)) {
+    renderTournamentMeta[slug] = { ...(meta || {}), phase: cronPhase };
+  }
 
   try {
     const homeFragment = HTMLRenderer.renderContentOnly(
       analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-      runtimeConfig, false, analyzedTournamentMeta
+      runtimeConfig, false, renderTournamentMeta
     );
     const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", env.GITHUB_TIME, env.GITHUB_SHA);
     await kvPutIfChanged(env, kvKeys.homeStatic(), fullPage);
@@ -20,7 +27,6 @@ export async function saveData(env, runtimeConfig, cache, analysis, syncItems, i
     console.error("Error generating home HTML:", error);
   }
 
-  const kv = env["lol-stats-kv"];
   const tournamentIndexMap = new Map((runtimeConfig.TOURNAMENTS || []).map((tournament, index) => [tournament.slug, index]));
   const scheduleBySlug = {};
   Object.keys(analysis.scheduleMap || {}).forEach(date => {
