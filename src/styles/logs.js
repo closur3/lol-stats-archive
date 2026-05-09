@@ -45,8 +45,8 @@ export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     .league-card-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .league-card-name { font-weight: 600; font-size: 16px; color: #0f172a; }
     .league-total-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 22px; padding: 0 8px; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 12px; font-weight: 700; line-height: 1; }
-    .league-card-status { display: flex; align-items: center; justify-content: center; min-height: 24px; }
-    .phase-tag { display: inline-flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; font-weight: 600; padding: 4px 8px 3px; border-radius: 4px; transform: translateY(-1px); }
+    .league-card-status { display: flex; align-items: center; gap: 6px; }
+    .phase-tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
     .phase-window { background: #dbeafe; color: #1d4ed8; }
     .phase-tail { background: #fef3c7; color: #92400e; }
     .phase-idle { background: #e2e8f0; color: #334155; }
