@@ -41,7 +41,6 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
     if (home.timeGrid) timeGrid[slug] = home.timeGrid;
     if (homeTournament) {
       tournamentMeta[slug] = {
-        emoji: homeTournament.emoji,
         hasHistoryUnfinished: homeTournament.hasHistoryUnfinished,
         todayEarliestTimestamp: Number(homeTournament.todayEarliestTimestamp) || 0,
         todayUnfinished: Number(homeTournament.todayUnfinished) || 0,

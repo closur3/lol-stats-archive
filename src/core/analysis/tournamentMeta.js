@@ -1,8 +1,6 @@
 import { dateUtils } from '../../utils/dateUtils.js';
-import { resolveHomeEmoji } from '../../utils/leagueState.js';
 
 export function computeTournamentMetaFromRawMatches(rawMatches) {
-  const now = Date.now();
   const todayStr = dateUtils.getNow().dateString;
   let todayEarliest = 0;
   let todayUnfinished = 0;
@@ -38,6 +36,5 @@ export function computeTournamentMetaFromRawMatches(rawMatches) {
     }
   }
 
-  const meta = { todayEarliestTimestamp: todayEarliest, todayUnfinished, hasHistoryUnfinished };
-  return { emoji: resolveHomeEmoji(meta, now), ...meta };
+  return { todayEarliestTimestamp: todayEarliest, todayUnfinished, hasHistoryUnfinished };
 }
