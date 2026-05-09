@@ -7,7 +7,7 @@ import { HTMLRenderer } from './render/htmlRenderer.js';
 import { GitHubClient } from './api/githubClient.js';
 import { kvKeys } from './infrastructure/kv/keyFactory.js';
 import { dateUtils } from './utils/dateUtils.js';
-import { planTodayWindow, isBaselineCron, handleHighFreqTick } from './core/scheduler/dynamicCronManager.js';
+import { ensureDayInitialized, handleHighFreqTick } from './core/scheduler/dynamicCronManager.js';
 
 /**
  * 主Worker入口
@@ -123,18 +123,13 @@ export default {
   },
 
   async scheduled(event, env) {
-    if (isBaselineCron(event.cron)) {
-      const githubClient = new GitHubClient(env);
-      const runtimeConfig = await githubClient.fetchJson("config/tour.json");
-      if (!Array.isArray(runtimeConfig)) throw new Error("config/tour.json must be array");
-      await planTodayWindow(env, runtimeConfig, event.scheduledTime);
-      return;
-    }
-    const updater = new Updater(env);
-    await updater.runScheduledUpdate();
     const githubClient = new GitHubClient(env);
     const runtimeConfig = await githubClient.fetchJson("config/tour.json");
     if (!Array.isArray(runtimeConfig)) throw new Error("config/tour.json must be array");
+    await ensureDayInitialized(env, runtimeConfig, event.scheduledTime);
+
+    const updater = new Updater(env);
+    await updater.runScheduledUpdate();
     await handleHighFreqTick(env, runtimeConfig, event.scheduledTime, event.cron);
   }
 };

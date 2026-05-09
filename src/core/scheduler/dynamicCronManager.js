@@ -1,9 +1,9 @@
 import { FandomClient } from "../../api/fandomClient.js";
 import { dataUtils } from "../../utils/dataUtils.js";
+import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
 
 const BASELINE_CRON = "0 0 * * *";
 const WORKER_NAME = "lol-stats";
-const CRON_CONTROL_KV_KEY = "__cron_control__";
 const WEEKDAY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 function formatUtcDate(date) {
@@ -71,12 +71,27 @@ function allMatchesFinished(matches) {
 
 async function readControl(env) {
   const kv = env["lol-stats-kv"];
-  return await kv.get(CRON_CONTROL_KV_KEY, { type: "json" });
+  const state = await kv.get(kvKeys.scheduleDay(), { type: "json" });
+  if (state == null) return null;
+  if (typeof state !== "object" || Array.isArray(state)) throw new Error("SCHEDULE_DAY must be a JSON object");
+  return state;
 }
 
 async function writeControl(env, state) {
   const kv = env["lol-stats-kv"];
-  await kv.put(CRON_CONTROL_KV_KEY, JSON.stringify(state));
+  await kv.put(kvKeys.scheduleDay(), JSON.stringify(state));
+}
+
+function buildIdleState(today) {
+  return {
+    date: today,
+    cron: {
+      phase: "idle",
+      windowCron: null,
+      finalCron1: null,
+      finalCron2: null
+    }
+  };
 }
 
 async function updateSchedules(env, schedules) {
@@ -99,10 +114,6 @@ async function updateSchedules(env, schedules) {
   if (!payload?.success) throw new Error(`Cloudflare schedules failed: ${JSON.stringify(payload)}`);
 }
 
-export function isBaselineCron(cron) {
-  return cron === BASELINE_CRON;
-}
-
 export async function planTodayWindow(env, tournaments, scheduledTimeMs) {
   const now = new Date(scheduledTimeMs);
   const auth = await loginFandom(env);
@@ -111,13 +122,23 @@ export async function planTodayWindow(env, tournaments, scheduledTimeMs) {
   const windowCron = buildWindowCron(matches, now);
   const finalSchedules = windowCron ? [BASELINE_CRON, windowCron] : [BASELINE_CRON];
   await updateSchedules(env, finalSchedules);
-  await writeControl(env, {
-    date: formatUtcDate(now),
-    phase: windowCron ? "window" : "idle",
-    windowCron: windowCron || null,
-    finalCron: null
-  });
+  const today = formatUtcDate(now);
+  const next = buildIdleState(today);
+  if (windowCron) {
+    next.cron.phase = "window";
+    next.cron.windowCron = windowCron;
+  }
+  await writeControl(env, next);
   console.log(`[CRON-PLAN] date=${formatUtcDate(now)} window=${windowCron || "none"}`);
+}
+
+export async function ensureDayInitialized(env, tournaments, scheduledTimeMs) {
+  const now = new Date(scheduledTimeMs);
+  const today = formatUtcDate(now);
+  const state = await readControl(env);
+  if (state?.date === today) return false;
+  await planTodayWindow(env, tournaments, scheduledTimeMs);
+  return true;
 }
 
 export async function handleHighFreqTick(env, tournaments, scheduledTimeMs, eventCron) {
@@ -125,24 +146,34 @@ export async function handleHighFreqTick(env, tournaments, scheduledTimeMs, even
   const today = formatUtcDate(now);
   const state = await readControl(env);
   if (!state || state.date !== today) return;
+  const cronState = state.cron;
+  if (!cronState || typeof cronState !== "object" || Array.isArray(cronState)) throw new Error("SCHEDULE_DAY.cron must be a JSON object");
 
-  if (state.phase === "final_wait" && state.finalCron === eventCron) {
-    await updateSchedules(env, [BASELINE_CRON]);
-    await writeControl(env, { date: today, phase: "idle", windowCron: null, finalCron: null });
-    console.log(`[CRON-END] date=${today} finalCron-hit -> baseline only`);
+  if (cronState.phase === "tail" && (cronState.finalCron1 === eventCron || cronState.finalCron2 === eventCron)) {
+    if (cronState.finalCron2 === eventCron) {
+      await updateSchedules(env, [BASELINE_CRON]);
+      await writeControl(env, {
+        date: today,
+        cron: { phase: "idle", windowCron: null, finalCron1: null, finalCron2: null }
+      });
+      console.log(`[CRON-END] date=${today} final-cron2 hit -> baseline only`);
+    }
     return;
   }
 
-  if (state.phase !== "window" || state.windowCron !== eventCron) return;
+  if (cronState.phase !== "window" || cronState.windowCron !== eventCron) return;
 
   const auth = await loginFandom(env);
   const fandomClient = new FandomClient(auth);
   const matches = await fetchTodayMatchesUtc(tournaments, fandomClient, now);
   if (!allMatchesFinished(matches)) return;
 
-  const finalAt = new Date(now.getTime() + 60 * 60 * 1000);
-  const finalCron = toSinglePointCron(finalAt);
-  await updateSchedules(env, [BASELINE_CRON, finalCron]);
-  await writeControl(env, { date: today, phase: "final_wait", windowCron: null, finalCron });
-  console.log(`[CRON-SHRINK] date=${today} all-finished=1 -> finalCron=${finalCron}`);
+  const finalCron1 = toSinglePointCron(new Date(now.getTime() + 30 * 60 * 1000));
+  const finalCron2 = toSinglePointCron(new Date(now.getTime() + 60 * 60 * 1000));
+  await updateSchedules(env, [BASELINE_CRON, finalCron1, finalCron2]);
+  await writeControl(env, {
+    date: today,
+    cron: { phase: "tail", windowCron: null, finalCron1, finalCron2 }
+  });
+  console.log(`[CRON-SHRINK] date=${today} all-finished=1 -> finalCron1=${finalCron1} finalCron2=${finalCron2}`);
 }
