@@ -13,9 +13,6 @@ export class FandomClient {
    * 登录到Fandom
    */
   static async login(user, pass) {
-    if (user && user.trim().toLowerCase() === "anonymous") {
-      return { isAnonymous: true };
-    }
     if (!user || !pass) {
       return null;
     }

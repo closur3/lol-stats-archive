@@ -6,7 +6,6 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 GITHUB_OWNER = "closur3"
 GITHUB_REPOSITORY = "lol-stats-archive"
-FANDOM_BOT_USERNAME = "HsuX"
 
 [[kv_namespaces]]
 binding = "lol-stats-kv"
