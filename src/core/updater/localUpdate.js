@@ -24,7 +24,7 @@ export async function runLocalUpdate(env, githubClient, runtimeConfig, cache, re
     const computedMeta = Analyzer.computeTournamentMetaFromRawMatches(rawMatches);
 
     const existingTournament = home.tournament || {};
-    if (existingTournament.mode === computedMeta.mode && existingTournament.emoji === computedMeta.emoji && existingTournament.todayEarliestTimestamp === computedMeta.todayEarliestTimestamp && (Number(existingTournament.todayUnfinished) || 0) === (Number(computedMeta.todayUnfinished) || 0) && (!!existingTournament.hasHistoryUnfinished) === (!!computedMeta.hasHistoryUnfinished)) continue;
+    if (existingTournament.emoji === computedMeta.emoji && existingTournament.todayEarliestTimestamp === computedMeta.todayEarliestTimestamp && (Number(existingTournament.todayUnfinished) || 0) === (Number(computedMeta.todayUnfinished) || 0) && (!!existingTournament.hasHistoryUnfinished) === (!!computedMeta.hasHistoryUnfinished)) continue;
 
     const { teamMap, ...tournamentStored } = tournament;
     const scheduleMap = home.scheduleMap || {};

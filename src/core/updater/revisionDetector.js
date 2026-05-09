@@ -6,7 +6,6 @@ export function hasRevisionRecordChanged(previousRecord, nextRecord) {
   const prev = previousRecord || {};
   const next = nextRecord || {};
   if ((prev.slug || "") !== (next.slug || "")) return true;
-  if ((Number(prev.checkedAt) || 0) !== (Number(next.checkedAt) || 0)) return true;
 
   const prevPages = prev.pages && typeof prev.pages === "object" ? prev.pages : {};
   const nextPages = next.pages && typeof next.pages === "object" ? next.pages : {};
@@ -25,14 +24,14 @@ export function hasRevisionRecordChanged(previousRecord, nextRecord) {
   return false;
 }
 
-export async function detectRevisionChanges(env, tournaments, cache, NOW, slowThresholdMs) {
+export async function detectRevisionChanges(env, tournaments) {
   const changedSlugs = new Set();
   const revidChanges = {};
   const pendingRevisionWrites = {};
   let hasErrors = false;
   let checkedSlugs = 0;
 
-  const thresholdChecks = await Promise.all(
+  const revisionChecks = await Promise.all(
     (tournaments || []).map(async (tournament) => {
       const slug = tournament?.slug;
       if (!slug) return null;
@@ -54,38 +53,15 @@ export async function detectRevisionChanges(env, tournaments, cache, NOW, slowTh
 
       const finalDataPages = Array.from(new Set(expandedDataPages));
       const kv = env["lol-stats-kv"];
-      const homeTournament = cache?.homes?.[slug]?.tournament;
       const revKey = kvKeys.rev(slug);
       const previousRevisionState = await kv.get(revKey, { type: "json" });
-      const lastCheckedAt = Number(previousRevisionState?.checkedAt) || 0;
-      const elapsed = NOW - lastCheckedAt;
-      const mode = homeTournament?.mode || "fast";
-      let threshold;
-      if (mode === "fast") {
-        threshold = 0;
-      } else {
-        const todayUnfinished = homeTournament?.todayUnfinished || 0;
-        const ts = homeTournament?.todayEarliestTimestamp || 0;
-        if (todayUnfinished > 0 && ts > 0 && NOW >= ts) {
-          threshold = 0;
-        } else {
-          threshold = slowThresholdMs;
-        }
-      }
-
-      const shouldSkip = elapsed < threshold;
-      if (!shouldSkip) {
-        console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> check`);
-      } else {
-        console.log(`[REV-TH] ${slug} ${mode} e=${(elapsed / 60000).toFixed(1)} th=${(threshold / 60000).toFixed(1)} -> skip`);
-      }
+      const shouldSkip = false;
+      console.log(`[REV-TH] ${slug} fast -> check`);
 
       return {
         slug,
         dataPages: finalDataPages,
         previousRevisionState,
-        lastCheckedAt,
-        mode,
         shouldSkip,
         tournament
       };
@@ -93,10 +69,10 @@ export async function detectRevisionChanges(env, tournaments, cache, NOW, slowTh
   );
 
   const revChecks = await Promise.allSettled(
-    thresholdChecks
+    revisionChecks
       .filter(check => check && !check.shouldSkip)
       .map(async (check) => {
-        const { slug, dataPages, previousRevisionState, lastCheckedAt, mode } = check;
+        const { slug, dataPages, previousRevisionState } = check;
         checkedSlugs++;
 
         const prevPages = previousRevisionState?.pages || {};
@@ -145,11 +121,9 @@ export async function detectRevisionChanges(env, tournaments, cache, NOW, slowTh
 
         if (errCount > 0 && pagesFetched === 0) hasErrors = true;
 
-        const shouldTrackCheckedAt = mode === "slow" ? pagesFetched > 0 : revisionChanged;
-        const checkedAt = shouldTrackCheckedAt ? NOW : lastCheckedAt;
-        const nextRecord = { slug, pages: nextPages || {}, checkedAt };
+        const nextRecord = { slug, pages: nextPages || {} };
         const shouldWriteRev = hasRevisionRecordChanged(
-          { slug, pages: prevPages || {}, checkedAt: lastCheckedAt },
+          { slug, pages: prevPages || {} },
           nextRecord
         );
 
@@ -182,7 +156,5 @@ export async function detectRevisionChanges(env, tournaments, cache, NOW, slowTh
     }
   }
 
-  const thresholdSkippedSlugs = thresholdChecks.filter(check => check && check.shouldSkip).length;
-
-  return { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs };
+  return { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs };
 }

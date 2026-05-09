@@ -1,4 +1,5 @@
 import { dateUtils } from '../../utils/dateUtils.js';
+import { resolveHomeEmoji } from '../../utils/leagueState.js';
 
 export function computeTournamentMetaFromRawMatches(rawMatches) {
   const now = Date.now();
@@ -37,12 +38,6 @@ export function computeTournamentMetaFromRawMatches(rawMatches) {
     }
   }
 
-  if (hasHistoryUnfinished || (todayUnfinished && todayEarliest && now >= todayEarliest)) {
-    return { mode: "fast", emoji: "🎮", todayEarliestTimestamp: todayEarliest, todayUnfinished, hasHistoryUnfinished };
-  }
-  if (todayEarliest) {
-    const emoji = now >= todayEarliest ? "👀" : "⏳";
-    return { mode: "slow", emoji, todayEarliestTimestamp: todayEarliest, todayUnfinished, hasHistoryUnfinished };
-  }
-  return { mode: "slow", emoji: "🕊️", todayEarliestTimestamp: 0, todayUnfinished: 0, hasHistoryUnfinished: false };
+  const meta = { todayEarliestTimestamp: todayEarliest, todayUnfinished, hasHistoryUnfinished };
+  return { emoji: resolveHomeEmoji(meta, now), ...meta };
 }

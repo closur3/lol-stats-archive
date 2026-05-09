@@ -37,8 +37,8 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
     if (!slug) return;
     if (home.stats) globalStats[slug] = home.stats;
     if (home.timeGrid) timeGrid[slug] = home.timeGrid;
-    if (homeTournament && homeTournament.mode) {
-      tournamentMeta[slug] = { mode: homeTournament.mode, emoji: homeTournament.emoji, hasHistoryUnfinished: homeTournament.hasHistoryUnfinished };
+    if (homeTournament) {
+      tournamentMeta[slug] = { emoji: homeTournament.emoji, hasHistoryUnfinished: homeTournament.hasHistoryUnfinished };
     }
 
     const schedule = home.scheduleMap || {};

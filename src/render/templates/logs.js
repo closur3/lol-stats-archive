@@ -1,5 +1,6 @@
 import logsCSS from '../../styles/logs.js';
 import { renderFontLinks, renderNavBar, renderBuildFooter, renderClientJS } from './page.js';
+import { resolveLogsPhaseLabel } from '../../utils/leagueState.js';
 
 export function renderLogPage(leagueLogs, time, sha, options = {}) {
   if (!leagueLogs) leagueLogs = [];
@@ -15,17 +16,7 @@ export function renderLogPage(leagueLogs, time, sha, options = {}) {
     const lastEntry = entries[0];
     const phase = item.phase === "window" || item.phase === "tail" || item.phase === "idle" ? item.phase : "idle";
     const phaseCls = `phase-${phase}`;
-    const isRestDay = phase === "idle"
-      && (Number(item.todayEarliestTimestamp) || 0) === 0
-      && (Number(item.todayUnfinished) || 0) === 0
-      && !item.hasHistoryUnfinished;
-    const phaseLabel = phase === "window"
-      ? "🎮WINDOW"
-      : phase === "tail"
-      ? "👀TAIL"
-      : isRestDay
-      ? "🕊️OFFDAY"
-      : "⏳IDLE";
+    const phaseLabel = resolveLogsPhaseLabel(phase, item);
 
     const syncCount = entries.filter(entry => entry.message.includes("🔄")).length;
     const errCount = entries.filter(entry => entry.message.includes("❌") || entry.message.includes("🚧")).length;

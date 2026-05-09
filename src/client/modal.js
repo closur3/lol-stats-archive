@@ -16,14 +16,14 @@ const STYLE_MUTED_DASH = 'style="color:#cbd5e1"';
 
 function pad(n) { return n < 10 ? '0' + n : n; }
 
-function renderMatchItem(mode, dateDisplay, resultTagHtml, team1Name, team2Name, isFullLength, scoreDisplay, matchResultCode, isoTimestamp) {
+function renderMatchItem(viewType, dateDisplay, resultTagHtml, team1Name, team2Name, isFullLength, scoreDisplay, matchResultCode, isoTimestamp) {
     const dateParts = (dateDisplay || '').split(' ');
     const dateHtml = dateParts.length === 2 
       ? dateParts[0] + '<br><span ' + STYLE_DATE_TIME + ' class="utc-local" data-utc="' + (isoTimestamp || '') + '" data-format="time">' + dateParts[1] + '</span>' 
       : (dateDisplay || '');
 
     let matchItemClass = 'match-item';
-    if (mode === 'history') {
+    if (viewType === 'history') {
         if (matchResultCode === 'WIN') {
             matchItemClass += ' match-win';
         } else if (matchResultCode === 'LOSS') {

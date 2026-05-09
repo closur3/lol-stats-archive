@@ -9,7 +9,7 @@ export function clusterTimeSlots(finishedMatches, maxClusters) {
     return sortedTimes.map(t => ({
       actualCenter: t,
       centerMinutes: t,
-      modeMinutes: null,
+      peakMinutes: null,
       label: String(Math.floor(t / 60)),
       matches: []
     }));
@@ -50,7 +50,7 @@ export function clusterTimeSlots(finishedMatches, maxClusters) {
     return {
       actualCenter: c.centerMinutes,
       centerMinutes: utcHour * 60,
-      modeMinutes: null,
+      peakMinutes: null,
       label: String(utcHour),
       matches: []
     };
@@ -73,11 +73,11 @@ export function assignMatchesToClusters(finishedMatches, clusters) {
     for (const m of c.matches) {
       countMap[m.roundedMinutes] = (countMap[m.roundedMinutes] || 0) + 1;
     }
-    let modeMinutes = c.matches[0].roundedMinutes, maxCount = 0;
+    let peakMinutes = c.matches[0].roundedMinutes, maxCount = 0;
     for (const [mins, cnt] of Object.entries(countMap)) {
-      if (cnt > maxCount) { maxCount = cnt; modeMinutes = parseInt(mins); }
+      if (cnt > maxCount) { maxCount = cnt; peakMinutes = parseInt(mins); }
     }
-    c.modeMinutes = modeMinutes;
-    c.label = String(Math.floor(modeMinutes / 60));
+    c.peakMinutes = peakMinutes;
+    c.label = String(Math.floor(peakMinutes / 60));
   }
 }

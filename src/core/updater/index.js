@@ -42,11 +42,9 @@ export class Updater {
 
     await refreshScheduleBoardOnDayRollover(this.env, runtimeConfig, cleanupStaleHomeKeys, refreshHomeStaticFromCache);
 
-    const NOW = Date.now();
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS);
-    const slowThresholdMs = UPDATE_CONFIG.SLOW_THRESHOLD_MINUTES * 60 * 1000;
-    const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs, thresholdSkippedSlugs } = await detectRevisionChanges(this.env, runtimeConfig.TOURNAMENTS || [], cache, NOW, slowThresholdMs);
-    console.log(`[CRON] rev-check checked=${checkedSlugs} th-skip=${thresholdSkippedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
+    const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs } = await detectRevisionChanges(this.env, runtimeConfig.TOURNAMENTS || []);
+    console.log(`[CRON] rev-check checked=${checkedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
     const targetSlugs = new Set(changedSlugs);
 
     if (targetSlugs.size === 0) {
@@ -83,10 +81,6 @@ export class Updater {
 
   async rebuildStaticPagesFromCache(options = {}) {
     return rebuildStaticPagesFromCache(this.env, options);
-  }
-
-  getSlowThresholdMs() {
-    return UPDATE_CONFIG.SLOW_THRESHOLD_MINUTES * 60 * 1000;
   }
 
   getMaxScheduleDays() {
