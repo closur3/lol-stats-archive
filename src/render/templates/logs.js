@@ -1,7 +1,52 @@
 import logsCSS from '../../styles/logs.js';
 import { renderFontLinks, renderNavBar, renderBuildFooter, renderClientJS } from './page.js';
 import { resolveLeaguePhase } from '../../utils/leagueState.js';
-import { escapeHtml } from '../../utils/htmlEscape.js';
+import { escapeHtml, escapeUrl } from '../../utils/htmlEscape.js';
+
+function formatDelta(entry) {
+  const added = Number(entry?.added) || 0;
+  const updated = Number(entry?.updated) || 0;
+  if (entry.action === "SYNC") {
+    let delta = "";
+    if (added > 0) delta += `+${added}`;
+    if (updated > 0) delta += `~${updated}`;
+    return delta || "~0";
+  }
+  return `~${added + updated}`;
+}
+
+function renderTrigger(entry, icon) {
+  if (entry.isForce) return ` | ${icon} Force`;
+  const trigger = entry.trigger;
+  if (!trigger?.diffUrl || trigger.revid == null) return "";
+  return ` | ${icon} <a href="${escapeUrl(trigger.diffUrl)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${escapeHtml(trigger.revid)}</a>`;
+}
+
+function renderLogMessage(entry) {
+  const suffix = entry.isAnon ? " 👻" : "";
+  const displayName = escapeHtml(entry.displayName || "");
+  if (entry.action === "SYNC") {
+    return `🟢 [SYNC] | 🔄 ${displayName} ${formatDelta(entry)}${renderTrigger(entry, "➕")}${suffix}`;
+  }
+  if (entry.action === "SKIP") {
+    return `⚪ [SKIP] | 🔍 ${displayName} ${formatDelta(entry)}${renderTrigger(entry, "🟰")}${suffix}`;
+  }
+  if (entry.action === "BREAKER") {
+    return `🔴 [ERR!] | 🚧 ${displayName} ${escapeHtml(entry.dropInfo || "(Drop)")}${suffix}`;
+  }
+  if (entry.action === "API_ERROR") {
+    return `🔴 [ERR!] | ❌ ${displayName} (Fail)${suffix}`;
+  }
+  throw new Error(`Invalid log entry action: ${entry.action}`);
+}
+
+function isSyncEntry(entry) {
+  return entry.action === "SYNC";
+}
+
+function isErrorEntry(entry) {
+  return entry.action === "BREAKER" || entry.action === "API_ERROR" || entry.level === "ERROR";
+}
 
 export function renderLogPage(leagueLogs, time, sha, options = {}) {
   if (!leagueLogs) leagueLogs = [];
@@ -22,22 +67,22 @@ export function renderLogPage(leagueLogs, time, sha, options = {}) {
     const phaseEmojiCls = `phase-emoji-${phase}`;
     const phaseText = phase === "play" ? "PLAY" : phase === "offday" ? "OFFDAY" : "IDLE";
 
-    const syncCount = entries.filter(entry => entry.message.includes("🔄")).length;
-    const errCount = entries.filter(entry => entry.message.includes("❌") || entry.message.includes("🚧")).length;
+    const syncCount = entries.filter(isSyncEntry).length;
+    const errCount = entries.filter(isErrorEntry).length;
     const totalCount = Number.isFinite(item.totalMatches) ? item.totalMatches : null;
     const lastTime = lastEntry?.timestamp || "";
     const lastUtcIso = lastTime.length >= 16 ? `20${lastTime.slice(0,8)}T${lastTime.slice(9)}:00Z` : "";
 
     const bars = entries.slice(0, 10).reverse().map(entry => {
-      const cls = entry.message.includes("🔄") ? "bar-sync" : entry.message.includes("❌") ? "bar-err" : "bar-idle";
-      const barHeight = entry.message.includes("🔄") ? "100%" : entry.message.includes("❌") ? "70%" : "30%";
+      const cls = isSyncEntry(entry) ? "bar-sync" : isErrorEntry(entry) ? "bar-err" : "bar-idle";
+      const barHeight = isSyncEntry(entry) ? "100%" : isErrorEntry(entry) ? "70%" : "30%";
       return `<div class="bar ${cls}" style="height:${barHeight}"></div>`;
     }).join("");
 
     const rows = entries.slice(0, maxLogEntries).map(entry => {
       const rowTime = entry.timestamp || "";
       const utcIso = rowTime.length >= 16 ? `20${rowTime.slice(0,8)}T${rowTime.slice(9)}:00Z` : "";
-      const formattedMessage = escapeHtml(entry.message).replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
+      const formattedMessage = renderLogMessage(entry).replace(/(\+\d+(?:~\d+)?|~\d+|±0)/g, '<span class="hl">$1</span>');
       return `<div class="log-mini-row"><span class="log-mini-time utc-local" data-utc="${escapeHtml(utcIso)}" data-format="datetime">${escapeHtml(rowTime)}</span><span class="log-mini-msg">${formattedMessage}</span></div>`;
     }).join("");
 

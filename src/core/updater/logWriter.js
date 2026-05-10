@@ -98,38 +98,3 @@ export function buildLeagueLogEntries(syncItems, skipItems, breakers, apiErrors,
 
   return bySlug;
 }
-
-export function formatLogEntry(entry) {
-  const suffix = entry.isAnon ? " 👻" : "";
-  const { action, displayName, added, updated, trigger, dropInfo, isForce } = entry;
-  if (action === "SYNC") {
-    let delta = "";
-    if (added > 0) delta += `+${added}`;
-    if (updated > 0) delta += `~${updated}`;
-    if (delta === "") delta = "~0";
-    let triggerText = "";
-    if (isForce) {
-      triggerText = " | ➕ Force";
-    } else if (trigger) {
-      triggerText = ` | ➕ <a href="${trigger.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${trigger.revid}</a>`;
-    }
-    return `🟢 [SYNC] | 🔄 ${displayName} ${delta}${triggerText}${suffix}`;
-  }
-  if (action === "SKIP") {
-    const delta = `~${added + updated}`;
-    let triggerText = "";
-    if (isForce) {
-      triggerText = " | 🟰 Force";
-    } else if (trigger) {
-      triggerText = ` | 🟰 <a href="${trigger.diffUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${trigger.revid}</a>`;
-    }
-    return `⚪ [SKIP] | 🔍 ${displayName} ${delta}${triggerText}${suffix}`;
-  }
-  if (action === "BREAKER") {
-    return `🔴 [ERR!] | 🚧 ${displayName} ${dropInfo || "(Drop)"}${suffix}`;
-  }
-  if (action === "API_ERROR") {
-    return `🔴 [ERR!] | ❌ ${displayName} (Fail)${suffix}`;
-  }
-  return "";
-}

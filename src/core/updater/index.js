@@ -13,7 +13,6 @@ import { refreshScheduleBoardOnDayRollover } from './dayRollover.js';
 import { UPDATE_CONFIG } from './types.js';
 
 export { UPDATE_CONFIG };
-export { formatLogEntry } from './logWriter.js';
 
 export class Updater {
   constructor(env) {
