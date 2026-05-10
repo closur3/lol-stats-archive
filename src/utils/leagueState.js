@@ -1,4 +1,4 @@
-export function isRestDayMeta(meta) {
+export function isOffDayMeta(meta) {
   const earliest = Number(meta?.todayEarliestTimestamp) || 0;
   const unfinished = Number(meta?.todayUnfinished) || 0;
   const historyUnfinished = !!meta?.hasHistoryUnfinished;
@@ -6,13 +6,13 @@ export function isRestDayMeta(meta) {
 }
 
 export function resolveLogsPhaseLabel(phase, meta) {
-  if (phase === "window") return "🎮WINDOW";
+  if (phase === "play") return "🎮PLAY";
   if (phase === "tail") return "👀TAIL";
-  return isRestDayMeta(meta) ? "🕊️OFFDAY" : "⏳IDLE";
+  return isOffDayMeta(meta) ? "🕊️IDLE" : "⏳IDLE";
 }
 
 export function resolveHomeEmojiByPhase(phase, meta) {
-  if (phase === "window") return "🎮";
+  if (phase === "play") return "🎮";
   if (phase === "tail") return "👀";
-  return isRestDayMeta(meta) ? "🕊️" : "⏳";
+  return isOffDayMeta(meta) ? "🕊️" : "⏳";
 }

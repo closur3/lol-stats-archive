@@ -57,7 +57,7 @@ async function fetchTournamentMetasFromHome(env, tournaments) {
   return entries.filter(Boolean);
 }
 
-function buildWindowCron(matches, metas, nowUtc) {
+function buildPlayCron(matches, metas, nowUtc) {
   let earliest = null;
   for (const match of matches) {
     const raw = match?.DateTimeUTC;
@@ -92,7 +92,7 @@ function buildIdleState(today) {
     date: today,
     cron: {
       phase: "idle",
-      windowCron: null,
+      playCron: null,
       tailCron1: null,
       tailCron2: null
     }
@@ -119,23 +119,20 @@ async function updateSchedules(env, schedules) {
   if (!payload?.success) throw new Error(`Cloudflare schedules failed: ${JSON.stringify(payload)}`);
 }
 
-export async function planTodayWindow(env, tournaments, scheduledTimeMs) {
+export async function planTodayPlay(env, tournaments, scheduledTimeMs) {
   const now = new Date(scheduledTimeMs);
   const auth = await loginFandom(env);
   const fandomClient = new FandomClient(auth);
   const matches = await fetchTodayMatchesUtc(tournaments, fandomClient, now);
   const metas = await fetchTournamentMetasFromHome(env, tournaments);
-  const windowCron = buildWindowCron(matches, metas, now);
-  const finalSchedules = windowCron ? [BASELINE_CRON, windowCron] : [BASELINE_CRON];
+  const playCron = buildPlayCron(matches, metas, now);
+  const finalSchedules = playCron ? [BASELINE_CRON, playCron] : [BASELINE_CRON];
   await updateSchedules(env, finalSchedules);
   const today = formatUtcDate(now);
   const next = buildIdleState(today);
-  if (windowCron) {
-    next.cron.phase = "window";
-    next.cron.windowCron = windowCron;
-  }
+  if (playCron) next.cron.playCron = playCron;
   await writeControl(env, next);
-  console.log(`[CRON-PLAN] date=${formatUtcDate(now)} window=${windowCron || "none"}`);
+  console.log(`[CRON-PLAN] date=${formatUtcDate(now)} play=${playCron || "none"}`);
 }
 
 export async function ensureDayInitialized(env, tournaments, scheduledTimeMs) {
@@ -143,7 +140,7 @@ export async function ensureDayInitialized(env, tournaments, scheduledTimeMs) {
   const today = formatUtcDate(now);
   const state = await readControl(env);
   if (state?.date === today) return false;
-  await planTodayWindow(env, tournaments, scheduledTimeMs);
+  await planTodayPlay(env, tournaments, scheduledTimeMs);
   return true;
 }
 
@@ -160,7 +157,7 @@ export async function handleHighFreqTick(env, tournaments, scheduledTimeMs, even
       await updateSchedules(env, [BASELINE_CRON]);
       await writeControl(env, {
         date: today,
-        cron: { phase: "idle", windowCron: null, tailCron1: null, tailCron2: null }
+        cron: { phase: "idle", playCron: null, tailCron1: null, tailCron2: null }
       });
       console.log(`[CRON-END] date=${today} final-cron2 hit -> baseline only`);
     }
@@ -175,24 +172,24 @@ export async function recomputeCronOnMetaChange(env, tournaments, nowMs = Date.n
   if (!state || state.date !== today) return;
   const cronState = state.cron;
   if (!cronState || typeof cronState !== "object" || Array.isArray(cronState)) throw new Error("SCHEDULE_DAY.cron must be a JSON object");
-  if (cronState.phase !== "window" && cronState.phase !== "tail") return;
+  if (cronState.phase !== "play" && cronState.phase !== "tail") return;
 
   const auth = await loginFandom(env);
   const fandomClient = new FandomClient(auth);
   const matches = await fetchTodayMatchesUtc(tournaments, fandomClient, now);
   const metas = await fetchTournamentMetasFromHome(env, tournaments);
-  const nextWindowCron = buildWindowCron(matches, metas, now);
+  const nextPlayCron = buildPlayCron(matches, metas, now);
   const hasAnyUnfinished = metas.some(meta => meta.hasHistoryUnfinished || meta.todayUnfinished > 0);
 
   if (cronState.phase === "tail") {
     if (!hasAnyUnfinished) return;
-    if (!nextWindowCron) throw new Error("Cannot restore window cron: unfinished matches exist but no window cron calculated");
-    await updateSchedules(env, [BASELINE_CRON, nextWindowCron]);
+    if (!nextPlayCron) throw new Error("Cannot restore play cron: unfinished matches exist but no play cron calculated");
+    await updateSchedules(env, [BASELINE_CRON, nextPlayCron]);
     await writeControl(env, {
       date: today,
-      cron: { phase: "window", windowCron: nextWindowCron, tailCron1: null, tailCron2: null }
+      cron: { phase: "play", playCron: nextPlayCron, tailCron1: null, tailCron2: null }
     });
-    console.log(`[CRON-RESTORE] date=${today} tail -> window (${nextWindowCron})`);
+    console.log(`[CRON-RESTORE] date=${today} tail -> play (${nextPlayCron})`);
     return;
   }
 
@@ -202,17 +199,17 @@ export async function recomputeCronOnMetaChange(env, tournaments, nowMs = Date.n
     await updateSchedules(env, [BASELINE_CRON, tailCron1, tailCron2]);
     await writeControl(env, {
       date: today,
-      cron: { phase: "tail", windowCron: null, tailCron1, tailCron2 }
+      cron: { phase: "tail", playCron: null, tailCron1, tailCron2 }
     });
     console.log(`[CRON-SHRINK] date=${today} all-finished=1 -> tailCron1=${tailCron1} tailCron2=${tailCron2}`);
     return;
   }
 
-  if (!nextWindowCron || nextWindowCron === cronState.windowCron) return;
-  await updateSchedules(env, [BASELINE_CRON, nextWindowCron]);
+  if (!nextPlayCron || nextPlayCron === cronState.playCron) return;
+  await updateSchedules(env, [BASELINE_CRON, nextPlayCron]);
   await writeControl(env, {
     date: today,
-    cron: { phase: "window", windowCron: nextWindowCron, tailCron1: null, tailCron2: null }
+    cron: { phase: "play", playCron: nextPlayCron, tailCron1: null, tailCron2: null }
   });
-  console.log(`[CRON-RECALC] date=${today} window=${cronState.windowCron} -> ${nextWindowCron}`);
+  console.log(`[CRON-RECALC] date=${today} play=${cronState.playCron} -> ${nextPlayCron}`);
 }

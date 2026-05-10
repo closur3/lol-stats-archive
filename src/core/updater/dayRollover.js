@@ -19,7 +19,7 @@ export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig, clea
     date: today,
     cron: {
       phase: "idle",
-      windowCron: null,
+      playCron: null,
       tailCron1: null,
       tailCron2: null
     }

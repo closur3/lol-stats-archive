@@ -47,7 +47,7 @@ export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     .league-total-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 22px; padding: 0 8px; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 12px; font-weight: 700; line-height: 1; }
     .league-card-status { display: flex; align-items: center; gap: 6px; }
     .phase-tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
-    .phase-window { background: #dbeafe; color: #1d4ed8; }
+    .phase-play { background: #dbeafe; color: #1d4ed8; }
     .phase-tail { background: #fef3c7; color: #92400e; }
     .phase-idle { background: #e2e8f0; color: #334155; }
     .card-stats { display: flex; gap: 16px; padding: 8px var(--card-x-pad); font-size: 12px; color: #94a3b8; border-bottom: 1px solid #f8fafc; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }

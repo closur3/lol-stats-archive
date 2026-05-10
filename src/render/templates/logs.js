@@ -14,7 +14,7 @@ export function renderLogPage(leagueLogs, time, sha, options = {}) {
     const name = item.name || "";
     const entries = item.logs || [];
     const lastEntry = entries[0];
-    const phase = item.phase === "window" || item.phase === "tail" || item.phase === "idle" ? item.phase : "idle";
+    const phase = item.phase === "play" || item.phase === "tail" || item.phase === "idle" ? item.phase : "idle";
     const phaseCls = `phase-${phase}`;
     const phaseLabel = resolveLogsPhaseLabel(phase, item);
 
