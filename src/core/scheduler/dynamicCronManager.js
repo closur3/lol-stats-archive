@@ -152,6 +152,15 @@ export async function handleHighFreqTick(env, tournaments, scheduledTimeMs, even
   const cronState = state.cron;
   if (!cronState || typeof cronState !== "object" || Array.isArray(cronState)) throw new Error("SCHEDULE_DAY.cron must be a JSON object");
 
+  if (cronState.phase === "idle" && cronState.playCron && cronState.playCron === eventCron) {
+    await writeControl(env, {
+      date: today,
+      cron: { phase: "play", playCron: cronState.playCron, tailCron1: null, tailCron2: null }
+    });
+    console.log(`[CRON-ENTER] date=${today} idle -> play (${eventCron})`);
+    return;
+  }
+
   if (cronState.phase === "tail" && (cronState.tailCron1 === eventCron || cronState.tailCron2 === eventCron)) {
     if (cronState.tailCron2 === eventCron) {
       await updateSchedules(env, [BASELINE_CRON]);
