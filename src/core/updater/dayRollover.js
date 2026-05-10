@@ -1,6 +1,5 @@
 import { dateUtils } from '../../utils/dateUtils.js';
 import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
-import { kvPutIfChanged } from '../../utils/kvStore.js';
 
 export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig, cleanupStaleHomeKeys, refreshHomeStaticFromCache) {
   const kv = env["lol-stats-kv"];
@@ -15,16 +14,5 @@ export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig, clea
   await cleanupStaleHomeKeys(env, runtimeConfig);
   await refreshHomeStaticFromCache(env);
 
-  await kvPutIfChanged(env, kvKeys.scheduleDay(), {
-    date: today,
-    leagues: Object.fromEntries((runtimeConfig.TOURNAMENTS || []).map(tournament => {
-      if (!tournament?.slug) throw new Error("Tournament slug missing");
-      return [tournament.slug, {
-        phase: "idle",
-        playStartHour: null,
-        playEndHour: null
-      }];
-    }))
-  });
   console.log(`[SCHEDULE] ${lastDay || "none"} -> ${today}`);
 }

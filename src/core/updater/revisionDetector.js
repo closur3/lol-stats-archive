@@ -140,7 +140,11 @@ export async function detectRevisionChanges(env, tournaments) {
   );
 
   for (const checkResult of revChecks) {
-    if (checkResult.status === 'rejected') continue;
+    if (checkResult.status === 'rejected') {
+      hasErrors = true;
+      console.log(`[REV] check failed: ${checkResult.reason?.message || 'unknown error'}`);
+      continue;
+    }
 
     const { slug, shouldWriteRev, nextRecord, pagesFetched, revisionChanged, errCount, changedPages } = checkResult.value;
 

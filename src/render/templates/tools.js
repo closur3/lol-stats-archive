@@ -1,41 +1,44 @@
 import toolsCSS from '../../styles/tools.js';
 import { renderFontLinks, renderNavBar, renderBuildFooter } from './page.js';
 import { dataUtils } from '../../utils/dataUtils.js';
+import { escapeHtml, escapeJsArg } from '../../utils/htmlEscape.js';
 
 export function renderToolsPage(time, sha, activeTournaments = [], archivedTournaments = []) {
   const buildFooter = renderBuildFooter(time, sha);
 
   let activeListHtml = activeTournaments.map(activeTournament => {
-      const slug = activeTournament.slug;
-      const name = activeTournament.name.replace(/'/g, '&apos;');
+      const slug = String(activeTournament.slug || "");
+      const name = String(activeTournament.name || "");
       return `
       <div class="item">
           <label class="item-left">
-              <input type="checkbox" class="item-chk" value="${slug}">
-              <span class="item-name">${activeTournament.name}</span>
+              <input type="checkbox" class="item-chk" value="${escapeHtml(slug)}">
+              <span class="item-name">${escapeHtml(name)}</span>
           </label>
           <div class="item-right">
-              <button class="icon-btn" onclick="forceOne('${slug}', this)" title="Force">🔄</button>
-              <button class="icon-btn icon-btn-del" onclick="deleteArchive('${slug}', '${name}')" title="Delete">🗑️</button>
+              <button class="icon-btn" onclick="forceOne(${escapeJsArg(slug)}, this)" title="Force">🔄</button>
+              <button class="icon-btn icon-btn-del" onclick="deleteArchive(${escapeJsArg(slug)}, ${escapeJsArg(name)})" title="Delete">🗑️</button>
           </div>
       </div>`;
   }).join("");
   if (!activeListHtml) activeListHtml = "<div style='text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;'>No active</div>";
 
   let archiveListHtml = archivedTournaments.map(archiveTournament => {
+      const slug = String(archiveTournament.slug || "");
+      const name = String(archiveTournament.name || "");
+      const league = String(archiveTournament.league || "");
       const overviewStr = JSON.stringify(dataUtils.normalizeOverviewPages(archiveTournament.overview_page));
       const startDate = archiveTournament.start_date || '';
       const endDate = archiveTournament.end_date || '';
-      const archiveNameEscaped = (archiveTournament.name || '').replace(/'/g, '&apos;');
       return `
       <div class="item">
           <label class="item-left">
-              <input type="checkbox" class="item-chk qr-chk-archived" value="${archiveTournament.slug}" data-name="${archiveTournament.name}" data-overview='${overviewStr}' data-league="${archiveTournament.league}" data-start="${startDate}" data-end="${endDate}">
-              <span class="item-name">${archiveTournament.name}</span>
+              <input type="checkbox" class="item-chk qr-chk-archived" value="${escapeHtml(slug)}" data-name="${escapeHtml(name)}" data-overview="${escapeHtml(overviewStr)}" data-league="${escapeHtml(league)}" data-start="${escapeHtml(startDate)}" data-end="${escapeHtml(endDate)}">
+              <span class="item-name">${escapeHtml(name)}</span>
           </label>
           <div class="item-right">
-              <button class="icon-btn icon-btn-fill" onclick="fillArchive('${archiveTournament.slug}')" title="Fill">📋</button>
-              <button class="icon-btn icon-btn-del" onclick="deleteArchive('${archiveTournament.slug}', '${archiveNameEscaped}')" title="Delete">🗑️</button>
+              <button class="icon-btn icon-btn-fill" onclick="fillArchive(${escapeJsArg(slug)})" title="Fill">📋</button>
+              <button class="icon-btn icon-btn-del" onclick="deleteArchive(${escapeJsArg(slug)}, ${escapeJsArg(name)})" title="Delete">🗑️</button>
           </div>
       </div>`;
   }).join("");
@@ -233,7 +236,7 @@ export function renderToolsPage(time, sha, activeTournaments = [], archivedTourn
           }
 
           function fillArchive(slug) {
-              var checkboxElement = document.querySelector('.qr-chk-archived[value="' + slug + '"]');
+              var checkboxElement = document.querySelector('.qr-chk-archived[value="' + CSS.escape(slug) + '"]');
               if (!checkboxElement) { showToast("❌ Archive item not found", "error"); return; }
 
               var overviewValue = "";

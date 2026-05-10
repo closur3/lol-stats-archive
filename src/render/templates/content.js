@@ -4,6 +4,7 @@ import { buildTeamRow } from '../components/teamRow.js';
 import { buildTimeTable } from '../components/timeTable.js';
 import { buildScheduleRow } from '../components/scheduleRow.js';
 import { resolveHomeEmojiByPhase } from '../../utils/leagueState.js';
+import { escapeHtml, escapeUrl } from '../../utils/htmlEscape.js';
 
 const STYLE_EMOJI = 'style="font-size: 16px; line-height: 1; display: block; transform: translateY(-1px);"';
 const STYLE_TITLE_ROW = 'style="display:flex; align-items:center; gap: 6px;"';
@@ -32,7 +33,7 @@ export function renderContentOnly(globalStats, timeData, scheduleMap, runtimeCon
       bo3PriorMean: sortPolicy.getBestOfPriorMean(stats, 3),
       bo5PriorMean: sortPolicy.getBestOfPriorMean(stats, 5)
     };
-    const tableId = `t_${tournament.slug.replace(/-/g, '_')}`;
+    const tableId = `t_${String(tournament.slug).replace(/[^A-Za-z0-9_-]/g, '_')}`;
 
     let tournamentBestOf3FullMatchCount = 0, tournamentBestOf3TotalMatchCount = 0;
     let tournamentBestOf5FullMatchCount = 0, tournamentBestOf5TotalMatchCount = 0;
@@ -71,8 +72,8 @@ export function renderContentOnly(globalStats, timeData, scheduleMap, runtimeCon
       emojiStr = `<span ${STYLE_EMOJI}>${displayEmoji}</span>`;
     }
     const pageUrl = `https://lol.fandom.com/wiki/${mainPage}`;
-    const titleText = `<span class="league-title-text">${tournament.name}</span>`;
-    const jumpBtn = `<a class="league-jump-btn" href="${pageUrl}" target="_blank" rel="noopener noreferrer" aria-label="Open link"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>`;
+    const titleText = `<span class="league-title-text">${escapeHtml(tournament.name)}</span>`;
+    const jumpBtn = `<a class="league-jump-btn" href="${escapeUrl(pageUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Open link"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>`;
 
     if (isArchive) {
       const headerRight = `<div class="title-right-area" style="justify-content: flex-start;">${leagueSummaryHtml}</div>`;
@@ -103,8 +104,8 @@ export function renderContentOnly(globalStats, timeData, scheduleMap, runtimeCon
           const tabName = match.tabName || "";
           const groupKey = `${match.league}_${tabName}`;
           if (groupKey !== lastGroupKey) {
-            const blockHtml = tabName ? `<span class="spine-sep">/</span><span class="spine-r" ${STYLE_SCH_GROUP_BLOCK}>${tabName}</span>` : "";
-            cardHtml += `<div class="sch-group-header" ${STYLE_SCH_GROUP_HEADER}><div class="spine-row" ${STYLE_SCH_GROUP_ROW}><span class="spine-l" ${STYLE_SCH_GROUP_NAME}>${match.league}</span>${blockHtml}</div></div>`;
+            const blockHtml = tabName ? `<span class="spine-sep">/</span><span class="spine-r" ${STYLE_SCH_GROUP_BLOCK}>${escapeHtml(tabName)}</span>` : "";
+            cardHtml += `<div class="sch-group-header" ${STYLE_SCH_GROUP_HEADER}><div class="spine-row" ${STYLE_SCH_GROUP_ROW}><span class="spine-l" ${STYLE_SCH_GROUP_NAME}>${escapeHtml(match.league)}</span>${blockHtml}</div></div>`;
             lastGroupKey = groupKey;
           }
           cardHtml += buildScheduleRow(match, globalStats);

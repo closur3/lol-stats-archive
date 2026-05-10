@@ -1,6 +1,22 @@
 import { BOT_UA, MAX_RETRIES, FETCH_DELAY_MS, FANDOM_API } from '../constants/index.js';
 import { dataUtils } from '../utils/dataUtils.js';
 
+function cargoStringLiteral(value, label) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`Invalid Cargo string: ${label}`);
+  }
+  if (/[\0\r\n]/.test(value)) {
+    throw new Error(`Invalid Cargo string control char: ${label}`);
+  }
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function assertCargoDate(value, label) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error(`Invalid Cargo date: ${label}`);
+  }
+}
+
 /**
  * Fandom API 客户端
  */
@@ -14,7 +30,7 @@ export class FandomClient {
    */
   static async login(user, pass) {
     if (!user || !pass) {
-      return null;
+      throw new Error("Missing Fandom credentials: FANDOM_BOT_USERNAME/FANDOM_BOT_PASSWORD");
     }
 
     const MAX_LOGIN_RETRIES = 3;
@@ -57,8 +73,7 @@ export class FandomClient {
       }
     }
 
-    console.error("[Fandom Login] All attempts failed, falling back to anonymous");
-    return null;
+    throw new Error(`[Fandom Login] All attempts failed`);
   }
 
   /**
@@ -210,19 +225,25 @@ export class FandomClient {
    */
    async fetchAllMatches(slug, sourceInput, dateFilter = null) {
       const pages = Array.isArray(sourceInput) ? sourceInput : [sourceInput];
-      const inClause = pages.map(page => `'${page}'`).join(", ");
+      if (pages.length === 0) throw new Error(`No source pages for ${slug}`);
+      const inClause = pages.map((page, index) => cargoStringLiteral(page, `${slug}.overview_page[${index}]`)).join(", ");
       let all = [];
       let offset = 0;
       const limit = 200;
       const seenIds = new Set();
 
+      if (dateFilter) {
+        assertCargoDate(dateFilter.start, `${slug}.dateFilter.start`);
+        assertCargoDate(dateFilter.end, `${slug}.dateFilter.end`);
+      }
+
       while (true) {
         let whereClause = pages.length === 1
-          ? `OverviewPage = '${pages[0]}'`
+          ? `OverviewPage = ${cargoStringLiteral(pages[0], `${slug}.overview_page[0]`)}`
           : `OverviewPage IN (${inClause})`;
 
         if (dateFilter) {
-          whereClause += ` AND DateTime_UTC >= '${dateFilter.start} 00:00:00' AND DateTime_UTC <= '${dateFilter.end} 23:59:59'`;
+          whereClause += ` AND DateTime_UTC >= ${cargoStringLiteral(`${dateFilter.start} 00:00:00`, `${slug}.dateFilter.startTime`)} AND DateTime_UTC <= ${cargoStringLiteral(`${dateFilter.end} 23:59:59`, `${slug}.dateFilter.endTime`)}`;
         }
 
      const cargoParams = new URLSearchParams({

@@ -108,6 +108,14 @@ async function writeControl(env, state) {
   await kv.put(kvKeys.scheduleDay(), JSON.stringify(state));
 }
 
+function attachSchedulePlan(state, schedules, nowUtc, applied) {
+  state.schedules = schedules;
+  state.schedulesPlannedAt = nowUtc.toISOString();
+  if (applied) state.schedulesAppliedAt = nowUtc.toISOString();
+  else delete state.schedulesAppliedAt;
+  return state;
+}
+
 function buildLeagueState(phase = "idle", window = null) {
   return {
     phase,
@@ -228,9 +236,19 @@ async function updateSchedules(env, schedules) {
 
 async function writeStateAndSchedules(env, state, nowUtc, reason) {
   const schedules = collectSchedulesFromState(state, nowUtc);
+  await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, false));
   await updateSchedules(env, schedules);
-  await writeControl(env, state);
+  await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, true));
   console.log(`[CRON-${reason}] date=${state.date} schedules=${schedules.join(",")}`);
+}
+
+async function ensureSchedulesApplied(env, state, nowUtc) {
+  const schedules = collectSchedulesFromState(state, nowUtc);
+  if (JSON.stringify(state.schedules || []) === JSON.stringify(schedules) && state.schedulesAppliedAt) return false;
+  await updateSchedules(env, schedules);
+  await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, true));
+  console.log(`[CRON-REAPPLY] date=${state.date} schedules=${schedules.join(",")}`);
+  return true;
 }
 
 export async function planTodayPlay(env, tournaments, scheduledTimeMs) {
@@ -257,7 +275,10 @@ export async function ensureDayInitialized(env, tournaments, scheduledTimeMs) {
   const now = new Date(scheduledTimeMs);
   const today = formatUtcDate(now);
   const state = await readControl(env);
-  if (state?.date === today) return false;
+  if (state?.date === today) {
+    await ensureSchedulesApplied(env, state, now);
+    return false;
+  }
   await planTodayPlay(env, tournaments, scheduledTimeMs);
   return true;
 }
