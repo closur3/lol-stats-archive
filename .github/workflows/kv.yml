@@ -1,10 +1,6 @@
 name: "Config: Persist KV"
 
 on:
-  push:
-    paths:
-      - "config/tour.json"
-      - "config/teams.json"
   workflow_dispatch:
 
 jobs:
@@ -40,4 +36,3 @@ jobs:
             --data-binary @config/teams.json > /dev/null
 
           echo "CONFIG_TOUR and CONFIG_TEAMS updated in Cloudflare KV."
-

@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout repo
@@ -142,7 +143,20 @@ jobs:
                   f.write(f"commit_msg={commit_msg}\n")
 
       - name: Commit and Push
+        id: auto_commit
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "${{ steps.process_data.outputs.commit_msg }}"
           file_pattern: 'config/teams.json config/leagues.json'
+
+      - name: Trigger KV Persist
+        if: steps.auto_commit.outputs.changes_detected == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/kv.yml/dispatches \
+            -d "{\"ref\":\"${{ github.ref_name }}\"}"
