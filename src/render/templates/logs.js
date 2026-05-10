@@ -1,6 +1,6 @@
 import logsCSS from '../../styles/logs.js';
 import { renderFontLinks, renderNavBar, renderBuildFooter, renderClientJS } from './page.js';
-import { resolveLeaguePhase, resolveLogsPhaseLabel } from '../../utils/leagueState.js';
+import { resolveLeaguePhase } from '../../utils/leagueState.js';
 
 export function renderLogPage(leagueLogs, time, sha, options = {}) {
   if (!leagueLogs) leagueLogs = [];
@@ -16,7 +16,6 @@ export function renderLogPage(leagueLogs, time, sha, options = {}) {
     const lastEntry = entries[0];
     const phase = resolveLeaguePhase(item);
     const phaseCls = `phase-${phase}`;
-    const phaseLabel = resolveLogsPhaseLabel(item);
     const phaseEmoji = phase === "play" ? "🎮" : phase === "offday" ? "🕊️" : "⏳";
     const phaseEmojiCls = `phase-emoji-${phase}`;
     const phaseText = phase === "play" ? "PLAY" : phase === "offday" ? "OFFDAY" : "IDLE";

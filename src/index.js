@@ -7,7 +7,7 @@ import { HTMLRenderer } from './render/htmlRenderer.js';
 import { GitHubClient } from './api/githubClient.js';
 import { kvKeys } from './infrastructure/kv/keyFactory.js';
 import { dateUtils } from './utils/dateUtils.js';
-import { ensureDayInitialized, handleHighFreqTick } from './core/scheduler/dynamicCronManager.js';
+import { ensureDayInitialized, handleHighFreqTick, resolveScheduledExecutionSlugs } from './core/scheduler/dynamicCronManager.js';
 import { loadTourConfig } from './core/updater/tourConfigLoader.js';
 
 /**
@@ -132,8 +132,9 @@ export default {
     const runtimeConfig = await loadTourConfig(env, githubClient);
     await ensureDayInitialized(env, runtimeConfig, event.scheduledTime);
 
+    const executionSlugs = await resolveScheduledExecutionSlugs(env, event.scheduledTime, event.cron);
     const updater = new Updater(env);
-    await updater.runScheduledUpdate();
+    await updater.runScheduledUpdate(executionSlugs);
     await handleHighFreqTick(env, runtimeConfig, event.scheduledTime, event.cron);
   }
 };

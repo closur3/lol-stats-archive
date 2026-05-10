@@ -17,12 +17,17 @@ export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig, clea
 
   await kvPutIfChanged(env, kvKeys.scheduleDay(), {
     date: today,
-    cron: {
-      phase: "idle",
-      playCron: null,
-      tailCron1: null,
-      tailCron2: null
-    }
+    leagues: Object.fromEntries((runtimeConfig.TOURNAMENTS || []).map(tournament => {
+      if (!tournament?.slug) throw new Error("Tournament slug missing");
+      return [tournament.slug, {
+        phase: "idle",
+        playCron: null,
+        playStartHour: null,
+        playEndHour: null,
+        tailCron1: null,
+        tailCron2: null
+      }];
+    }))
   });
   console.log(`[SCHEDULE] ${lastDay || "none"} -> ${today}`);
 }

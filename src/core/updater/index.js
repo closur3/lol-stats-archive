@@ -30,7 +30,7 @@ export class Updater {
     return loadCachedData(this.env, tournaments);
   }
 
-  async runScheduledUpdate() {
+  async runScheduledUpdate(scopeSlugs = null) {
     const startedAt = Date.now();
     let runtimeConfig;
     try {
@@ -42,15 +42,24 @@ export class Updater {
 
     await refreshScheduleBoardOnDayRollover(this.env, runtimeConfig, cleanupStaleHomeKeys, refreshHomeStaticFromCache);
 
+    const hasScope = scopeSlugs instanceof Set;
+    if (hasScope && scopeSlugs.size === 0) {
+      console.log("[SCOPE] Empty high-frequency scope, skipped updater");
+      return this.logger;
+    }
+
     const cache = await this.loadCachedData(runtimeConfig.TOURNAMENTS);
-    const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs } = await detectRevisionChanges(this.env, runtimeConfig.TOURNAMENTS || []);
+    const scopedTournaments = hasScope
+      ? (runtimeConfig.TOURNAMENTS || []).filter(tournament => scopeSlugs.has(tournament.slug))
+      : (runtimeConfig.TOURNAMENTS || []);
+    const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs } = await detectRevisionChanges(this.env, scopedTournaments);
     console.log(`[CRON] rev-check checked=${checkedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
     const targetSlugs = new Set(changedSlugs);
 
     if (targetSlugs.size === 0) {
       console.log("[REV-GATE] No revision changes, running local update");
       await commitRevisionWrites(this.env, pendingRevisionWrites);
-      await runLocalUpdateFn(this.env, this.githubClient, runtimeConfig, cache, refreshHomeStaticFromCache);
+      await runLocalUpdateFn(this.env, this.githubClient, runtimeConfig, cache, refreshHomeStaticFromCache, scopeSlugs);
       return this.logger;
     }
 

@@ -5,7 +5,7 @@ import { kvPutIfChanged } from '../../utils/kvStore.js';
 import { recomputeCronOnMetaChange } from '../scheduler/dynamicCronManager.js';
 import { loadTeamsConfig } from './teamsConfigLoader.js';
 
-export async function runLocalUpdate(env, githubClient, runtimeConfig, cache, refreshHomeStaticFromCache) {
+export async function runLocalUpdate(env, githubClient, runtimeConfig, cache, refreshHomeStaticFromCache, scopeSlugs = null) {
   let teamsRaw = null;
   try {
     teamsRaw = await loadTeamsConfig(env, githubClient);
@@ -15,7 +15,11 @@ export async function runLocalUpdate(env, githubClient, runtimeConfig, cache, re
   const changedSlugs = [];
   let shouldRecomputeCron = false;
 
-  for (const tournament of (runtimeConfig.TOURNAMENTS || [])) {
+  const tournaments = scopeSlugs instanceof Set
+    ? (runtimeConfig.TOURNAMENTS || []).filter(tournament => scopeSlugs.has(tournament.slug))
+    : (runtimeConfig.TOURNAMENTS || []);
+
+  for (const tournament of tournaments) {
     const slug = tournament.slug;
     const home = cache.homes[slug];
     if (!home) continue;
