@@ -52,22 +52,6 @@ export async function loadArchiveConfig(env, githubClient) {
   return writeArchiveIndex(env, archivedTournaments);
 }
 
-export async function ensureArchiveIndexForWrite(env, githubClient) {
-  const kv = env["lol-stats-kv"];
-  const cached = await kv.get(kvKeys.configArchive(), { type: "json" });
-  if (cached != null) return normalizeArchiveList(cached);
-
-  const localTournaments = await readArchiveSnapshotTournaments(env);
-  if (localTournaments.length > 0) return writeArchiveIndex(env, localTournaments);
-
-  try {
-    const archivedTournaments = await githubClient.fetchJson("config/archive.json");
-    return writeArchiveIndex(env, archivedTournaments);
-  } catch (_error) {
-    return writeArchiveIndex(env, []);
-  }
-}
-
 export async function readArchiveIndex(env) {
   const kv = env["lol-stats-kv"];
   const cached = await kv.get(kvKeys.configArchive(), { type: "json" });
@@ -85,10 +69,4 @@ export async function writeArchiveIndex(env, archivedTournaments) {
 export async function rebuildArchiveIndexFromSnapshots(env) {
   const localTournaments = await readArchiveSnapshotTournaments(env);
   return writeArchiveIndex(env, localTournaments);
-}
-
-export async function removeArchiveIndex(env, githubClient, slug) {
-  if (!slug) throw new Error("Archive slug missing");
-  const current = await ensureArchiveIndexForWrite(env, githubClient);
-  return writeArchiveIndex(env, current.filter(item => item.slug !== slug));
 }

@@ -1,6 +1,6 @@
 ﻿import { FandomClient } from "../../api/fandomClient.js";
 import { GitHubClient } from "../../api/githubClient.js";
-import { rebuildArchiveIndexFromSnapshots, removeArchiveIndex } from "../../core/updater/archiveIndex.js";
+import { rebuildArchiveIndexFromSnapshots } from "../../core/updater/archiveIndex.js";
 import { loadTeamsConfig } from "../../core/updater/teamsConfigLoader.js";
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
 import { dataUtils } from "../../utils/dataUtils.js";
@@ -90,8 +90,7 @@ export async function handleDeleteArchive(request, env) {
 
   try {
     await kvDelete(env, kvKeys.archive(payload.slug));
-    const githubClient = new GitHubClient(env);
-    await removeArchiveIndex(env, githubClient, payload.slug);
+    await rebuildArchiveIndexFromSnapshots(env);
     const archiveHTML = await generateArchiveStaticHTML(env);
     await kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML);
     return new Response("OK", { status: 200 });
