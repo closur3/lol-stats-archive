@@ -9,6 +9,27 @@ export async function refreshHomeStaticFromCache(env) {
   return rebuildStaticPagesFromCache(env, { includeArchive: false, requireData: false });
 }
 
+function assertHomeSnapshot(keyName, home) {
+  if (!home || typeof home !== "object" || Array.isArray(home)) {
+    throw new Error(`Invalid HOME snapshot: ${keyName}`);
+  }
+  if (!home.tournament || typeof home.tournament !== "object" || !home.tournament.slug) {
+    throw new Error(`Invalid HOME tournament: ${keyName}`);
+  }
+  if (!home.stats || typeof home.stats !== "object" || Array.isArray(home.stats)) {
+    throw new Error(`Invalid HOME stats: ${keyName}`);
+  }
+  if (!Array.isArray(home.rawMatches)) {
+    throw new Error(`Invalid HOME rawMatches: ${keyName}`);
+  }
+  if (!home.timeGrid || typeof home.timeGrid !== "object" || Array.isArray(home.timeGrid)) {
+    throw new Error(`Invalid HOME timeGrid: ${keyName}`);
+  }
+  if (!home.scheduleMap || typeof home.scheduleMap !== "object" || Array.isArray(home.scheduleMap)) {
+    throw new Error(`Invalid HOME scheduleMap: ${keyName}`);
+  }
+}
+
 export async function rebuildStaticPagesFromCache(env, options = {}) {
   const includeArchive = options.includeArchive !== false;
   const requireData = options.requireData !== false;
@@ -17,7 +38,10 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
   const allHomeKeys = await kv.list({ prefix: kvKeys.HOME_PREFIX });
   const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== kvKeys.homeStatic());
   const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
-  const homeEntries = rawHomes.filter(home => home && home.tournament);
+  const homeEntries = rawHomes.map((home, index) => {
+    assertHomeSnapshot(dataKeys[index], home);
+    return home;
+  });
   const writePromises = [];
   let homeChanged = false;
   let archiveChanged = false;
@@ -46,9 +70,8 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
   homeEntries.forEach(home => {
     const homeTournament = home.tournament;
     const slug = homeTournament?.slug;
-    if (!slug) return;
     if (home.stats) globalStats[slug] = home.stats;
-    if (home.timeGrid) timeGrid[slug] = home.timeGrid;
+    timeGrid[slug] = home.timeGrid;
     if (homeTournament) {
       tournamentMeta[slug] = {
         hasHistoryUnfinished: homeTournament.hasHistoryUnfinished,
@@ -57,7 +80,7 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
       };
     }
 
-    const schedule = home.scheduleMap || {};
+    const schedule = home.scheduleMap;
     Object.keys(schedule).forEach(date => {
       if (!scheduleMap[date]) scheduleMap[date] = [];
       (schedule[date] || []).forEach(match => {

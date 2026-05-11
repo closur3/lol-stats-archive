@@ -11,7 +11,9 @@ export async function loadCachedData(env, tournaments) {
 
   homeEntries.forEach(([slug, home]) => {
     if (home) {
-      if (home.rawMatches) cache.rawMatches[slug] = home.rawMatches;
+      if (!home.tournament || home.tournament.slug !== slug) throw new Error(`Invalid HOME snapshot: ${slug}`);
+      if (!Array.isArray(home.rawMatches)) throw new Error(`Invalid HOME rawMatches: ${slug}`);
+      cache.rawMatches[slug] = home.rawMatches;
       cache.homes[slug] = home;
     }
   });

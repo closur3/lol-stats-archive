@@ -13,16 +13,17 @@ export async function handleBackup(request, env) {
   const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== kvKeys.homeStatic());
   const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
 
-  rawHomes.forEach(home => {
+  rawHomes.forEach((home, index) => {
     const homeTournament = home?.tournament;
-    if (home && homeTournament && home.stats) {
-      const slug = homeTournament.slug;
-      payload[`markdown/${slug}.md`] = HTMLRenderer.generateMarkdown(
-        homeTournament,
-        home.stats,
-        { [slug]: home.timeGrid || {} }
-      );
+    if (!home || !homeTournament || !homeTournament.slug || !home.stats || !home.timeGrid) {
+      throw new Error(`Invalid HOME snapshot: ${dataKeys[index]}`);
     }
+    const slug = homeTournament.slug;
+    payload[`markdown/${slug}.md`] = HTMLRenderer.generateMarkdown(
+      homeTournament,
+      home.stats,
+      { [slug]: home.timeGrid }
+    );
   });
 
   const archivedTournaments = await readArchiveIndex(env);

@@ -36,7 +36,7 @@ export class Updater {
       runtimeConfig = await this.loadRuntimeConfig();
     } catch (error) {
       this.logger.error(`🔴 [ERR!] | ❌ Config(Fail): ${error.message}`);
-      return this.logger;
+      throw error;
     }
 
     await refreshScheduleBoardOnDayRollover(this.env, runtimeConfig, cleanupStaleHomeKeys, refreshHomeStaticFromCache);
