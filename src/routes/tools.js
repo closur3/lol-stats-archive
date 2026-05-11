@@ -14,21 +14,31 @@ export class ToolsRouter {
   static async handleTools(request, env) {
     try {
       // 并行读取活跃赛事和归档赛事
-      const [activeTournaments, archivedTournaments] = await Promise.all([
+      const [activeTournaments, archiveResult] = await Promise.all([
       (async () => {
         const githubClient = new GitHubClient(env);
         const tournaments = await loadTourConfig(env, githubClient);
         return dateUtils.sortTournamentsByDate(tournaments);
       })(),
       (async () => {
-        const githubClient = new GitHubClient(env);
-        return loadArchiveConfig(env, githubClient);
+        try {
+          const githubClient = new GitHubClient(env);
+          return { archivedTournaments: await loadArchiveConfig(env, githubClient), archiveError: null };
+        } catch (error) {
+          return { archivedTournaments: [], archiveError: error.message };
+        }
       })()
       ]);
 
       const time = env.GITHUB_TIME;
       const sha = env.GITHUB_SHA;
-      const html = HTMLRenderer.renderToolsPage(time, sha, activeTournaments, archivedTournaments);
+      const html = HTMLRenderer.renderToolsPage(
+        time,
+        sha,
+        activeTournaments,
+        archiveResult.archivedTournaments,
+        archiveResult.archiveError
+      );
 
       return new Response(html, {
         headers: { "content-type": "text/html;charset=utf-8" }

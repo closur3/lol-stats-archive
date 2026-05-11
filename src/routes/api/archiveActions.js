@@ -1,6 +1,6 @@
 ﻿import { FandomClient } from "../../api/fandomClient.js";
 import { GitHubClient } from "../../api/githubClient.js";
-import { removeArchiveIndex, upsertArchiveIndex } from "../../core/updater/archiveIndex.js";
+import { rebuildArchiveIndexFromSnapshots, removeArchiveIndex } from "../../core/updater/archiveIndex.js";
 import { loadTeamsConfig } from "../../core/updater/teamsConfigLoader.js";
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
 import { dataUtils } from "../../utils/dataUtils.js";
@@ -48,10 +48,10 @@ export async function handleRebuildArchive(request, env) {
   try {
     const authContext = await FandomClient.login(env.FANDOM_BOT_USERNAME, env.FANDOM_BOT_PASSWORD);
     const fandomClient = new FandomClient(authContext);
+    const githubClient = new GitHubClient(env);
 
     let teamsRaw = null;
     try {
-      const githubClient = new GitHubClient(env);
       teamsRaw = await loadTeamsConfig(env, githubClient);
     } catch (error) { console.error("[Rebuild] Failed to load teams.json:", error.message); }
 
@@ -68,7 +68,7 @@ export async function handleRebuildArchive(request, env) {
     };
     const teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, matches);
     await kvPutIfChanged(env, kvKeys.archive(payload.slug), { tournament, rawMatches: matches, teamMap });
-    await upsertArchiveIndex(env, tournament);
+    await rebuildArchiveIndexFromSnapshots(env);
 
     const archiveHTML = await generateArchiveStaticHTML(env);
     await kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML);
@@ -90,7 +90,8 @@ export async function handleDeleteArchive(request, env) {
 
   try {
     await kvDelete(env, kvKeys.archive(payload.slug));
-    await removeArchiveIndex(env, payload.slug);
+    const githubClient = new GitHubClient(env);
+    await removeArchiveIndex(env, githubClient, payload.slug);
     const archiveHTML = await generateArchiveStaticHTML(env);
     await kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML);
     return new Response("OK", { status: 200 });
@@ -126,7 +127,7 @@ export async function handleManualArchive(request, env) {
     };
 
     await kvPutIfChanged(env, kvKeys.archive(payload.slug), snapshot);
-    await upsertArchiveIndex(env, snapshot.tournament);
+    await rebuildArchiveIndexFromSnapshots(env);
     const archiveHTML = await generateArchiveStaticHTML(env);
     await kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML);
     return new Response("OK", { status: 200 });

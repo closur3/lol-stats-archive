@@ -10,7 +10,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
 
-      - name: Persist CONFIG_TOUR, CONFIG_TEAMS, and CONFIG_ARCHIVE
+      - name: Persist CONFIG_TOUR and CONFIG_TEAMS
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -35,10 +35,4 @@ jobs:
             -H "Content-Type: application/json" \
             --data-binary @config/teams.json > /dev/null
 
-          curl -fsSL -X PUT \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/CONFIG_ARCHIVE" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data-binary @config/archive.json > /dev/null
-
-          echo "CONFIG_TOUR, CONFIG_TEAMS, and CONFIG_ARCHIVE updated in Cloudflare KV."
+          echo "CONFIG_TOUR and CONFIG_TEAMS updated in Cloudflare KV."

@@ -1,12 +1,16 @@
 ﻿import toolsCSS from '../../styles/tools.js';
 import { TOOLS_SCRIPT } from '../../client/tools.js';
+import { escapeHtml } from '../../utils/htmlEscape.js';
 import { renderFontLinks, renderNavBar, renderBuildFooter } from './page.js';
 import { renderActiveTournamentList, renderArchivedTournamentList } from './toolsLists.js';
 
-export function renderToolsPage(time, sha, activeTournaments = [], archivedTournaments = []) {
+export function renderToolsPage(time, sha, activeTournaments = [], archivedTournaments = [], archiveError = null) {
   const buildFooter = renderBuildFooter(time, sha);
   const activeListHtml = renderActiveTournamentList(activeTournaments);
   const archiveListHtml = renderArchivedTournamentList(archivedTournaments);
+  const archiveErrorHtml = archiveError
+    ? `<div style="margin:0 0 10px; padding:10px 12px; border:1px solid #ef4444; border-radius:10px; color:#fecaca; background:rgba(127,29,29,.28); font-size:12px;">Archive index unavailable: ${escapeHtml(archiveError)}</div>`
+    : "";
 
   return `<!DOCTYPE html>
   <html>
@@ -56,6 +60,7 @@ export function renderToolsPage(time, sha, activeTournaments = [], archivedTourn
                       <input type="checkbox" class="group-chk" id="chk-archived-all">
                       <span class="group-label">Archived</span>
                   </div>
+                  ${archiveErrorHtml}
                   <div class="list">
                       ${archiveListHtml}
                   </div>

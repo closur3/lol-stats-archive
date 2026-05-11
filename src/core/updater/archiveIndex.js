@@ -29,23 +29,49 @@ function normalizeArchiveList(list) {
   return dateUtils.sortTournamentsByDate(Array.from(bySlug.values()));
 }
 
+async function readArchiveSnapshotTournaments(env) {
+  const kv = env["lol-stats-kv"];
+  const allKeys = await kv.list({ prefix: kvKeys.ARCHIVE_PREFIX });
+  const dataKeys = allKeys.keys.filter(key => key.name !== kvKeys.archiveStatic());
+  const snapshots = await Promise.all(dataKeys.map(key => kv.get(key.name, { type: "json" })));
+  return snapshots.map((snapshot, index) => {
+    if (!snapshot?.tournament) throw new Error(`Invalid archive snapshot: ${dataKeys[index].name}`);
+    return snapshot.tournament;
+  });
+}
+
 export async function loadArchiveConfig(env, githubClient) {
   const kv = env["lol-stats-kv"];
   const cached = await kv.get(kvKeys.configArchive(), { type: "json" });
-  if (Array.isArray(cached)) return normalizeArchiveList(cached);
+  if (cached != null) return normalizeArchiveList(cached);
+
+  const localTournaments = await readArchiveSnapshotTournaments(env);
+  if (localTournaments.length > 0) return writeArchiveIndex(env, localTournaments);
 
   const archivedTournaments = await githubClient.fetchJson("config/archive.json");
-  const normalized = normalizeArchiveList(archivedTournaments);
-  if (normalized.length === 0) return readArchiveIndex(env);
+  return writeArchiveIndex(env, archivedTournaments);
+}
 
-  await kv.put(kvKeys.configArchive(), JSON.stringify(normalized));
-  return normalized;
+export async function ensureArchiveIndexForWrite(env, githubClient) {
+  const kv = env["lol-stats-kv"];
+  const cached = await kv.get(kvKeys.configArchive(), { type: "json" });
+  if (cached != null) return normalizeArchiveList(cached);
+
+  const localTournaments = await readArchiveSnapshotTournaments(env);
+  if (localTournaments.length > 0) return writeArchiveIndex(env, localTournaments);
+
+  try {
+    const archivedTournaments = await githubClient.fetchJson("config/archive.json");
+    return writeArchiveIndex(env, archivedTournaments);
+  } catch (_error) {
+    return writeArchiveIndex(env, []);
+  }
 }
 
 export async function readArchiveIndex(env) {
   const kv = env["lol-stats-kv"];
   const cached = await kv.get(kvKeys.configArchive(), { type: "json" });
-  if (cached == null) return rebuildArchiveIndexFromSnapshots(env);
+  if (cached == null) throw new Error("CONFIG_ARCHIVE missing");
   return normalizeArchiveList(cached);
 }
 
@@ -56,27 +82,13 @@ export async function writeArchiveIndex(env, archivedTournaments) {
   return normalized;
 }
 
-export async function upsertArchiveIndex(env, tournament) {
-  const current = await readArchiveIndex(env);
-  const normalized = normalizeArchiveTournament(tournament);
-  const next = current.filter(item => item.slug !== normalized.slug);
-  next.push(normalized);
-  return writeArchiveIndex(env, next);
-}
-
-export async function removeArchiveIndex(env, slug) {
-  if (!slug) throw new Error("Archive slug missing");
-  const current = await readArchiveIndex(env);
-  return writeArchiveIndex(env, current.filter(item => item.slug !== slug));
-}
-
 export async function rebuildArchiveIndexFromSnapshots(env) {
-  const kv = env["lol-stats-kv"];
-  const allKeys = await kv.list({ prefix: kvKeys.ARCHIVE_PREFIX });
-  const dataKeys = allKeys.keys.filter(key => key.name !== kvKeys.archiveStatic());
-  const rawSnapshots = await Promise.all(dataKeys.map(key => kv.get(key.name, { type: "json" })));
-  const tournaments = rawSnapshots
-    .map(snapshot => snapshot?.tournament)
-    .filter(Boolean);
-  return writeArchiveIndex(env, tournaments);
+  const localTournaments = await readArchiveSnapshotTournaments(env);
+  return writeArchiveIndex(env, localTournaments);
+}
+
+export async function removeArchiveIndex(env, githubClient, slug) {
+  if (!slug) throw new Error("Archive slug missing");
+  const current = await ensureArchiveIndexForWrite(env, githubClient);
+  return writeArchiveIndex(env, current.filter(item => item.slug !== slug));
 }
