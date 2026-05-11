@@ -23,7 +23,7 @@ export class ArchiveRouter {
     }
     
     return new Response(
-      "Archive initializing... Please <a href='/tools'>run a Local UI Refresh</a> or wait for the next background update.", 
+      "Archive is not ready yet. <a href='/tools'>Go to Tools</a>.",
       { headers: ArchiveRouter.htmlHeaders() }
     );
   }

@@ -24,7 +24,7 @@ export class HomeRouter {
     }
     
     return new Response(
-      "Home cache is not ready. Wait for the next scheduled update, or open <a href='/tools'>Tools</a> and run Force Update.",
+      "Home is not ready yet. <a href='/tools'>Go to Tools</a>.",
       { headers: { "content-type": "text/html;charset=utf-8" } }
     );
   }
