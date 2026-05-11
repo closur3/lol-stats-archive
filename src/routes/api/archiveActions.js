@@ -50,10 +50,7 @@ export async function handleRebuildArchive(request, env) {
     const fandomClient = new FandomClient(authContext);
     const githubClient = new GitHubClient(env);
 
-    let teamsRaw = null;
-    try {
-      teamsRaw = await loadTeamsConfig(env, githubClient);
-    } catch (error) { console.error("[Rebuild] Failed to load teams.json:", error.message); }
+    const teamsRaw = await loadTeamsConfig(env, githubClient);
 
     const matches = await fandomClient.fetchAllMatches(payload.slug, payload.overviewPages, null);
     if (!matches || matches.length === 0) throw new Error("No matches found from Fandom API");

@@ -18,9 +18,21 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
   const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== kvKeys.homeStatic());
   const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
   const homeEntries = rawHomes.filter(home => home && home.tournament);
+  const writePromises = [];
+  let homeChanged = false;
+  let archiveChanged = false;
+
   if (homeEntries.length === 0) {
-    if (requireData) return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };
-    return { ok: true, homes: 0, writes: 0, homeChanged: false, archiveChanged: false };
+    if (includeArchive) {
+      const archiveHTML = await generateArchiveStaticHTML(env);
+      writePromises.push(kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML));
+      archiveChanged = true;
+    }
+    if (writePromises.length === 0 && requireData) {
+      return { ok: false, reason: "NO_CACHE", message: "No HOME cache data available. Run Force Update first." };
+    }
+    await Promise.all(writePromises);
+    return { ok: true, homes: 0, writes: writePromises.length, homeChanged, archiveChanged };
   }
 
   const sortedTournaments = dateUtils.sortTournamentsByDate(homeEntries.map(home => home.tournament));
@@ -82,21 +94,18 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
   );
 
   if (requireData && Object.keys(globalStats).length === 0) {
-    return { ok: false, reason: "NO_CACHE", message: "No cache data available. Run Refresh API first." };
+    return { ok: false, reason: "NO_CACHE", message: "No HOME stats cache data available. Run Force Update first." };
   }
 
   const homeFragment = HTMLRenderer.renderContentOnly(
     globalStats, timeGrid, limitedScheduleMap, runtimeConfig, false, tournamentMeta
   );
   const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", env.GITHUB_TIME, env.GITHUB_SHA);
-  const writePromises = [];
-  let homeChanged = false;
   if (await kv.get(kvKeys.homeStatic()) !== fullPage) {
     writePromises.push(kvPutIfChanged(env, kvKeys.homeStatic(), fullPage));
     homeChanged = true;
   }
 
-  let archiveChanged = false;
   if (includeArchive) {
     const archiveHTML = await generateArchiveStaticHTML(env);
     writePromises.push(kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML));

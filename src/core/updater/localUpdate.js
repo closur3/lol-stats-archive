@@ -5,10 +5,7 @@ import { kvPutIfChanged } from '../../utils/kvStore.js';
 import { loadTeamsConfig } from './teamsConfigLoader.js';
 
 export async function runLocalUpdate(env, githubClient, runtimeConfig, cache, refreshHomeStaticFromCache, scopeSlugs = null) {
-  let teamsRaw = null;
-  try {
-    teamsRaw = await loadTeamsConfig(env, githubClient);
-  } catch (error) { console.error("[Context] Failed to load teams.json:", error.message); }
+  const teamsRaw = await loadTeamsConfig(env, githubClient);
   await prepareTournamentContext(env, runtimeConfig, cache, teamsRaw);
 
   const changedSlugs = [];

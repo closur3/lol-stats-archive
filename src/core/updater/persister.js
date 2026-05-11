@@ -12,17 +12,6 @@ export async function saveData(env, runtimeConfig, cache, analysis, syncItems, s
     renderTournamentMeta[slug] = { ...(meta || {}) };
   }
 
-  try {
-    const homeFragment = HTMLRenderer.renderContentOnly(
-      analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
-      runtimeConfig, false, renderTournamentMeta
-    );
-    const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", env.GITHUB_TIME, env.GITHUB_SHA);
-    await kvPutIfChanged(env, kvKeys.homeStatic(), fullPage);
-  } catch (error) {
-    console.error("Error generating home HTML:", error);
-  }
-
   const tournamentIndexMap = new Map((runtimeConfig.TOURNAMENTS || []).map((tournament, index) => [tournament.slug, index]));
   const scheduleBySlug = {};
   Object.keys(analysis.scheduleMap || {}).forEach(date => {
@@ -105,6 +94,21 @@ export async function saveData(env, runtimeConfig, cache, analysis, syncItems, s
         console.error(`[KV-WRITE-FAIL] ${key}: ${result.reason?.message || result.reason}`);
       }
     });
+  }
+
+  if (failedWrites.length === 0) {
+    try {
+      const homeFragment = HTMLRenderer.renderContentOnly(
+        analysis.globalStats, analysis.timeGrid, analysis.scheduleMap,
+        runtimeConfig, false, renderTournamentMeta
+      );
+      const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", env.GITHUB_TIME, env.GITHUB_SHA);
+      await kvPutIfChanged(env, kvKeys.homeStatic(), fullPage);
+    } catch (error) {
+      console.error("Error generating home HTML:", error);
+    }
+  } else {
+    console.error(`[HOME-STATIC-SKIP] skipped because ${failedWrites.length} HOME write(s) failed`);
   }
 
   const logEntries = leagueLogEntries || {};

@@ -14,10 +14,7 @@ export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, f
   const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
   const passedRevidChanges = options.revidChanges || {};
   const pendingRevisionWrites = options.pendingRevisionWrites || {};
-  let teamsRaw = null;
-  try {
-    teamsRaw = await loadTeamsConfig(env, githubClient);
-  } catch (error) { console.error("[Context] Failed to load teams.json:", error.message); }
+  const teamsRaw = await loadTeamsConfig(env, githubClient);
 
   const candidates = determineCandidates(runtimeConfig.TOURNAMENTS, forceSlugs);
   if (candidates.length === 0) {

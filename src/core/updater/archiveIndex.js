@@ -49,7 +49,7 @@ export async function loadArchiveConfig(env, githubClient) {
   if (localTournaments.length > 0) return writeArchiveIndex(env, localTournaments);
 
   const archivedTournaments = await githubClient.fetchJson("config/archive.json");
-  return writeArchiveIndex(env, archivedTournaments);
+  return normalizeArchiveList(archivedTournaments);
 }
 
 export async function readArchiveIndex(env) {
