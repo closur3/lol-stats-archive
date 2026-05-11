@@ -1,5 +1,4 @@
 import { HTMLRenderer } from '../../render/htmlRenderer.js';
-import { Analyzer } from '../analyzer.js';
 import { dateUtils } from '../../utils/dateUtils.js';
 import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
 
@@ -21,6 +20,12 @@ export async function generateArchiveStaticHTML(env) {
     if (!Array.isArray(snapshot.rawMatches)) {
       throw new Error(`Invalid archive rawMatches: ${dataKeys[index].name}`);
     }
+    if (!snapshot.stats || typeof snapshot.stats !== "object" || Array.isArray(snapshot.stats)) {
+      throw new Error(`Invalid archive stats: ${dataKeys[index].name}`);
+    }
+    if (!snapshot.timeGrid || typeof snapshot.timeGrid !== "object" || Array.isArray(snapshot.timeGrid)) {
+      throw new Error(`Invalid archive timeGrid: ${dataKeys[index].name}`);
+    }
     if (!snapshot.teamMap || typeof snapshot.teamMap !== "object" || Array.isArray(snapshot.teamMap)) {
       throw new Error(`Invalid archive teamMap: ${dataKeys[index].name}`);
     }
@@ -36,14 +41,10 @@ export async function generateArchiveStaticHTML(env) {
 
   const combined = validSnapshots.map(snap => {
     const snapshotTournament = snap.tournament;
-    const tournamentWithMap = { ...snapshotTournament, teamMap: snap.teamMap || {} };
-    const miniConfig = { TOURNAMENTS: [tournamentWithMap] };
-    const analysis = Analyzer.runFullAnalysis({ [snapshotTournament.slug]: snap.rawMatches }, miniConfig);
-    const statsObj = analysis.globalStats[snapshotTournament.slug] || {};
-    const timeObj = analysis.timeGrid[snapshotTournament.slug] || {};
+    const miniConfig = { TOURNAMENTS: [{ ...snapshotTournament, teamMap: snap.teamMap }] };
     const content = HTMLRenderer.renderContentOnly(
-      { [snapshotTournament.slug]: statsObj },
-      { [snapshotTournament.slug]: timeObj },
+      { [snapshotTournament.slug]: snap.stats },
+      { [snapshotTournament.slug]: snap.timeGrid },
       {}, miniConfig, true
     );
     return content;

@@ -32,7 +32,9 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
 
     const archiveWrites = staleHomeKeys.map((k, i) => {
       if (staleData[i]) {
-        return kvPutIfChanged(env, kvKeys.archive(k.slice(kvKeys.HOME_PREFIX.length)), staleData[i]);
+        const archiveSnapshot = { ...staleData[i] };
+        delete archiveSnapshot.scheduleMap;
+        return kvPutIfChanged(env, kvKeys.archive(k.slice(kvKeys.HOME_PREFIX.length)), archiveSnapshot);
       }
       return Promise.resolve();
     });

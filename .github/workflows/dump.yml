@@ -20,112 +20,111 @@ jobs:
         env:
           WORKER_URL: "https://lol.hsux.de/backup"
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-          TIMEZONE: "Asia/Shanghai"  # 可修改为其他时区，如 America/New_York
+          TIMEZONE: "Asia/Shanghai"
         run: |
-          import requests
-          import os
-          import re
-          from datetime import datetime
-          from zoneinfo import ZoneInfo
+          node --input-type=module <<'NODE'
+          import { mkdir, rm, writeFile } from "node:fs/promises";
+          import { generateMarkdown } from "./src/markdown/markdownRenderer.js";
 
-          url = os.environ.get("WORKER_URL")
+          const url = process.env.WORKER_URL;
+          if (!url) throw new Error("WORKER_URL missing");
 
-          if not url:
-              print("❌ 错误: WORKER_URL 环境变量未设置")
-              exit(1)
+          const headers = {};
+          if (process.env.ADMIN_SECRET) headers.Authorization = `Bearer ${process.env.ADMIN_SECRET}`;
 
-          print(f"🚀 开始抓取: {url}")
+          console.log(`🚀 开始抓取: ${url}`);
+          const response = await fetch(url, { headers });
+          if (!response.ok) throw new Error(`Backup request failed: ${response.status} ${await response.text()}`);
+          const data = await response.json();
+          if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Backup payload must be object");
+          if (!data.home || typeof data.home !== "object" || Array.isArray(data.home)) throw new Error("Backup payload home must be object");
+          if (!data.archive || typeof data.archive !== "object" || Array.isArray(data.archive)) throw new Error("Backup payload archive must be object");
+          if (!Array.isArray(data.configArchive)) throw new Error("Backup payload configArchive must be array");
 
-          try:
-              headers = {}
-              secret = os.environ.get("ADMIN_SECRET")
-              if secret:
-                  headers["Authorization"] = f"Bearer {secret}"
-              resp = requests.get(url, headers=headers, timeout=30)
+          const targetTimeZone = process.env.TIMEZONE || "Asia/Shanghai";
+          function formatDateParts(date) {
+            const parts = new Intl.DateTimeFormat("en-CA", {
+              timeZone: targetTimeZone,
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false
+            }).formatToParts(date).reduce((acc, part) => {
+              acc[part.type] = part.value;
+              return acc;
+            }, {});
+            return `${parts.year.slice(2)}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+          }
 
-              # 尝试解析 JSON，即使 HTTP 状态码不是 200
-              try:
-                  data = resp.json()
-              except:
-                  resp.raise_for_status()
-                  data = {}
+          function formatHour(date) {
+            const parts = new Intl.DateTimeFormat("en-CA", {
+              timeZone: targetTimeZone,
+              hour: "2-digit",
+              hour12: false
+            }).formatToParts(date).reduce((acc, part) => {
+              acc[part.type] = part.value;
+              return acc;
+            }, {});
+            return String(parts.hour).padStart(2, "0");
+          }
 
-              if not isinstance(data, dict):
-                  print("❌ 错误: Worker 返回的数据格式不是预期的 JSON 对象")
-                  exit(1)
+          function convertUtcMarkdownToLocal(markdown) {
+            return markdown
+              .replace(/(\d{2})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/g, (_match, yy, mm, dd, hh, min) => {
+                return formatDateParts(new Date(`20${yy}-${mm}-${dd}T${hh}:${min}:00Z`));
+              })
+              .replace(/\*\*(\d{2}):00\*\*/g, (_match, hh) => {
+                return `**${formatHour(new Date(`2026-01-01T${hh}:00:00Z`))}:00**`;
+              });
+          }
 
-              # 时区转换配置
-              target_tz_name = os.environ.get("TIMEZONE", "Asia/Shanghai")
-              try:
-                  target_tz = ZoneInfo(target_tz_name)
-              except Exception as e:
-                  print(f"⚠️  警告: 无法加载时区 '{target_tz_name}', 使用UTC作为后备: {e}")
-                  target_tz = ZoneInfo("UTC")
+          await rm("markdown", { recursive: true, force: true });
+          await mkdir("markdown", { recursive: true });
+          await mkdir("config", { recursive: true });
 
-              def convert_utc_to_local(markdown_text):
-                  """将Markdown中的UTC时间转换为目标时区时间"""
-                  # 1. 转换LAST DATE列: "26-02-10 14:00" 格式
-                  def replace_last_date(match):
-                      date_str = match.group(1)
-                      try:
-                          # 解析UTC时间 (假设年份为20xx)
-                          dt_utc = datetime.strptime(f"20{date_str}", "%Y-%m-%d %H:%M")
-                          # 转换为目标时区
-                          dt_local = dt_utc.replace(tzinfo=ZoneInfo("UTC")).astimezone(target_tz)
-                          return dt_local.strftime("%y-%m-%d %H:%M")
-                      except Exception as e:
-                          print(f"⚠️  时间转换失败 '{date_str}': {e}")
-                          return date_str  # 返回原字符串
+          const written = new Set();
+          async function writeSnapshotMarkdown(slug, snapshot) {
+            if (!snapshot?.tournament || snapshot.tournament.slug !== slug) throw new Error(`Invalid backup snapshot: ${slug}`);
+            if (!snapshot.stats || typeof snapshot.stats !== "object" || Array.isArray(snapshot.stats)) throw new Error(`Invalid backup stats: ${slug}`);
+            if (!snapshot.timeGrid || typeof snapshot.timeGrid !== "object" || Array.isArray(snapshot.timeGrid)) throw new Error(`Invalid backup timeGrid: ${slug}`);
+            if (written.has(slug)) throw new Error(`Duplicate markdown slug: ${slug}`);
+            const markdown = convertUtcMarkdownToLocal(generateMarkdown(snapshot.tournament, snapshot.stats, { [slug]: snapshot.timeGrid }));
+            await writeFile(`markdown/${slug}.md`, markdown, "utf8");
+            written.add(slug);
+            console.log(`📝 [写入] markdown/${slug}.md`);
+          }
 
-                  # 2. 转换时间分布表: "**14:00**" 格式
-                  def replace_time_slot(match):
-                      hour_str = match.group(1)
-                      try:
-                          hour = int(hour_str)
-                          # 创建UTC时间的datetime对象 (使用固定日期)
-                          dt_utc = datetime(2026, 1, 1, hour, 0, tzinfo=ZoneInfo("UTC"))
-                          # 转换为目标时区
-                          dt_local = dt_utc.astimezone(target_tz)
-                          local_hour = dt_local.hour
-                          return f"**{local_hour:02d}:00**"
-                      except Exception as e:
-                          print(f"⚠️  小时转换失败 '{hour_str}': {e}")
-                          return match.group(0)  # 返回原字符串
-
-                  # 应用替换
-                  # 注意: 先替换LAST DATE列，避免误替换时间分布表中的时间
-                  text = re.sub(r'(\d{2}-\d{2}-\d{2} \d{2}:\d{2})', replace_last_date, markdown_text)
-                  text = re.sub(r'\*\*(\d{2}):00\*\*', replace_time_slot, text)
-                  return text
-
-              processed_files = 0
-
-              for file_path, raw_template in data.items():
-                  os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                  # 转换UTC时间为本地时间
-                  converted_template = convert_utc_to_local(raw_template)
-
-                  print(f"📝 [写入] {file_path}")
-                  with open(file_path, "w", encoding="utf-8") as f:
-                      f.write(converted_template)
-                  processed_files += 1
-
-              print(f"\n✅ 处理完成。共写入 {processed_files} 个文件。")
-
-          except Exception as e:
-              print(f"❌ 脚本执行发生错误: {e}")
-              exit(1)
-        shell: python
+          for (const [slug, snapshot] of Object.entries(data.home).sort()) {
+            await writeSnapshotMarkdown(slug, snapshot);
+          }
+          for (const [slug, snapshot] of Object.entries(data.archive).sort()) {
+            await writeSnapshotMarkdown(slug, snapshot);
+          }
+          await writeFile("config/archive.json", `${JSON.stringify(data.configArchive, null, 2)}\n`, "utf8");
+          console.log("📝 [写入] config/archive.json");
+          console.log(`\n✅ 处理完成。共写入 ${written.size + 1} 个文件。`);
+          NODE
+        shell: bash
 
       - name: Build Commit Message
         id: commit_meta
         shell: bash
         run: |
-          commit_msg=$(git diff --name-status -- 'markdown/*.md' 'config/archive.json' | awk '
-            { s=substr($1,1,1); f=$2; sub(".*/","",f); sub(/\.[^.]+$/, "", f);
-              if (s=="A") a[++na]=f; else if (s=="M") m[++nm]=f }
+          commit_msg=$(git status --porcelain -- 'markdown' 'config/archive.json' | awk '
+            {
+              code=$1; f=$2;
+              if (code=="R" || code=="RM" || code=="RD") f=$3;
+              sub(".*/","",f); sub(/\.[^.]+$/, "", f);
+              s=substr(code,1,1);
+              if (code=="??" || s=="A") a[++na]=f;
+              else if (s=="M") m[++nm]=f;
+              else if (s=="D") d[++nd]=f;
+              else m[++nm]=f;
+            }
             END {
-              n=na+nm
+              n=na+nm+nd
               if (n==0) { print "📁 Dump: no changes"; exit }
               out=""
               if (na>0) {
@@ -137,6 +136,11 @@ jobs:
                 mod="~ "
                 for (i=1;i<=nm;i++) mod=mod (i>1?" / ":"") m[i]
                 out=out (length(out)>0?" | ":"") mod
+              }
+              if (nd>0) {
+                del="- "
+                for (i=1;i<=nd;i++) del=del (i>1?" / ":"") d[i]
+                out=out (length(out)>0?" | ":"") del
               }
               print "📁 Dump: " out
             }')

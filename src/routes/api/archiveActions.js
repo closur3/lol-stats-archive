@@ -1,5 +1,6 @@
 ﻿import { FandomClient } from "../../api/fandomClient.js";
 import { GitHubClient } from "../../api/githubClient.js";
+import { Analyzer } from "../../core/analyzer.js";
 import { rebuildArchiveIndexFromSnapshots } from "../../core/updater/archiveIndex.js";
 import { loadTeamsConfig } from "../../core/updater/teamsConfigLoader.js";
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
@@ -23,6 +24,20 @@ function assertArchivePayload(payload) {
     return new Response("Missing required fields. Please provide slug, name, overview_page, league, start_date, and end_date.", { status: 400 });
   }
   return null;
+}
+
+function buildArchiveSnapshot(tournament, rawMatches, teamMap) {
+  if (!Array.isArray(rawMatches)) throw new Error(`Archive rawMatches invalid: ${tournament.slug}`);
+  const tournamentWithMap = { ...tournament, teamMap };
+  const miniConfig = { TOURNAMENTS: [tournamentWithMap] };
+  const analysis = Analyzer.runFullAnalysis({ [tournament.slug]: rawMatches }, miniConfig);
+  return {
+    tournament,
+    rawMatches,
+    stats: analysis.globalStats[tournament.slug] || {},
+    timeGrid: analysis.timeGrid[tournament.slug] || {},
+    teamMap
+  };
 }
 
 async function readJsonPayload(request) {
@@ -64,7 +79,7 @@ export async function handleRebuildArchive(request, env) {
       end_date: payload.endDate
     };
     const teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, matches);
-    await kvPutIfChanged(env, kvKeys.archive(payload.slug), { tournament, rawMatches: matches, teamMap });
+    await kvPutIfChanged(env, kvKeys.archive(payload.slug), buildArchiveSnapshot(tournament, matches, teamMap));
     await rebuildArchiveIndexFromSnapshots(env);
 
     const archiveHTML = await generateArchiveStaticHTML(env);
@@ -119,6 +134,8 @@ export async function handleManualArchive(request, env) {
         end_date: payload.endDate
       },
       rawMatches: [],
+      stats: {},
+      timeGrid: {},
       teamMap: {}
     };
 
