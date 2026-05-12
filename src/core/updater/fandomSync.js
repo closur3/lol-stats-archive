@@ -18,7 +18,7 @@ export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, f
 
   const candidates = determineCandidates(runtimeConfig.TOURNAMENTS, forceSlugs);
   if (candidates.length === 0) {
-    console.log(`[SKIP] All tournaments skipped`);
+    console.log(`[UPDATE:SKIP] all tournaments skipped`);
     return;
   }
 
@@ -30,7 +30,7 @@ export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, f
   const results = await fetchMatchData(fandomClient, candidates);
 
   const { failedSlugs, syncItems, skipItems, breakers, apiErrors, displayNameMap } = processResults(results, cache, force, forceSlugs, runtimeConfig);
-  console.log(`[FANDOM] process sync=${syncItems.length} skip=${skipItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
+  console.log(`[FANDOM:PROCESS] sync=${syncItems.length} skip=${skipItems.length} breakers=${breakers.length} apiErrors=${apiErrors.length} failed=${failedSlugs.size}`);
 
   for (const item of [...syncItems, ...skipItems]) {
     if (revidChanges[item.slug]) {

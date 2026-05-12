@@ -46,7 +46,7 @@ export async function detectRevisionChanges(env, tournaments) {
           const subpages = await FandomClient.fetchAllSubpages(dataPage);
           expandedDataPages.push(...subpages);
         } catch (error) {
-          console.log(`[REV] ${slug}: failed to fetch subpages for ${dataPage}: ${error.message}`);
+          console.log(`[REV:SUBPAGES] ${slug} failed page=${dataPage} error=${error.message}`);
           expandedDataPages.push(dataPage);
         }
       }
@@ -56,7 +56,7 @@ export async function detectRevisionChanges(env, tournaments) {
       const revKey = kvKeys.rev(slug);
       const previousRevisionState = await kv.get(revKey, { type: "json" });
       const shouldSkip = false;
-      console.log(`[REV-CHECK] ${slug} -> check`);
+      console.log(`[REV:CHECK] ${slug}`);
 
       return {
         slug,
@@ -92,7 +92,7 @@ export async function detectRevisionChanges(env, tournaments) {
         for (const pageResult of pageResults) {
           if (pageResult.status === 'rejected') {
             errCount++;
-            console.log(`[REV] ${slug}: ${pageResult.reason?.message || 'unknown error'}`);
+            console.log(`[REV:FETCH] ${slug} error=${pageResult.reason?.message || 'unknown error'}`);
             continue;
           }
 
@@ -142,7 +142,7 @@ export async function detectRevisionChanges(env, tournaments) {
   for (const checkResult of revChecks) {
     if (checkResult.status === 'rejected') {
       hasErrors = true;
-      console.log(`[REV] check failed: ${checkResult.reason?.message || 'unknown error'}`);
+      console.log(`[REV:ERROR] check failed: ${checkResult.reason?.message || 'unknown error'}`);
       continue;
     }
 
@@ -154,9 +154,9 @@ export async function detectRevisionChanges(env, tournaments) {
 
     if (revisionChanged) {
       changedSlugs.add(slug);
-      console.log(`[REV] ${slug}: changed pages=${changedPages.length}${changedPages.length ? ` | ${changedPages.join(", ")}` : ""}`);
+      console.log(`[REV:CHANGE] ${slug} pages=${changedPages.length}${changedPages.length ? ` | ${changedPages.join(", ")}` : ""}`);
     } else if (errCount > 0) {
-      console.log(`[REV] ${slug}: partial errors ok=${pagesFetched} err=${errCount}`);
+      console.log(`[REV:PARTIAL] ${slug} ok=${pagesFetched} err=${errCount}`);
     }
   }
 

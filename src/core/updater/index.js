@@ -43,7 +43,7 @@ export class Updater {
 
     const hasScope = scopeSlugs instanceof Set;
     if (hasScope && scopeSlugs.size === 0) {
-      console.log("[SCOPE] Empty high-frequency scope, skipped updater");
+      console.log("[UPDATE:SCOPE] empty high-frequency scope, skipped updater");
       return this.logger;
     }
 
@@ -52,22 +52,28 @@ export class Updater {
       ? (runtimeConfig.TOURNAMENTS || []).filter(tournament => scopeSlugs.has(tournament.slug))
       : (runtimeConfig.TOURNAMENTS || []);
     const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs } = await detectRevisionChanges(this.env, scopedTournaments);
-    console.log(`[CRON] rev-check checked=${checkedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
+    console.log(`[UPDATE:REV] checked=${checkedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0} elapsedMs=${Date.now() - startedAt}`);
     const targetSlugs = new Set(changedSlugs);
+    const checkedSlugSet = new Set(scopedTournaments.map(tournament => tournament.slug));
+    const unchangedSlugs = new Set([...checkedSlugSet].filter(slug => !targetSlugs.has(slug)));
 
     if (targetSlugs.size === 0) {
-      console.log("[REV-GATE] No revision changes, running local update");
+      console.log("[UPDATE:GATE] no revision changes, running local update");
       await commitRevisionWrites(this.env, pendingRevisionWrites);
       await runLocalUpdateFn(this.env, this.githubClient, runtimeConfig, cache, refreshHomeStaticFromCache, scopeSlugs);
       return this.logger;
     }
 
-    console.log(`[REV-GATE] Target slugs: ${Array.from(targetSlugs).join(", ")}`);
+    console.log(`[UPDATE:GATE] fandom slugs=${Array.from(targetSlugs).join(", ")}`);
     await runFandomUpdateFn(this.env, this.githubClient, runtimeConfig, cache, false, targetSlugs, {
       forceWrite: false,
       revidChanges: revidChanges,
       pendingRevisionWrites
     }, this.logger);
+    if (unchangedSlugs.size > 0) {
+      console.log(`[UPDATE:GATE] local slugs=${Array.from(unchangedSlugs).join(", ")}`);
+      await runLocalUpdateFn(this.env, this.githubClient, runtimeConfig, cache, refreshHomeStaticFromCache, unchangedSlugs);
+    }
     return this.logger;
   }
 

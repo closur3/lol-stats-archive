@@ -42,7 +42,7 @@ export async function handleForceUpdate(request, env) {
       await updater.refreshScheduleBoardOnDayRollover(runtimeConfig);
     } catch (error) {
       warnings.push(`day-rollover: ${error.message}`);
-      console.warn(`[FORCE-WARN] day-rollover failed: ${error.message}`);
+      console.warn(`[API:FORCE] day-rollover failed: ${error.message}`);
     }
 
     try {
@@ -50,7 +50,7 @@ export async function handleForceUpdate(request, env) {
       await reconcileLeagueStates(env, tournaments, now, { applySchedules: "best-effort" });
     } catch (error) {
       warnings.push(`schedule-reconcile: ${error.message}`);
-      console.warn(`[FORCE-WARN] schedule reconcile failed: ${error.message}`);
+      console.warn(`[API:FORCE] schedule reconcile failed: ${error.message}`);
     }
 
     const message = warnings.length > 0 ? `OK warnings=${warnings.join(" | ")}` : "OK";

@@ -2,7 +2,7 @@ const WORKER_NAME = "lol-stats";
 
 export async function updateSchedules(env, schedules) {
   if (env.DISABLE_CLOUDFLARE_CRON_UPDATE === "1") {
-    console.log(`[CRON-SKIP] disable schedule update, schedules=${JSON.stringify(schedules)}`);
+    console.log(`[SCHED:SKIP] disable schedule update, schedules=${JSON.stringify(schedules)}`);
     return;
   }
   const token = env.CLOUDFLARE_API_TOKEN;

@@ -14,5 +14,5 @@ export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig, clea
   await cleanupStaleHomeKeys(env, runtimeConfig);
   await refreshHomeStaticFromCache(env);
 
-  console.log(`[SCHEDULE] ${lastDay || "none"} -> ${today}`);
+  console.log(`[SCHED:DAY] ${lastDay || "none"} -> ${today}`);
 }

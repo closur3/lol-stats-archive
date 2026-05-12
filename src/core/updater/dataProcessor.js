@@ -67,7 +67,7 @@ export function processResults(results, cache, force, forceSlugs, runtimeConfig)
       }
     } else {
       const errMsg = resultItem.err?.message || resultItem.err?.toString() || 'unknown';
-      console.log(`[PROC-ERR] ${resultItem.slug}: ${errMsg}`);
+      console.log(`[UPDATE:PROCESS] ${resultItem.slug} error=${errMsg}`);
       apiErrors.push(`${resultItem.slug}(Fail: ${errMsg.substring(0, 50)})`);
       failedSlugs.add(resultItem.slug);
     }

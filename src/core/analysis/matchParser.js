@@ -38,7 +38,7 @@ export function parseAllMatches(rawMatches, resolveName, todayStr, tournamentSlu
     try {
       matchTime = timePolicy.deriveMatchTime(match.DateTimeUTC);
     } catch (error) {
-      console.error(`[matchParser] Failed to parse date "${match.DateTimeUTC}": ${error.message}`);
+      console.error(`[ANALYZE:MATCH] invalid DateTimeUTC=${match.DateTimeUTC} error=${error.message}`);
       return;
     }
     const {

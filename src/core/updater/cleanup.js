@@ -40,7 +40,7 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
     });
     await Promise.all(archiveWrites);
     await rebuildArchiveIndexFromSnapshots(env);
-    console.log(`[ARCHIVE-MOVE] Moved ${staleHomeKeys.length} expired slugs to archive`);
+    console.log(`[ARCHIVE:MOVE] moved=${staleHomeKeys.length}`);
   }
 
   if (staleHomeKeys.length > 0 || staleLogKeys.length > 0 || staleRevKeys.length > 0) {
@@ -54,6 +54,6 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
   if (staleHomeKeys.length > 0) {
     const archiveHTML = await generateArchiveStaticHTML(env);
     await kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML);
-    console.log(`[ARCHIVE] Refreshed static HTML`);
+    console.log(`[ARCHIVE:STATIC] refreshed`);
   }
 }

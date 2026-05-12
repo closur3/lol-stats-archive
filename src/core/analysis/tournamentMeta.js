@@ -11,7 +11,7 @@ export function computeTournamentMetaFromRawMatches(rawMatches) {
     try {
       matchTime = timePolicy.deriveMatchTime(match.DateTimeUTC);
     } catch (error) {
-      console.error(`[tournamentMeta] Failed to parse date "${match.DateTimeUTC}": ${error.message}`);
+      console.error(`[ANALYZE:META] invalid DateTimeUTC=${match.DateTimeUTC} error=${error.message}`);
       continue;
     }
     const dateStr = matchTime.matchDateStr;

@@ -90,7 +90,7 @@ export async function saveData(env, runtimeConfig, cache, analysis, syncItems, s
           const slug = key.slice(kvKeys.HOME_PREFIX.length);
           failedHomeSlugs.add(slug);
         }
-        console.error(`[KV-WRITE-FAIL] ${key}: ${result.reason?.message || result.reason}`);
+        console.error(`[PERSIST:KV] ${key} error=${result.reason?.message || result.reason}`);
       }
     });
   }
@@ -104,10 +104,10 @@ export async function saveData(env, runtimeConfig, cache, analysis, syncItems, s
       const fullPage = HTMLRenderer.renderPageShell("LoL Stats", homeFragment, "home", env.GITHUB_TIME, env.GITHUB_SHA);
       await kvPutIfChanged(env, kvKeys.homeStatic(), fullPage);
     } catch (error) {
-      console.error("Error generating home HTML:", error);
+      console.error(`[PERSIST:HOME_STATIC] error=${error.message}`);
     }
   } else {
-    console.error(`[HOME-STATIC-SKIP] skipped because ${failedWrites.length} HOME write(s) failed`);
+    console.error(`[PERSIST:HOME_STATIC] skipped failedHomeWrites=${failedWrites.length}`);
   }
 
   const logEntries = leagueLogEntries || {};
@@ -122,7 +122,7 @@ export async function saveData(env, runtimeConfig, cache, analysis, syncItems, s
     const logResults = await Promise.allSettled(logWrites);
     const failedLogs = logResults.filter(r => r.status === 'rejected');
     if (failedLogs.length > 0) {
-      console.error(`[KV] ${failedLogs.length} log write(s) failed:`, failedLogs.map(r => r.reason?.message || r.reason));
+      console.error(`[PERSIST:LOG] failed=${failedLogs.length} errors=${failedLogs.map(r => r.reason?.message || r.reason).join(" | ")}`);
     }
   }
 

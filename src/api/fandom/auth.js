@@ -41,7 +41,7 @@ export async function login(user, pass) {
       const step2Cookie = dataUtils.extractCookies(loginResp.headers);
       return { cookie: `${step1Cookie}; ${step2Cookie}`, username: loginData.login.lgusername };
     } catch (error) {
-      console.error(`[Fandom Login] Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${error.message}`);
+      console.error(`[FANDOM:AUTH] attempt=${attempt}/${MAX_LOGIN_RETRIES} error=${error.message}`);
       if (attempt < MAX_LOGIN_RETRIES) {
         await new Promise(resolveDelay => setTimeout(resolveDelay, attempt * 2000));
       }
