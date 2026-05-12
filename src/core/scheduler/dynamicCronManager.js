@@ -36,7 +36,15 @@ async function writeStateAndSchedules(env, state, nowUtc, reason, options = {}) 
     console.log(`[CRON-${reason}] date=${state.date} schedules=${schedules.join(",")} apply=skip`);
     return;
   }
-  await updateSchedules(env, schedules);
+  try {
+    await updateSchedules(env, schedules);
+  } catch (error) {
+    if (options.applySchedules === "best-effort") {
+      console.warn(`[CRON-${reason}] schedule apply failed: ${error.message}`);
+      return;
+    }
+    throw error;
+  }
   await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, true));
   console.log(`[CRON-${reason}] date=${state.date} schedules=${schedules.join(",")}`);
 }
@@ -49,7 +57,16 @@ async function ensureSchedulesApplied(env, state, nowUtc, options = {}) {
     console.log(`[CRON-REAPPLY] date=${state.date} schedules=${schedules.join(",")} apply=skip`);
     return true;
   }
-  await updateSchedules(env, schedules);
+  try {
+    await updateSchedules(env, schedules);
+  } catch (error) {
+    if (options.applySchedules === "best-effort") {
+      await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, false));
+      console.warn(`[CRON-REAPPLY] schedule apply failed: ${error.message}`);
+      return true;
+    }
+    throw error;
+  }
   await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, true));
   console.log(`[CRON-REAPPLY] date=${state.date} schedules=${schedules.join(",")}`);
   return true;
