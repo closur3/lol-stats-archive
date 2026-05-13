@@ -1,7 +1,9 @@
 import { timePolicy } from '../../utils/timePolicy.js';
 import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
+import { cleanupStaleHomeKeys } from './cleanup.js';
+import { refreshHomeStaticFromCache } from './cacheRebuilder.js';
 
-export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig, cleanupStaleHomeKeys, refreshHomeStaticFromCache) {
+export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig) {
   const kv = env["lol-stats-kv"];
   const today = timePolicy.getNow().dateString;
   const state = await kv.get(kvKeys.scheduleDay(), { type: "json" });

@@ -5,10 +5,12 @@ import { generateArchiveStaticHTML } from './archiveBuilder.js';
 
 export async function cleanupStaleHomeKeys(env, runtimeConfig) {
   const kv = env["lol-stats-kv"];
-  const [allHomeKeys, allLogKeys, allRevKeys] = await Promise.all([
+  const [allHomeKeys, allLogKeys, allRevKeys, allRawMatchesKeys, allScheduleMetaKeys] = await Promise.all([
     kv.list({ prefix: kvKeys.HOME_PREFIX }),
     kv.list({ prefix: kvKeys.LOG_PREFIX }),
-    kv.list({ prefix: kvKeys.REV_PREFIX })
+    kv.list({ prefix: kvKeys.REV_PREFIX }),
+    kv.list({ prefix: kvKeys.RAW_MATCHES_PREFIX }),
+    kv.list({ prefix: kvKeys.SCHEDULE_META_PREFIX })
   ]);
 
   const activeSlugs = new Set((runtimeConfig.TOURNAMENTS || []).map(tournament => tournament.slug));
@@ -24,6 +26,14 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
   const staleRevKeys = allRevKeys.keys
     .map(key => key.name)
     .filter(keyName => !activeSlugs.has(keyName.slice(kvKeys.REV_PREFIX.length)));
+
+  const staleRawMatchesKeys = allRawMatchesKeys.keys
+    .map(key => key.name)
+    .filter(keyName => !activeSlugs.has(keyName.slice(kvKeys.RAW_MATCHES_PREFIX.length)));
+
+  const staleScheduleMetaKeys = allScheduleMetaKeys.keys
+    .map(key => key.name)
+    .filter(keyName => !activeSlugs.has(keyName.slice(kvKeys.SCHEDULE_META_PREFIX.length)));
 
   if (staleHomeKeys.length > 0) {
     const staleData = await Promise.all(
@@ -43,11 +53,13 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
     console.log(`[ARCHIVE:MOVE] moved=${staleHomeKeys.length}`);
   }
 
-  if (staleHomeKeys.length > 0 || staleLogKeys.length > 0 || staleRevKeys.length > 0) {
+  if (staleHomeKeys.length > 0 || staleLogKeys.length > 0 || staleRevKeys.length > 0 || staleRawMatchesKeys.length > 0 || staleScheduleMetaKeys.length > 0) {
     await Promise.all([
       ...staleHomeKeys.map(key => kvDelete(env, key)),
       ...staleLogKeys.map(key => kvDelete(env, key)),
-      ...staleRevKeys.map(key => kvDelete(env, key))
+      ...staleRevKeys.map(key => kvDelete(env, key)),
+      ...staleRawMatchesKeys.map(key => kvDelete(env, key)),
+      ...staleScheduleMetaKeys.map(key => kvDelete(env, key))
     ]);
   }
 

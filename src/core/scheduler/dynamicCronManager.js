@@ -1,4 +1,3 @@
-import { FandomClient } from "../../api/fandomClient.js";
 import {
   buildActiveBucketCronsFromState,
   collectSchedulesFromState,
@@ -6,11 +5,8 @@ import {
 } from "./cronBuckets.js";
 import { updateSchedules } from "./cloudflareSchedules.js";
 import {
-  buildPlayWindow,
   buildWindowFromMeta,
-  fetchTodayMatchesForBusinessDate,
-  fetchTournamentMetasFromHome,
-  loginFandom
+  fetchTournamentMetasFromScheduleMeta
 } from "./scheduleDiscovery.js";
 import {
   alignStateLeaguesWithTournaments,
@@ -74,16 +70,13 @@ async function ensureSchedulesApplied(env, state, nowUtc, options = {}) {
 export async function planTodayPlay(env, tournaments, scheduledTimeMs, options = {}) {
   const now = new Date(scheduledTimeMs);
   const today = timePolicy.getBusinessDateKey(now);
-  const auth = await loginFandom(env);
-  const fandomClient = new FandomClient(auth);
-  const matchesBySlug = await fetchTodayMatchesForBusinessDate(tournaments, fandomClient, now);
-  const metas = await fetchTournamentMetasFromHome(env, tournaments);
+  const metas = await fetchTournamentMetasFromScheduleMeta(env, tournaments);
   const metasBySlug = new Map(metas.map(meta => [meta.slug, meta]));
   const next = buildIdleState(today, tournaments);
 
   for (const tournament of tournaments || []) {
     const slug = tournament?.slug;
-    const window = buildPlayWindow(matchesBySlug.get(slug) || [], metasBySlug.get(slug) || {});
+    const window = buildWindowFromMeta(metasBySlug.get(slug) || {});
     if (!window) continue;
     const candidate = buildLeagueState("idle", window);
     candidate.phase = derivePhase(candidate, metasBySlug.get(slug) || {}, now);
@@ -99,7 +92,7 @@ export async function ensureDayInitialized(env, tournaments, scheduledTimeMs, op
   const state = await readControl(env);
   if (state?.date === today) {
     const aligned = alignStateLeaguesWithTournaments(state, tournaments);
-    const metas = await fetchTournamentMetasFromHome(env, tournaments);
+    const metas = await fetchTournamentMetasFromScheduleMeta(env, tournaments);
     const metasBySlug = new Map(metas.map(meta => [meta.slug, meta]));
     const phaseChanged = syncPhaseByWindowAndMeta(state, metasBySlug, now);
     if (aligned) {
@@ -140,7 +133,7 @@ export async function reconcileLeagueStates(env, tournaments, nowMs = Date.now()
   const state = await readControl(env);
   if (!state || state.date !== today) return;
 
-  const metas = await fetchTournamentMetasFromHome(env, tournaments);
+  const metas = await fetchTournamentMetasFromScheduleMeta(env, tournaments);
   const metasBySlug = new Map(metas.map(meta => [meta.slug, meta]));
   const aligned = alignStateLeaguesWithTournaments(state, tournaments);
   const changed = [];

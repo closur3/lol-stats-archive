@@ -1,5 +1,5 @@
 import { GitHubClient } from '../api/githubClient.js';
-import { UPDATE_CONFIG } from '../core/updater.js';
+import { UPDATE_CONFIG } from '../core/updater/types.js';
 import { loadTourConfig } from '../core/updater/tourConfigLoader.js';
 import { kvKeys } from '../infrastructure/kv/keyFactory.js';
 import { HTMLRenderer } from '../render/htmlRenderer.js';

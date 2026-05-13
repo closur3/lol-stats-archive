@@ -1,5 +1,11 @@
 import { ensureDayInitialized, reconcileLeagueStates } from "../../core/scheduler/dynamicCronManager.js";
-import { Updater } from "../../core/updater.js";
+import { GitHubClient } from "../../api/githubClient.js";
+import { Logger } from "../../infrastructure/logger.js";
+import { loadRuntimeConfig } from "../../core/updater/configLoader.js";
+import { loadCachedData } from "../../core/updater/cache.js";
+import { runFandomUpdate } from "../../core/updater/fandomSync.js";
+import { refreshScheduleBoardOnDayRollover } from "../../core/updater/dayRollover.js";
+import { detectRevisionChanges } from "../../core/updater/revisionDetector.js";
 import { requireAdmin } from "./auth.js";
 
 function parseForceSlugs(body) {
@@ -24,22 +30,30 @@ export async function handleForceUpdate(request, env) {
       return new Response("Invalid JSON payload", { status: 400 });
     }
 
-    const updater = new Updater(env);
+    const githubClient = new GitHubClient(env);
+    const logger = new Logger();
     let runtimeConfig;
     try {
-      runtimeConfig = await updater.loadRuntimeConfig();
+      runtimeConfig = await loadRuntimeConfig(env, githubClient);
     } catch (error) {
       return new Response(`Config load failed: ${error.message}`, { status: 500 });
     }
 
     const now = Date.now();
     const tournaments = runtimeConfig.TOURNAMENTS;
-    const cache = await updater.loadCachedData(tournaments);
-    await updater.runFandomUpdate(runtimeConfig, cache, true, forceSlugs);
+    const forcedTournaments = tournaments.filter(tournament => forceSlugs.has(tournament.slug));
+    if (forcedTournaments.length !== forceSlugs.size) return new Response("Unknown slug in slugs[]", { status: 400 });
+    const cache = await loadCachedData(env, tournaments, { allowMissingSlugs: forceSlugs });
+    const { revidChanges, pendingRevisionWrites } = await detectRevisionChanges(env, forcedTournaments);
+    await runFandomUpdate(env, githubClient, runtimeConfig, cache, true, forceSlugs, {
+      forceWrite: true,
+      revidChanges,
+      pendingRevisionWrites
+    }, logger);
 
     const warnings = [];
     try {
-      await updater.refreshScheduleBoardOnDayRollover(runtimeConfig);
+      await refreshScheduleBoardOnDayRollover(env, runtimeConfig);
     } catch (error) {
       warnings.push(`day-rollover: ${error.message}`);
       console.warn(`[API:FORCE] day-rollover failed: ${error.message}`);

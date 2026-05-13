@@ -3,8 +3,7 @@ import { ArchiveRouter } from './routes/archive.js';
 import { ToolsRouter } from './routes/tools.js';
 import { LogsRouter } from './routes/logs.js';
 import { APIRouter } from './routes/api.js';
-import { Updater } from './core/updater.js';
-import { ensureDayInitialized, reconcileLeagueStates, resolveScheduledExecutionSlugs } from './core/scheduler/dynamicCronManager.js';
+import { runCron } from './core/cron/orchestrator.js';
 
 /**
  * 主Worker入口
@@ -55,14 +54,6 @@ export default {
   },
 
   async scheduled(event, env) {
-    const updater = new Updater(env);
-    const runtimeConfig = await updater.loadRuntimeConfig();
-    const tournaments = runtimeConfig.TOURNAMENTS;
-    await updater.refreshScheduleBoardOnDayRollover(runtimeConfig);
-    await ensureDayInitialized(env, tournaments, event.scheduledTime);
-
-    const executionSlugs = await resolveScheduledExecutionSlugs(env, event.scheduledTime, event.cron);
-    await updater.runScheduledUpdate(executionSlugs);
-    await reconcileLeagueStates(env, tournaments, event.scheduledTime);
+    await runCron(env, event);
   }
 };

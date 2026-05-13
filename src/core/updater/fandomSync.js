@@ -5,7 +5,10 @@ import { fetchMatchData } from './fetchData.js';
 import { prepareTournamentContext } from './context.js';
 import { processResults } from './dataProcessor.js';
 import { generateLog, buildLeagueLogEntries } from './logWriter.js';
-import { saveData } from './persister.js';
+import { buildWriteScopeSlugs, writeHomeProjections } from '../projection/homeProjector.js';
+import { writeStaticHomeProjection } from '../projection/staticHomeProjector.js';
+import { writeTournamentFacts } from './factWriter.js';
+import { appendLeagueLogs } from './logPersistence.js';
 import { commitRevisionWrites } from './revWriter.js';
 import { UPDATE_CONFIG } from './types.js';
 import { loadTeamsConfig } from './teamsConfigLoader.js';
@@ -45,7 +48,11 @@ export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, f
   generateLog(syncItems, skipItems, breakers, apiErrors, authContext, logger);
   const leagueLogEntries = buildLeagueLogEntries(syncItems, skipItems, breakers, apiErrors, authContext, runtimeConfig, displayNameMap);
 
-  const saveSummary = await saveData(env, runtimeConfig, cache, analysis, syncItems, skipItems, forceWrite, forceSlugs, leagueLogEntries);
+  const writeScopeSlugs = buildWriteScopeSlugs(runtimeConfig, syncItems, skipItems, forceWrite, forceSlugs);
+  await writeTournamentFacts(env, runtimeConfig, cache, analysis, writeScopeSlugs);
+  await writeHomeProjections(env, runtimeConfig, cache, analysis, writeScopeSlugs);
+  await writeStaticHomeProjection(env, runtimeConfig, analysis);
+  await appendLeagueLogs(env, leagueLogEntries);
 
-  await commitRevisionWrites(env, pendingRevisionWrites, failedSlugs, saveSummary?.failedHomeSlugs || new Set());
+  await commitRevisionWrites(env, pendingRevisionWrites, failedSlugs);
 }
