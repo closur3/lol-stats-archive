@@ -1,17 +1,16 @@
 import { readArchiveIndex } from "../../core/updater/archiveIndex.js";
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
 import { requireAdmin } from "./auth.js";
+import { readRawMatches } from "../../core/facts/rawMatchesStore.js";
+import { readScheduleMeta } from "../../core/facts/scheduleMetaStore.js";
 
-function assertBaseStatsSnapshot(snapshot, key, prefix) {
+function assertDisplaySnapshot(snapshot, key, prefix) {
   const slug = key.slice(prefix.length);
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
     throw new Error(`Invalid snapshot: ${key}`);
   }
   if (!snapshot.tournament || snapshot.tournament.slug !== slug) {
     throw new Error(`Invalid snapshot tournament: ${key}`);
-  }
-  if (!Array.isArray(snapshot.rawMatches)) {
-    throw new Error(`Invalid snapshot rawMatches: ${key}`);
   }
   if (!snapshot.stats || typeof snapshot.stats !== "object" || Array.isArray(snapshot.stats)) {
     throw new Error(`Invalid snapshot stats: ${key}`);
@@ -26,7 +25,7 @@ function assertBaseStatsSnapshot(snapshot, key, prefix) {
 }
 
 function assertHomeSnapshot(snapshot, key) {
-  const slug = assertBaseStatsSnapshot(snapshot, key, kvKeys.HOME_PREFIX);
+  const slug = assertDisplaySnapshot(snapshot, key, kvKeys.HOME_PREFIX);
   if (!snapshot.scheduleMap || typeof snapshot.scheduleMap !== "object" || Array.isArray(snapshot.scheduleMap)) {
     throw new Error(`Invalid HOME scheduleMap: ${key}`);
   }
@@ -34,7 +33,11 @@ function assertHomeSnapshot(snapshot, key) {
 }
 
 function assertArchiveSnapshot(snapshot, key) {
-  return assertBaseStatsSnapshot(snapshot, key, kvKeys.ARCHIVE_PREFIX);
+  const slug = assertDisplaySnapshot(snapshot, key, kvKeys.ARCHIVE_PREFIX);
+  if (!Array.isArray(snapshot.rawMatches)) {
+    throw new Error(`Invalid archive rawMatches: ${key}`);
+  }
+  return slug;
 }
 
 async function dumpSnapshotPrefix(kv, prefix, excludedKey, assertSnapshot) {
@@ -61,8 +64,18 @@ export async function handleBackup(request, env) {
     dumpSnapshotPrefix(kv, kvKeys.ARCHIVE_PREFIX, kvKeys.archiveStatic(), assertArchiveSnapshot),
     readArchiveIndex(env)
   ]);
+  const rawMatches = {};
+  const scheduleMeta = {};
+  await Promise.all(Object.keys(home).map(async slug => {
+    const [matches, meta] = await Promise.all([
+      readRawMatches(env, slug),
+      readScheduleMeta(env, slug)
+    ]);
+    rawMatches[slug] = matches;
+    scheduleMeta[slug] = meta;
+  }));
 
-  return new Response(JSON.stringify({ home, archive, configArchive }), {
+  return new Response(JSON.stringify({ home, rawMatches, scheduleMeta, archive, configArchive }), {
     headers: { "content-type": "application/json" }
   });
 }

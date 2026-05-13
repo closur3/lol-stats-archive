@@ -1,12 +1,11 @@
 import { HTMLRenderer } from "../../render/htmlRenderer.js";
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
 import { kvPutIfChanged } from "../../utils/kvStore.js";
+import { readScheduleMetas } from "../facts/scheduleMetaStore.js";
 
 export async function writeStaticHomeProjection(env, runtimeConfig, analysis) {
-  const tournamentMeta = {};
-  for (const [slug, meta] of Object.entries(analysis.tournamentMeta || {})) {
-    tournamentMeta[slug] = { ...(meta || {}) };
-  }
+  const scheduleMetas = await readScheduleMetas(env, runtimeConfig.TOURNAMENTS || []);
+  const tournamentMeta = Object.fromEntries(scheduleMetas.map(meta => [meta.slug, meta]));
 
   const homeFragment = HTMLRenderer.renderContentOnly(
     analysis.globalStats,

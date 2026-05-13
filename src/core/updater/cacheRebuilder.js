@@ -5,6 +5,7 @@ import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
 import { kvPutIfChanged } from '../../utils/kvStore.js';
 import { generateArchiveStaticHTML } from './archiveBuilder.js';
 import { UPDATE_CONFIG } from './types.js';
+import { readScheduleMetas } from '../facts/scheduleMetaStore.js';
 
 export async function refreshHomeStaticFromCache(env) {
   return rebuildStaticPagesFromCache(env, { includeArchive: false, requireData: false });
@@ -19,9 +20,6 @@ function assertHomeSnapshot(keyName, home) {
   }
   if (!home.stats || typeof home.stats !== "object" || Array.isArray(home.stats)) {
     throw new Error(`Invalid HOME stats: ${keyName}`);
-  }
-  if (!Array.isArray(home.rawMatches)) {
-    throw new Error(`Invalid HOME rawMatches: ${keyName}`);
   }
   if (!home.timeGrid || typeof home.timeGrid !== "object" || Array.isArray(home.timeGrid)) {
     throw new Error(`Invalid HOME timeGrid: ${keyName}`);
@@ -62,6 +60,8 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
 
   const sortedTournaments = dateUtils.sortTournamentsByDate(homeEntries.map(home => home.tournament));
   const runtimeConfig = { TOURNAMENTS: sortedTournaments };
+  const scheduleMetas = await readScheduleMetas(env, sortedTournaments);
+  const scheduleMetaBySlug = new Map(scheduleMetas.map(meta => [meta.slug, meta]));
   const tournamentIndexMap = new Map((sortedTournaments || []).map((tournament, index) => [tournament.slug, index]));
   const globalStats = {};
   const timeGrid = {};
@@ -73,13 +73,7 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
     const slug = homeTournament?.slug;
     if (home.stats) globalStats[slug] = home.stats;
     timeGrid[slug] = home.timeGrid;
-    if (homeTournament) {
-      tournamentMeta[slug] = {
-        hasHistoryUnfinished: homeTournament.hasHistoryUnfinished,
-        todayEarliestTimestamp: Number(homeTournament.todayEarliestTimestamp) || 0,
-        todayUnfinished: Number(homeTournament.todayUnfinished) || 0
-      };
-    }
+    tournamentMeta[slug] = scheduleMetaBySlug.get(slug) || {};
 
     const schedule = home.scheduleMap;
     Object.keys(schedule).forEach(date => {

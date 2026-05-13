@@ -36,9 +36,16 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
     .filter(keyName => !activeSlugs.has(keyName.slice(kvKeys.SCHEDULE_META_PREFIX.length)));
 
   if (staleHomeKeys.length > 0) {
-    const staleData = await Promise.all(
-      staleHomeKeys.map(k => env["lol-stats-kv"].get(k, { type: "json" }))
-    );
+    const staleData = await Promise.all(staleHomeKeys.map(async keyName => {
+      const slug = keyName.slice(kvKeys.HOME_PREFIX.length);
+      const [home, rawMatches] = await Promise.all([
+        env["lol-stats-kv"].get(keyName, { type: "json" }),
+        env["lol-stats-kv"].get(kvKeys.rawMatches(slug), { type: "json" })
+      ]);
+      if (!home) return null;
+      if (!Array.isArray(rawMatches)) throw new Error(`RAW_MATCHES missing for archive move: ${slug}`);
+      return { ...home, rawMatches };
+    }));
 
     const archiveWrites = staleHomeKeys.map((k, i) => {
       if (staleData[i]) {

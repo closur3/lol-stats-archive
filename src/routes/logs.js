@@ -4,6 +4,8 @@ import { loadTourConfig } from '../core/updater/tourConfigLoader.js';
 import { kvKeys } from '../infrastructure/kv/keyFactory.js';
 import { HTMLRenderer } from '../render/htmlRenderer.js';
 import { dateUtils } from '../utils/dateUtils.js';
+import { readRawMatches } from '../core/facts/rawMatchesStore.js';
+import { readScheduleMeta } from '../core/facts/scheduleMetaStore.js';
 
 async function loadSortedTournaments(env) {
   const githubClient = new GitHubClient(env);
@@ -21,19 +23,20 @@ async function loadLogsBySlug(kv) {
   return new Map(logPairs.filter(([, logs]) => Array.isArray(logs) && logs.length > 0));
 }
 
-async function loadHomeMetaBySlug(kv, slugs) {
-  const homePairs = await Promise.all(slugs.map(async slug => {
-    const home = await kv.get(kvKeys.home(slug), { type: "json" });
-    const totalMatchCount = Array.isArray(home?.rawMatches) ? home.rawMatches.length : null;
-    const meta = home?.tournament || {};
+async function loadLogMetaBySlug(env, slugs) {
+  const metaPairs = await Promise.all(slugs.map(async slug => {
+    const [rawMatches, meta] = await Promise.all([
+      readRawMatches(env, slug),
+      readScheduleMeta(env, slug)
+    ]);
     return [slug, {
-      totalMatchCount,
+      totalMatchCount: rawMatches.length,
       todayEarliestTimestamp: Number(meta.todayEarliestTimestamp) || 0,
       todayUnfinished: Number(meta.todayUnfinished) || 0,
       hasHistoryUnfinished: !!meta.hasHistoryUnfinished
     }];
   }));
-  return new Map(homePairs);
+  return new Map(metaPairs);
 }
 
 function buildLeagueLogItem(name, slug, logs, homeMeta) {
@@ -77,7 +80,7 @@ export class LogsRouter {
     const logsBySlug = await loadLogsBySlug(kv);
     const logSlugs = Array.from(logsBySlug.keys());
     const [homeBySlug, sortedTournaments] = await Promise.all([
-      loadHomeMetaBySlug(kv, logSlugs),
+      loadLogMetaBySlug(env, logSlugs),
       loadSortedTournaments(env)
     ]);
     const leagueLogs = buildLeagueLogs(sortedTournaments, logsBySlug, homeBySlug);
