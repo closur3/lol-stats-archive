@@ -2,7 +2,7 @@ import { ensureDayInitialized, reconcileLeagueStates } from "../../core/schedule
 import { GitHubClient } from "../../api/githubClient.js";
 import { Logger } from "../../infrastructure/logger.js";
 import { loadRuntimeConfig } from "../../core/updater/configLoader.js";
-import { loadCachedData } from "../../core/updater/cache.js";
+import { loadPreviousCachedData } from "../../core/updater/cache.js";
 import { runFandomUpdate } from "../../core/updater/fandomSync.js";
 import { refreshScheduleBoardOnDayRollover } from "../../core/updater/dayRollover.js";
 import { detectRevisionChanges } from "../../core/updater/revisionDetector.js";
@@ -43,7 +43,7 @@ export async function handleForceUpdate(request, env) {
     const tournaments = runtimeConfig.TOURNAMENTS;
     const forcedTournaments = tournaments.filter(tournament => forceSlugs.has(tournament.slug));
     if (forcedTournaments.length !== forceSlugs.size) return new Response("Unknown slug in slugs[]", { status: 400 });
-    const cache = await loadCachedData(env, tournaments, { allowMissingSlugs: forceSlugs });
+    const cache = await loadPreviousCachedData(env, forcedTournaments);
     const { revidChanges, pendingRevisionWrites } = await detectRevisionChanges(env, forcedTournaments);
     await runFandomUpdate(env, githubClient, runtimeConfig, cache, true, forceSlugs, {
       forceWrite: true,

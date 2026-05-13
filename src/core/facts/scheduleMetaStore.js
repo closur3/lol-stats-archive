@@ -1,4 +1,6 @@
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
+import { computeTournamentMetaFromRawMatches } from "../analysis/tournamentMeta.js";
+import { readRawMatches } from "./rawMatchesStore.js";
 
 export function normalizeScheduleMeta(slug, meta) {
   if (!slug) throw new Error("schedule meta slug missing");
@@ -22,7 +24,10 @@ export function sameScheduleMeta(left, right) {
 export async function readScheduleMeta(env, slug) {
   if (!slug) throw new Error("schedule meta slug missing");
   const meta = await env["lol-stats-kv"].get(kvKeys.scheduleMeta(slug), { type: "json" });
-  if (meta == null) throw new Error(`SCHEDULE_META missing: ${slug}`);
+  if (meta == null) {
+    const rawMatches = await readRawMatches(env, slug);
+    return writeScheduleMeta(env, slug, computeTournamentMetaFromRawMatches(rawMatches));
+  }
   return normalizeScheduleMeta(slug, meta);
 }
 

@@ -1,6 +1,6 @@
 import { GitHubClient } from "../../api/githubClient.js";
 import { loadRuntimeConfig } from "../updater/configLoader.js";
-import { loadCachedData } from "../updater/cache.js";
+import { loadPreviousCachedData } from "../updater/cache.js";
 import { detectRevisionChanges } from "../updater/revisionDetector.js";
 import { runFandomUpdate } from "../updater/fandomSync.js";
 import { commitRevisionWrites } from "../updater/revWriter.js";
@@ -20,9 +20,6 @@ export async function runCron(env, event) {
   const runtimeConfig = await loadRuntimeConfig(env, githubClient);
   const tournaments = runtimeConfig.TOURNAMENTS || [];
 
-  await refreshScheduleBoardOnDayRollover(env, runtimeConfig);
-  await ensureDayInitialized(env, tournaments, event.scheduledTime);
-
   const executionSlugs = await resolveScheduledExecutionSlugs(env, event.scheduledTime, event.cron);
   if (executionSlugs instanceof Set && executionSlugs.size === 0) {
     await reconcileLeagueStates(env, tournaments, event.scheduledTime);
@@ -37,7 +34,8 @@ export async function runCron(env, event) {
   const unchangedSlugs = new Set([...checkedSlugSet].filter(slug => !changedSlugs.has(slug)));
 
   if (changedSlugs.size > 0) {
-    const cache = await loadCachedData(env, tournaments);
+    const changedTournaments = intersectTournaments(tournaments, changedSlugs);
+    const cache = await loadPreviousCachedData(env, changedTournaments);
     console.log(`[UPDATE:GATE] fandom slugs=${Array.from(changedSlugs).join(", ")}`);
     await runFandomUpdate(env, githubClient, runtimeConfig, cache, false, changedSlugs, {
       forceWrite: false,
@@ -53,5 +51,7 @@ export async function runCron(env, event) {
     await refreshRuntimeMeta(env, runtimeConfig, unchangedSlugs);
   }
 
+  await refreshScheduleBoardOnDayRollover(env, runtimeConfig);
+  await ensureDayInitialized(env, tournaments, event.scheduledTime);
   await reconcileLeagueStates(env, tournaments, event.scheduledTime);
 }
