@@ -2,6 +2,11 @@ import { timePolicy } from '../../utils/timePolicy.js';
 
 export function parseAllMatches(rawMatches, resolveName, todayStr, tournamentSlug, tournamentLeague, tournamentIndex, allFutureMatches) {
   const parsedMatches = [];
+  const tournamentMeta = {
+    todayEarliestTimestamp: 0,
+    todayUnfinished: 0,
+    hasHistoryUnfinished: false
+  };
   const allStatsInit = {
     bestOf3FullMatchCount: 0, bestOf3TotalMatchCount: 0,
     bestOf5FullMatchCount: 0, bestOf5TotalMatchCount: 0,
@@ -52,6 +57,10 @@ export function parseAllMatches(rawMatches, resolveName, todayStr, tournamentSlu
       roundedMinutes
     } = matchTime;
 
+    if (matchDateStr === todayStr && timestamp && (!tournamentMeta.todayEarliestTimestamp || timestamp < tournamentMeta.todayEarliestTimestamp)) {
+      tournamentMeta.todayEarliestTimestamp = timestamp;
+    }
+
     if (matchDateStr !== "-" && (matchDateStr >= todayStr || !isFinished)) {
       if (!allFutureMatches[matchDateStr]) allFutureMatches[matchDateStr] = [];
       const tabName = match.Tab || "";
@@ -78,6 +87,14 @@ export function parseAllMatches(rawMatches, resolveName, todayStr, tournamentSlu
         dateDisplay, fullDateDisplay,
         timestamp, weekdayIndex, timeMinutes, roundedMinutes, matchDateStr
       });
+    }
+
+    if (!isFinished) {
+      if (matchDateStr === todayStr) {
+        tournamentMeta.todayUnfinished++;
+      } else if (matchDateStr < todayStr) {
+        tournamentMeta.hasHistoryUnfinished = true;
+      }
     }
 
     let team1MatchResultCode = 'NEXT', team2MatchResultCode = 'NEXT';
@@ -151,5 +168,5 @@ export function parseAllMatches(rawMatches, resolveName, todayStr, tournamentSlu
 
   Object.values(stats).forEach(team => team.history.sort((leftHistory, rightHistory) => rightHistory.timestamp - leftHistory.timestamp));
 
-  return { stats, parsedMatches };
+  return { stats, parsedMatches, tournamentMeta };
 }

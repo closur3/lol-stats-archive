@@ -3,6 +3,8 @@ export const BUSINESS_UTC_OFFSET_HOURS = 8;
 
 const WEEKDAY_CRON_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const WEEKDAY_DISPLAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const BUSINESS_UTC_OFFSET_MS = BUSINESS_UTC_OFFSET_HOURS * 60 * 60 * 1000;
+const pad2 = (value) => String(value).padStart(2, "0");
 
 function parseBusinessDateKey(dateKey) {
   const match = String(dateKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -28,42 +30,36 @@ function getBusinessParts(timestampInput = new Date()) {
   const date = timestampInput instanceof Date ? timestampInput : new Date(timestampInput);
   if (Number.isNaN(date.getTime())) throw new Error(`Invalid timestamp: ${timestampInput}`);
 
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BUSINESS_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-    hourCycle: "h23"
-  }).formatToParts(date).reduce((acc, part) => {
-    acc[part.type] = part.value;
-    return acc;
-  }, {});
-
-  if (!parts.year || !parts.month || !parts.day || !parts.hour || !parts.minute || !parts.second) {
-    throw new Error(`Cannot derive business time parts: ${date.toISOString()}`);
-  }
-
-  const weekdayUtc = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day))).getUTCDay();
+  const businessDate = new Date(date.getTime() + BUSINESS_UTC_OFFSET_MS);
+  const yearNumber = businessDate.getUTCFullYear();
+  const monthNumber = businessDate.getUTCMonth() + 1;
+  const dayNumber = businessDate.getUTCDate();
+  const hourNumber = businessDate.getUTCHours();
+  const minuteNumber = businessDate.getUTCMinutes();
+  const secondNumber = businessDate.getUTCSeconds();
+  const year = String(yearNumber);
+  const month = pad2(monthNumber);
+  const day = pad2(dayNumber);
+  const hour = pad2(hourNumber);
+  const minute = pad2(minuteNumber);
+  const second = pad2(secondNumber);
+  const weekdayUtc = new Date(Date.UTC(yearNumber, monthNumber - 1, dayNumber)).getUTCDay();
   return {
-    year: parts.year,
-    month: parts.month,
-    dayOfMonth: parts.day,
-    hour: parts.hour,
-    minute: parts.minute,
-    second: parts.second,
-    hourNumber: Number(parts.hour),
-    minuteNumber: Number(parts.minute),
-    secondNumber: Number(parts.second),
+    year,
+    month,
+    dayOfMonth: day,
+    hour,
+    minute,
+    second,
+    hourNumber,
+    minuteNumber,
+    secondNumber,
     weekday: weekdayUtc,
     weekdayIndex: weekdayUtc === 0 ? 6 : weekdayUtc - 1,
-    dateKey: `${parts.year}-${parts.month}-${parts.day}`,
-    timeText: `${parts.hour}:${parts.minute}`,
-    dateDisplay: `${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`,
-    fullDateDisplay: `${parts.year}-${parts.month}-${parts.day}`
+    dateKey: `${year}-${month}-${day}`,
+    timeText: `${hour}:${minute}`,
+    dateDisplay: `${month}-${day} ${hour}:${minute}`,
+    fullDateDisplay: `${year}-${month}-${day}`
   };
 }
 

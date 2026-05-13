@@ -6,12 +6,23 @@ import { prepareTournamentContext } from './context.js';
 import { processResults } from './dataProcessor.js';
 import { generateLog, buildLeagueLogEntries } from './logWriter.js';
 import { buildWriteScopeSlugs, writeHomeProjections } from '../projection/homeProjector.js';
-import { writeStaticHomeProjection } from '../projection/staticHomeProjector.js';
 import { writeTournamentFacts } from './factWriter.js';
 import { appendLeagueLogs } from './logPersistence.js';
 import { commitRevisionWrites } from './revWriter.js';
 import { UPDATE_CONFIG } from './types.js';
 import { loadTeamsConfig } from './teamsConfigLoader.js';
+import { refreshHomeStaticFromCache } from './cacheRebuilder.js';
+
+function buildScopedRuntimeConfig(runtimeConfig, scopeSlugs) {
+  return {
+    ...runtimeConfig,
+    TOURNAMENTS: (runtimeConfig.TOURNAMENTS || []).filter(tournament => scopeSlugs.has(tournament.slug))
+  };
+}
+
+function buildScopedRawMatches(rawMatches, scopeSlugs) {
+  return Object.fromEntries([...scopeSlugs].map(slug => [slug, rawMatches[slug] || []]));
+}
 
 export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, force = false, forceSlugs = null, options = {}, logger, _getSlowThresholdMs) {
   const forceWrite = options.forceWrite === undefined ? force : !!options.forceWrite;
@@ -41,17 +52,19 @@ export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, f
     }
   }
 
-  await prepareTournamentContext(env, runtimeConfig, cache, teamsRaw);
-
-  const analysis = Analyzer.runFullAnalysis(cache.rawMatches, runtimeConfig, UPDATE_CONFIG.MAX_SCHEDULE_DAYS);
-
   generateLog(syncItems, skipItems, breakers, apiErrors, authContext, logger);
   const leagueLogEntries = buildLeagueLogEntries(syncItems, skipItems, breakers, apiErrors, authContext, runtimeConfig, displayNameMap);
 
   const writeScopeSlugs = buildWriteScopeSlugs(runtimeConfig, syncItems, skipItems, forceWrite, forceSlugs);
-  await writeTournamentFacts(env, runtimeConfig, cache, analysis, writeScopeSlugs);
-  await writeHomeProjections(env, runtimeConfig, cache, analysis, writeScopeSlugs);
-  await writeStaticHomeProjection(env, runtimeConfig, analysis);
+  if (writeScopeSlugs.size > 0) {
+    const scopedRuntimeConfig = buildScopedRuntimeConfig(runtimeConfig, writeScopeSlugs);
+    await prepareTournamentContext(env, scopedRuntimeConfig, cache, teamsRaw);
+    const scopedRawMatches = buildScopedRawMatches(cache.rawMatches, writeScopeSlugs);
+    const analysis = Analyzer.runFullAnalysis(scopedRawMatches, scopedRuntimeConfig, UPDATE_CONFIG.MAX_SCHEDULE_DAYS);
+    await writeTournamentFacts(env, scopedRuntimeConfig, cache, analysis, writeScopeSlugs);
+    await writeHomeProjections(env, scopedRuntimeConfig, cache, analysis, writeScopeSlugs);
+    await refreshHomeStaticFromCache(env);
+  }
   await appendLeagueLogs(env, leagueLogEntries);
 
   await commitRevisionWrites(env, pendingRevisionWrites, failedSlugs);

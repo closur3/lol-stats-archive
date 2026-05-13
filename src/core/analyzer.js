@@ -37,13 +37,12 @@ export class Analyzer {
       const rawMatches = allRawMatches[tournament.slug] || [];
 
       const resolveName = buildResolveName(tournament.teamMap);
-      const { stats, parsedMatches } = parseAllMatches(rawMatches, resolveName, todayStr, tournament.slug, tournament.league, tournamentIndex, allFutureMatches);
+      const { stats, parsedMatches, tournamentMeta: meta } = parseAllMatches(rawMatches, resolveName, todayStr, tournament.slug, tournament.league, tournamentIndex, allFutureMatches);
 
       globalStats[tournament.slug] = stats;
 
       buildTimeGridAndSchedule(tournament.slug, parsedMatches, timeGrid);
 
-      const meta = computeTournamentMetaFromRawMatches(rawMatches);
       tournamentMeta[tournament.slug] = meta;
     });
 
