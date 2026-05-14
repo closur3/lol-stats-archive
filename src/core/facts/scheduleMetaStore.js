@@ -44,7 +44,8 @@ export async function ensureScheduleMeta(env, slug) {
 }
 
 export async function ensureScheduleMetas(env, tournaments) {
-  return Promise.all((tournaments || []).map(async (tournament) => {
+  if (!Array.isArray(tournaments)) throw new Error("tournaments must be an array");
+  return Promise.all(tournaments.map(async (tournament) => {
     const slug = tournament?.slug;
     if (!slug) throw new Error("Tournament slug missing");
     return ensureScheduleMeta(env, slug);
@@ -52,7 +53,8 @@ export async function ensureScheduleMetas(env, tournaments) {
 }
 
 export async function readScheduleMetas(env, tournaments) {
-  return Promise.all((tournaments || []).map(async (tournament) => {
+  if (!Array.isArray(tournaments)) throw new Error("tournaments must be an array");
+  return Promise.all(tournaments.map(async (tournament) => {
     const slug = tournament?.slug;
     if (!slug) throw new Error("Tournament slug missing");
     return readScheduleMeta(env, slug);

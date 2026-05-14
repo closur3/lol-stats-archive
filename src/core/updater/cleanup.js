@@ -4,6 +4,9 @@ import { rebuildArchiveIndexFromSnapshots } from './archiveIndex.js';
 import { generateArchiveStaticHTML } from './archiveBuilder.js';
 
 export async function cleanupStaleHomeKeys(env, runtimeConfig) {
+  if (!Array.isArray(runtimeConfig.TOURNAMENTS)) {
+    throw new Error("runtimeConfig.TOURNAMENTS must be an array");
+  }
   const kv = env["lol-stats-kv"];
   const [allHomeKeys, allLogKeys, allRevKeys, allRawMatchesKeys, allScheduleMetaKeys] = await Promise.all([
     kv.list({ prefix: kvKeys.HOME_PREFIX }),
@@ -13,7 +16,7 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
     kv.list({ prefix: kvKeys.SCHEDULE_META_PREFIX })
   ]);
 
-  const activeSlugs = new Set((runtimeConfig.TOURNAMENTS || []).map(tournament => tournament.slug));
+  const activeSlugs = new Set(runtimeConfig.TOURNAMENTS.map(tournament => tournament.slug));
 
   const staleHomeKeys = allHomeKeys.keys
     .map(key => key.name)

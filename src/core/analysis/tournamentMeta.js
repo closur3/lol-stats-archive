@@ -1,12 +1,13 @@
 import { timePolicy } from '../../utils/timePolicy.js';
 
 export function computeTournamentMetaFromRawMatches(rawMatches) {
+  if (!Array.isArray(rawMatches)) throw new Error("rawMatches must be an array");
   const todayStr = timePolicy.getNow().dateString;
   let todayEarliest = 0;
   let todayUnfinished = 0;
   let hasHistoryUnfinished = false;
 
-  for (const match of (rawMatches || [])) {
+  for (const match of rawMatches) {
     let matchTime;
     try {
       matchTime = timePolicy.deriveMatchTime(match.DateTimeUTC);

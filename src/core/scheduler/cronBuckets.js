@@ -49,8 +49,11 @@ function mergeIntervals(intervals) {
 }
 
 export function buildActiveBucketCronsFromState(state) {
+  if (!state?.leagues || typeof state.leagues !== "object" || Array.isArray(state.leagues)) {
+    throw new Error("SCHEDULE_DAY.leagues must be a JSON object");
+  }
   const intervals = [];
-  for (const [slug, leagueState] of Object.entries(state.leagues || {})) {
+  for (const [slug, leagueState] of Object.entries(state.leagues)) {
     assertLeagueState(slug, leagueState);
     if (!hasPlayWindow(leagueState)) continue;
     intervals.push(...timePolicy.businessWindowToUtcCronSegments(state.date, leagueState.playStartHour, leagueState.playEndHour));

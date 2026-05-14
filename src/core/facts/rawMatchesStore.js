@@ -29,7 +29,8 @@ export async function writeRawMatches(env, slug, rawMatches) {
 }
 
 export async function readRawMatchesMap(env, tournaments) {
-  const entries = await Promise.all((tournaments || []).map(async (tournament) => {
+  if (!Array.isArray(tournaments)) throw new Error("tournaments must be an array");
+  const entries = await Promise.all(tournaments.map(async (tournament) => {
     const slug = tournament?.slug;
     if (!slug) throw new Error("Tournament slug missing");
     return [slug, await readRawMatches(env, slug)];
@@ -38,7 +39,8 @@ export async function readRawMatchesMap(env, tournaments) {
 }
 
 export async function readPreviousRawMatchesMap(env, tournaments) {
-  const entries = await Promise.all((tournaments || []).map(async (tournament) => {
+  if (!Array.isArray(tournaments)) throw new Error("tournaments must be an array");
+  const entries = await Promise.all(tournaments.map(async (tournament) => {
     const slug = tournament?.slug;
     if (!slug) throw new Error("Tournament slug missing");
     return [slug, await readPreviousRawMatches(env, slug)];

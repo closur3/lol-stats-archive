@@ -17,10 +17,17 @@ async function loadLogsBySlug(kv) {
   const allLogKeys = await kv.list({ prefix: kvKeys.LOG_PREFIX });
   const logPairs = await Promise.all(allLogKeys.keys.map(async logKey => {
     const slug = logKey.name.slice(kvKeys.LOG_PREFIX.length);
-    const logs = await kv.get(logKey.name, { type: "json" }) || [];
+    const logs = await readLogEntries(kv, logKey.name);
     return [slug, logs];
   }));
   return new Map(logPairs.filter(([, logs]) => Array.isArray(logs) && logs.length > 0));
+}
+
+async function readLogEntries(kv, logKey) {
+  const logs = await kv.get(logKey, { type: "json" });
+  if (logs == null) return [];
+  if (!Array.isArray(logs)) throw new Error(`LOG must be an array: ${logKey}`);
+  return logs;
 }
 
 async function loadLogMetaBySlug(env, slugs) {
@@ -40,6 +47,7 @@ async function loadLogMetaBySlug(env, slugs) {
 }
 
 function buildLeagueLogItem(name, slug, logs, homeMeta) {
+  if (!Array.isArray(logs)) throw new Error(`LOG entries missing: ${slug}`);
   return {
     name,
     logs,
@@ -60,7 +68,7 @@ function buildLeagueLogs(sortedTournaments, logsBySlug, homeBySlug) {
     leagueLogs.push(buildLeagueLogItem(
       tournament.league || tournament.name || slug,
       slug,
-      logsBySlug.get(slug) || [],
+      logsBySlug.get(slug),
       homeBySlug.get(slug)
     ));
     consumed.add(slug);
@@ -68,7 +76,7 @@ function buildLeagueLogs(sortedTournaments, logsBySlug, homeBySlug) {
 
   const orphanSlugs = Array.from(logsBySlug.keys()).filter(slug => !consumed.has(slug)).sort();
   for (const slug of orphanSlugs) {
-    leagueLogs.push(buildLeagueLogItem(slug, slug, logsBySlug.get(slug) || [], homeBySlug.get(slug)));
+    leagueLogs.push(buildLeagueLogItem(slug, slug, logsBySlug.get(slug), homeBySlug.get(slug)));
   }
 
   return leagueLogs;

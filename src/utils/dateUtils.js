@@ -52,11 +52,15 @@ export const dateUtils = {
    */
   pruneScheduleMapByDayStatus: (scheduleMap, maxDays = 8, todayStr, hasHistoryUnfinished = {}) => {
     if (!todayStr) throw new Error("todayStr is required");
+    if (!scheduleMap || typeof scheduleMap !== "object" || Array.isArray(scheduleMap)) {
+      throw new Error("scheduleMap must be a JSON object");
+    }
     const today = todayStr;
     const kept = {};
 
-    Object.keys(scheduleMap || {}).sort().forEach(date => {
-      const matches = Array.isArray(scheduleMap[date]) ? scheduleMap[date] : [];
+    Object.keys(scheduleMap).sort().forEach(date => {
+      const matches = scheduleMap[date];
+      if (!Array.isArray(matches)) throw new Error(`scheduleMap.${date} must be an array`);
       if (date >= today) {
         kept[date] = matches;
         return;

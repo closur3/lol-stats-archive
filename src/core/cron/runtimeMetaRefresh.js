@@ -4,7 +4,10 @@ import { ensureScheduleMeta, sameScheduleMeta, writeScheduleMeta } from "../fact
 import { refreshHomeStaticFromCache } from "../updater/cacheRebuilder.js";
 
 function selectTournaments(runtimeConfig, scopeSlugs) {
-  const tournaments = runtimeConfig.TOURNAMENTS || [];
+  if (!Array.isArray(runtimeConfig.TOURNAMENTS)) {
+    throw new Error("runtimeConfig.TOURNAMENTS must be an array");
+  }
+  const tournaments = runtimeConfig.TOURNAMENTS;
   if (!(scopeSlugs instanceof Set)) return tournaments;
   return tournaments.filter(tournament => scopeSlugs.has(tournament.slug));
 }

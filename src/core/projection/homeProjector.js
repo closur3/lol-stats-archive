@@ -9,6 +9,9 @@ function requireObject(value, label) {
 }
 
 export function buildWriteScopeSlugs(runtimeConfig, syncItems, skipItems, force, forceSlugs) {
+  if (!Array.isArray(runtimeConfig.TOURNAMENTS)) {
+    throw new Error("runtimeConfig.TOURNAMENTS must be an array");
+  }
   if (!Array.isArray(syncItems)) throw new Error("syncItems must be an array");
   if (!Array.isArray(skipItems)) throw new Error("skipItems must be an array");
   const scope = new Set([
@@ -22,15 +25,18 @@ export function buildWriteScopeSlugs(runtimeConfig, syncItems, skipItems, force,
     return scope;
   }
 
-  for (const tournament of runtimeConfig.TOURNAMENTS || []) {
+  for (const tournament of runtimeConfig.TOURNAMENTS) {
     if (tournament?.slug) scope.add(tournament.slug);
   }
   return scope;
 }
 
 export function buildScheduleBySlug(runtimeConfig, scheduleMap) {
+  if (!Array.isArray(runtimeConfig.TOURNAMENTS)) {
+    throw new Error("runtimeConfig.TOURNAMENTS must be an array");
+  }
   requireObject(scheduleMap, "analysis.scheduleMap");
-  const tournamentIndexMap = new Map((runtimeConfig.TOURNAMENTS || []).map((tournament, index) => [tournament.slug, index]));
+  const tournamentIndexMap = new Map(runtimeConfig.TOURNAMENTS.map((tournament, index) => [tournament.slug, index]));
   const scheduleBySlug = {};
 
   for (const [date, matches] of Object.entries(scheduleMap)) {
@@ -48,6 +54,13 @@ export function buildScheduleBySlug(runtimeConfig, scheduleMap) {
   return scheduleBySlug;
 }
 
+function buildTournamentScheduleSnapshot(slug, scheduleBySlug) {
+  const schedule = scheduleBySlug[slug];
+  if (schedule === undefined) return {};
+  requireObject(schedule, `analysis.scheduleMap.${slug}`);
+  return schedule;
+}
+
 export function buildHomeSnapshot(tournament, cache, analysis, scheduleBySlug) {
   const slug = tournament.slug;
   const { teamMap, ...tournamentStored } = tournament;
@@ -59,7 +72,7 @@ export function buildHomeSnapshot(tournament, cache, analysis, scheduleBySlug) {
     tournament: tournamentStored,
     stats,
     timeGrid,
-    scheduleMap: scheduleBySlug[slug] || {},
+    scheduleMap: buildTournamentScheduleSnapshot(slug, scheduleBySlug),
     teamMap
   };
 }
@@ -67,7 +80,7 @@ export function buildHomeSnapshot(tournament, cache, analysis, scheduleBySlug) {
 export async function writeHomeProjections(env, runtimeConfig, cache, analysis, writeScopeSlugs) {
   const scheduleBySlug = buildScheduleBySlug(runtimeConfig, analysis.scheduleMap);
 
-  await Promise.all((runtimeConfig.TOURNAMENTS || []).map(async (tournament) => {
+  await Promise.all(runtimeConfig.TOURNAMENTS.map(async (tournament) => {
     const slug = tournament?.slug;
     if (!slug) throw new Error("Tournament slug missing");
     if (!writeScopeSlugs.has(slug)) return;

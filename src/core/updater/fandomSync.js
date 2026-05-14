@@ -14,9 +14,12 @@ import { loadTeamsConfig } from './teamsConfigLoader.js';
 import { refreshHomeStaticFromCache } from './cacheRebuilder.js';
 
 function buildScopedRuntimeConfig(runtimeConfig, scopeSlugs) {
+  if (!Array.isArray(runtimeConfig.TOURNAMENTS)) {
+    throw new Error("runtimeConfig.TOURNAMENTS must be an array");
+  }
   return {
     ...runtimeConfig,
-    TOURNAMENTS: (runtimeConfig.TOURNAMENTS || []).filter(tournament => scopeSlugs.has(tournament.slug))
+    TOURNAMENTS: runtimeConfig.TOURNAMENTS.filter(tournament => scopeSlugs.has(tournament.slug))
   };
 }
 
@@ -29,10 +32,21 @@ function buildScopedRawMatches(rawMatches, scopeSlugs) {
 }
 
 function buildFandomOptions(force, options) {
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    throw new Error("fandom options must be a JSON object");
+  }
+  const revidChanges = options.revidChanges === undefined ? {} : options.revidChanges;
+  const pendingRevisionWrites = options.pendingRevisionWrites === undefined ? {} : options.pendingRevisionWrites;
+  if (!revidChanges || typeof revidChanges !== "object" || Array.isArray(revidChanges)) {
+    throw new Error("revidChanges must be a JSON object");
+  }
+  if (!pendingRevisionWrites || typeof pendingRevisionWrites !== "object" || Array.isArray(pendingRevisionWrites)) {
+    throw new Error("pendingRevisionWrites must be a JSON object");
+  }
   return {
     forceWrite: options.forceWrite === undefined ? force : !!options.forceWrite,
-    revidChanges: options.revidChanges || {},
-    pendingRevisionWrites: options.pendingRevisionWrites || {}
+    revidChanges,
+    pendingRevisionWrites
   };
 }
 
@@ -84,7 +98,7 @@ async function persistWriteScope(env, runtimeConfig, cache, teamsRaw, writeScope
   await refreshHomeStaticFromCache(env);
 }
 
-export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, force = false, forceSlugs = null, options = {}, logger, _getSlowThresholdMs) {
+export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, force = false, forceSlugs = null, options = {}, logger) {
   const { forceWrite, revidChanges, pendingRevisionWrites } = buildFandomOptions(force, options);
   const teamsRaw = await loadTeamsConfig(env, githubClient);
   const processed = await fetchAndProcessFandom(env, runtimeConfig, cache, force, forceSlugs);

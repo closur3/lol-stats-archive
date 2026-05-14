@@ -3,25 +3,55 @@ import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
 import { dataUtils } from '../../utils/dataUtils.js';
 
 export function hasRevisionRecordChanged(previousRecord, nextRecord) {
-  const prev = previousRecord || {};
-  const next = nextRecord || {};
-  if ((prev.slug || "") !== (next.slug || "")) return true;
+  assertRevisionRecord(previousRecord, "previous REV record");
+  assertRevisionRecord(nextRecord, "next REV record");
+  if (previousRecord.slug !== nextRecord.slug) return true;
 
-  const prevPages = prev.pages && typeof prev.pages === "object" ? prev.pages : {};
-  const nextPages = next.pages && typeof next.pages === "object" ? next.pages : {};
+  const prevPages = previousRecord.pages;
+  const nextPages = nextRecord.pages;
   const prevTitles = Object.keys(prevPages);
   const nextTitles = Object.keys(nextPages);
   if (prevTitles.length !== nextTitles.length) return true;
 
   for (const title of prevTitles) {
     if (!Object.prototype.hasOwnProperty.call(nextPages, title)) return true;
-    const prevPage = prevPages[title] || {};
-    const nextPage = nextPages[title] || {};
-    if ((Number(prevPage.revid) || 0) !== (Number(nextPage.revid) || 0)) return true;
-    if ((prevPage.revisionTimeUTC || "") !== (nextPage.revisionTimeUTC || "")) return true;
-    if ((Number(prevPage.pageid) || 0) !== (Number(nextPage.pageid) || 0)) return true;
+    const prevPage = normalizeRevisionPage(previousRecord.slug, title, prevPages[title]);
+    const nextPage = normalizeRevisionPage(nextRecord.slug, title, nextPages[title]);
+    if (prevPage.revid !== nextPage.revid) return true;
+    if (prevPage.revisionTimeUTC !== nextPage.revisionTimeUTC) return true;
+    if (prevPage.pageid !== nextPage.pageid) return true;
   }
   return false;
+}
+
+function assertRevisionRecord(record, label) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    throw new Error(`${label} must be a JSON object`);
+  }
+  if (!record.slug || typeof record.slug !== "string") {
+    throw new Error(`${label} slug missing`);
+  }
+  if (!record.pages || typeof record.pages !== "object" || Array.isArray(record.pages)) {
+    throw new Error(`${label} pages must be a JSON object`);
+  }
+}
+
+function normalizeRevisionPage(slug, title, page) {
+  if (!page || typeof page !== "object" || Array.isArray(page)) {
+    throw new Error(`REV page must be a JSON object: ${slug}:${title}`);
+  }
+  const revid = Number(page.revid);
+  const pageid = Number(page.pageid);
+  if (!Number.isFinite(revid) || revid <= 0) throw new Error(`REV page revid invalid: ${slug}:${title}`);
+  if (!Number.isFinite(pageid) || pageid <= 0) throw new Error(`REV page pageid invalid: ${slug}:${title}`);
+  if (!page.revisionTimeUTC || typeof page.revisionTimeUTC !== "string") {
+    throw new Error(`REV page revisionTimeUTC missing: ${slug}:${title}`);
+  }
+  return {
+    revid,
+    pageid,
+    revisionTimeUTC: page.revisionTimeUTC
+  };
 }
 
 function normalizePreviousRevisionState(slug, previousRevisionState) {
@@ -61,9 +91,10 @@ async function prepareRevisionCheck(env, tournament) {
 }
 
 async function collectRevisionChecks(env, tournaments) {
+  if (!Array.isArray(tournaments)) throw new Error("tournaments must be an array");
   const errors = [];
   const checks = [];
-  const results = await Promise.allSettled((tournaments || []).map(tournament => prepareRevisionCheck(env, tournament)));
+  const results = await Promise.allSettled(tournaments.map(tournament => prepareRevisionCheck(env, tournament)));
 
   for (const result of results) {
     if (result.status === "rejected") {
@@ -107,7 +138,7 @@ async function evaluateRevisionCheck(check) {
 
     const prevRev = prevPages?.[title]?.revid;
     if (!prevRev || Number(prevRev) !== Number(latest.revid)) {
-      changedPages.push(`${title}:${prevRev || "none"}->${latest.revid}`);
+      changedPages.push(`${title}:${prevRev === undefined ? "none" : prevRev}->${latest.revid}`);
       const safeTitle = title.replace(/ /g, "_");
       revidChanges.push({
         revid: latest.revid,

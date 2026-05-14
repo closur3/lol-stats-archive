@@ -65,7 +65,7 @@ export function derivePhase(leagueState, meta, nowUtc) {
 
 export function syncPhaseByWindowAndMeta(state, metasBySlug, nowUtc) {
   const changed = [];
-  for (const [slug, leagueState] of Object.entries(state.leagues || {})) {
+  for (const [slug, leagueState] of Object.entries(state.leagues)) {
     assertLeagueState(slug, leagueState);
     const meta = metasBySlug.get(slug);
     if (!meta) throw new Error(`SCHEDULE_META missing after load: ${slug}`);
@@ -78,8 +78,9 @@ export function syncPhaseByWindowAndMeta(state, metasBySlug, nowUtc) {
 }
 
 export function buildIdleState(today, tournaments) {
+  if (!Array.isArray(tournaments)) throw new Error("tournaments must be an array");
   const leagues = {};
-  for (const tournament of tournaments || []) {
+  for (const tournament of tournaments) {
     const slug = tournament?.slug;
     if (!slug) throw new Error("Tournament slug missing");
     leagues[slug] = buildLeagueState();
@@ -107,8 +108,9 @@ export function assertLeagueState(slug, leagueState) {
 }
 
 export function alignStateLeaguesWithTournaments(state, tournaments) {
+  if (!Array.isArray(tournaments)) throw new Error("tournaments must be an array");
   const expectedSlugs = new Set();
-  for (const tournament of tournaments || []) {
+  for (const tournament of tournaments) {
     const slug = tournament?.slug;
     if (!slug) throw new Error("Tournament slug missing");
     expectedSlugs.add(slug);
