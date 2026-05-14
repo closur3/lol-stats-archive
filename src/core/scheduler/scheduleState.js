@@ -67,7 +67,9 @@ export function syncPhaseByWindowAndMeta(state, metasBySlug, nowUtc) {
   const changed = [];
   for (const [slug, leagueState] of Object.entries(state.leagues || {})) {
     assertLeagueState(slug, leagueState);
-    const nextPhase = derivePhase(leagueState, metasBySlug.get(slug) || {}, nowUtc);
+    const meta = metasBySlug.get(slug);
+    if (!meta) throw new Error(`SCHEDULE_META missing after load: ${slug}`);
+    const nextPhase = derivePhase(leagueState, meta, nowUtc);
     if (leagueState.phase === nextPhase) continue;
     changed.push(`${slug}:${leagueState.phase}->${nextPhase}`);
     leagueState.phase = nextPhase;

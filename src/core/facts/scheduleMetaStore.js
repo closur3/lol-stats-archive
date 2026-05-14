@@ -21,12 +21,19 @@ export function sameScheduleMeta(left, right) {
     && !!left?.hasHistoryUnfinished === !!right?.hasHistoryUnfinished;
 }
 
+export async function rebuildScheduleMetaFromRawMatches(env, slug) {
+  if (!slug) throw new Error("schedule meta slug missing");
+  const rawMatches = await readRawMatches(env, slug);
+  const computedMeta = computeTournamentMetaFromRawMatches(rawMatches);
+  console.log(`[SCHED:META] rebuild ${slug}`);
+  return writeScheduleMeta(env, slug, computedMeta);
+}
+
 export async function readScheduleMeta(env, slug) {
   if (!slug) throw new Error("schedule meta slug missing");
   const meta = await env["lol-stats-kv"].get(kvKeys.scheduleMeta(slug), { type: "json" });
   if (meta == null) {
-    const rawMatches = await readRawMatches(env, slug);
-    return writeScheduleMeta(env, slug, computeTournamentMetaFromRawMatches(rawMatches));
+    return rebuildScheduleMetaFromRawMatches(env, slug);
   }
   return normalizeScheduleMeta(slug, meta);
 }

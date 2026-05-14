@@ -73,7 +73,9 @@ export async function rebuildStaticPagesFromCache(env, options = {}) {
     const slug = homeTournament?.slug;
     if (home.stats) globalStats[slug] = home.stats;
     timeGrid[slug] = home.timeGrid;
-    tournamentMeta[slug] = scheduleMetaBySlug.get(slug) || {};
+    const meta = scheduleMetaBySlug.get(slug);
+    if (!meta) throw new Error(`SCHEDULE_META missing after load: ${slug}`);
+    tournamentMeta[slug] = meta;
 
     const schedule = home.scheduleMap;
     Object.keys(schedule).forEach(date => {

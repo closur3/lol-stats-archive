@@ -21,7 +21,11 @@ function buildScopedRuntimeConfig(runtimeConfig, scopeSlugs) {
 }
 
 function buildScopedRawMatches(rawMatches, scopeSlugs) {
-  return Object.fromEntries([...scopeSlugs].map(slug => [slug, rawMatches[slug] || []]));
+  return Object.fromEntries([...scopeSlugs].map(slug => {
+    const matches = rawMatches[slug];
+    if (!Array.isArray(matches)) throw new Error(`RAW_MATCHES missing in analysis scope: ${slug}`);
+    return [slug, matches];
+  }));
 }
 
 export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, force = false, forceSlugs = null, options = {}, logger, _getSlowThresholdMs) {

@@ -24,6 +24,12 @@ import { timePolicy } from "../../utils/timePolicy.js";
 
 export { buildActiveBucketCronsFromState };
 
+function requireMeta(metasBySlug, slug) {
+  const meta = metasBySlug.get(slug);
+  if (!meta) throw new Error(`SCHEDULE_META missing after load: ${slug}`);
+  return meta;
+}
+
 async function writeStateAndSchedules(env, state, nowUtc, reason, options = {}) {
   const schedules = collectSchedulesFromState(state, nowUtc);
   await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, false));
@@ -76,10 +82,11 @@ export async function planTodayPlay(env, tournaments, scheduledTimeMs, options =
 
   for (const tournament of tournaments || []) {
     const slug = tournament?.slug;
-    const window = buildWindowFromMeta(metasBySlug.get(slug) || {});
+    const meta = requireMeta(metasBySlug, slug);
+    const window = buildWindowFromMeta(meta);
     if (!window) continue;
     const candidate = buildLeagueState("idle", window);
-    candidate.phase = derivePhase(candidate, metasBySlug.get(slug) || {}, now);
+    candidate.phase = derivePhase(candidate, meta, now);
     next.leagues[slug] = candidate;
   }
 
@@ -144,7 +151,7 @@ export async function reconcileLeagueStates(env, tournaments, nowMs = Date.now()
     const leagueState = state.leagues[slug];
     assertLeagueState(slug, leagueState);
 
-    const meta = metasBySlug.get(slug) || {};
+    const meta = requireMeta(metasBySlug, slug);
     const hasUnfinished = !!meta.hasHistoryUnfinished || Number(meta.todayUnfinished) > 0;
     let nextLeagueState = leagueState;
 
