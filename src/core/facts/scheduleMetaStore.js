@@ -2,23 +2,40 @@ import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
 import { computeTournamentMetaFromRawMatches } from "../analysis/tournamentMeta.js";
 import { readRawMatches } from "./rawMatchesStore.js";
 
-export function normalizeScheduleMeta(slug, meta) {
-  if (!slug) throw new Error("schedule meta slug missing");
+function readNonNegativeInteger(value, label) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0) {
+    throw new Error(`${label} must be a non-negative integer`);
+  }
+  return number;
+}
+
+export function assertScheduleMetaFields(label, meta) {
   if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
-    throw new Error(`SCHEDULE_META must be a JSON object: ${slug}`);
+    throw new Error(`${label} must be a JSON object`);
   }
   return {
+    todayEarliestTimestamp: readNonNegativeInteger(meta.todayEarliestTimestamp, `${label}.todayEarliestTimestamp`),
+    todayUnfinished: readNonNegativeInteger(meta.todayUnfinished, `${label}.todayUnfinished`),
+    hasHistoryUnfinished: meta.hasHistoryUnfinished === true
+  };
+}
+
+export function normalizeScheduleMeta(slug, meta) {
+  if (!slug) throw new Error("schedule meta slug missing");
+  const fields = assertScheduleMetaFields(`SCHEDULE_META.${slug}`, meta);
+  return {
     slug,
-    todayEarliestTimestamp: Number(meta.todayEarliestTimestamp) || 0,
-    todayUnfinished: Number(meta.todayUnfinished) || 0,
-    hasHistoryUnfinished: !!meta.hasHistoryUnfinished
+    ...fields
   };
 }
 
 export function sameScheduleMeta(left, right) {
-  return Number(left?.todayEarliestTimestamp) === Number(right?.todayEarliestTimestamp)
-    && Number(left?.todayUnfinished) === Number(right?.todayUnfinished)
-    && !!left?.hasHistoryUnfinished === !!right?.hasHistoryUnfinished;
+  const leftFields = assertScheduleMetaFields("left SCHEDULE_META", left);
+  const rightFields = assertScheduleMetaFields("right SCHEDULE_META", right);
+  return leftFields.todayEarliestTimestamp === rightFields.todayEarliestTimestamp
+    && leftFields.todayUnfinished === rightFields.todayUnfinished
+    && leftFields.hasHistoryUnfinished === rightFields.hasHistoryUnfinished;
 }
 
 export async function rebuildScheduleMetaFromRawMatches(env, slug) {

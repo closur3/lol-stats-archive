@@ -24,6 +24,9 @@ function normalizeHomeScheduleMatch(match, tournamentIndexMap) {
 
 function appendHomeSchedule(scheduleMap, tournamentIndexMap, home) {
   const schedule = home.scheduleMap;
+  if (!schedule || typeof schedule !== "object" || Array.isArray(schedule)) {
+    throw new Error(`Invalid HOME scheduleMap: ${home.tournament.slug}`);
+  }
   for (const [date, matches] of Object.entries(schedule)) {
     if (!Array.isArray(matches)) throw new Error(`Invalid HOME schedule date: ${home.tournament.slug}:${date}`);
     if (!scheduleMap[date]) scheduleMap[date] = [];
@@ -34,6 +37,9 @@ function appendHomeSchedule(scheduleMap, tournamentIndexMap, home) {
 }
 
 export function buildStaticRenderInput(homeEntries, sortedTournaments, scheduleMetaBySlug) {
+  if (!Array.isArray(homeEntries)) throw new Error("homeEntries must be an array");
+  if (!Array.isArray(sortedTournaments)) throw new Error("sortedTournaments must be an array");
+  if (!(scheduleMetaBySlug instanceof Map)) throw new Error("scheduleMetaBySlug must be a Map");
   const runtimeConfig = { TOURNAMENTS: sortedTournaments };
   const tournamentIndexMap = new Map(sortedTournaments.map((tournament, index) => [tournament.slug, index]));
   const globalStats = {};

@@ -15,7 +15,10 @@ export async function appendLeagueLogs(env, leagueLogEntries) {
   }
   const kv = env["lol-stats-kv"];
   await Promise.all(Object.entries(leagueLogEntries).map(async ([slug, entry]) => {
-    if (!slug || !entry) return;
+    if (!slug) throw new Error("LOG slug missing");
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new Error(`LOG entry must be a JSON object: ${slug}`);
+    }
     const logKey = kvKeys.log(slug);
     const oldLogs = await readExistingLogEntries(kv, logKey);
     const nextLogs = [entry, ...oldLogs].slice(0, UPDATE_CONFIG.MAX_LOG_ENTRIES);

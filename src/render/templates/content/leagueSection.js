@@ -30,6 +30,15 @@ function buildLeagueSummary(stats) {
   return { html, hasNoData };
 }
 
+function readTournamentMeta(tournamentMeta, slug, isArchive) {
+  if (isArchive) return null;
+  const meta = tournamentMeta[slug];
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
+    throw new Error(`tournamentMeta missing: ${slug}`);
+  }
+  return meta;
+}
+
 function buildLeagueTable(tournament, stats, sortMeta) {
   const tableId = `t_${String(tournament.slug).replace(/[^A-Za-z0-9_-]/g, '_')}`;
   const rows = stats.map(teamStats => buildTeamRow(teamStats, tournament.slug, sortMeta)).join("");
@@ -38,6 +47,7 @@ function buildLeagueTable(tournament, stats, sortMeta) {
 }
 
 export function renderLeagueSection(tournament, globalStats, timeData, tournamentMeta, isArchive) {
+  const meta = readTournamentMeta(tournamentMeta, tournament.slug, isArchive);
   const rawStats = globalStats[tournament.slug];
   if (!rawStats || typeof rawStats !== "object" || Array.isArray(rawStats)) {
     throw new Error(`globalStats missing: ${tournament.slug}`);
@@ -56,8 +66,8 @@ export function renderLeagueSection(tournament, globalStats, timeData, tournamen
   const timeTableHtml = buildTimeTable(leagueTimeData);
 
   let emojiStr = "";
-  if (!isArchive && tournamentMeta[tournament.slug]) {
-    const displayEmoji = resolveHomeEmojiByPhase(tournamentMeta[tournament.slug]);
+  if (!isArchive) {
+    const displayEmoji = resolveHomeEmojiByPhase(meta);
     emojiStr = `<span ${STYLE_EMOJI}>${displayEmoji}</span>`;
   }
   const mainPage = dataUtils.getFirstOverviewPage(tournament.overview_page);
@@ -70,7 +80,7 @@ export function renderLeagueSection(tournament, globalStats, timeData, tournamen
     return `<details class="home-sec archive-sec"><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
   }
 
-  const isSleepCollapsed = tournamentMeta[tournament.slug] && resolveHomeEmojiByPhase(tournamentMeta[tournament.slug]) === "🕊️";
+  const isSleepCollapsed = resolveHomeEmojiByPhase(meta) === "🕊️";
   const openAttr = (isSleepCollapsed || summary.hasNoData) ? "" : " open";
   return `<details class="home-sec"${openAttr}><summary class="table-title home-sum"><div ${STYLE_TITLE_ROW}><span class="home-indicator">❯</span>${emojiStr}${titleText}${jumpBtn}</div> ${headerRight}</summary><div class="wrapper">${tableBody}${timeTableHtml}</div></details>`;
 }

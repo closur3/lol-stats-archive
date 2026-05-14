@@ -1,8 +1,11 @@
 import { timePolicy } from '../../utils/timePolicy.js';
 
 export function formatDeltaTag(item) {
-  const added = Number.isFinite(item?.added) ? item.added : 0;
-  const updated = Number.isFinite(item?.updated) ? item.updated : 0;
+  if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("log item must be a JSON object");
+  if (!Number.isInteger(item.added) || item.added < 0) throw new Error(`log item added invalid: ${item.slug}`);
+  if (!Number.isInteger(item.updated) || item.updated < 0) throw new Error(`log item updated invalid: ${item.slug}`);
+  const added = item.added;
+  const updated = item.updated;
   if (added > 0 && updated > 0) return `+${added}~${updated}`;
   if (added > 0) return `+${added}`;
   if (updated > 0) return `~${updated}`;
@@ -45,7 +48,9 @@ export function generateLog(syncItems, skipItems, breakers, apiErrors, authConte
 }
 
 function pickLatestRevisionTrigger(revidChanges) {
-  if (!revidChanges?.length) return null;
+  if (revidChanges === undefined) return null;
+  if (!Array.isArray(revidChanges)) throw new Error("revidChanges must be an array");
+  if (revidChanges.length === 0) return null;
   return revidChanges.reduce((latest, curr) =>
     Number(curr.revid) > Number(latest.revid) ? curr : latest
   );
@@ -56,10 +61,15 @@ export function buildLeagueLogEntries(syncItems, skipItems, breakers, apiErrors,
   const isAnon = (!authContext || authContext.isAnonymous);
   const bySlug = {};
 
-  const getDisplayName = (slug) => displayNameMap?.get(slug) || slug;
+  if (!(displayNameMap instanceof Map)) throw new Error("displayNameMap must be a Map");
+
+  const getDisplayName = (slug) => {
+    const displayName = displayNameMap.get(slug);
+    return displayName === undefined ? slug : displayName;
+  };
 
   const pushEntry = (slug, entry) => {
-    if (!slug) return;
+    if (!slug) throw new Error("LOG slug missing");
     bySlug[slug] = { loggedAt, ...entry };
   };
 
@@ -68,10 +78,10 @@ export function buildLeagueLogEntries(syncItems, skipItems, breakers, apiErrors,
       action: "SYNC",
       level: "SUCCESS",
       displayName: getDisplayName(item.slug),
-      added: item.added ?? 0,
-      updated: item.updated ?? 0,
+      added: item.added,
+      updated: item.updated,
       trigger: pickLatestRevisionTrigger(item.revidChanges),
-      isForce: item.isForce ?? false,
+      isForce: item.isForce === true,
       isAnon
     });
   });
@@ -82,23 +92,26 @@ export function buildLeagueLogEntries(syncItems, skipItems, breakers, apiErrors,
       action: "SKIP",
       level: "SUCCESS",
       displayName: getDisplayName(item.slug),
-      added: item.added ?? 0,
-      updated: item.updated ?? 0,
+      added: item.added,
+      updated: item.updated,
       trigger: pickLatestRevisionTrigger(item.revidChanges),
-      isForce: item.isForce ?? false,
+      isForce: item.isForce === true,
       isAnon
     });
   });
 
   breakers.forEach(breaker => {
-    const slug = String(breaker ?? "").split("(")[0];
-    const dropInfo = String(breaker ?? "").match(/\(Drop .+\)/)?.[0] || "(Drop)";
+    if (typeof breaker !== "string" || breaker.length === 0) throw new Error("breaker log item invalid");
+    const slug = breaker.split("(")[0];
+    const dropMatch = breaker.match(/\(Drop .+\)/);
+    const dropInfo = dropMatch ? dropMatch[0] : "(Drop)";
     const name = getDisplayName(slug);
     pushEntry(slug, { action: "BREAKER", level: "ERROR", displayName: name, dropInfo, isAnon });
   });
 
   apiErrors.forEach(apiError => {
-    const slug = String(apiError || "").split("(")[0];
+    if (typeof apiError !== "string" || apiError.length === 0) throw new Error("api error log item invalid");
+    const slug = apiError.split("(")[0];
     const name = getDisplayName(slug);
     pushEntry(slug, { action: "API_ERROR", level: "ERROR", displayName: name, isAnon });
   });

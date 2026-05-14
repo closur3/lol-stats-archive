@@ -14,10 +14,11 @@ export function buildWriteScopeSlugs(runtimeConfig, syncItems, skipItems, force,
   }
   if (!Array.isArray(syncItems)) throw new Error("syncItems must be an array");
   if (!Array.isArray(skipItems)) throw new Error("skipItems must be an array");
-  const scope = new Set([
-    ...syncItems.map(item => item?.slug).filter(Boolean),
-    ...skipItems.map(item => item?.slug).filter(Boolean)
-  ]);
+  const scope = new Set();
+  for (const item of [...syncItems, ...skipItems]) {
+    if (!item || typeof item !== "object" || !item.slug) throw new Error("write scope item slug missing");
+    scope.add(item.slug);
+  }
 
   if (!force) return scope;
   if (forceSlugs && forceSlugs.size > 0) {
@@ -26,7 +27,8 @@ export function buildWriteScopeSlugs(runtimeConfig, syncItems, skipItems, force,
   }
 
   for (const tournament of runtimeConfig.TOURNAMENTS) {
-    if (tournament?.slug) scope.add(tournament.slug);
+    if (!tournament?.slug) throw new Error("Tournament slug missing");
+    scope.add(tournament.slug);
   }
   return scope;
 }
@@ -64,8 +66,15 @@ function buildTournamentScheduleSnapshot(slug, scheduleBySlug) {
 export function buildHomeSnapshot(tournament, cache, analysis, scheduleBySlug) {
   const slug = tournament.slug;
   const { teamMap, ...tournamentStored } = tournament;
-  const stats = analysis.globalStats?.[slug];
-  const timeGrid = analysis.timeGrid?.[slug];
+  if (!analysis || typeof analysis !== "object" || Array.isArray(analysis)) throw new Error("analysis must be a JSON object");
+  if (!analysis.globalStats || typeof analysis.globalStats !== "object" || Array.isArray(analysis.globalStats)) {
+    throw new Error("analysis.globalStats must be a JSON object");
+  }
+  if (!analysis.timeGrid || typeof analysis.timeGrid !== "object" || Array.isArray(analysis.timeGrid)) {
+    throw new Error("analysis.timeGrid must be a JSON object");
+  }
+  const stats = analysis.globalStats[slug];
+  const timeGrid = analysis.timeGrid[slug];
   if (!stats || typeof stats !== "object" || Array.isArray(stats)) throw new Error(`analysis.globalStats missing: ${slug}`);
   if (!timeGrid || typeof timeGrid !== "object" || Array.isArray(timeGrid)) throw new Error(`analysis.timeGrid missing: ${slug}`);
   return {

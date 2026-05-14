@@ -49,8 +49,7 @@ export async function fetchAllMatches(fandomClient, slug, sourceInput, dateFilte
     });
 
     if (hasDuplicates) {
-      console.error(`[FANDOM:MATCHES] ${slug} duplicate MatchId, aborting to prevent infinite loop`);
-      break;
+      throw new Error(`[FANDOM:MATCHES] ${slug} duplicate MatchId, aborting to prevent infinite loop`);
     }
 
     all = all.concat(batch);

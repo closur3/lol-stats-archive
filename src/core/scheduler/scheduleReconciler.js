@@ -56,7 +56,7 @@ export async function reconcileLeagueStates(env, tournaments, nowMs = Date.now()
     assertLeagueState(slug, leagueState);
 
     const meta = requireMeta(metasBySlug, slug);
-    const hasUnfinished = !!meta.hasHistoryUnfinished || Number(meta.todayUnfinished) > 0;
+    const hasUnfinished = meta.hasHistoryUnfinished || meta.todayUnfinished > 0;
     let nextLeagueState = leagueState;
 
     if (!hasUnfinished) {

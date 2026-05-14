@@ -1,13 +1,16 @@
 ﻿import { BOT_UA, MAX_RETRIES } from '../../constants/index.js';
 
 export async function fetchWithRetry(authContext, url, maxRetries = MAX_RETRIES) {
+  if (!authContext || typeof authContext.cookie !== "string" || authContext.cookie.length === 0) {
+    throw new Error("Fandom auth cookie missing");
+  }
   let attempt = 1;
   const headers = {
     "User-Agent": BOT_UA,
     "Accept": "application/json",
-    "Accept-Encoding": "gzip, deflate, br"
+    "Accept-Encoding": "gzip, deflate, br",
+    "Cookie": authContext.cookie
   };
-  if (authContext?.cookie) headers["Cookie"] = authContext.cookie;
 
   while (attempt <= maxRetries) {
     try {

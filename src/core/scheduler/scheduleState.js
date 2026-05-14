@@ -1,5 +1,6 @@
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
 import { timePolicy } from "../../utils/timePolicy.js";
+import { assertScheduleMetaFields } from "../facts/scheduleMetaStore.js";
 
 export async function readControl(env) {
   const kv = env["lol-stats-kv"];
@@ -59,7 +60,8 @@ export function isNowInPlayWindow(leagueState, nowUtc) {
 
 export function derivePhase(leagueState, meta, nowUtc) {
   if (!hasPlayWindow(leagueState)) return "idle";
-  const hasUnfinished = !!meta?.hasHistoryUnfinished || Number(meta?.todayUnfinished) > 0;
+  const fields = assertScheduleMetaFields("SCHEDULE_META", meta);
+  const hasUnfinished = fields.hasHistoryUnfinished || fields.todayUnfinished > 0;
   return hasUnfinished && isNowInPlayWindow(leagueState, nowUtc) ? "play" : "idle";
 }
 

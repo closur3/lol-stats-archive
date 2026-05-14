@@ -5,10 +5,10 @@ import { hasRevisionRecordChanged, normalizePreviousRevisionState } from './revi
 
 export async function prepareRevisionCheck(env, tournament) {
   const slug = tournament?.slug;
-  if (!slug) return null;
+  if (!slug) throw new Error("Tournament slug missing");
 
   const pages = dataUtils.normalizeOverviewPages(tournament.overview_page);
-  if (pages.length === 0) return null;
+  if (pages.length === 0) throw new Error(`Tournament overview_page missing: ${slug}`);
 
   const dataPages = Array.from(new Set(pages.map(dataUtils.toDataPage)));
   const expandedDataPages = [];
@@ -34,7 +34,7 @@ async function fetchLatestRevisionPages(dataPages) {
       return { page, latest };
     })
   );
-  return pageResults.filter(pageResult => !pageResult.latest?.missing);
+  return pageResults.filter(pageResult => pageResult.latest.missing !== true);
 }
 
 export async function evaluateRevisionCheck(check) {
@@ -48,14 +48,18 @@ export async function evaluateRevisionCheck(check) {
   const pageResults = await fetchLatestRevisionPages(dataPages);
 
   for (const { page, latest } of pageResults) {
-    const title = latest.title || page;
+    const title = latest.title;
+    if (typeof title !== "string" || title.length === 0) {
+      throw new Error(`REV latest title missing: ${slug}:${page}`);
+    }
     nextPages[title] = {
       revid: latest.revid,
       revisionTimeUTC: latest.revisionTimeUTC,
       pageid: latest.pageid
     };
 
-    const prevRev = prevPages?.[title]?.revid;
+    const prevPage = prevPages[title];
+    const prevRev = prevPage === undefined ? undefined : prevPage.revid;
     if (!prevRev || Number(prevRev) !== Number(latest.revid)) {
       changedPages.push(`${title}:${prevRev === undefined ? "none" : prevRev}->${latest.revid}`);
       const safeTitle = title.replace(/ /g, "_");

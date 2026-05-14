@@ -4,8 +4,17 @@ import { resolveLeaguePhase } from '../../utils/leagueState.js';
 import { escapeHtml, escapeUrl } from '../../utils/htmlEscape.js';
 
 function formatDelta(entry) {
-  const added = Number(entry?.added) || 0;
-  const updated = Number(entry?.updated) || 0;
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new Error("log entry must be a JSON object");
+  }
+  if (!Number.isInteger(entry.added) || entry.added < 0) {
+    throw new Error(`Invalid log entry added: ${entry.displayName || ""}`);
+  }
+  if (!Number.isInteger(entry.updated) || entry.updated < 0) {
+    throw new Error(`Invalid log entry updated: ${entry.displayName || ""}`);
+  }
+  const added = entry.added;
+  const updated = entry.updated;
   if (entry.action === "SYNC") {
     let delta = "";
     if (added > 0) delta += `+${added}`;

@@ -38,9 +38,9 @@ async function loadLogMetaBySlug(env, slugs) {
     ]);
     return [slug, {
       totalMatchCount: rawMatches.length,
-      todayEarliestTimestamp: Number(meta.todayEarliestTimestamp) || 0,
-      todayUnfinished: Number(meta.todayUnfinished) || 0,
-      hasHistoryUnfinished: !!meta.hasHistoryUnfinished
+      todayEarliestTimestamp: meta.todayEarliestTimestamp,
+      todayUnfinished: meta.todayUnfinished,
+      hasHistoryUnfinished: meta.hasHistoryUnfinished
     }];
   }));
   return new Map(metaPairs);
@@ -48,13 +48,14 @@ async function loadLogMetaBySlug(env, slugs) {
 
 function buildLeagueLogItem(name, slug, logs, homeMeta) {
   if (!Array.isArray(logs)) throw new Error(`LOG entries missing: ${slug}`);
+  if (!homeMeta) throw new Error(`LOG meta missing: ${slug}`);
   return {
     name,
     logs,
-    totalMatches: homeMeta?.totalMatchCount ?? null,
-    todayEarliestTimestamp: homeMeta?.todayEarliestTimestamp ?? 0,
-    todayUnfinished: homeMeta?.todayUnfinished ?? 0,
-    hasHistoryUnfinished: homeMeta?.hasHistoryUnfinished ?? false
+    totalMatches: homeMeta.totalMatchCount,
+    todayEarliestTimestamp: homeMeta.todayEarliestTimestamp,
+    todayUnfinished: homeMeta.todayUnfinished,
+    hasHistoryUnfinished: homeMeta.hasHistoryUnfinished
   };
 }
 

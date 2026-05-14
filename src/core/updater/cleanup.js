@@ -16,7 +16,10 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
     kv.list({ prefix: kvKeys.SCHEDULE_META_PREFIX })
   ]);
 
-  const activeSlugs = new Set(runtimeConfig.TOURNAMENTS.map(tournament => tournament.slug));
+  const activeSlugs = new Set(runtimeConfig.TOURNAMENTS.map(tournament => {
+    if (!tournament?.slug) throw new Error("Tournament slug missing");
+    return tournament.slug;
+  }));
 
   const staleHomeKeys = allHomeKeys.keys
     .map(key => key.name)
@@ -45,18 +48,17 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
         env["lol-stats-kv"].get(keyName, { type: "json" }),
         env["lol-stats-kv"].get(kvKeys.rawMatches(slug), { type: "json" })
       ]);
-      if (!home) return null;
+      if (!home || typeof home !== "object" || Array.isArray(home)) {
+        throw new Error(`Invalid HOME snapshot for archive move: ${slug}`);
+      }
       if (!Array.isArray(rawMatches)) throw new Error(`RAW_MATCHES missing for archive move: ${slug}`);
       return { ...home, rawMatches };
     }));
 
     const archiveWrites = staleHomeKeys.map((k, i) => {
-      if (staleData[i]) {
-        const archiveSnapshot = { ...staleData[i] };
-        delete archiveSnapshot.scheduleMap;
-        return kvPutIfChanged(env, kvKeys.archive(k.slice(kvKeys.HOME_PREFIX.length)), archiveSnapshot);
-      }
-      return Promise.resolve();
+      const archiveSnapshot = { ...staleData[i] };
+      delete archiveSnapshot.scheduleMap;
+      return kvPutIfChanged(env, kvKeys.archive(k.slice(kvKeys.HOME_PREFIX.length)), archiveSnapshot);
     });
     await Promise.all(archiveWrites);
     await rebuildArchiveIndexFromSnapshots(env);

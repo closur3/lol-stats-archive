@@ -51,7 +51,7 @@ export async function handleForceUpdate(request, env) {
       pendingRevisionWrites
     }, logger);
 
-    await refreshScheduleBoardOnDayRollover(env, runtimeConfig);
+    await refreshScheduleBoardOnDayRollover(env, runtimeConfig, now);
 
     const scheduleWarnings = [];
     const scheduleOptions = { applySchedules: "best-effort", scheduleWarnings };

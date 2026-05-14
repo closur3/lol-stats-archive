@@ -1,14 +1,29 @@
+function readMetaNumber(meta, key) {
+  const number = Number(meta[key]);
+  if (!Number.isInteger(number) || number < 0) {
+    throw new Error(`Invalid league meta ${key}`);
+  }
+  return number;
+}
+
+function readLeagueMeta(meta) {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
+    throw new Error("league meta must be a JSON object");
+  }
+  return {
+    earliest: readMetaNumber(meta, "todayEarliestTimestamp"),
+    unfinished: readMetaNumber(meta, "todayUnfinished"),
+    historyUnfinished: meta.hasHistoryUnfinished === true
+  };
+}
+
 export function isOffDayMeta(meta) {
-  const earliest = Number(meta?.todayEarliestTimestamp) || 0;
-  const unfinished = Number(meta?.todayUnfinished) || 0;
-  const historyUnfinished = !!meta?.hasHistoryUnfinished;
+  const { earliest, unfinished, historyUnfinished } = readLeagueMeta(meta);
   return earliest === 0 && unfinished === 0 && !historyUnfinished;
 }
 
 export function resolveLeaguePhase(meta, nowMs = Date.now()) {
-  const earliest = Number(meta?.todayEarliestTimestamp) || 0;
-  const unfinished = Number(meta?.todayUnfinished) || 0;
-  const historyUnfinished = !!meta?.hasHistoryUnfinished;
+  const { earliest, unfinished, historyUnfinished } = readLeagueMeta(meta);
 
   if (historyUnfinished) return "play";
   if (unfinished > 0) return earliest > 0 && nowMs < earliest ? "idle" : "play";

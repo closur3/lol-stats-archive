@@ -66,7 +66,7 @@ async function runUnchangedRuntimeMetaPath(env, runtimeConfig, unchangedSlugs) {
 }
 
 async function runScheduleMaintenancePath(env, runtimeConfig, tournaments, scheduledTimeMs) {
-  await refreshScheduleBoardOnDayRollover(env, runtimeConfig);
+  await refreshScheduleBoardOnDayRollover(env, runtimeConfig, scheduledTimeMs);
   await ensureDayInitialized(env, tournaments, scheduledTimeMs);
   await reconcileLeagueStates(env, tournaments, scheduledTimeMs);
 }

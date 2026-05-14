@@ -11,7 +11,10 @@ export async function writeTournamentFacts(env, runtimeConfig, cache, analysis, 
     if (!writeScopeSlugs.has(slug)) return;
     const rawMatches = cache.rawMatches[slug];
     if (!Array.isArray(rawMatches)) throw new Error(`RAW_MATCHES missing in write scope: ${slug}`);
-    const meta = analysis.tournamentMeta?.[slug];
+    if (!analysis.tournamentMeta || typeof analysis.tournamentMeta !== "object" || Array.isArray(analysis.tournamentMeta)) {
+      throw new Error("analysis.tournamentMeta must be a JSON object");
+    }
+    const meta = analysis.tournamentMeta[slug];
     if (!meta) throw new Error(`SCHEDULE_META missing in analysis: ${slug}`);
     await writeRawMatches(env, slug, rawMatches);
     await writeScheduleMeta(env, slug, meta);

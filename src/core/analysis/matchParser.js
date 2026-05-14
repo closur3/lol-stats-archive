@@ -1,4 +1,5 @@
 import { timePolicy } from '../../utils/timePolicy.js';
+import { parseMatchBestOf, parseMatchScore } from './matchFields.js';
 
 export function parseAllMatches(rawMatches, resolveName, todayStr, tournamentSlug, tournamentLeague, tournamentIndex, allFutureMatches) {
   const parsedMatches = [];
@@ -32,20 +33,14 @@ export function parseAllMatches(rawMatches, resolveName, todayStr, tournamentSlu
     ensureTeam(team1Name);
     ensureTeam(team2Name);
 
-    const team1Score = parseInt(match.Team1Score) || 0;
-    const team2Score = parseInt(match.Team2Score) || 0;
-    const bestOf = parseInt(match.BestOf);
+    const team1Score = parseMatchScore(match.Team1Score, `${tournamentSlug}.${match.MatchId}.Team1Score`);
+    const team2Score = parseMatchScore(match.Team2Score, `${tournamentSlug}.${match.MatchId}.Team2Score`);
+    const bestOf = parseMatchBestOf(match.BestOf, `${tournamentSlug}.${match.MatchId}.BestOf`);
     const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
     const isLive = !isFinished && (team1Score > 0 || team2Score > 0 || (match.Team1Score !== "" && match.Team1Score != null));
     const isFullLength = (bestOf === 3 && Math.min(team1Score, team2Score) === 1) || (bestOf === 5 && Math.min(team1Score, team2Score) === 2);
 
-    let matchTime;
-    try {
-      matchTime = timePolicy.deriveMatchTime(match.DateTimeUTC);
-    } catch (error) {
-      console.error(`[ANALYZE:MATCH] invalid DateTimeUTC=${match.DateTimeUTC} error=${error.message}`);
-      return;
-    }
+    const matchTime = timePolicy.deriveMatchTime(match.DateTimeUTC);
     const {
       dateDisplay,
       fullDateDisplay,

@@ -3,9 +3,9 @@ import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
 import { cleanupStaleHomeKeys } from './cleanup.js';
 import { refreshHomeStaticFromCache } from './cacheRebuilder.js';
 
-export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig) {
+export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig, scheduledTimeMs = Date.now()) {
   const kv = env["lol-stats-kv"];
-  const today = timePolicy.getNow().dateString;
+  const today = timePolicy.getNow(scheduledTimeMs).dateString;
   const state = await kv.get(kvKeys.scheduleDay(), { type: "json" });
   if (state != null && (typeof state !== "object" || Array.isArray(state))) {
     throw new Error("SCHEDULE_DAY must be a JSON object");
