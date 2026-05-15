@@ -108,7 +108,7 @@ export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     .sch-live-score { color: #10b981; font-size: 13px; }
     .sch-fin-score { color: #334155; font-size: 13px; }
     .sch-empty { margin-top: 40px; text-align: center; color: #94a3b8; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 600; }
-    .arch-empty-msg { text-align: center; padding: 40px; color: #94a3b8; font-weight: 600; }
+    .arch-empty-msg { text-align: center; padding: 40px; color: #94a3b8; }
     .arch-error-msg { padding: 20px; color: #dc2626; text-align: center; font-weight: 600; }
 
     .league-summary { font-size:12px; color:#64748b; font-weight: 600; background:#f8fafc; padding:4px 10px; border-radius:6px; border:1px solid #e2e8f0; display:inline-flex; align-items:center; white-space:nowrap; }

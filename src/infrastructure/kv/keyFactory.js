@@ -16,17 +16,11 @@ export const kvKeys = {
   home(slug) {
     return `${HOME_PREFIX}${slug}`;
   },
-  homeStatic() {
-    return "HOME_STATIC_HTML";
-  },
   log(slug) {
     return `${LOG_PREFIX}${slug}`;
   },
   archive(slug) {
     return `${ARCHIVE_PREFIX}${slug}`;
-  },
-  archiveStatic() {
-    return "ARCHIVE_STATIC_HTML";
   },
   rev(slug) {
     return `${REV_PREFIX}${slug}`;

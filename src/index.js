@@ -28,9 +28,6 @@ export default {
       case "/force":
         return APIRouter.handleForceUpdate(request, env);
       
-      case "/refresh-ui":
-        return APIRouter.handleRefreshUI(request, env);
-
       case "/rebuild-archive":
         return APIRouter.handleRebuildArchive(request, env);
       

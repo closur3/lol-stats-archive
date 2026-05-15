@@ -21,7 +21,7 @@ function assertHomeSnapshot(keyName, home) {
 export async function readHomeEntries(env) {
   const kv = env["lol-stats-kv"];
   const allHomeKeys = await kv.list({ prefix: kvKeys.HOME_PREFIX });
-  const dataKeys = allHomeKeys.keys.map(key => key.name).filter(keyName => keyName !== kvKeys.homeStatic());
+  const dataKeys = allHomeKeys.keys.map(key => key.name);
   const rawHomes = await Promise.all(dataKeys.map(key => env["lol-stats-kv"].get(key, { type: "json" })));
   return rawHomes.map((home, index) => {
     assertHomeSnapshot(dataKeys[index], home);

@@ -3,15 +3,6 @@ export const TOOLS_ACTIONS = `
               return res.text().then(function(text) { return text || fallback; });
           }
 
-          function runTask(url, btnEl, busyText) {
-              if (!requireAuth()) return;
-              var restore = setButtonBusy(btnEl, busyText || '...');
-              fetch(url, { method: 'POST', headers: getAuthHeaders() }).then(function(res) {
-                  if (checkAuthError(res.status)) return;
-                  showResult(res.ok, res.ok ? '✅ Done' : '❌ Failed: ' + res.status);
-              }).catch(function() { showResult(false, NETWORK_ERROR_MSG); }).then(restore);
-          }
-
           function forceSelected() {
               if (!requireAuth()) return;
               var checked = document.querySelectorAll('#active-list .item-chk:checked');

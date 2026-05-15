@@ -17,7 +17,7 @@ export function renderActiveTournamentList(activeTournaments = []) {
           </div>
       </div>`;
   }).join("");
-  return html || "<div style='text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;'>No active</div>";
+  return html || "<div style='text-align:center; padding:40px; color:#94a3b8;'>No active</div>";
 }
 
 export function renderArchivedTournamentList(archivedTournaments = []) {
@@ -40,5 +40,5 @@ export function renderArchivedTournamentList(archivedTournaments = []) {
           </div>
       </div>`;
   }).join("");
-  return html || "<div style='text-align:center; padding:12px 0; color:#94a3b8; font-size:12px;'>No archives</div>";
+  return html || "<div style='text-align:center; padding:40px; color:#94a3b8;'>No archive</div>";
 }

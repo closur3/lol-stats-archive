@@ -67,7 +67,7 @@ export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     .log-mini-time { color: #94a3b8; font-size: 12px; white-space: nowrap; flex-shrink: 0; min-width: 135px; font-weight: 500; }
     .log-mini-msg { color: #64748b; word-break: break-all; line-height: 1.4; font-size: 13px; font-weight: 500; }
     .log-mini-msg .hl { color: #0f172a; font-weight: 600; }
-    .empty-logs { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; grid-column: 1 / -1; }
+    .empty-logs { padding: 40px; text-align: center; color: #94a3b8; grid-column: 1 / -1; }
     
     ${footerCSS}
 

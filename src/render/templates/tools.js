@@ -50,7 +50,6 @@ export function renderToolsPage(time, sha, activeTournaments = [], archivedTourn
                       ${activeListHtml}
                   </div>
                   <div class="ops-actions">
-                      <button class="secondary-btn" onclick="runTask('/refresh-ui', this, 'Refreshing...')">Refresh UI</button>
                       <button class="primary-btn" onclick="forceSelected()">Force Update</button>
                   </div>
 

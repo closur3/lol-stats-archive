@@ -1,7 +1,7 @@
 import { timePolicy } from '../../utils/timePolicy.js';
 import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
 import { cleanupStaleHomeKeys } from './cleanup.js';
-import { refreshHomeStaticFromCache } from './cacheRebuilder.js';
+import { renderCache } from '../../cache/renderCache.js';
 import { rebuildScheduleMetaFromRawMatches } from '../facts/scheduleMetaStore.js';
 
 export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig, scheduledTimeMs = Date.now()) {
@@ -27,7 +27,7 @@ export async function refreshScheduleBoardOnDayRollover(env, runtimeConfig, sche
   );
 
   await cleanupStaleHomeKeys(env, runtimeConfig);
-  await refreshHomeStaticFromCache(env);
+  renderCache.invalidateAll();
 
   console.log(`[SCHED:DAY] ${lastDay || "none"} -> ${today}`);
 }

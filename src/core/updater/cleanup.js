@@ -1,7 +1,7 @@
 import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
 import { kvPutIfChanged, kvDelete } from '../../utils/kvStore.js';
 import { rebuildArchiveIndexFromSnapshots } from './archiveIndex.js';
-import { generateArchiveStaticHTML } from './archiveBuilder.js';
+import { renderCache } from '../../cache/renderCache.js';
 
 export async function cleanupStaleHomeKeys(env, runtimeConfig) {
   if (!Array.isArray(runtimeConfig.TOURNAMENTS)) {
@@ -23,7 +23,7 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
 
   const staleHomeKeys = allHomeKeys.keys
     .map(key => key.name)
-    .filter(keyName => keyName !== kvKeys.homeStatic() && !activeSlugs.has(keyName.slice(kvKeys.HOME_PREFIX.length)));
+    .filter(keyName => !activeSlugs.has(keyName.slice(kvKeys.HOME_PREFIX.length)));
 
   const staleLogKeys = allLogKeys.keys
     .map(key => key.name)
@@ -76,8 +76,7 @@ export async function cleanupStaleHomeKeys(env, runtimeConfig) {
   }
 
   if (staleHomeKeys.length > 0) {
-    const archiveHTML = await generateArchiveStaticHTML(env);
-    await kvPutIfChanged(env, kvKeys.archiveStatic(), archiveHTML);
-    console.log(`[ARCHIVE:STATIC] refreshed`);
+    renderCache.invalidateArchive();
+    console.log(`[ARCHIVE:CACHE] invalidated`);
   }
 }

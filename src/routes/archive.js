@@ -1,8 +1,6 @@
-import { kvKeys } from '../infrastructure/kv/keyFactory.js';
+import { renderCache } from '../cache/renderCache.js';
+import { renderArchiveFromFacts } from '../render/ssrRenderService.js';
 
-/**
- * 归档路由处理
- */
 export class ArchiveRouter {
   static htmlHeaders() {
     return {
@@ -13,18 +11,15 @@ export class ArchiveRouter {
     };
   }
 
-  /**
-   * 处理归档页面请求
-   */
   static async handleArchive(request, env) {
-    const html = await env["lol-stats-kv"].get(kvKeys.archiveStatic());
-    if (html) {
-      return new Response(html, { headers: ArchiveRouter.htmlHeaders() });
+    const cached = renderCache.getArchive();
+    if (cached) {
+      return new Response(cached, { headers: ArchiveRouter.htmlHeaders() });
     }
-    
-    return new Response(
-      "Archive is not ready yet. <a href='/tools'>Go to Tools</a>.",
-      { headers: ArchiveRouter.htmlHeaders() }
-    );
+
+    const html = await renderArchiveFromFacts(env);
+
+    renderCache.setArchive(html);
+    return new Response(html, { headers: ArchiveRouter.htmlHeaders() });
   }
 }

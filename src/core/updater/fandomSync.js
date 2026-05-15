@@ -11,7 +11,7 @@ import { appendLeagueLogs } from './logPersistence.js';
 import { commitRevisionWrites } from './revWriter.js';
 import { UPDATE_CONFIG } from './types.js';
 import { loadTeamsConfig } from './teamsConfigLoader.js';
-import { refreshHomeStaticFromCache } from './cacheRebuilder.js';
+import { renderCache } from '../../cache/renderCache.js';
 
 function buildScopedRuntimeConfig(runtimeConfig, scopeSlugs) {
   if (!Array.isArray(runtimeConfig.TOURNAMENTS)) {
@@ -95,7 +95,7 @@ async function persistWriteScope(env, runtimeConfig, cache, teamsRaw, writeScope
   const analysis = Analyzer.runFullAnalysis(scopedRawMatches, scopedRuntimeConfig, UPDATE_CONFIG.MAX_SCHEDULE_DAYS);
   await writeTournamentFacts(env, scopedRuntimeConfig, cache, analysis, writeScopeSlugs);
   await writeHomeProjections(env, scopedRuntimeConfig, cache, analysis, writeScopeSlugs);
-  await refreshHomeStaticFromCache(env);
+  renderCache.invalidateAll();
 }
 
 export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, force = false, forceSlugs = null, options = {}, logger) {

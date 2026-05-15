@@ -40,11 +40,10 @@ function assertArchiveSnapshot(snapshot, key) {
   return slug;
 }
 
-async function dumpSnapshotPrefix(kv, prefix, excludedKey, assertSnapshot) {
+async function dumpSnapshotPrefix(kv, prefix, assertSnapshot) {
   const allKeys = await kv.list({ prefix });
   const dataKeys = allKeys.keys
     .map(key => key.name)
-    .filter(keyName => keyName !== excludedKey)
     .sort();
   const entries = await Promise.all(dataKeys.map(async key => {
     const snapshot = await kv.get(key, { type: "json" });
@@ -60,8 +59,8 @@ export async function handleBackup(request, env) {
 
   const kv = env["lol-stats-kv"];
   const [home, archive, configArchive] = await Promise.all([
-    dumpSnapshotPrefix(kv, kvKeys.HOME_PREFIX, kvKeys.homeStatic(), assertHomeSnapshot),
-    dumpSnapshotPrefix(kv, kvKeys.ARCHIVE_PREFIX, kvKeys.archiveStatic(), assertArchiveSnapshot),
+    dumpSnapshotPrefix(kv, kvKeys.HOME_PREFIX, assertHomeSnapshot),
+    dumpSnapshotPrefix(kv, kvKeys.ARCHIVE_PREFIX, assertArchiveSnapshot),
     readArchiveIndex(env)
   ]);
   const rawMatches = {};

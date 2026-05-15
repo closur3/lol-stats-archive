@@ -32,7 +32,7 @@ function normalizeArchiveList(list) {
 async function readArchiveSnapshotTournaments(env) {
   const kv = env["lol-stats-kv"];
   const allKeys = await kv.list({ prefix: kvKeys.ARCHIVE_PREFIX });
-  const dataKeys = allKeys.keys.filter(key => key.name !== kvKeys.archiveStatic());
+  const dataKeys = allKeys.keys;
   const snapshots = await Promise.all(dataKeys.map(key => kv.get(key.name, { type: "json" })));
   return snapshots.map((snapshot, index) => {
     if (!snapshot?.tournament) throw new Error(`Invalid archive snapshot: ${dataKeys[index].name}`);
