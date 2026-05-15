@@ -7,7 +7,6 @@ import { commitRevisionWrites } from "../updater/revWriter.js";
 import { refreshScheduleBoardOnDayRollover } from "../updater/dayRollover.js";
 import { ensureDayInitialized, reconcileLeagueStates, resolveScheduledExecutionSlugs } from "../scheduler/dynamicCronManager.js";
 import { Logger } from "../../infrastructure/logger.js";
-import { refreshRuntimeMeta } from "./runtimeMetaRefresh.js";
 
 const SKIP_CRON = Symbol("skip cron");
 
@@ -37,9 +36,7 @@ async function detectScopedRevisionChanges(env, tournaments, executionSlugs) {
   const { changedSlugs, revidChanges, pendingRevisionWrites, hasErrors, checkedSlugs } = await detectRevisionChanges(env, scopedTournaments);
   console.log(`[UPDATE:REV] checked=${checkedSlugs} changed=${changedSlugs.size} errors=${hasErrors ? 1 : 0}`);
 
-  const checkedSlugSet = new Set(scopedTournaments.map(tournament => tournament.slug));
-  const unchangedSlugs = new Set([...checkedSlugSet].filter(slug => !changedSlugs.has(slug)));
-  return { changedSlugs, unchangedSlugs, revidChanges, pendingRevisionWrites };
+  return { changedSlugs, revidChanges, pendingRevisionWrites };
 }
 
 async function runChangedRevisionPath(env, githubClient, runtimeConfig, tournaments, revisionResult, logger) {
@@ -55,13 +52,6 @@ async function runChangedRevisionPath(env, githubClient, runtimeConfig, tourname
     }, logger);
   } else {
     await commitRevisionWrites(env, pendingRevisionWrites);
-  }
-}
-
-async function runUnchangedRuntimeMetaPath(env, runtimeConfig, unchangedSlugs) {
-  if (unchangedSlugs.size > 0) {
-    console.log(`[UPDATE:GATE] runtime-meta slugs=${Array.from(unchangedSlugs).join(", ")}`);
-    await refreshRuntimeMeta(env, runtimeConfig, unchangedSlugs);
   }
 }
 
@@ -82,6 +72,5 @@ export async function runCron(env, event) {
 
   const revisionResult = await detectScopedRevisionChanges(env, tournaments, executionSlugs);
   await runChangedRevisionPath(env, githubClient, runtimeConfig, tournaments, revisionResult, logger);
-  await runUnchangedRuntimeMetaPath(env, runtimeConfig, revisionResult.unchangedSlugs);
   await runScheduleMaintenancePath(env, runtimeConfig, tournaments, event.scheduledTime);
 }
