@@ -17,9 +17,9 @@ export function computeTournamentMetaFromRawMatches(rawMatches) {
       todayEarliest = ts;
     }
 
-    const team1Score = parseMatchScore(match.Team1Score, `${match.MatchId}.Team1Score`);
-    const team2Score = parseMatchScore(match.Team2Score, `${match.MatchId}.Team2Score`);
-    const bestOf = parseMatchBestOf(match.BestOf, `${match.MatchId}.BestOf`);
+    const team1Score = parseMatchScore(match.Team1Score, match.MatchId, "Team1Score");
+    const team2Score = parseMatchScore(match.Team2Score, match.MatchId, "Team2Score");
+    const bestOf = parseMatchBestOf(match.BestOf, match.MatchId, "BestOf");
     const isFinished = Math.max(team1Score, team2Score) >= Math.ceil(bestOf / 2);
     if (isFinished) continue;
 
