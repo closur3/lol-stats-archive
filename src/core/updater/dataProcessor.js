@@ -23,12 +23,16 @@ function calcChangedCount(oldData, newData) {
 
   let added = 0;
   let updated = 0;
+  let deleted = 0;
   for (const [key, nextVal] of newMap.entries()) {
     const prevVal = oldMap.get(key);
     if (prevVal == null) added++;
     else if (prevVal !== nextVal) updated++;
   }
-  return { added, updated, changed: added + updated };
+  for (const key of oldMap.keys()) {
+    if (!newMap.has(key)) deleted++;
+  }
+  return { added, updated, deleted, changed: added + updated };
 }
 
 export function processResults(results, cache, force, forceSlugs, runtimeConfig) {
@@ -53,17 +57,27 @@ export function processResults(results, cache, force, forceSlugs, runtimeConfig)
         failedSlugs.add(slug);
       } else {
         const changedCount = calcChangedCount(oldData, newData);
-        cache.rawMatches[slug] = newData;
-        if (changedCount.changed > 0) {
-          syncItems.push({
-            slug,
-            displayName: getDisplayName(displayNameMap, slug),
-            added: changedCount.added,
-            updated: changedCount.updated,
-            isForce
-          });
+        if (changedCount.changed === 0 && changedCount.deleted > 0) {
+          if (isForce) {
+            cache.rawMatches[slug] = newData;
+            skipItems.push({ slug, displayName: getDisplayName(displayNameMap, slug), added: 0, updated: 0, isForce });
+          } else {
+            console.log(`[UPDATE:DROP_WARN] ${slug} records decreased ${oldData.length}->${newData.length} (deleted=${changedCount.deleted}), preserving cache`);
+            skipItems.push({ slug, displayName: getDisplayName(displayNameMap, slug), added: 0, updated: 0, isForce });
+          }
         } else {
-          skipItems.push({ slug, displayName: getDisplayName(displayNameMap, slug), added: 0, updated: 0, isForce });
+          cache.rawMatches[slug] = newData;
+          if (changedCount.changed > 0) {
+            syncItems.push({
+              slug,
+              displayName: getDisplayName(displayNameMap, slug),
+              added: changedCount.added,
+              updated: changedCount.updated,
+              isForce
+            });
+          } else {
+            skipItems.push({ slug, displayName: getDisplayName(displayNameMap, slug), added: 0, updated: 0, isForce });
+          }
         }
       }
     } else {

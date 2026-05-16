@@ -33,7 +33,7 @@ export async function fetchAllMatches(fandomClient, slug, sourceInput, dateFilte
       limit: limit.toString(),
       offset: offset.toString(),
       order_by: "DateTime_UTC ASC",
-      maxlag: "5"
+      maxlag: "1"
     });
 
     const batchRaw = await fandomClient.fetchWithRetry(`${FANDOM_API}?${cargoParams}`);
@@ -60,5 +60,10 @@ export async function fetchAllMatches(fandomClient, slug, sourceInput, dateFilte
 
     await new Promise(resolveDelay => setTimeout(resolveDelay, FETCH_DELAY_MS));
   }
+
+  if (all.length === 0) {
+    throw new Error(`[FANDOM:MATCHES] ${slug} returned 0 records`);
+  }
+
   return all;
 }
