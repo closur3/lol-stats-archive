@@ -15,7 +15,7 @@ export function buildWriteScopeSlugs(runtimeConfig, syncItems, skipItems, force,
   if (!Array.isArray(syncItems)) throw new Error("syncItems must be an array");
   if (!Array.isArray(skipItems)) throw new Error("skipItems must be an array");
   const scope = new Set();
-  for (const item of [...syncItems, ...skipItems]) {
+  for (const item of syncItems) {
     if (!item || typeof item !== "object" || !item.slug) throw new Error("write scope item slug missing");
     scope.add(item.slug);
   }

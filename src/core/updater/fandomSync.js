@@ -86,13 +86,19 @@ function buildLogs(runtimeConfig, processed, authContext, logger) {
   return buildLeagueLogEntries(syncItems, skipItems, breakers, apiErrors, authContext, runtimeConfig, displayNameMap);
 }
 
-async function persistWriteScope(env, runtimeConfig, cache, teamsRaw, writeScopeSlugs) {
+async function persistFacts(env, runtimeConfig, cache, teamsRaw, writeScopeSlugs) {
   if (writeScopeSlugs.size === 0) return;
   const scopedRuntimeConfig = buildScopedRuntimeConfig(runtimeConfig, writeScopeSlugs);
   await prepareTournamentContext(env, scopedRuntimeConfig, cache, teamsRaw);
   const scopedRawMatches = buildScopedRawMatches(cache.rawMatches, writeScopeSlugs);
   const analysis = Analyzer.runFullAnalysis(scopedRawMatches, scopedRuntimeConfig, UPDATE_CONFIG.MAX_SCHEDULE_DAYS);
   await writeTournamentFacts(env, scopedRuntimeConfig, cache, analysis, writeScopeSlugs);
+  return analysis;
+}
+
+async function rebuildProjections(env, runtimeConfig, cache, analysis, writeScopeSlugs) {
+  if (writeScopeSlugs.size === 0) return;
+  const scopedRuntimeConfig = buildScopedRuntimeConfig(runtimeConfig, writeScopeSlugs);
   await writeHomeProjections(env, scopedRuntimeConfig, cache, analysis, writeScopeSlugs);
 }
 
@@ -105,8 +111,10 @@ export async function runFandomUpdate(env, githubClient, runtimeConfig, cache, f
   const { failedSlugs, syncItems, skipItems, authContext } = processed;
   attachRevisionChanges([...syncItems, ...skipItems], revidChanges);
   const leagueLogEntries = buildLogs(runtimeConfig, processed, authContext, logger);
+
   const writeScopeSlugs = buildWriteScopeSlugs(runtimeConfig, syncItems, skipItems, forceWrite, forceSlugs);
-  await persistWriteScope(env, runtimeConfig, cache, teamsRaw, writeScopeSlugs);
+  const analysis = await persistFacts(env, runtimeConfig, cache, teamsRaw, writeScopeSlugs);
+  await rebuildProjections(env, runtimeConfig, cache, analysis, writeScopeSlugs);
   await appendLeagueLogs(env, leagueLogEntries);
   await commitRevisionWrites(env, pendingRevisionWrites, failedSlugs);
 }
