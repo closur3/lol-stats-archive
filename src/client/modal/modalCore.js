@@ -1,6 +1,6 @@
 export const MODAL_CORE = `
 const RESULT_ICON_MAP = { 
-  'WIN': '\\u2714', 
+  'WIN': '\\u2705', 
   'LOSS': '\\u274c', 
   'LIVE': '\\ud83d\\udd35', 
   'NEXT': '\\ud83d\\udd52' 
