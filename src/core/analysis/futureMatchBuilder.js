@@ -22,8 +22,3 @@ export function buildScheduleMap(allFutureMatches, tournaments, maxScheduleDays,
 
   return scheduleMap;
 }
-  const todayStr = timePolicy.getNow().dateString;
-  scheduleMap = dateUtils.pruneScheduleMapByDayStatus(scheduleMap, maxScheduleDays, todayStr, historyUnfinished);
-
-  return scheduleMap;
-}
