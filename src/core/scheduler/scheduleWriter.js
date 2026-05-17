@@ -16,21 +16,26 @@ function recordScheduleApplyFailure(options, reason, error) {
 
 export async function writeStateAndSchedules(env, state, nowUtc, reason, options = {}) {
   const schedules = collectSchedulesFromState(state, nowUtc);
-  await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, false));
+  attachSchedulePlan(state, schedules, nowUtc, false);
+
   if (options.applySchedules === false) {
+    await writeControl(env, state);
     console.log(`[SCHED:${reason}] date=${state.date} schedules=${schedules.join(",")} apply=skip`);
     return;
   }
   try {
     await updateSchedules(env, schedules);
+    attachSchedulePlan(state, schedules, nowUtc, true);
   } catch (error) {
     if (options.applySchedules === "best-effort") {
       recordScheduleApplyFailure(options, reason, error);
+      await writeControl(env, state);
       return;
     }
     throw error;
   }
-  await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, true));
+
+  await writeControl(env, state);
   console.log(`[SCHED:${reason}] date=${state.date} schedules=${schedules.join(",")}`);
 }
 
