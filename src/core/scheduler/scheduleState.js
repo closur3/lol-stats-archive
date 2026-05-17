@@ -18,12 +18,8 @@ export async function writeControl(env, state) {
   await kvPut(env, kvKeys.scheduleDay(), state);
 }
 
-export function attachSchedulePlan(state, schedules, nowUtc, applied) {
-  const businessTime = timePolicy.getNow(nowUtc).fullDateTimeString;
+export function attachSchedulePlan(state, schedules) {
   state.schedules = schedules;
-  state.schedulesPlannedAt = businessTime;
-  if (applied) state.schedulesAppliedAt = businessTime;
-  else delete state.schedulesAppliedAt;
   return state;
 }
 

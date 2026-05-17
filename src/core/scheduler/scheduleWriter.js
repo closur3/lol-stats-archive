@@ -17,9 +17,9 @@ function recordScheduleApplyFailure(options, reason, error) {
 export async function writeStateAndSchedules(env, state, nowUtc, reason, options = {}) {
   const schedules = collectSchedulesFromState(state, nowUtc);
   const applied = readAppliedSchedules(state);
-  if (JSON.stringify(applied) === JSON.stringify(schedules) && state.schedulesAppliedAt) return;
+  if (JSON.stringify(applied) === JSON.stringify(schedules)) return;
 
-  attachSchedulePlan(state, schedules, nowUtc, false);
+  attachSchedulePlan(state, schedules);
 
   if (options.applySchedules === false) {
     await writeControl(env, state);
@@ -28,7 +28,6 @@ export async function writeStateAndSchedules(env, state, nowUtc, reason, options
   }
   try {
     await updateSchedules(env, schedules);
-    attachSchedulePlan(state, schedules, nowUtc, true);
   } catch (error) {
     if (options.applySchedules === "best-effort") {
       recordScheduleApplyFailure(options, reason, error);
@@ -44,9 +43,10 @@ export async function writeStateAndSchedules(env, state, nowUtc, reason, options
 
 export async function ensureSchedulesApplied(env, state, nowUtc, options = {}) {
   const schedules = collectSchedulesFromState(state, nowUtc);
-  if (JSON.stringify(readAppliedSchedules(state)) === JSON.stringify(schedules) && state.schedulesAppliedAt) return false;
+  if (JSON.stringify(readAppliedSchedules(state)) === JSON.stringify(schedules)) return false;
   if (options.applySchedules === false) {
-    await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, false));
+    attachSchedulePlan(state, schedules);
+    await writeControl(env, state);
     console.log(`[SCHED:REAPPLY] date=${state.date} schedules=${schedules.join(",")} apply=skip`);
     return true;
   }
@@ -54,13 +54,15 @@ export async function ensureSchedulesApplied(env, state, nowUtc, options = {}) {
     await updateSchedules(env, schedules);
   } catch (error) {
     if (options.applySchedules === "best-effort") {
-      await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, false));
+      attachSchedulePlan(state, schedules);
+      await writeControl(env, state);
       recordScheduleApplyFailure(options, "REAPPLY", error);
       return true;
     }
     throw error;
   }
-  await writeControl(env, attachSchedulePlan(state, schedules, nowUtc, true));
+  attachSchedulePlan(state, schedules);
+  await writeControl(env, state);
   console.log(`[SCHED:REAPPLY] date=${state.date} schedules=${schedules.join(",")}`);
   return true;
 }
