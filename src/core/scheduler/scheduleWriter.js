@@ -16,9 +16,6 @@ function recordScheduleApplyFailure(options, reason, error) {
 
 export async function writeStateAndSchedules(env, state, nowUtc, reason, options = {}) {
   const schedules = collectSchedulesFromState(state, nowUtc);
-  const applied = readAppliedSchedules(state);
-  if (JSON.stringify(applied) === JSON.stringify(schedules)) return;
-
   attachSchedulePlan(state, schedules);
 
   if (options.applySchedules === false) {
