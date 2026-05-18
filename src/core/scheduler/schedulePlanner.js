@@ -158,7 +158,7 @@ export async function runScheduleMaintenance(env, tournaments, scheduledTimeMs, 
     return;
   }
 
-  const aligned = alignStateLeaguesWithTournaments(state, tournaments);
+  const alignmentChanged = alignStateLeaguesWithTournaments(state, tournaments);
   const metas = await fetchTournamentMetasFromScheduleMeta(env, tournaments);
   const metasBySlug = new Map(metas.map(meta => [meta.slug, meta]));
 
@@ -191,7 +191,7 @@ export async function runScheduleMaintenance(env, tournaments, scheduledTimeMs, 
     }
   }
 
-  const hasChanges = !aligned || reconciled.length > 0;
+  const hasChanges = alignmentChanged || reconciled.length > 0;
   if (!hasChanges) return;
 
   if (reconciled.length > 0) {
