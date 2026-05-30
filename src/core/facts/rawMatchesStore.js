@@ -1,5 +1,4 @@
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
-import { kvPut } from "../../utils/kvStore.js";
 
 function assertRawMatches(slug, rawMatches) {
   if (!Array.isArray(rawMatches)) {
@@ -26,7 +25,7 @@ export async function readPreviousRawMatches(env, slug) {
 export async function writeRawMatches(env, slug, rawMatches) {
   if (!slug) throw new Error("rawMatches slug missing");
   assertRawMatches(slug, rawMatches);
-  await kvPut(env, kvKeys.rawMatches(slug), rawMatches);
+  await env["lol-stats-kv"].put(kvKeys.rawMatches(slug), JSON.stringify(rawMatches));
 }
 
 export async function readRawMatchesMap(env, tournaments) {

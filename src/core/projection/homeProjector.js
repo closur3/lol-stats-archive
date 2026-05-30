@@ -1,5 +1,4 @@
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
-import { kvPut } from "../../utils/kvStore.js";
 
 function requireObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -94,7 +93,7 @@ export async function writeHomeProjections(env, tournaments, cache, analysis, wr
     if (!slug) throw new Error("Tournament slug missing");
     if (!writeScopeSlugs.has(slug)) return;
     const homeSnapshot = buildHomeSnapshot(tournament, cache, analysis, scheduleBySlug);
-    await kvPut(env, kvKeys.home(slug), homeSnapshot);
+    await env["lol-stats-kv"].put(kvKeys.home(slug), JSON.stringify(homeSnapshot));
     cache.homes[slug] = homeSnapshot;
   }));
 }

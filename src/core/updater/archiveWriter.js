@@ -2,7 +2,6 @@ import { FandomClient } from '../../api/fandomClient.js';
 import { GitHubClient } from '../../api/githubClient.js';
 import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
 import { dataUtils } from '../../utils/dataUtils.js';
-import { kvDelete, kvPut } from '../../utils/kvStore.js';
 import { Analyzer } from '../analyzer.js';
 import { rebuildArchiveIndexFromSnapshots } from './archiveIndex.js';
 import { loadTeamsConfig } from './teamsConfigLoader.js';
@@ -49,14 +48,14 @@ export async function rebuildArchiveFromPayload(env, payload) {
 
   const tournament = buildTournamentFromArchivePayload(payload);
   const teamMap = dataUtils.pickTeamMap(teamsRaw, tournament, matches);
-  await kvPut(env, kvKeys.archive(payload.slug), buildArchiveSnapshot(tournament, matches, teamMap));
+  await env["lol-stats-kv"].put(kvKeys.archive(payload.slug), JSON.stringify(buildArchiveSnapshot(tournament, matches, teamMap)));
   await refreshArchiveDerivedState(env);
 }
 
 export async function deleteArchiveSnapshot(env, slug) {
   const existing = await env["lol-stats-kv"].get(kvKeys.archive(slug), { type: "json" });
   if (!existing) throw new Error(`ARCHIVE snapshot missing: ${slug}`);
-  await kvDelete(env, kvKeys.archive(slug));
+  await env["lol-stats-kv"].delete(kvKeys.archive(slug));
   await refreshArchiveDerivedState(env, { allowEmptyIndex: true });
 }
 
@@ -69,6 +68,6 @@ export async function writeManualArchive(env, payload) {
     teamMap: {}
   };
 
-  await kvPut(env, kvKeys.archive(payload.slug), snapshot);
+  await env["lol-stats-kv"].put(kvKeys.archive(payload.slug), JSON.stringify(snapshot));
   await refreshArchiveDerivedState(env);
 }

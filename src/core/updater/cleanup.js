@@ -1,5 +1,4 @@
 import { kvKeys } from '../../infrastructure/kv/keyFactory.js';
-import { kvPut, kvDelete } from '../../utils/kvStore.js';
 import { rebuildArchiveIndexFromSnapshots } from './archiveIndex.js';
 
 export async function cleanupStaleHomeKeys(env, tournaments) {
@@ -57,7 +56,7 @@ export async function cleanupStaleHomeKeys(env, tournaments) {
     const archiveWrites = staleHomeKeys.map((k, i) => {
       const archiveSnapshot = { ...staleData[i] };
       delete archiveSnapshot.scheduleMap;
-      return kvPut(env, kvKeys.archive(k.slice(kvKeys.HOME_PREFIX.length)), archiveSnapshot);
+      return env["lol-stats-kv"].put(kvKeys.archive(k.slice(kvKeys.HOME_PREFIX.length)), JSON.stringify(archiveSnapshot));
     });
     await Promise.all(archiveWrites);
     await rebuildArchiveIndexFromSnapshots(env);
@@ -66,11 +65,11 @@ export async function cleanupStaleHomeKeys(env, tournaments) {
 
   if (staleHomeKeys.length > 0 || staleLogKeys.length > 0 || staleRevKeys.length > 0 || staleRawMatchesKeys.length > 0 || staleScheduleMetaKeys.length > 0) {
     await Promise.all([
-      ...staleHomeKeys.map(key => kvDelete(env, key)),
-      ...staleLogKeys.map(key => kvDelete(env, key)),
-      ...staleRevKeys.map(key => kvDelete(env, key)),
-      ...staleRawMatchesKeys.map(key => kvDelete(env, key)),
-      ...staleScheduleMetaKeys.map(key => kvDelete(env, key))
+      ...staleHomeKeys.map(key => env["lol-stats-kv"].delete(key)),
+      ...staleLogKeys.map(key => env["lol-stats-kv"].delete(key)),
+      ...staleRevKeys.map(key => env["lol-stats-kv"].delete(key)),
+      ...staleRawMatchesKeys.map(key => env["lol-stats-kv"].delete(key)),
+      ...staleScheduleMetaKeys.map(key => env["lol-stats-kv"].delete(key))
     ]);
   }
 }

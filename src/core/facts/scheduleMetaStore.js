@@ -1,5 +1,5 @@
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
-import { kvPut } from "../../utils/kvStore.js";
+
 import { computeTournamentMetaFromRawMatches } from "../analysis/tournamentMeta.js";
 import { readRawMatches } from "./rawMatchesStore.js";
 
@@ -78,6 +78,6 @@ export async function readScheduleMetas(env, tournaments) {
 
 export async function writeScheduleMeta(env, slug, meta) {
   const normalized = normalizeScheduleMeta(slug, meta);
-  await kvPut(env, kvKeys.scheduleMeta(slug), normalized);
+  await env["lol-stats-kv"].put(kvKeys.scheduleMeta(slug), typeof normalized === "string" ? normalized : JSON.stringify(normalized));
   return normalized;
 }
