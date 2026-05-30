@@ -19,7 +19,7 @@ function readPageTitle(firstPage, pageTitle) {
 
 function readOptionalPositiveNumber(value, label) {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     throw new Error(`Invalid revision payload: ${label}`);
   }
   return value;
