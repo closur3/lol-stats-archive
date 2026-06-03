@@ -4,7 +4,7 @@
   "description": "League of Legends statistics archive worker",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --test-scheduled",
+    "dev": "wrangler kv key put CONFIG_TOUR --path config/tour.json --binding=lol-stats-kv --local && wrangler kv key put CONFIG_TEAMS --path config/teams.json --binding=lol-stats-kv --local && wrangler dev",
     "deploy": "wrangler deploy",
     "build": "echo 'Build complete - ES modules ready'",
     "test": "vitest run",
