@@ -24,6 +24,16 @@ function requireMeta(metasBySlug, slug) {
   return meta;
 }
 
+function hasUnfinishedMatches(meta) {
+  return meta.hasHistoryUnfinished || meta.todayUnfinished > 0;
+}
+
+function requirePlayWindow(slug, meta) {
+  const window = buildWindowFromMeta(meta);
+  if (!window) throw new Error(`Cannot restore play window for ${slug}`);
+  return window;
+}
+
 export async function planTodayPlay(env, tournaments, scheduledTimeMs, options = {}) {
   if (!Array.isArray(tournaments)) throw new Error("tournaments must be an array");
   const now = new Date(scheduledTimeMs);
@@ -36,8 +46,8 @@ export async function planTodayPlay(env, tournaments, scheduledTimeMs, options =
     const slug = tournament?.slug;
     if (!slug) throw new Error("Tournament slug missing");
     const meta = requireMeta(metasBySlug, slug);
-    const window = buildWindowFromMeta(meta);
-    if (!window) continue;
+    if (!hasUnfinishedMatches(meta)) continue;
+    const window = requirePlayWindow(slug, meta);
     const candidate = buildLeagueState("idle", window);
     candidate.phase = derivePhase(candidate, meta, now);
     next.leagues[slug] = candidate;
@@ -91,15 +101,13 @@ export async function reconcileLeagueStates(env, tournaments, nowMs = Date.now()
     assertLeagueState(slug, leagueState);
 
     const meta = requireMeta(metasBySlug, slug);
-    const hasUnfinished = meta.hasHistoryUnfinished || meta.todayUnfinished > 0;
+    const hasUnfinished = hasUnfinishedMatches(meta);
     let nextLeagueState = leagueState;
 
     if (!hasUnfinished) {
       nextLeagueState = buildLeagueState("idle");
     } else if (!hasPlayWindow(leagueState)) {
-      const window = buildWindowFromMeta(meta);
-      if (!window) throw new Error(`Cannot restore play window for ${slug}`);
-      nextLeagueState = buildLeagueState("idle", window);
+      nextLeagueState = buildLeagueState("idle", requirePlayWindow(slug, meta));
     }
 
     nextLeagueState.phase = derivePhase(nextLeagueState, meta, now);
@@ -109,7 +117,10 @@ export async function reconcileLeagueStates(env, tournaments, nowMs = Date.now()
     }
   }
 
-  if (!aligned && changed.length === 0) return;
+  if (!aligned && changed.length === 0) {
+    await ensureSchedulesApplied(env, state, now, options);
+    return;
+  }
   await writeStateAndSchedules(env, state, now, "RECONCILE", options);
   const details = changed.length > 0 ? changed.join(",") : "aligned-only";
   console.log(`[SCHED:STATE] date=${today} ${details}`);
@@ -143,14 +154,11 @@ export async function runScheduleMaintenance(env, tournaments, scheduledTimeMs, 
       const meta = metasBySlug.get(slug);
       if (!meta) throw new Error(`SCHEDULE_META missing after load: ${slug}`);
 
-      const hasUnfinished = meta.hasHistoryUnfinished || meta.todayUnfinished > 0;
+      const hasUnfinished = hasUnfinishedMatches(meta);
       if (hasUnfinished) {
-        const window = buildWindowFromMeta(meta);
-        if (window) {
-          const candidate = buildLeagueState("idle", window);
-          candidate.phase = derivePhase(candidate, meta, now);
-          next.leagues[slug] = candidate;
-        }
+        const candidate = buildLeagueState("idle", requirePlayWindow(slug, meta));
+        candidate.phase = derivePhase(candidate, meta, now);
+        next.leagues[slug] = candidate;
       }
     }
 
@@ -171,7 +179,7 @@ export async function runScheduleMaintenance(env, tournaments, scheduledTimeMs, 
 
     const meta = metasBySlug.get(slug);
     if (!meta) throw new Error(`SCHEDULE_META missing after load: ${slug}`);
-    const hasUnfinished = meta.hasHistoryUnfinished || meta.todayUnfinished > 0;
+    const hasUnfinished = hasUnfinishedMatches(meta);
 
     let nextLeagueState = leagueState;
 
@@ -179,8 +187,7 @@ export async function runScheduleMaintenance(env, tournaments, scheduledTimeMs, 
       nextLeagueState = buildLeagueState("idle");
     } else {
       if (!hasPlayWindow(leagueState)) {
-        const window = buildWindowFromMeta(meta);
-        if (window) nextLeagueState = buildLeagueState("idle", window);
+        nextLeagueState = buildLeagueState("idle", requirePlayWindow(slug, meta));
       }
       nextLeagueState.phase = derivePhase(nextLeagueState, meta, now);
     }
@@ -192,7 +199,10 @@ export async function runScheduleMaintenance(env, tournaments, scheduledTimeMs, 
   }
 
   const hasChanges = alignmentChanged || reconciled.length > 0;
-  if (!hasChanges) return;
+  if (!hasChanges) {
+    await ensureSchedulesApplied(env, state, now, options);
+    return;
+  }
 
   if (reconciled.length > 0) {
     console.log(`[SCHED:STATE] date=${today} ${reconciled.join(",")}`);

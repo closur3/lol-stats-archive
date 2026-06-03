@@ -1,6 +1,6 @@
 import { updateSchedules } from "./cloudflareSchedules.js";
 import { collectSchedulesFromState } from "./cronBuckets.js";
-import { attachSchedulePlan, writeControl } from "./scheduleState.js";
+import { recordAppliedSchedules, writeControl } from "./scheduleState.js";
 
 function readAppliedSchedules(state) {
   if (state.schedules === undefined) return [];
@@ -16,7 +16,6 @@ function recordScheduleApplyFailure(options, reason, error) {
 
 export async function writeStateAndSchedules(env, state, nowUtc, reason, options = {}) {
   const schedules = collectSchedulesFromState(state, nowUtc);
-  attachSchedulePlan(state, schedules);
 
   if (options.applySchedules === false) {
     await writeControl(env, state);
@@ -34,6 +33,7 @@ export async function writeStateAndSchedules(env, state, nowUtc, reason, options
     throw error;
   }
 
+  recordAppliedSchedules(state, schedules);
   await writeControl(env, state);
   console.log(`[SCHED:${reason}] date=${state.date} schedules=${schedules.join(",")}`);
 }
@@ -42,7 +42,6 @@ export async function ensureSchedulesApplied(env, state, nowUtc, options = {}) {
   const schedules = collectSchedulesFromState(state, nowUtc);
   if (JSON.stringify(readAppliedSchedules(state)) === JSON.stringify(schedules)) return false;
   if (options.applySchedules === false) {
-    attachSchedulePlan(state, schedules);
     await writeControl(env, state);
     console.log(`[SCHED:REAPPLY] date=${state.date} schedules=${schedules.join(",")} apply=skip`);
     return true;
@@ -51,14 +50,13 @@ export async function ensureSchedulesApplied(env, state, nowUtc, options = {}) {
     await updateSchedules(env, schedules);
   } catch (error) {
     if (options.applySchedules === "best-effort") {
-      attachSchedulePlan(state, schedules);
       await writeControl(env, state);
       recordScheduleApplyFailure(options, "REAPPLY", error);
       return true;
     }
     throw error;
   }
-  attachSchedulePlan(state, schedules);
+  recordAppliedSchedules(state, schedules);
   await writeControl(env, state);
   console.log(`[SCHED:REAPPLY] date=${state.date} schedules=${schedules.join(",")}`);
   return true;

@@ -63,7 +63,7 @@ async function fetchAndProcessFandom(env, tournaments, cache, force, forceSlugs)
   const { authContext, fandomClient } = await createFandomClient(env);
   const results = await fetchMatchData(fandomClient, candidates);
   const processed = processResults(results, cache, force, forceSlugs, tournaments);
-  const { brokenSlugs, errorSlugs, syncItems, skipItems, dropBreakers, fetchErrors } = processed;
+  const { syncItems, skipItems, dropBreakers, fetchErrors } = processed;
   console.log(`[FANDOM:PROCESS] sync=${syncItems.length} skip=${skipItems.length} breakers=${dropBreakers.length} errors=${fetchErrors.length}`);
   return { authContext, ...processed };
 }

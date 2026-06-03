@@ -17,7 +17,7 @@ export async function writeControl(env, state) {
   await env["lol-stats-kv"].put(kvKeys.scheduleDay(), JSON.stringify(state));
 }
 
-export function attachSchedulePlan(state, schedules) {
+export function recordAppliedSchedules(state, schedules) {
   state.schedules = schedules;
   return state;
 }
