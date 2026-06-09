@@ -107,6 +107,7 @@ export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     .floating-action-btn .icon-collapse { display: none; }
     .floating-action-btn[data-action-state="collapse"] .icon-expand { display: none; }
     .floating-action-btn[data-action-state="collapse"] .icon-collapse { display: block; }
+    .floating-actions-anchor { display: none; }
     .badge { color: white; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 600; }
     .footer { text-align: center; font-size: 12px; color: #94a3b8; margin: 40px 0; }
     .sch-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 40px; width: 100%; align-items: start; }
@@ -135,6 +136,7 @@ export default `* { box-sizing: border-box; margin: 0; padding: 0; }
     @media (max-width: 1100px) { .sch-container { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 650px) {
         .table-title, summary.arch-sum { flex-wrap: wrap; gap: 0; padding: 12px 15px 0 15px; }
+        .container { padding-bottom: 31px; }
         summary.arch-sum { display: flex; flex-direction: column; align-items: flex-start; padding: 0; }
         .table-title { display: flex; flex-direction: column; align-items: flex-start; padding: 0; background: #fff; border-bottom: none; width: 100%; border-radius: 12px 12px 0 0; }
         .table-title > div:first-child { width: 100%; padding: 8px 15px; display: flex; align-items: flex-start; flex: 1 1 0; gap: 6px; min-width: 0; }
@@ -147,7 +149,9 @@ export default `* { box-sizing: border-box; margin: 0; padding: 0; }
         .title-right-area { width: 100%; justify-content: flex-end !important; padding: 10px 15px 12px 15px; border-top: 1px dashed #e2e8f0; margin-top: 8px; display: flex; }
         .league-summary { font-size: 11px; padding: 3px 8px; }
         .time-box-select { width: 66px; }
-        .floating-actions { top: auto; right: auto; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); flex-direction: row; gap: 6px; padding: 5px; border-radius: 12px; }
+        .floating-actions { position: fixed; top: auto; right: auto; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); flex-direction: row; gap: 6px; padding: 5px; border-radius: 12px; }
+        .floating-actions-anchor { display: block; height: 50px; margin: 0 auto 16px auto; pointer-events: none; }
+        body.page-archive .floating-actions-anchor { height: 26px; }
         .floating-action-btn { width: 38px; height: 38px; border-radius: 8px; }
         .floating-action-icon { width: 18px; height: 18px; }
         details.home-sec > summary.table-title { min-height: 72px; background: linear-gradient(135deg, #f8fafc 0%, #fff 100%); }

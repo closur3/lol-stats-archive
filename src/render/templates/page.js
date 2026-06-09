@@ -51,7 +51,7 @@ export function renderClientJS() {
 
 function renderFloatingPageActions(navMode) {
   if (navMode !== "home" && navMode !== "archive") return "";
-  return `<div class="floating-actions" id="floatingPageActions" aria-label="Page actions">
+  return `<div class="floating-actions-anchor" id="floatingPageActionsAnchor" aria-hidden="true"></div><div class="floating-actions" id="floatingPageActions" aria-label="Page actions">
     <button type="button" class="floating-action-btn" id="floatingToggleLeagues" onclick="toggleAllLeagues()" aria-label="Expand all leagues">
       <svg class="floating-action-icon icon-expand" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/><path d="m17 15 3 3 3-3"/></svg>
       <svg class="floating-action-icon icon-collapse" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/><path d="m17 21 3-3 3 3"/></svg>
@@ -74,5 +74,5 @@ export function renderPageShell(title, bodyContent, navMode = "home", time = nul
     showModal = true
   } = options;
   const modalHtml = showModal ? '<div id="matchModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Match History</h3><div id="modalList" class="match-list"></div></div></div>' : "";
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>${renderFontLinks()}<style>${css}</style><link rel="icon" href="/favicon.ico"></head><body>${preBody}${renderNavBar(navMode)}<div class="${containerClass}">${bodyContent}</div>${renderBuildFooter(time, sha, hasActiveCron)}${renderFloatingPageActions(navMode)}${modalHtml}${script}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>${renderFontLinks()}<style>${css}</style><link rel="icon" href="/favicon.ico"></head><body class="page-${navMode}">${preBody}${renderNavBar(navMode)}<div class="${containerClass}">${bodyContent}</div>${renderFloatingPageActions(navMode)}${renderBuildFooter(time, sha, hasActiveCron)}${modalHtml}${script}</body></html>`;
 }
