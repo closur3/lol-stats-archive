@@ -441,8 +441,8 @@ jobs:
               elapsed = time.time() - start_time
 
               log("")
-              log(f"📊 摘要 | 原始: {len(all_data)} | 最终: {len(unique_res)} | 耗时: {elapsed:.1f}s")
-              log(f"📝 变更 | 新增: {len(added)} | 更新: {len(updated)} | 移除: {len(removed)}")
+              log(f"📊 摘要 | {f'原始: {len(all_data)}':<10} | {f'最终: {len(unique_res)}':<10} | 耗时: {elapsed:.1f}s")
+              log(f"📝 变更 | {f'新增: {len(added)}':<10} | {f'更新: {len(updated)}':<10} | {f'移除: {len(removed)}':<10}")
 
               if total_changes > 5:
                   commit_msg = f"🎯 Tour: +{len(added)}, ~{len(updated)}, -{len(removed)}"
