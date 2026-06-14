@@ -225,7 +225,6 @@ jobs:
 
               # ── 处理阶段 ──
               main_events, playoff_events = {}, []
-              date_errors = 0
               blocked_count = 0
               mapped_names = []
 
@@ -252,8 +251,8 @@ jobs:
                   try:
                       s_dt = parse_date(t["DateStart"])
                       e_dt = parse_date(t.get("Date") or t["DateStart"])
-                  except Exception:
-                      date_errors += 1
+                  except Exception as e:
+                      log(f"❌ 日期异常 | {name} | {e}")
                       continue
 
                   mapped_name, matched_keyword = apply_name_mapping(name)
@@ -442,7 +441,7 @@ jobs:
               elapsed = time.time() - start_time
 
               log("")
-              log(f"📊 摘要 | 原始: {len(all_data)} | 日期异常: {date_errors} | 最终: {len(unique_res)} | 耗时: {elapsed:.1f}s")
+              log(f"📊 摘要 | 原始: {len(all_data)} | 最终: {len(unique_res)} | 耗时: {elapsed:.1f}s")
               log(f"📝 变更 | 新增: {len(added)} | 更新: {len(updated)} | 移除: {len(removed)}")
 
               if total_changes > 5:
