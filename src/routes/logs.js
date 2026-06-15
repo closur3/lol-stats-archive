@@ -65,18 +65,19 @@ function buildLeagueLogs(sortedTournaments, logsBySlug, homeBySlug) {
   for (const tournament of sortedTournaments) {
     const slug = tournament?.slug;
     if (!slug || !logsBySlug.has(slug)) continue;
-    leagueLogs.push(buildLeagueLogItem(
-      tournament.league || tournament.name || slug,
-      slug,
-      logsBySlug.get(slug),
-      homeBySlug.get(slug)
-    ));
+    const logs = logsBySlug.get(slug);
+    const name = logs[0]?.displayName;
+    if (!name) throw new Error(`Missing displayName in LOG entries: ${slug}`);
+    leagueLogs.push(buildLeagueLogItem(name, slug, logs, homeBySlug.get(slug)));
     consumed.add(slug);
   }
 
   const orphanSlugs = Array.from(logsBySlug.keys()).filter(slug => !consumed.has(slug)).sort();
   for (const slug of orphanSlugs) {
-    leagueLogs.push(buildLeagueLogItem(slug, slug, logsBySlug.get(slug), homeBySlug.get(slug)));
+    const logs = logsBySlug.get(slug);
+    const name = logs[0]?.displayName;
+    if (!name) throw new Error(`Missing displayName in LOG entries: ${slug}`);
+    leagueLogs.push(buildLeagueLogItem(name, slug, logs, homeBySlug.get(slug)));
   }
 
   return leagueLogs;
