@@ -52,9 +52,10 @@ function setStatisticsScope(scopeOption) {
   const scopeLabel = scopeOption.dataset.statisticsScopeLabel;
   if (!scopeLabel) throw new Error('Statistics scope label missing');
   closeTournamentInfoPanels();
-  const targets = ['content', 'summary', 'legend'];
+  const targets = ['content', 'schedule', 'summary', 'legend'];
   for (const target of targets) {
     const elements = [...root.querySelectorAll('[data-statistics-scope-' + target + ']')];
+    if (elements.length === 0) continue;
     const active = elements.filter(element => element.dataset['statisticsScope' + target[0].toUpperCase() + target.slice(1)] === scope);
     if (active.length !== 1) throw new Error('Statistics scope ' + target + ' mismatch: ' + scope);
     for (const element of elements) {

@@ -66,14 +66,14 @@ function initTournamentJump() {
     const sections = getTournamentSections();
     if (sections.length === 0) return;
     const showYearHeadings = popup.dataset.yearHeadings === "true";
-    let currentYear = "";
+    let currentGroupLabel = "";
     let optionParent = popup;
     sections.forEach((section, index) => {
         const title = readTournamentTitle(section);
         if (showYearHeadings) {
-            const year = readTournamentYear(title);
-            if (year !== currentYear) {
-                currentYear = year;
+          const year = readTournamentYear(title);
+            if (year !== currentGroupLabel) {
+                currentGroupLabel = year;
                 optionParent = createTournamentYearGroup(popup, year);
             }
         }
@@ -104,13 +104,6 @@ function refreshCurrentPage() {
 
 function scrollToPageTop() {
     window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function jumpToSchedule() {
-    const schedule = document.getElementById("scheduleSection");
-    if (!schedule) throw new Error("Schedule section missing");
-    const top = schedule.getBoundingClientRect().top + window.scrollY - 76;
-    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
 }
 
 function resetFloatingActionsPosition(actions) {
@@ -182,6 +175,5 @@ function initFloatingPageActions() {
 
 window.refreshCurrentPage = refreshCurrentPage;
 window.scrollToPageTop = scrollToPageTop;
-window.jumpToSchedule = jumpToSchedule;
 initFloatingPageActions();
 `;

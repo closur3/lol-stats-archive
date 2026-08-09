@@ -1,5 +1,4 @@
 export const updateConfig = {
   dropThreshold: 0.9,
-  maxLogEntries: 20,
-  maxScheduleDays: 8,
+  maxLogEntries: 20
 };

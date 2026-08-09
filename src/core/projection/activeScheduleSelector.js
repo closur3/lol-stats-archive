@@ -25,6 +25,34 @@ function readNowTimestamp(now) {
   return timestamp;
 }
 
+function readDate(value, label) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error(`${label} must be an ISO date`);
+  }
+  return value;
+}
+
+function readOverviewPages(tournament, label) {
+  if (!Array.isArray(tournament.overviewPages) || tournament.overviewPages.length === 0) {
+    throw new Error(`${label}.overviewPages must be a nonempty array`);
+  }
+  const overviewPages = tournament.overviewPages.map((entry, overviewIndex) => {
+    const overviewLabel = `${label}.overviewPages[${overviewIndex}]`;
+    requireObject(entry, overviewLabel);
+    if (typeof entry.overviewPage !== "string" || entry.overviewPage.trim() === "") {
+      throw new Error(`${overviewLabel}.overviewPage must be a string`);
+    }
+    const startDate = readDate(entry.startDate, `${overviewLabel}.startDate`);
+    const endDate = readDate(entry.endDate, `${overviewLabel}.endDate`);
+    if (startDate > endDate) throw new Error(`${overviewLabel} date range is invalid`);
+    return { overviewPage: entry.overviewPage, startDate, endDate };
+  });
+  if (new Set(overviewPages.map(entry => entry.overviewPage)).size !== overviewPages.length) {
+    throw new Error(`${label}.overviewPages contains duplicate overviewPage`);
+  }
+  return overviewPages;
+}
+
 function readTournaments(tournaments) {
   if (!Array.isArray(tournaments)) throw new Error("tournaments must be an array");
   const names = new Set();
@@ -42,7 +70,7 @@ function readTournaments(tournaments) {
     return {
       name: tournament.name,
       leagueShort: tournament.leagueShort,
-      tournamentIndex
+      overviewPages: readOverviewPages(tournament, label)
     };
   });
 }
@@ -57,97 +85,75 @@ function assertMapScope(value, label, tournamentNames) {
   }
 }
 
-function readStoreValue(map, tournamentName, field, artifactName, assertArtifactFields) {
-  const stored = map.get(tournamentName);
-  const label = `${artifactName}.${tournamentName}`;
-  assertFields(stored, ["tournamentName", field], label);
+function readScheduleSessions(scheduleSessionsMap, tournamentName) {
+  const stored = scheduleSessionsMap.get(tournamentName);
+  const label = `ScheduleSessions.${tournamentName}`;
+  assertFields(stored, ["tournamentName", "sessions"], label);
   if (stored.tournamentName !== tournamentName) throw new Error(`${label}.tournamentName must match ${tournamentName}`);
-  return assertArtifactFields(label, { [field]: stored[field] });
+  return assertScheduleSessionsFields(label, { sessions: stored.sessions });
 }
 
-function readSessionMatches(session) {
-  const matches = session.matches.map(match => {
-    const dateTime = timePolicy.getCurrentAppDateTime(match.scheduledAt);
-    return {
-      source: match,
-      date: dateTime.dateString,
-      time: dateTime.timeString.slice(0, 5),
-      timestamp: dateTime.timestamp
-    };
-  });
-  return matches;
+function getOverviewStatus(overview, today) {
+  if (overview.endDate < today) return "past";
+  if (overview.startDate > today) return "future";
+  return "current";
 }
 
-function buildScheduleRow(match, tournament, tabName) {
-  const source = match.source;
+function buildScheduleRow(match, tournament) {
+  const dateTime = timePolicy.getCurrentAppDateTime(match.scheduledAt);
   return {
-    time: match.time,
-    team1Name: source.team1Name,
-    team2Name: source.team2Name,
-    team1Score: source.team1Score,
-    team2Score: source.team2Score,
-    bestOf: source.bestOf,
-    winner: source.winner,
-    isForfeit: source.isForfeit,
-    isFinished: source.winner !== null,
-    isLive: source.isLive,
-    leagueShort: tournament.leagueShort,
+    time: dateTime.timeString.slice(0, 5),
+    team1Name: match.team1Name,
+    team2Name: match.team2Name,
+    team1Score: match.team1Score,
+    team2Score: match.team2Score,
+    bestOf: match.bestOf,
+    winner: match.winner,
+    isForfeit: match.isForfeit,
+    isFinished: match.winner !== null,
+    isLive: match.isLive,
     tournamentName: tournament.name,
-    tournamentIndex: tournament.tournamentIndex,
-    tabName,
-    timestamp: match.timestamp
+    timestamp: match.scheduledAt,
+    date: dateTime.dateString
   };
 }
 
-function isCurrentSession(matches, today) {
-  return matches.some(match => match.date === today || (match.date < today && match.source.winner === null));
-}
-
-function appendSelectedSessions(rowsByDate, artifact, tournament, today) {
-  for (const session of artifact.sessions) {
-    const { tab } = parseScheduleSessionKey(session.sessionKey, `ScheduleSessions.${tournament.name}.${session.sessionKey}`);
-    const matches = readSessionMatches(session);
-    const currentSession = isCurrentSession(matches, today);
-    for (const match of matches) {
-      if (match.date < today && !currentSession) continue;
-      if (!rowsByDate.has(match.date)) rowsByDate.set(match.date, []);
-      rowsByDate.get(match.date).push(buildScheduleRow(match, tournament, tab));
+function appendScheduleSessions(sessionsByOverviewPage, sessions, tournament, overviewPages) {
+  const overviewPageNames = new Set(overviewPages.map(overview => overview.overviewPage));
+  for (const session of sessions) {
+    const { overviewPage, tab, matchDay } = parseScheduleSessionKey(session.sessionKey, `ScheduleSessions.${tournament.name}.${session.sessionKey}`);
+    if (!overviewPageNames.has(overviewPage)) {
+      throw new Error(`ScheduleSessions.${tournament.name} references overviewPage outside TournamentConfig: ${overviewPage}`);
     }
+    const matches = session.matches.map(match => buildScheduleRow(match, tournament));
+    sessionsByOverviewPage.get(overviewPage).sessions.push({ tabName: tab, matchDay, matches });
   }
 }
 
-function buildScheduleMap(rowsByDate, maxDays) {
-  const scheduleMap = {};
-  const dates = Array.from(rowsByDate.keys()).sort().slice(0, maxDays);
-  for (const date of dates) {
-    scheduleMap[date] = rowsByDate.get(date).sort((left, right) => {
-      if (left.tournamentIndex !== right.tournamentIndex) {
-        return left.tournamentIndex - right.tournamentIndex;
-      }
-      return left.timestamp - right.timestamp;
-    });
-  }
-  return scheduleMap;
+function buildTournamentSchedules(tournament, sessions, today) {
+  const sessionsByOverviewPage = new Map(tournament.overviewPages.map(overview => [
+    overview.overviewPage,
+    { status: getOverviewStatus(overview, today), sessions: [] }
+  ]));
+  appendScheduleSessions(sessionsByOverviewPage, sessions, tournament, tournament.overviewPages);
+  return tournament.overviewPages.map(overview => {
+    const schedule = sessionsByOverviewPage.get(overview.overviewPage);
+    return {
+      overviewPage: overview.overviewPage,
+      status: schedule.status,
+      sessions: schedule.sessions
+    };
+  });
 }
 
-export function selectActiveSchedule(scheduleSessionsMap, tournaments, now, maxDays) {
-  if (!Number.isInteger(maxDays) || maxDays < 1) throw new Error("maxDays must be a positive integer");
-  const nowTimestamp = readNowTimestamp(now);
-  const today = timePolicy.getAppDateKey(nowTimestamp);
+export function selectActiveSchedulesByTournament(scheduleSessionsMap, tournaments, now) {
+  const today = timePolicy.getAppDateKey(readNowTimestamp(now));
   const orderedTournaments = readTournaments(tournaments);
   const tournamentNames = new Set(orderedTournaments.map(tournament => tournament.name));
   assertMapScope(scheduleSessionsMap, "scheduleSessionsMap", tournamentNames);
 
-  const rowsByDate = new Map();
-  for (const tournament of orderedTournaments) {
-    const scheduleSessions = readStoreValue(
-      scheduleSessionsMap,
-      tournament.name,
-      "sessions",
-      "ScheduleSessions",
-      assertScheduleSessionsFields
-    );
-    appendSelectedSessions(rowsByDate, scheduleSessions, tournament, today);
-  }
-  return buildScheduleMap(rowsByDate, maxDays);
+  return Object.fromEntries(orderedTournaments.map(tournament => [
+    tournament.name,
+    buildTournamentSchedules(tournament, readScheduleSessions(scheduleSessionsMap, tournament.name).sessions, today)
+  ]));
 }

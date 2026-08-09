@@ -7,8 +7,7 @@ import { buildActiveRenderInput, readScheduleSessionsMap } from '../core/updater
 import { readCronInfo } from '../core/scheduler/cronInfo.js';
 import { buildModalHistory } from './modalHistoryBuilder.js';
 import { throwIfArtifactsUnavailable } from '../core/updater/artifactAvailability.js';
-import { selectActiveSchedule } from '../core/projection/activeScheduleSelector.js';
-import { updateConfig } from '../core/updater/updateConfig.js';
+import { selectActiveSchedulesByTournament } from '../core/projection/activeScheduleSelector.js';
 
 export async function renderActiveFromFacts(env) {
   const { active: tournaments, archive: archiveTournaments } = await readTournamentConfig(env);
@@ -24,11 +23,10 @@ export async function renderActiveFromFacts(env) {
   const orderedTournaments = tournaments;
   const scheduleSessionsMap = await readScheduleSessionsMap(env, orderedTournaments);
   const renderInput = buildActiveRenderInput(activeSnapshots, orderedTournaments);
-  const scheduleMap = selectActiveSchedule(
+  const schedulesByTournament = selectActiveSchedulesByTournament(
     scheduleSessionsMap,
     orderedTournaments,
-    new Date(),
-    updateConfig.maxScheduleDays
+    new Date()
   );
   const scheduleSessionsByName = Object.fromEntries(Array.from(scheduleSessionsMap, ([tournamentName, value]) => [tournamentName, { sessions: value.sessions }]));
   const modalHistory = buildModalHistory(activeSnapshots, archiveSnapshots, [...tournaments, ...archiveTournaments], tournaments, scheduleSessionsMap);
@@ -36,7 +34,7 @@ export async function renderActiveFromFacts(env) {
   const activeFragment = renderContentFragment(
     renderInput.statisticsByName,
     renderInput.timeDistributionByName,
-    scheduleMap,
+    schedulesByTournament,
     renderInput.tournaments,
     false,
     scheduleSessionsByName,

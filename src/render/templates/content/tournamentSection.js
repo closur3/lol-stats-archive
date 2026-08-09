@@ -1,4 +1,4 @@
-import { getFirstOverviewPage, getOverviewPageLabel, getOverviewPageNames } from '../../../utils/data/overviewPages.js';
+import { getOverviewPageLabel, getOverviewPageNames } from '../../../utils/data/overviewPages.js';
 import { sortTeams } from '../../../utils/data/teamSort.js';
 import { escapeHtml, escapeUrl } from '../../../utils/htmlEscape.js';
 import { resolveSchedulePhase } from '../../../core/scheduler/scheduleDay.js';
@@ -8,6 +8,7 @@ import { renderTeamRow } from '../../components/teamRow.js';
 import { renderTimeTable } from '../../components/timeTable.js';
 import { renderSchedulePhaseIcon } from '../../components/schedulePhaseIcon.js';
 import { buildParticipantGroups } from '../../../core/projection/participantGroups.js';
+import { renderScheduleSection } from './scheduleSection.js';
 
 function renderTournamentSummary(stats) {
   const summary = summarizeFullRate(stats);
@@ -146,18 +147,56 @@ function renderScopeContent(scope, content, isActive) {
   return `<div class="statistics-scope-content${hiddenClass}" data-statistics-scope-content="${scope}" aria-hidden="${String(!isActive)}">${content}</div>`;
 }
 
+function renderScopeSchedule(scope, schedule, isActive) {
+  const hiddenClass = isActive ? "" : " is-hidden";
+  return `<div class="statistics-scope-schedule${hiddenClass}" data-statistics-scope-schedule="${scope}" aria-hidden="${String(!isActive)}">${schedule}</div>`;
+}
+
 function renderScopeSelect(scopes) {
   const options = scopes.map((scope, index) => `<button type="button" class="compact-menu-option${index === 0 ? " is-selected" : ""}" role="option" aria-selected="${String(index === 0)}" data-statistics-scope-value="${escapeHtml(scope.key)}" data-statistics-scope-label="${escapeHtml(scope.label)}" onclick="event.stopPropagation(); setStatisticsScope(this)">${escapeHtml(scope.label)}</button>`).join("");
   return `<div class="statistics-scope-select compact-menu" data-statistics-scope-select><button type="button" class="statistics-scope-trigger compact-menu-trigger" aria-label="Statistics scope" aria-expanded="false" onclick="event.stopPropagation(); toggleCompactMenu(this)"><span class="compact-menu-value">${escapeHtml(scopes[0].label)}</span></button><div class="statistics-scope-menu compact-menu-popup" role="listbox" aria-hidden="true">${options}</div></div>`;
 }
 
-function renderStatistics(tournament, statistics, timeTables, isArchive) {
+function readSchedules(tournament, schedules, isArchive) {
+  if (isArchive) return new Map();
+  if (!Array.isArray(schedules) || schedules.length !== tournament.overviewPages.length) {
+    throw new Error(`schedules mismatch: ${tournament.name}`);
+  }
+  return new Map(schedules.map((schedule, index) => {
+    const overviewPage = tournament.overviewPages[index].overviewPage;
+    if (
+      !schedule
+      || schedule.overviewPage !== overviewPage
+      || !["past", "current", "future"].includes(schedule.status)
+      || !Array.isArray(schedule.sessions)
+    ) {
+      throw new Error(`schedules[${index}] invalid: ${tournament.name}`);
+    }
+    return [overviewPage, schedule];
+  }));
+}
+
+function hasDisplayableSchedule(schedule) {
+  return schedule.sessions.some(session => session.matches.some(match => (
+    match.team1Name !== "TBD" || match.team2Name !== "TBD"
+  )));
+}
+
+function renderScheduleForScope(schedule, combinedStatsByName) {
+  if (!schedule || !hasDisplayableSchedule(schedule)) return "";
+  return renderScheduleSection(schedule, combinedStatsByName);
+}
+
+function renderStatistics(tournament, statistics, timeTables, schedules, isArchive) {
   assertStatistics(tournament, statistics);
+  const schedulesByOverviewPage = readSchedules(tournament, schedules, isArchive);
+  const combinedStatsByName = { [tournament.name]: statistics.combined };
   const overviewPages = getOverviewPageNames(tournament.overviewPages);
   if (overviewPages.length === 1) {
     const page = { overviewPage: overviewPages[0], stats: statistics.combined };
     return {
       content: `${renderStatisticsView(tournament, page, "single", "combined", isArchive)}${timeTables.combined}`,
+      schedule: isArchive ? "" : renderScheduleForScope(schedules.find(schedule => schedule.status === "current"), combinedStatsByName),
       summary: renderTournamentSummary(sortTeams(statistics.combined)),
       legend: renderGroupLegend(tournament, page),
       select: "",
@@ -172,51 +211,38 @@ function renderStatistics(tournament, statistics, timeTables, isArchive) {
     undefined,
     isArchive
   );
-  const visiblePages = statistics.pages
-    .map((page, index) => ({ page, index }))
-    .filter(({ page }) => sortTeams(page.stats).length > 0);
-  if (visiblePages.length < 2) {
-    const visiblePage = visiblePages[0]?.page;
-    return visiblePage
-      ? {
-          content: `${renderStatisticsView(tournament, visiblePage, "single", undefined, isArchive)}${timeTables.combined}`,
-          summary: renderTournamentSummary(sortTeams(visiblePage.stats)),
-          legend: renderGroupLegend(tournament, visiblePage),
-          select: "",
-          hasScopes: false
-        }
-      : {
-          content: `${combined}${timeTables.combined}`,
-          summary: renderTournamentSummary(sortTeams(statistics.combined)),
-          legend: "",
-          select: "",
-          hasScopes: false
-        };
-  }
-
   const scopes = [
     {
       key: "overall",
       label: "Overall",
-      overviewPage: getFirstOverviewPage(getOverviewPageNames(tournament.overviewPages)),
       stats: statistics.combined,
       page: null,
-      content: `${combined}${timeTables.combined}`
+      content: `${combined}${timeTables.combined}`,
+      schedule: isArchive ? "" : renderScheduleForScope(schedules.find(schedule => schedule.status === "current"), combinedStatsByName)
     },
-    ...visiblePages.reverse().map(({ page, index }) => ({
+    ...statistics.pages
+      .map((page, index) => ({ page, index }))
+      .filter(({ page }) => {
+        if (sortTeams(page.stats).length > 0) return true;
+        return !isArchive && hasDisplayableSchedule(schedulesByOverviewPage.get(page.overviewPage));
+      })
+      .reverse()
+      .map(({ page, index }) => ({
       key: `page-${index}`,
       label: getOverviewPageLabel(page.overviewPage),
-      overviewPage: page.overviewPage,
       stats: page.stats,
       page,
-      content: `${renderStatisticsView(tournament, page, `p${index}`, undefined, isArchive)}${timeTables.pages.get(page.overviewPage)}`
-    }))
+      content: `${renderStatisticsView(tournament, page, `p${index}`, undefined, isArchive)}${timeTables.pages.get(page.overviewPage)}`,
+      schedule: isArchive ? "" : renderScheduleForScope(schedulesByOverviewPage.get(page.overviewPage), combinedStatsByName)
+      }))
   ];
   const summaries = scopes.map((scope, index) => renderScopeSummary(scope.key, scope.stats, index === 0)).join("");
   const legends = scopes.map((scope, index) => renderScopeLegend(tournament, scope.key, scope.page, index === 0)).join("");
   const contents = scopes.map((scope, index) => renderScopeContent(scope.key, scope.content, index === 0)).join("");
+  const scheduleContents = isArchive ? "" : scopes.map((scope, index) => renderScopeSchedule(scope.key, scope.schedule, index === 0)).join("");
   return {
     content: contents,
+    schedule: scheduleContents,
     summary: summaries,
     legend: legends,
     select: renderScopeSelect(scopes),
@@ -224,7 +250,7 @@ function renderStatistics(tournament, statistics, timeTables, isArchive) {
   };
 }
 
-export function renderTournamentSection(tournament, statisticsByName, timeDistributionByName, scheduleSessionsByName, isArchive) {
+export function renderTournamentSection(tournament, statisticsByName, timeDistributionByName, schedules, scheduleSessionsByName, isArchive) {
   const overviewPages = getOverviewPageNames(tournament.overviewPages);
   const scheduleSessions = readScheduleSessions(scheduleSessionsByName, tournament.name, isArchive);
   const statistics = statisticsByName[tournament.name];
@@ -244,7 +270,7 @@ export function renderTournamentSection(tournament, statisticsByName, timeDistri
       )
     ]))
   };
-  const statisticsLayout = renderStatistics(tournament, statistics, timeTables, isArchive);
+  const statisticsLayout = renderStatistics(tournament, statistics, timeTables, schedules, isArchive);
 
   const phaseIcon = isArchive ? "" : renderSchedulePhaseIcon(resolveSchedulePhase(scheduleSessions));
   const titleText = `<span class="tournament-title-text">${escapeHtml(tournament.name)}</span>`;
@@ -254,10 +280,12 @@ export function renderTournamentSection(tournament, statisticsByName, timeDistri
   const scopeClass = statisticsLayout.select ? " has-scope-select" : "";
   const headerStatistics = `<div class="statistics-heading-meta${scopeClass}">${statisticsLayout.summary}${divider}${statisticsLayout.select}${statisticsLayout.legend}</div>`;
   const headerRight = `<div class="title-right-area">${headerStatistics}</div>`;
+  const scheduleBody = statisticsLayout.schedule ? `<div class="schedule-root">${statisticsLayout.schedule}</div>` : "";
   const sectionBody = `<div class="wrapper">${statisticsLayout.content}</div>`;
   const statisticsRoot = statisticsLayout.hasScopes
     ? ` id="statistics_${normalizeId(tournament.name)}" data-statistics-scope="overall"`
     : "";
-  const sectionClass = statisticsLayout.hasScopes ? "active-sec statistics-root" : "active-sec";
-  return `<section class="${sectionClass}"${statisticsRoot} aria-label="${escapeHtml(tournament.name)}"><div class="table-title"><div class="tournament-title-row">${phaseIcon}${tournamentInfo}${titleText}</div>${headerRight}</div>${sectionBody}</section>`;
+  const rootClass = statisticsLayout.hasScopes ? "tournament-block statistics-root" : "tournament-block";
+  const tableSection = `<section class="active-sec" aria-label="${escapeHtml(tournament.name)}"><div class="table-title"><div class="tournament-title-row">${phaseIcon}${tournamentInfo}${titleText}</div>${headerRight}</div>${sectionBody}</section>`;
+  return `<div class="${rootClass}"${statisticsRoot}>${tableSection}${scheduleBody}</div>`;
 }
