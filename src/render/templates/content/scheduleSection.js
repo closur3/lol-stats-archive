@@ -10,8 +10,12 @@ function isFinishedTab(sessions) {
   return sessions.every(session => session.matches.every(match => match.isFinished));
 }
 
-function isStartedTab(sessions, now) {
-  return sessions.some(session => session.matches.some(match => match.timestamp <= now));
+function hasReachedTabStartDate(sessions, today) {
+  const startDate = sessions
+    .flatMap(session => session.matches)
+    .map(match => match.date)
+    .sort()[0];
+  return startDate <= today;
 }
 
 function renderScheduleSessions(sessions, combinedStatsByName) {
@@ -27,8 +31,7 @@ function renderScheduleSessions(sessions, combinedStatsByName) {
     if (!sessionsByTab.has(session.tabName)) sessionsByTab.set(session.tabName, []);
     sessionsByTab.get(session.tabName).push(session);
   }
-  const now = Date.now();
-  const today = timePolicy.getAppDateKey(now);
+  const today = timePolicy.getAppDateKey(Date.now());
   const tabs = Array.from(sessionsByTab, ([tabName, tabSessions]) => {
     const sessionHtml = tabSessions.map(session => {
       const firstMatch = session.matches[0];
@@ -39,12 +42,13 @@ function renderScheduleSessions(sessions, combinedStatsByName) {
     const heading = `<div class="sch-tab-heading">${escapeHtml(tabName || "Schedule")}</div>`;
     return { tabSessions, heading, sessionHtml };
   });
-  const tabStates = tabs.map((tab, index) => ({
-    ...tab,
-    isPast: isFinishedTab(tab.tabSessions) && tabs
-      .slice(index + 1)
-      .some(nextTab => isStartedTab(nextTab.tabSessions, now))
-  }));
+  const tabStates = tabs.map((tab, index) => {
+    const nextTab = tabs[index + 1];
+    return {
+      ...tab,
+      isPast: Boolean(nextTab) && isFinishedTab(tab.tabSessions) && hasReachedTabStartDate(nextTab.tabSessions, today)
+    };
+  });
   const openTabs = tabStates
     .filter(tab => !tab.isPast)
     .map(tab => `<section class="sch-tab">${tab.heading}${tab.sessionHtml}</section>`)

@@ -113,7 +113,6 @@ function buildScheduleRow(match, tournament) {
     isFinished: match.winner !== null,
     isLive: match.isLive,
     tournamentName: tournament.name,
-    timestamp: match.scheduledAt,
     date: dateTime.dateString
   };
 }
