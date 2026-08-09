@@ -179,8 +179,8 @@ export default `${baseCSS}
     .sch-session-heading time { font-variant-numeric: tabular-nums; }
     .sch-session.is-today .sch-session-heading { border-bottom-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
     .sch-row { display: flex; align-items: stretch; padding: 0; border-bottom: 1px solid #f8fafc; font-size: 14px; color: #334155; min-height: 36px; flex: 0 0 auto; }
-    .sch-time { width: 54px; color: #94a3b8; font-size: 12px; display: flex; align-items: center; justify-content: center; padding: 0; }
-    .sch-tag-col { width: 54px; display: flex; align-items: center; justify-content: center; padding: 0; }
+    .sch-time { width: 54px; color: #94a3b8; font-size: 12px; display: flex; align-items: center; justify-content: flex-start; padding-left: 14px; }
+    .sch-tag-col { width: 54px; display: flex; align-items: center; justify-content: flex-end; padding-right: 14px; }
     .sch-vs-container { flex: 1; display: flex; align-items: stretch; justify-content: center; }
     .sch-tag-col .best-of-pill { font-size: 12px; }
     .sch-live-score { color: #10b981; font-size: 13px; }
