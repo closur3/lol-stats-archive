@@ -42,6 +42,18 @@ function normalizeApplyState(value) {
   };
 }
 
+export function haveSameActiveFingerprints(left, right) {
+  const leftEntries = Object.entries(left);
+  return leftEntries.length === Object.keys(right).length
+    && leftEntries.every(([tournamentName, fingerprint]) => right[tournamentName] === fingerprint);
+}
+
+export function haveSameTournamentApplyState(left, right) {
+  return left !== null
+    && left.configDigest === right.configDigest
+    && haveSameActiveFingerprints(left.activeFingerprints, right.activeFingerprints);
+}
+
 export async function readExistingTournamentApplyState(env) {
   const stored = await env["lol-stats-kv"].get(kvKeys.tournamentApplyState());
   if (stored == null) return null;

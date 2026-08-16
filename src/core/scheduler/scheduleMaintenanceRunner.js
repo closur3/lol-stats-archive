@@ -50,7 +50,8 @@ async function runScheduleStateUpdate(env, tournaments, runtime, now, previousSt
     applyResult = await runScheduleApply(env, desiredCrons, applyReason, options);
     if (applyResult === "applied") recordAppliedCrons(state, desiredCrons);
   }
-  await writeScheduleState(env, state);
+  const stateChanged = previousState === null || JSON.stringify(previousState) !== JSON.stringify(state);
+  if (stateChanged) await writeScheduleState(env, state);
   console.log(`[SCHED:${logLabel}] date=${state.date} crons=${desiredCrons.join(",")} apply=${applyResult}`);
   return { scheduleState: state, scheduleSessionsByName: sessionsByName };
 }

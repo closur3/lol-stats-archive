@@ -1,7 +1,10 @@
 import { readTournamentConfig } from "../facts/tournamentConfigReader.js";
 import { assertTournamentConfigDigest } from "../facts/tournamentConfigDigest.js";
 import { buildTournamentApplyState } from "../facts/tournamentConfigFingerprint.js";
-import { writeTournamentApplyState } from "../facts/tournamentApplyState.js";
+import {
+  haveSameTournamentApplyState,
+  writeTournamentApplyState
+} from "../facts/tournamentApplyState.js";
 import { rebuildSchedule } from "../scheduler/scheduleMaintenanceRunner.js";
 import { prepareArchiveMigrations } from "./archiveMigrationPreparer.js";
 import {
@@ -13,7 +16,10 @@ import { commitActiveUpdate } from "./activeUpdateCommitter.js";
 import { deleteActiveRuntimeFacts } from "./activeTournamentDeletion.js";
 import { deriveTournamentTransition } from "./tournamentTransition.js";
 import { assertActiveRuntimeMatchesConfig } from "./activeRuntimeValidator.js";
-import { resolveTournamentApplyBaseline } from "./tournamentApplyBaseline.js";
+import {
+  auditTournamentApplyBaseline,
+  resolveTournamentApplyBaseline
+} from "./tournamentApplyBaseline.js";
 import { commitRevisionWrites } from "./revWriter.js";
 import { commitActiveLogWrites } from "./logPersistence.js";
 
@@ -21,13 +27,6 @@ function logTransition(transition) {
   console.log(
     `[TOURNAMENT:RECONCILE] added=${transition.added.join(",")} updated=${transition.updated.join(",")} archived=${transition.archived.join(",")} dropped=${transition.dropped.join(",")}`
   );
-}
-
-function applyStateMatches(left, right) {
-  if (left.configDigest !== right.configDigest) return false;
-  const leftEntries = Object.entries(left.activeFingerprints);
-  return leftEntries.length === Object.keys(right.activeFingerprints).length
-    && leftEntries.every(([tournamentName, fingerprint]) => right.activeFingerprints[tournamentName] === fingerprint);
 }
 
 async function assertConfigUnchanged(env, expectedDigest) {
@@ -54,10 +53,10 @@ function assertReconcileInputs(scheduledTimeMs, scheduleOptions) {
   }
 }
 
-async function reconcileConfig(env, config, scheduledTimeMs, scheduleOptions) {
+async function reconcileConfig(env, config, scheduledTimeMs, scheduleOptions, readApplyBaseline) {
   const desiredApplyState = await buildTournamentApplyState(config);
-  const previousApplyState = await resolveTournamentApplyBaseline(env, desiredApplyState);
-  if (applyStateMatches(previousApplyState, desiredApplyState)) {
+  const previousApplyState = await readApplyBaseline(env, desiredApplyState);
+  if (haveSameTournamentApplyState(previousApplyState, desiredApplyState)) {
     const transition = { added: [], updated: [], archived: [], dropped: [] };
     return { config, transition, configChanged: false, scheduleRuntime: null };
   }
@@ -95,7 +94,13 @@ async function reconcileConfig(env, config, scheduledTimeMs, scheduleOptions) {
 export async function reconcileTournamentRuntime(env, scheduledTimeMs, scheduleOptions) {
   assertReconcileInputs(scheduledTimeMs, scheduleOptions);
   const config = await readTournamentConfig(env);
-  return reconcileConfig(env, config, scheduledTimeMs, scheduleOptions);
+  return reconcileConfig(env, config, scheduledTimeMs, scheduleOptions, resolveTournamentApplyBaseline);
+}
+
+export async function auditTournamentRuntime(env, scheduledTimeMs, scheduleOptions) {
+  assertReconcileInputs(scheduledTimeMs, scheduleOptions);
+  const config = await readTournamentConfig(env);
+  return reconcileConfig(env, config, scheduledTimeMs, scheduleOptions, auditTournamentApplyBaseline);
 }
 
 export async function reconcileTournamentRuntimeForConfig(env, scheduledTimeMs, scheduleOptions, expectedDigest) {
@@ -110,5 +115,5 @@ export async function reconcileTournamentRuntimeForConfig(env, scheduledTimeMs, 
   if (config.configDigest !== normalizedExpectedDigest) {
     throw new TournamentConfigVersionError(normalizedExpectedDigest, config.configDigest);
   }
-  return reconcileConfig(env, config, scheduledTimeMs, scheduleOptions);
+  return reconcileConfig(env, config, scheduledTimeMs, scheduleOptions, auditTournamentApplyBaseline);
 }

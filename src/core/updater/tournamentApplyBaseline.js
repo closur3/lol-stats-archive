@@ -1,5 +1,7 @@
 import { kvKeys } from "../../infrastructure/kv/keyFactory.js";
 import {
+  haveSameActiveFingerprints,
+  haveSameTournamentApplyState,
   readExistingTournamentApplyState,
   TournamentApplyStateSchemaError
 } from "../facts/tournamentApplyState.js";
@@ -52,16 +54,7 @@ function buildRecoveryApplyState(runtimeNames, existingApplyState) {
   };
 }
 
-function hasSameFingerprints(left, right) {
-  const leftEntries = Object.entries(left);
-  return leftEntries.length === Object.keys(right).length
-    && leftEntries.every(([tournamentName, fingerprint]) => right[tournamentName] === fingerprint);
-}
-
-export async function resolveTournamentApplyBaseline(env, desiredApplyState) {
-  if (!desiredApplyState || typeof desiredApplyState !== "object" || Array.isArray(desiredApplyState)) {
-    throw new Error("desiredApplyState must be an object");
-  }
+async function readApplyCheckpoint(env) {
   let existingApplyState;
   try {
     existingApplyState = await readExistingTournamentApplyState(env);
@@ -70,14 +63,37 @@ export async function resolveTournamentApplyBaseline(env, desiredApplyState) {
     console.error(`[TOURNAMENT:CHECKPOINT] replacing invalid TournamentApplyState: ${error.message}`);
     existingApplyState = null;
   }
+  return existingApplyState;
+}
+
+async function buildAuditedApplyBaseline(env, desiredApplyState, existingApplyState) {
   const storedArtifactNames = await readStoredActiveArtifactNames(env);
   const baseline = buildRecoveryApplyState(storedArtifactNames, existingApplyState);
   if (
     existingApplyState?.configDigest === desiredApplyState.configDigest
-    && !hasSameFingerprints(baseline.activeFingerprints, desiredApplyState.activeFingerprints)
+    && !haveSameActiveFingerprints(baseline.activeFingerprints, desiredApplyState.activeFingerprints)
   ) {
     console.error("[TOURNAMENT:CHECKPOINT] runtime does not match current TournamentConfig; reconciling from Config");
     baseline.configDigest = "0".repeat(64);
   }
   return baseline;
+}
+
+function assertDesiredApplyState(desiredApplyState) {
+  if (!desiredApplyState || typeof desiredApplyState !== "object" || Array.isArray(desiredApplyState)) {
+    throw new Error("desiredApplyState must be an object");
+  }
+}
+
+export async function resolveTournamentApplyBaseline(env, desiredApplyState) {
+  assertDesiredApplyState(desiredApplyState);
+  const existingApplyState = await readApplyCheckpoint(env);
+  if (haveSameTournamentApplyState(existingApplyState, desiredApplyState)) return existingApplyState;
+  return buildAuditedApplyBaseline(env, desiredApplyState, existingApplyState);
+}
+
+export async function auditTournamentApplyBaseline(env, desiredApplyState) {
+  assertDesiredApplyState(desiredApplyState);
+  const existingApplyState = await readApplyCheckpoint(env);
+  return buildAuditedApplyBaseline(env, desiredApplyState, existingApplyState);
 }
