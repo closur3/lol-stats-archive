@@ -1,5 +1,5 @@
 {
-    "configDigest": "7142b7ef5552ced1ea5b1b30edf57631eac5b6bf4bfcc61ee406bca70935d921",
+    "configDigest": "002894e69316097ea5a8817d506fac5b4b0c1792ed7a66d8cb2babdca5f628dd",
     "active": [
         {
             "name": "2026 LPL Split 3",
@@ -10,10 +10,16 @@
                     "startDate": "2026-07-22",
                     "endDate": "2026-08-23",
                     "participantCount": 12
+                },
+                {
+                    "overviewPage": "LPL/2026 Season/Grand Finals",
+                    "startDate": "2026-08-28",
+                    "endDate": "2026-09-13",
+                    "participantCount": 10
                 }
             ],
             "startDate": "2026-07-22",
-            "endDate": "2026-08-23",
+            "endDate": "2026-09-13",
             "teamMap": {
                 "Anyone's Legend": "AL",
                 "Bilibili Gaming": "BLG",
