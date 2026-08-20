@@ -45,10 +45,10 @@ jobs:
           TZ: Asia/Shanghai
           FANDOM_BOT_USERNAME: ${{ secrets.FANDOM_BOT_USERNAME }}
           FANDOM_BOT_PASSWORD: ${{ secrets.FANDOM_BOT_PASSWORD }}
-        run: python .github/scripts/tournament/sync.py
+        run: python scripts/tournament/sync.py
 
       - name: Validate TournamentConfig
-        run: node .github/scripts/tournament/validate.js config/TournamentConfig.json
+        run: node scripts/tournament/validate.js config/TournamentConfig.json
 
       - name: Commit and Push Config
         id: auto_commit

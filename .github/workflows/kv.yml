@@ -44,7 +44,7 @@ jobs:
           node-version: '24'
 
       - name: Validate TournamentConfig
-        run: node .github/scripts/tournament/validate.js config/TournamentConfig.json
+        run: node scripts/tournament/validate.js config/TournamentConfig.json
 
       - name: Validate runtime reconcile config
         if: inputs.clear == true || inputs.reconcile == true
