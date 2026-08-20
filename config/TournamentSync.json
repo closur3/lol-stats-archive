@@ -1,0 +1,26 @@
+{
+    "discoveryDays": 180,
+    "preheatDays": 7,
+    "expireDays": 0,
+    "regions": [
+        "International",
+        "China",
+        "Korea"
+    ],
+    "whitelist": [],
+    "blacklist": [
+        "Season Opening",
+        "2026 LoL KeSPA Cup"
+    ],
+    "cargoFields": [
+        "Name",
+        "OverviewPage",
+        "DateStart=startDate",
+        "Date=endDate",
+        "League",
+        "Region",
+        "IsPlayoffs",
+        "Split",
+        "TournamentLevel"
+    ]
+}

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-import { readTournamentConfig } from "../../src/core/facts/tournamentConfigReader.js";
+import { readTournamentConfig } from "../../../src/core/facts/tournamentConfigReader.js";
 
 const configPath = process.argv[2];
 if (!configPath) throw new Error("TournamentConfig path missing");

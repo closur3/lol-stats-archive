@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import requests
 
-from tournamentConfig import (
+from model import (
     TOURNAMENT_FIELDS,
     assert_config_digest,
     assert_tournament_name,
@@ -28,24 +28,9 @@ from tournamentConfig import (
 
 now = datetime.now()
 today_dt = now.date()
-CONFIG_FILE = "config/TournamentConfig.json"
-
-# ==================== 配置区 ====================
-DISCOVERY_DAYS = 180
-PREHEAT_DAYS = 7
-EXPIRE_DAYS = 0
-REGIONS = ["International", "China", "Korea"]
-WHITELIST = []
-BLACKLIST = ["Season Opening", "2026 LoL KeSPA Cup"]
+TOURNAMENT_CONFIG_FILE = "config/TournamentConfig.json"
+SYNC_CONFIG_FILE = "config/TournamentSync.json"
 MEDIAWIKI_TITLE_BATCH_SIZE = 50
-
-CARGO_FIELDS = [
-    "Name", "OverviewPage",
-    "DateStart=startDate", "Date=endDate",
-    "League", "Region", "IsPlayoffs", "Split",
-    "TournamentLevel",
-]
-# ================================================
 
 # ==================== 工具函数 ====================
 
@@ -219,10 +204,35 @@ def validate_filter_values(values: list, label: str, allow_empty: bool = False) 
     ):
         raise ValueError(f"{label} must contain non-empty strings")
 
-def validate_filters() -> None:
-    validate_filter_values(REGIONS, "REGIONS")
-    validate_filter_values(WHITELIST, "WHITELIST", allow_empty=True)
-    validate_filter_values(BLACKLIST, "BLACKLIST", allow_empty=True)
+def load_sync_config(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as file:
+        value = json.load(file)
+
+    fields = {
+        "discoveryDays",
+        "preheatDays",
+        "expireDays",
+        "regions",
+        "whitelist",
+        "blacklist",
+        "cargoFields",
+    }
+    if not isinstance(value, dict) or set(value) != fields:
+        raise ValueError(f"{path} fields must match the TournamentSync schema")
+
+    for field in ("discoveryDays", "preheatDays", "expireDays"):
+        field_value = value[field]
+        if not isinstance(field_value, int) or isinstance(field_value, bool) or field_value < 0:
+            raise ValueError(f"{path}.{field} must be a non-negative integer")
+
+    validate_filter_values(value["regions"], f"{path}.regions")
+    validate_filter_values(value["whitelist"], f"{path}.whitelist", allow_empty=True)
+    validate_filter_values(value["blacklist"], f"{path}.blacklist", allow_empty=True)
+    validate_filter_values(value["cargoFields"], f"{path}.cargoFields")
+    return value
+
+
+SYNC_CONFIG = load_sync_config(SYNC_CONFIG_FILE)
 
 def make_session(url: str, bot_user: str, bot_pass: str) -> requests.Session:
     MAX_LOGIN_ATTEMPTS = 3
@@ -429,13 +439,13 @@ def tournament_query(where: str) -> dict:
         "action": "cargoquery",
         "format": "json",
         "tables": "Tournaments",
-        "fields": ", ".join(CARGO_FIELDS),
+        "fields": ", ".join(SYNC_CONFIG["cargoFields"]),
         "where": where,
         "order_by": "DateStart ASC, OverviewPage ASC",
     }
 
 def build_discovery_window_where() -> str:
-    latest_start = today_dt + timedelta(days=DISCOVERY_DAYS)
+    latest_start = today_dt + timedelta(days=SYNC_CONFIG["discoveryDays"])
     return " AND ".join([
         f"Date >= {cargo_string_literal(today_dt, 'Date')}",
         f"DateStart <= {cargo_string_literal(latest_start, 'DateStart')}",
@@ -1099,7 +1109,12 @@ def classify_tournament_rows(source_rows: list, active_overview_pages: set) -> d
             deferred_rows.append({"overviewPage": overview_page, "missingFields": missing_identity_fields})
             continue
 
-        eligibility = classify_tournament_eligibility(row, REGIONS, WHITELIST, BLACKLIST)
+        eligibility = classify_tournament_eligibility(
+            row,
+            SYNC_CONFIG["regions"],
+            SYNC_CONFIG["whitelist"],
+            SYNC_CONFIG["blacklist"],
+        )
         if eligibility == "undetermined":
             missing_fields = missing_string_fields(
                 row,
@@ -1524,8 +1539,8 @@ def resolve_config_transition(old_active: list, old_archive: list, candidates: l
         old_archive,
         candidates,
         today_dt,
-        PREHEAT_DAYS,
-        EXPIRE_DAYS,
+        SYNC_CONFIG["preheatDays"],
+        SYNC_CONFIG["expireDays"],
     )
 
 
@@ -1628,7 +1643,7 @@ def build_manifest(old_active: list, transition: dict) -> dict:
 
 def write_config(active: list, archive: list) -> None:
     config = build_tournament_config(active, archive)
-    with open(CONFIG_FILE, "w", encoding="utf-8") as file:
+    with open(TOURNAMENT_CONFIG_FILE, "w", encoding="utf-8") as file:
         json.dump(config, file, indent=4, ensure_ascii=False)
         file.write("\n")
 
@@ -1729,13 +1744,11 @@ def write_github_outputs(commit_message: str) -> None:
 
 # ==================== 主流程 ====================
 
-def run_tournament_sync():
+def run_tournament_config_sync():
     start_time = time.time()
-    old_config = load_tournament_config(CONFIG_FILE)
+    old_config = load_tournament_config(TOURNAMENT_CONFIG_FILE)
     old_active = old_config["active"]
     old_archive = old_config["archive"]
-    validate_filters()
-
     url = "https://lol.fandom.com/api.php"
     session = make_session(url, os.environ.get("FANDOM_BOT_USERNAME"), os.environ.get("FANDOM_BOT_PASSWORD"))
     discovery_rows = fetch_tournament_source_rows(session, url, old_active)
@@ -1822,4 +1835,4 @@ def run_tournament_sync():
     write_github_outputs(commit_message)
 
 if __name__ == "__main__":
-    run_tournament_sync()
+    run_tournament_config_sync()
