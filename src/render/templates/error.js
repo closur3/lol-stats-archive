@@ -23,6 +23,6 @@ export function renderDataErrorPage(error, time, sha, page) {
     css: errorCSS,
     script: "",
     showModal: false,
-    showPageActions: false
+    showTournamentSelector: false
   });
 }
