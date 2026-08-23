@@ -145,7 +145,7 @@ export default `${baseCSS}
     .floating-action-btn:disabled { color: #cbd5e1; cursor: default; transform: none; }
     .floating-action-icon { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
     .tournament-jump { position: relative; }
-    .tournament-jump.is-open::before { content: ""; position: absolute; top: -4px; right: 100%; width: 8px; height: 44px; }
+    .tournament-jump.is-open::before { content: ""; position: absolute; z-index: 39; top: -4px; right: 100%; width: var(--tournament-jump-bridge-width, 8px); height: var(--tournament-jump-bridge-height, calc(300% + 16px)); }
     .tournament-jump-trigger { width: 40px; height: 40px; justify-content: center; padding: 0; border-color: transparent; background: transparent; color: #475569; box-shadow: none; }
     .tournament-jump-trigger::before, .tournament-jump-trigger::after { display: none; }
     .tournament-jump-trigger:hover { border-color: #bfdbfe; color: #1d4ed8; background: #eff6ff; }
@@ -229,7 +229,7 @@ export default `${baseCSS}
         .floating-action-btn { width: 38px; height: 38px; border-radius: var(--radius-control); }
         .floating-action-icon { width: 18px; height: 18px; }
         .tournament-jump-trigger { width: 38px; height: 38px; }
-        .tournament-jump.is-open::before { top: auto; right: auto; bottom: 100%; left: 0; width: 100%; height: 8px; }
+        .tournament-jump.is-open::before { top: auto; right: auto; bottom: 100%; left: 0; width: calc(300% + 12px); height: 8px; }
         .tournament-jump-menu { top: auto; right: auto; bottom: calc(100% + 8px); left: 50%; width: max-content; min-width: 0; max-width: calc(100vw - 32px); max-height: min(280px, calc(100dvh - 150px)); box-sizing: border-box; transform: translateX(-50%); }
     }
 

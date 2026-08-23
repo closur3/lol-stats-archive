@@ -152,9 +152,12 @@ function renderScopeSchedule(scope, schedule, isActive) {
   return `<div class="statistics-scope-schedule${hiddenClass}" data-statistics-scope-schedule="${scope}" aria-hidden="${String(!isActive)}">${schedule}</div>`;
 }
 
-function renderScopeSelect(scopes) {
-  const options = scopes.map((scope, index) => `<button type="button" class="compact-menu-option${index === 0 ? " is-selected" : ""}" role="option" aria-selected="${String(index === 0)}" data-statistics-scope-value="${escapeHtml(scope.key)}" data-statistics-scope-label="${escapeHtml(scope.label)}" onclick="event.stopPropagation(); setStatisticsScope(this)">${escapeHtml(scope.label)}</button>`).join("");
-  return `<div class="statistics-scope-select compact-menu" data-statistics-scope-select><button type="button" class="statistics-scope-trigger compact-menu-trigger" aria-label="Statistics scope" aria-expanded="false" onclick="event.stopPropagation(); toggleCompactMenu(this)"><span class="compact-menu-value">${escapeHtml(scopes[0].label)}</span></button><div class="statistics-scope-menu compact-menu-popup" role="listbox" aria-hidden="true">${options}</div></div>`;
+function renderScopeSelect(scopes, defaultScope) {
+  const options = scopes.map(scope => {
+    const isSelected = scope === defaultScope;
+    return `<button type="button" class="compact-menu-option${isSelected ? " is-selected" : ""}" role="option" aria-selected="${String(isSelected)}" data-statistics-scope-value="${escapeHtml(scope.key)}" data-statistics-scope-label="${escapeHtml(scope.label)}" onclick="event.stopPropagation(); setStatisticsScope(this)">${escapeHtml(scope.label)}</button>`;
+  }).join("");
+  return `<div class="statistics-scope-select compact-menu" data-statistics-scope-select><button type="button" class="statistics-scope-trigger compact-menu-trigger" aria-label="Statistics scope" aria-expanded="false" onclick="event.stopPropagation(); toggleCompactMenu(this)"><span class="compact-menu-value">${escapeHtml(defaultScope.label)}</span></button><div class="statistics-scope-menu compact-menu-popup" role="listbox" aria-hidden="true">${options}</div></div>`;
 }
 
 function readSchedules(tournament, schedules, isArchive) {
@@ -180,6 +183,23 @@ function hasDisplayableSchedule(schedule) {
   return schedule.sessions.some(session => session.matches.some(match => (
     match.team1Name !== "TBD" || match.team2Name !== "TBD"
   )));
+}
+
+function hasReachedDefaultScopeProgress(schedule) {
+  const matches = schedule.sessions.flatMap(session => session.matches);
+  if (matches.length === 0) return false;
+  const completedCount = matches.filter(match => match.isFinished).length;
+  return completedCount * 10 >= matches.length * 3;
+}
+
+function selectDefaultScope(scopes, schedulesByOverviewPage, isArchive) {
+  const overallScope = scopes[0];
+  if (isArchive) return overallScope;
+  const currentSchedules = [...schedulesByOverviewPage.values()].filter(schedule => schedule.status === "current");
+  if (currentSchedules.length !== 1 || !hasReachedDefaultScopeProgress(currentSchedules[0])) return overallScope;
+  const currentScope = scopes.find(scope => scope.page?.overviewPage === currentSchedules[0].overviewPage);
+  if (!currentScope) throw new Error(`Current statistics scope missing: ${currentSchedules[0].overviewPage}`);
+  return currentScope;
 }
 
 function renderScheduleForScope(schedule, combinedStatsByName) {
@@ -236,17 +256,19 @@ function renderStatistics(tournament, statistics, timeTables, schedules, isArchi
       schedule: isArchive ? "" : renderScheduleForScope(schedulesByOverviewPage.get(page.overviewPage), combinedStatsByName)
       }))
   ];
-  const summaries = scopes.map((scope, index) => renderScopeSummary(scope.key, scope.stats, index === 0)).join("");
-  const legends = scopes.map((scope, index) => renderScopeLegend(tournament, scope.key, scope.page, index === 0)).join("");
-  const contents = scopes.map((scope, index) => renderScopeContent(scope.key, scope.content, index === 0)).join("");
-  const scheduleContents = isArchive ? "" : scopes.map((scope, index) => renderScopeSchedule(scope.key, scope.schedule, index === 0)).join("");
+  const defaultScope = selectDefaultScope(scopes, schedulesByOverviewPage, isArchive);
+  const summaries = scopes.map(scope => renderScopeSummary(scope.key, scope.stats, scope === defaultScope)).join("");
+  const legends = scopes.map(scope => renderScopeLegend(tournament, scope.key, scope.page, scope === defaultScope)).join("");
+  const contents = scopes.map(scope => renderScopeContent(scope.key, scope.content, scope === defaultScope)).join("");
+  const scheduleContents = isArchive ? "" : scopes.map(scope => renderScopeSchedule(scope.key, scope.schedule, scope === defaultScope)).join("");
   return {
     content: contents,
     schedule: scheduleContents,
     summary: summaries,
     legend: legends,
-    select: renderScopeSelect(scopes),
-    hasScopes: true
+    select: renderScopeSelect(scopes, defaultScope),
+    hasScopes: true,
+    defaultScope: defaultScope.key
   };
 }
 
@@ -283,7 +305,7 @@ export function renderTournamentSection(tournament, statisticsByName, timeDistri
   const scheduleBody = statisticsLayout.schedule ? `<div class="schedule-root">${statisticsLayout.schedule}</div>` : "";
   const sectionBody = `<div class="wrapper">${statisticsLayout.content}</div>`;
   const statisticsRoot = statisticsLayout.hasScopes
-    ? ` id="statistics_${normalizeId(tournament.name)}" data-statistics-scope="overall"`
+    ? ` id="statistics_${normalizeId(tournament.name)}" data-statistics-scope="${escapeHtml(statisticsLayout.defaultScope)}"`
     : "";
   const rootClass = statisticsLayout.hasScopes ? "tournament-block statistics-root" : "tournament-block";
   const tableSection = `<section class="active-sec" aria-label="${escapeHtml(tournament.name)}"><div class="table-title"><div class="tournament-title-row">${phaseIcon}${tournamentInfo}${titleText}</div>${headerRight}</div>${sectionBody}</section>`;

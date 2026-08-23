@@ -57,12 +57,34 @@ function jumpToTournament(section, index) {
     closeCompactMenus();
 }
 
+function syncTournamentJumpBridge() {
+    const menu = document.getElementById("tournamentJump");
+    if (!menu || !menu.classList.contains("is-open")) return;
+    if (window.matchMedia("(max-width: 650px)").matches) {
+        menu.style.removeProperty("--tournament-jump-bridge-width");
+        menu.style.removeProperty("--tournament-jump-bridge-height");
+        return;
+    }
+    const actions = menu.closest(".floating-actions");
+    const popup = menu.querySelector(".tournament-jump-menu");
+    if (!actions || !popup) throw new Error("Tournament jump bridge structure invalid");
+    const actionsBox = actions.getBoundingClientRect();
+    const menuBox = menu.getBoundingClientRect();
+    const popupBox = popup.getBoundingClientRect();
+    const bridgeWidth = menuBox.left - popupBox.left;
+    const bridgeHeight = actionsBox.bottom - popupBox.top;
+    if (bridgeWidth <= 0 || bridgeHeight <= 0) throw new Error("Tournament jump bridge geometry invalid");
+    menu.style.setProperty("--tournament-jump-bridge-width", bridgeWidth + "px");
+    menu.style.setProperty("--tournament-jump-bridge-height", bridgeHeight + "px");
+}
+
 function initTournamentJump() {
     const menu = document.getElementById("tournamentJump");
     if (!menu) return;
+    const actions = menu.closest(".floating-actions");
     const trigger = menu.querySelector(".tournament-jump-trigger");
     const popup = menu.querySelector(".tournament-jump-menu");
-    if (!trigger || !popup) throw new Error("Tournament jump structure invalid");
+    if (!actions || !trigger || !popup) throw new Error("Tournament jump structure invalid");
     const sections = getTournamentSections();
     if (sections.length === 0) return;
     const showYearHeadings = popup.dataset.yearHeadings === "true";
@@ -89,10 +111,12 @@ function initTournamentJump() {
     const openMenu = () => {
         syncTournamentJumpMobilePosition();
         if (!menu.classList.contains("is-open")) toggleCompactMenu(trigger);
+        syncTournamentJumpBridge();
     };
+    trigger.addEventListener("click", () => window.requestAnimationFrame(syncTournamentJumpBridge));
     if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
-        menu.addEventListener("pointerenter", openMenu);
-        menu.addEventListener("pointerleave", closeCompactMenus);
+        actions.addEventListener("pointerenter", openMenu);
+        actions.addEventListener("pointerleave", closeCompactMenus);
     }
     syncTournamentJumpMobilePosition();
     updateTournamentJumpCurrent();
@@ -158,6 +182,7 @@ function bindFloatingActionsMobilePosition() {
             pendingFrame = 0;
             syncFloatingActionsMobilePosition();
             syncTournamentJumpMobilePosition();
+            syncTournamentJumpBridge();
             updateTournamentJumpCurrent();
         });
     };
