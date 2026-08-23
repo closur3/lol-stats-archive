@@ -18,7 +18,7 @@ function hasReachedTabStartDate(sessions, today) {
   return startDate <= today;
 }
 
-function renderScheduleSessions(sessions, combinedStatsByName) {
+function renderScheduleSessions(sessions, status, combinedStatsByName) {
   if (!Array.isArray(sessions)) throw new Error("schedule sessions must be an array");
   if (sessions.length === 0) throw new Error("schedule sessions must not be empty");
 
@@ -46,7 +46,8 @@ function renderScheduleSessions(sessions, combinedStatsByName) {
     const nextTab = tabs[index + 1];
     return {
       ...tab,
-      isPast: Boolean(nextTab) && isFinishedTab(tab.tabSessions) && hasReachedTabStartDate(nextTab.tabSessions, today)
+      isPast: status === "past"
+        || Boolean(nextTab) && isFinishedTab(tab.tabSessions) && hasReachedTabStartDate(nextTab.tabSessions, today)
     };
   });
   const openTabs = tabStates
@@ -64,6 +65,9 @@ export function renderScheduleSection(schedule, combinedStatsByName) {
   if (!schedule || typeof schedule !== "object" || Array.isArray(schedule)) {
     throw new Error("schedule must be a JSON object");
   }
-  const sessions = renderScheduleSessions(schedule.sessions, combinedStatsByName);
+  if (!["past", "current", "future"].includes(schedule.status)) {
+    throw new Error("schedule status invalid");
+  }
+  const sessions = renderScheduleSessions(schedule.sessions, schedule.status, combinedStatsByName);
   return `<section class="schedule-section" data-schedule-section>${sessions}</section>`;
 }

@@ -207,6 +207,11 @@ function renderScheduleForScope(schedule, combinedStatsByName) {
   return renderScheduleSection(schedule, combinedStatsByName);
 }
 
+function selectOverallSchedule(schedules) {
+  return schedules.find(schedule => schedule.status === "current")
+    || schedules.find(schedule => schedule.status === "future");
+}
+
 function renderStatistics(tournament, statistics, timeTables, schedules, isArchive) {
   assertStatistics(tournament, statistics);
   const schedulesByOverviewPage = readSchedules(tournament, schedules, isArchive);
@@ -216,7 +221,7 @@ function renderStatistics(tournament, statistics, timeTables, schedules, isArchi
     const page = { overviewPage: overviewPages[0], stats: statistics.combined };
     return {
       content: `${renderStatisticsView(tournament, page, "single", "combined", isArchive)}${timeTables.combined}`,
-      schedule: isArchive ? "" : renderScheduleForScope(schedules.find(schedule => schedule.status === "current"), combinedStatsByName),
+      schedule: isArchive ? "" : renderScheduleForScope(selectOverallSchedule(schedules), combinedStatsByName),
       summary: renderTournamentSummary(sortTeams(statistics.combined)),
       legend: renderGroupLegend(tournament, page),
       select: "",
@@ -238,7 +243,7 @@ function renderStatistics(tournament, statistics, timeTables, schedules, isArchi
       stats: statistics.combined,
       page: null,
       content: `${combined}${timeTables.combined}`,
-      schedule: isArchive ? "" : renderScheduleForScope(schedules.find(schedule => schedule.status === "current"), combinedStatsByName)
+      schedule: isArchive ? "" : renderScheduleForScope(selectOverallSchedule(schedules), combinedStatsByName)
     },
     ...statistics.pages
       .map((page, index) => ({ page, index }))
