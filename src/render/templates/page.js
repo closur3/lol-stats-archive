@@ -7,6 +7,7 @@ import { tournamentSelectorsScript } from '../../client/tournamentSelectors.js';
 import { statisticsScopesScript } from '../../client/statisticsScopes.js';
 import { compactMenuScript } from '../../client/compactMenu.js';
 import { footerCronInfoScript } from '../../client/footerCronInfo.js';
+import { phaseCountdownScript } from '../../client/phaseCountdown.js';
 import { assertCronInfo, unavailableCronInfo } from '../../core/scheduler/cronInfo.js';
 import { escapeHtml } from '../../utils/htmlEscape.js';
 
@@ -32,7 +33,7 @@ function renderBuildFooter(time, sha, cronInfo) {
   return `<div class="build-footer">${cronPanel}<span class="footer-label">deployed:</span> <span class="footer-time">${time || "N/A"}</span> <a href="${githubCommitBase}${sha}" target="_blank"><span class="footer-sha">@${shortSha}</span></a></div>`;
 }
 
-function renderClientJs() { return `<script>${sortScript}${modalScript}${compactMenuScript}${timeTableScript}${statisticsScopesScript}${tournamentSelectorsScript}</script>`; }
+function renderClientJs() { return `<script>${sortScript}${modalScript}${compactMenuScript}${timeTableScript}${statisticsScopesScript}${tournamentSelectorsScript}${phaseCountdownScript}</script>`; }
 
 function renderTournamentSelector(navMode) {
   if (navMode === "active") return `<nav class="floating-selector league-selector" id="leagueSelector" aria-label="League selector"></nav>`;
