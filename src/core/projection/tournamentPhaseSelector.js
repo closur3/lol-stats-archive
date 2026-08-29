@@ -35,9 +35,20 @@ export function selectTournamentPhase(scheduleSessions, nowInput = new Date()) {
   }
 
   const today = timePolicy.getAppDateKey(now);
+  const todayMatches = matches.filter(match => timePolicy.getAppDateKey(match.scheduledAt) === today);
+  if (phase === "idle") {
+    const nextMatch = todayMatches.find(match => match.scheduledAt > now.getTime());
+    if (!nextMatch) throw new Error("Idle phase has no upcoming match today");
+    return {
+      phase,
+      matches: todayMatches,
+      countdownTimestamp: nextMatch.scheduledAt
+    };
+  }
+
   return {
     phase,
-    matches: matches.filter(match => timePolicy.getAppDateKey(match.scheduledAt) === today),
+    matches: todayMatches,
     countdownTimestamp: null
   };
 }
