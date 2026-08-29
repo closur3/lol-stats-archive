@@ -5,7 +5,5 @@ export function formatPhaseCountdown(targetTimestamp, nowTimestamp) {
   const hours = Math.floor((remainingMinutes % 1_440) / 60);
   const minutes = remainingMinutes % 60;
   const twoDigits = value => String(value).padStart(2, "0");
-  if (days > 0) return `${twoDigits(days)}D ${twoDigits(hours)}H ${twoDigits(minutes)}M`;
-  if (hours > 0) return `${twoDigits(hours)}H ${twoDigits(minutes)}M`;
-  return `${twoDigits(minutes)}M`;
+  return `${twoDigits(days)}D ${twoDigits(hours)}H ${twoDigits(minutes)}M`;
 }
