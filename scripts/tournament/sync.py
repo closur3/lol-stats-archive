@@ -1483,13 +1483,47 @@ def group_tournament_nodes(
     }
 
 
+def select_incomplete_pages(
+    deferred_rows: list,
+    source_rows: list,
+    tab_scope_by_page: dict,
+    main_events: dict,
+) -> list:
+    tournament_pages = {
+        normalize_wiki_page(item["title"]["OverviewPage"])
+        for item in source_rows
+    }
+    assigned_pages = {
+        normalize_wiki_page(page)
+        for event in main_events.values()
+        for page in event["overviewPageDates"]
+    }
+    stages_by_scope = {}
+    for page, scope in tab_scope_by_page.items():
+        if page != scope and page in tournament_pages:
+            stages_by_scope.setdefault(scope, set()).add(page)
+
+    incomplete_rows = []
+    for row in deferred_rows:
+        page = normalize_wiki_page(row["overviewPage"])
+        stages = stages_by_scope.get(page)
+        if (
+            tab_scope_by_page.get(page) == page
+            and stages
+            and stages.issubset(assigned_pages)
+            and set(row["missingFields"]).issubset({"TournamentLevel", "IsPlayoffs"})
+        ):
+            continue
+        incomplete_rows.append(row)
+    return incomplete_rows
+
+
 def log_group_summary(
     source_count: int,
     classification: dict,
     groups: dict,
-    projection_deferred_rows: list,
+    deferred_rows: list,
 ) -> None:
-    deferred_rows = classification["deferredRows"] + projection_deferred_rows
     log("")
     log(f"⚙️ 处理阶段 ({source_count} 条 → {len(groups['mainEvents'])} 条)")
     lines = [f"├─ 🚫 拦截: {classification['blockedCount']} 条"]
@@ -1805,11 +1839,17 @@ def run_tournament_config_sync():
         selected_overview_pages,
         carried_over_from,
     )
+    incomplete_pages = select_incomplete_pages(
+        classification["deferredRows"] + node_result["deferredRows"],
+        source_rows,
+        tab_memberships["scopeByPage"],
+        groups["mainEvents"],
+    )
     log_group_summary(
         len(source_rows),
         classification,
         groups,
-        node_result["deferredRows"],
+        incomplete_pages,
     )
 
     candidates = project_tournament_candidates(groups["mainEvents"])

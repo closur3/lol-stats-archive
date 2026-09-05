@@ -45,7 +45,7 @@ export default `${baseCSS}
     .tournament-info-phase-matches { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
     .tournament-info-phase-match { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; min-height: 24px; min-width: 0; }
     .tournament-info-phase-match > time { color: #94a3b8; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .tournament-info-phase-matchup { display: grid; grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr); align-items: center; column-gap: 8px; min-width: 0; }
+    .tournament-info-phase-matchup { display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); align-items: center; column-gap: 8px; min-width: 0; }
     .tournament-info-phase-team { overflow: hidden; color: #1e293b; font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
     .tournament-info-phase-team1 { text-align: right; }
     .tournament-info-phase-team2 { text-align: left; }
