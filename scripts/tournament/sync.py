@@ -1511,7 +1511,6 @@ def select_incomplete_pages(
             tab_scope_by_page.get(page) == page
             and stages
             and stages.issubset(assigned_pages)
-            and set(row["missingFields"]).issubset({"TournamentLevel", "IsPlayoffs"})
         ):
             continue
         incomplete_rows.append(row)
