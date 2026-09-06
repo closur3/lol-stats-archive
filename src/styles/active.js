@@ -214,6 +214,7 @@ export default `${baseCSS}
     @media (max-width: 1100px) { .sch-fandom-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 650px) {
         .container { padding-bottom: 31px; }
+        .tournament-info-phase-result { font-size: 10px; }
         .sch-fandom-list { grid-template-columns: 1fr; }
         .active-sec > .table-title { flex-direction: column; align-items: flex-start; flex-wrap: wrap; gap: 0; width: 100%; padding: 0; background: #fff; }
         .table-title > .tournament-title-row { width: 100%; padding: 8px 15px; display: flex; align-items: center; flex: 1 1 0; gap: 8px; min-width: 0; }
