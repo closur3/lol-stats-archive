@@ -1,6 +1,26 @@
 {
-    "configDigest": "002894e69316097ea5a8817d506fac5b4b0c1792ed7a66d8cb2babdca5f628dd",
+    "configDigest": "1f1905e8b1d33a6794a4b0ae305c25a95513cf677dac036dde5fb0a6cc3f8708",
     "active": [
+        {
+            "name": "2026 LPL Regional Finals",
+            "leagueShort": "WCS",
+            "overviewPages": [
+                {
+                    "overviewPage": "LPL/2026 Season/Regional Finals",
+                    "startDate": "2026-09-17",
+                    "endDate": "2026-09-19",
+                    "participantCount": 4
+                }
+            ],
+            "startDate": "2026-09-17",
+            "endDate": "2026-09-19",
+            "teamMap": {
+                "JD Gaming": "JDG",
+                "Team WE": "WE",
+                "Top Esports": "TES"
+            },
+            "participantGroups": []
+        },
         {
             "name": "2026 LPL Split 3",
             "leagueShort": "LPL",
